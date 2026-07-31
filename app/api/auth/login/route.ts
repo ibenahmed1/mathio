@@ -1,0 +1,83 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import {
+  signSession,
+  verifySecret,
+  getSessionCookieName,
+  getSessionSpace,
+  LEGACY_SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+} from '@/lib/auth';
+import { jsonError } from '@/lib/api-utils';
+
+// Message générique : ne jamais révéler si le compte existe, si le mot de
+// passe/PIN est incorrect, ou si le compte est désactivé (RG-12).
+const INVALID_CREDENTIALS_MESSAGE = 'Téléphone/email ou identifiant incorrect';
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    // Le champ "telephone" du body accepte historiquement un numéro, mais
+    // aussi un email : les membres d'équipe marchand invités par email (voir
+    // MarchandMembre) n'ont pas forcément de téléphone et se connectent avec
+    // leur email — un seul champ d'identifiant, résolu sur les deux colonnes.
+    const identifiant = typeof body.telephone === 'string' ? body.telephone.trim() : '';
+    const secret = typeof body.secret === 'string' ? body.secret : '';
+
+    if (!identifiant || !secret) {
+      return NextResponse.json({ error: 'Téléphone/email et identifiant requis' }, { status: 400 });
+    }
+
+    const user = await prisma.utilisateur.findFirst({
+      where: { OR: [{ telephone: identifiant }, { email: identifiant }] },
+    });
+
+    if (!user || !user.actif) {
+      return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
+    }
+
+    // Tous les rôles s'authentifient de la même façon (téléphone + secret
+    // comparé au hash) ; "secret" est un mot de passe pour les rôles internes
+    // et peut être un PIN pour les rôles terrain, la vérification est identique.
+    const valid = await verifySecret(secret, user.motDePasseHash);
+
+    if (!valid) {
+      return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
+    }
+
+    await prisma.utilisateur.update({
+      where: { id: user.id },
+      data: { derniereConnexion: new Date() },
+    });
+
+    const token = await signSession({ sub: user.id, role: user.role });
+
+    const response = NextResponse.json({
+      id: user.id,
+      nomComplet: user.nomComplet,
+      role: user.role,
+    });
+
+    // Un cookie distinct par espace applicatif (admin/marchand/terrain) :
+    // deux sessions de rôles différents peuvent coexister dans le même
+    // navigateur (ex. deux onglets) sans que l'une n'écrase l'autre.
+    // L'espace back-office (admin/finance/sav/agent_confirmation) est le seul
+    // à justifier `sameSite: 'strict'` : il n'a jamais besoin d'être atteint
+    // depuis un lien externe (email/SMS), contrairement au marchand ou au
+    // terrain, donc on retire toute exposition CSRF résiduelle pour lui.
+    const space = getSessionSpace(user.role);
+    response.cookies.set(getSessionCookieName(user.role), token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: space === 'admin' ? 'strict' : 'lax',
+      path: '/',
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    });
+    // Nettoyage de l'ancien cookie unique (avant l'isolation par espace) pour
+    // qu'il ne traîne pas indéfiniment chez les clients déjà connectés.
+    response.cookies.delete(LEGACY_SESSION_COOKIE_NAME);
+    return response;
+  } catch (error) {
+    return jsonError(error);
+  }
+}

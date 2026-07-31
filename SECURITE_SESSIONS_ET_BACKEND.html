@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Sécurité des sessions & travail backend — Power Delivery</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm 18mm;
+    @bottom-center {
+      content: "Power Delivery — Documentation technique — page " counter(page) " / " counter(pages);
+      font-size: 8pt;
+      color: #888;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.55;
+    font-size: 10.5pt;
+  }
+  h1 {
+    font-size: 22pt;
+    color: #111;
+    border-bottom: 4px solid #ffd100;
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+  h2 {
+    font-size: 15pt;
+    color: #111;
+    margin-top: 28px;
+    border-left: 5px solid #ffd100;
+    padding-left: 10px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 12pt;
+    color: #222;
+    margin-top: 18px;
+    page-break-after: avoid;
+  }
+  .cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    height: 240mm;
+    page-break-after: always;
+  }
+  .cover .tag {
+    display: inline-block;
+    background: #111;
+    color: #ffd100;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 10pt;
+    margin-bottom: 18px;
+    letter-spacing: 0.5px;
+  }
+  .cover h1 {
+    font-size: 30pt;
+    border: none;
+    padding: 0;
+    max-width: 480px;
+  }
+  .cover .subtitle {
+    font-size: 13pt;
+    color: #444;
+    margin-top: 10px;
+    max-width: 480px;
+  }
+  .cover .meta {
+    margin-top: 60px;
+    font-size: 10pt;
+    color: #666;
+  }
+  .cover .meta div { margin-bottom: 4px; }
+  code {
+    background: #f2f2f2;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 9.3pt;
+    color: #b3261e;
+  }
+  pre {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 8.8pt;
+    line-height: 1.45;
+    page-break-inside: avoid;
+  }
+  pre code {
+    background: none;
+    border: none;
+    color: inherit;
+    padding: 0;
+    font-size: inherit;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 9.3pt;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #111;
+    color: #ffd100;
+    font-weight: 700;
+  }
+  tr:nth-child(even) td { background: #fafafa; }
+  .file {
+    font-family: "Consolas", "SF Mono", monospace;
+    font-weight: 700;
+    color: #0b5cab;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 8pt;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 6px;
+  }
+  .badge.new { background: #dcf5e0; color: #1a7a34; }
+  .badge.mod { background: #fdeecb; color: #91600b; }
+  .step {
+    border: 1px solid #e5e5e5;
+    border-left: 4px solid #ffd100;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 10px 0;
+    page-break-inside: avoid;
+    background: #fffdf5;
+  }
+  .step .num {
+    font-weight: 800;
+    color: #91600b;
+  }
+  .warn {
+    background: #fff2f0;
+    border: 1px solid #ffccc7;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0;
+  }
+  .warn b { color: #b3261e; }
+  .ok {
+    background: #f0f9f0;
+    border: 1px solid #c6e6c6;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0;
+  }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  section { page-break-before: always; }
+  section:first-of-type { page-break-before: auto; }
+  .toc {
+    page-break-after: always;
+  }
+  .toc ol { list-style: none; padding-left: 0; counter-reset: toc; }
+  .toc li {
+    counter-increment: toc;
+    padding: 6px 0;
+    border-bottom: 1px dotted #ccc;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11pt;
+  }
+  .toc li::before {
+    content: counter(toc) ". ";
+    font-weight: 700;
+    color: #91600b;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <span class="tag">POWER DELIVERY — DOCUMENTATION TECHNIQUE</span>
+  <h1>Sécurité des sessions &amp; travail backend</h1>
+  <div class="subtitle">Comment les sessions admin / marchand / équipe sont séparées, ce qui a été construit
+    aujourd'hui (suppression de compte marchand, réinitialisation de mot de passe), et comment continuer à
+    faire évoluer le projet avec Claude Code.</div>
+  <div class="meta">
+    <div><b>Projet :</b> next-one (Power Delivery)</div>
+    <div><b>Date :</b> 25 juillet 2026</div>
+    <div><b>Préparé pour :</b> Basma Boutaib</div>
+  </div>
+</div>
+
+<div class="toc">
+<h2 style="border:none;padding:0;margin-top:0;">Sommaire</h2>
+<ol>
+  <li><span>1. Comment les sessions sont séparées (admin / marchand / équipe)</span></li>
+  <li><span>2. Où sont les failles connues et pourquoi elles existent</span></li>
+  <li><span>3. Ce qui a été construit aujourd'hui — vue d'ensemble</span></li>
+  <li><span>4. Détail fichier par fichier — suppression d'un marchand</span></li>
+  <li><span>5. Détail fichier par fichier — réinitialisation de mot de passe</span></li>
+  <li><span>6. Mesures de sécurité mises en place sur le reset de mot de passe</span></li>
+  <li><span>7. Comment lire et comprendre ce code toi-même</span></li>
+  <li><span>8. Comment tester ce qui a été livré</span></li>
+  <li><span>9. Comment avancer sur les prochains prompts</span></li>
+</ol>
+</div>
+
+<section>
+<h2>1. Comment les sessions sont séparées (admin / marchand / équipe)</h2>
+
+<p>Il n'existe <b>pas</b> un système de session différent par type de compte. Il y a un seul mécanisme de
+session, et c'est le contenu de cette session qui détermine ce que chaque utilisateur peut voir ou faire.</p>
+
+<h3>1.1 Un seul cookie, un seul jeton</h3>
+<p>À la connexion (<span class="file">app/api/auth/login/route.ts</span>), l'utilisateur reçoit un cookie
+httpOnly nommé <code>pd_session</code>. Ce cookie contient un jeton <b>JWT</b> (signé, pas chiffré — donc
+lisible mais pas falsifiable sans la clé secrète <code>AUTH_SECRET</code>) avec exactement deux informations :</p>
+
+<pre><code>{
+  "sub": "id-de-l-utilisateur",
+  "role": "admin" | "marchand" | "ramasseur" | "livreur" | "finance" | "sav" | "agent_confirmation"
+}</code></pre>
+
+<p>Tout le cloisonnement entre "espace admin", "espace marchand" et "espace équipe terrain" repose sur ce
+champ <code>role</code>. C'est <span class="file">lib/auth.ts</span> qui signe (<code>signSession</code>) et
+vérifie (<code>verifySessionToken</code>) ce jeton avec la librairie <code>jose</code>.</p>
+
+<h3>1.2 Deux couches de contrôle</h3>
+
+<div class="step">
+  <span class="num">Couche 1 — <span class="file">proxy.ts</span></span> (l'équivalent de
+  <code>middleware.ts</code> dans cette version de Next.js, renommé <code>proxy.ts</code>). Il s'exécute
+  avant <i>toutes</i> les requêtes vers <code>/api/**</code> :
+  <ul>
+    <li>Si l'URL est dans <code>PUBLIC_API_PATHS</code> (login, inscription, mot de passe oublié) → laisse
+      passer sans vérifier de session.</li>
+    <li>Sinon, lit le cookie <code>pd_session</code>, vérifie sa signature. Absent ou invalide → réponse
+      <code>401</code> immédiate, la requête n'atteint jamais la route.</li>
+    <li>Si valide, pose deux en-têtes internes (<code>x-pd-user-id</code>, <code>x-pd-user-role</code>) que
+      les routes API liront ensuite — pas besoin de revérifier la signature JWT à chaque endpoint.</li>
+  </ul>
+  <b>Important :</b> à ce stade, on sait seulement "authentifié ou pas" — pas encore "autorisé pour ce rôle".
+</div>
+
+<div class="step">
+  <span class="num">Couche 2 — <span class="file">lib/api-utils.ts</span></span> → fonction
+  <code>requireUser(rolesAutorises)</code>, appelée en première ligne de chaque route API sensible :
+  <pre><code>const session = await requireUser(['admin']);       // uniquement l'admin
+const session = await requireUser(['marchand']);    // uniquement un marchand
+const session = await requireUser();                // n'importe quel rôle connecté</code></pre>
+  <p>Si le rôle ne correspond pas → <code>403 Accès refusé pour ce rôle</code>. C'est ici, route par route,
+  que se joue la vraie séparation "marchand ne peut pas toucher aux routes admin".</p>
+</div>
+
+<h3>1.3 Et pour les pages (pas seulement l'API) ?</h3>
+<p>Le <code>proxy.ts</code> ne protège que <code>/api/**</code>. Les pages elles-mêmes (dans
+<code>app/admin/**</code>, <code>app/marchand/**</code>) doivent donc vérifier la session
+<b>elles-mêmes</b>, via <code>getPageSession()</code> (toujours dans <span class="file">lib/auth.ts</span>),
+qui relit directement le cookie côté serveur.</p>
+
+<table>
+<tr><th>Fichier</th><th>Vérifie la session avant d'afficher la page ?</th></tr>
+<tr><td class="file">app/admin/layout.tsx</td><td>✅ Oui — <code>redirect('/login')</code> si pas admin</td></tr>
+<tr><td class="file">app/marchand/layout.tsx</td><td>❌ Non — composant client, aucune redirection</td></tr>
+<tr><td class="file">app/ramasseur/page.tsx</td><td>❌ Non — composant client, aucune redirection</td></tr>
+</table>
+
+<p>Concrètement : si quelqu'un de non connecté ouvre <code>/marchand</code> ou <code>/ramasseur</code>
+directement, il verra la coquille de la page (menu, en-tête) mais aucune donnée, puisque tous les appels vers
+<code>/api/**</code> échoueront avec <code>401</code>. Les données ne fuitent pas, mais l'expérience est
+incohérente par rapport à l'admin. C'est documenté à la section suivante comme point à corriger si tu le
+souhaites.</p>
+</section>
+
+<section>
+<h2>2. Où sont les failles connues et pourquoi elles existent</h2>
+
+<div class="warn">
+<b>Faille 1 — Pages marchand/ramasseur non gardées côté serveur.</b><br>
+Comme vu ci-dessus, <code>app/marchand/layout.tsx</code> et <code>app/ramasseur/page.tsx</code> n'ont pas
+l'équivalent du <code>redirect('/login')</code> que fait <code>app/admin/layout.tsx</code>. Aucune donnée ne
+fuite (l'API bloque quand même), mais ce n'est pas cohérent. <i>Correction proposée mais pas encore
+appliquée — dis-le si tu veux que je le fasse.</i>
+</div>
+
+<div class="ok">
+<b>Ce qui, en revanche, fonctionne correctement et a été vérifié en le testant réellement (pas en lisant
+le code) :</b>
+<ul>
+  <li>Impossible de créer deux comptes marchand avec le même email (testé avec deux requêtes réelles).</li>
+  <li>Impossible pour un marchand connecté d'appeler une route admin (<code>requireUser</code> renvoie
+    <code>403</code>).</li>
+  <li>Impossible d'accéder à <code>/api/**</code> sans cookie de session valide (<code>401</code>).</li>
+</ul>
+</div>
+</section>
+
+<section>
+<h2>3. Ce qui a été construit aujourd'hui — vue d'ensemble</h2>
+
+<p>Deux demandes concrètes ont été traitées :</p>
+<ol>
+  <li><b>Suppression d'un compte marchand</b> depuis l'espace admin (approuver/suspendre existaient déjà,
+    supprimer n'existait pas).</li>
+  <li><b>Réinitialisation de mot de passe en cas d'oubli</b>, sous deux formes : une déclenchée par l'admin
+    (utilisable immédiatement), une en libre-service par email (nécessite une configuration SMTP que tu
+    dois encore fournir).</li>
+</ol>
+
+<table>
+<tr><th>Fichier</th><th>Statut</th><th>Rôle</th></tr>
+<tr><td class="file">prisma/schema.prisma</td><td><span class="badge mod">modifié</span></td><td>+2 colonnes sur <code>Utilisateur</code> pour le reset de mot de passe</td></tr>
+<tr><td class="file">lib/auth.ts</td><td><span class="badge mod">modifié</span></td><td>+3 fonctions : génération/hash de token, mot de passe temporaire</td></tr>
+<tr><td class="file">lib/mailer.ts</td><td><span class="badge new">nouveau</span></td><td>Envoi d'email via SMTP (nodemailer)</td></tr>
+<tr><td class="file">lib/api-client.ts</td><td><span class="badge mod">modifié</span></td><td>+ fonction <code>apiDelete</code></td></tr>
+<tr><td class="file">lib/types.ts</td><td><span class="badge mod">modifié</span></td><td>+ champ <code>utilisateurId</code> sur le type <code>Marchand</code></td></tr>
+<tr><td class="file">proxy.ts</td><td><span class="badge mod">modifié</span></td><td>+2 routes publiques (mot de passe oublié / réinitialisation)</td></tr>
+<tr><td class="file">app/api/marchands/[id]/route.ts</td><td><span class="badge new">nouveau</span></td><td>Suppression d'un marchand (DELETE)</td></tr>
+<tr><td class="file">app/api/auth/mot-de-passe-oublie/route.ts</td><td><span class="badge new">nouveau</span></td><td>Demande de reset par email (public)</td></tr>
+<tr><td class="file">app/api/auth/reinitialiser-mot-de-passe/route.ts</td><td><span class="badge new">nouveau</span></td><td>Valide le lien + change le mot de passe (public)</td></tr>
+<tr><td class="file">app/api/utilisateurs/[id]/reinitialiser-mot-de-passe/route.ts</td><td><span class="badge new">nouveau</span></td><td>Reset déclenché par l'admin (protégé)</td></tr>
+<tr><td class="file">app/admin/marchands/page.tsx</td><td><span class="badge mod">modifié</span></td><td>Boutons "Supprimer" et "Réinitialiser mot de passe"</td></tr>
+<tr><td class="file">app/admin/equipe/page.tsx</td><td><span class="badge mod">modifié</span></td><td>Bouton "Réinitialiser mot de passe"</td></tr>
+<tr><td class="file">app/mot-de-passe-oublie/page.tsx</td><td><span class="badge new">nouveau</span></td><td>Formulaire "email oublié"</td></tr>
+<tr><td class="file">app/reinitialiser-mot-de-passe/page.tsx</td><td><span class="badge new">nouveau</span></td><td>Formulaire "nouveau mot de passe"</td></tr>
+<tr><td class="file">app/login/page.tsx</td><td><span class="badge mod">modifié</span></td><td>Lien "Mot de passe oublié ?"</td></tr>
+<tr><td class="file">.env</td><td><span class="badge mod">modifié</span></td><td>+5 variables SMTP (à remplir)</td></tr>
+<tr><td class="file">package.json</td><td><span class="badge mod">modifié</span></td><td>+ dépendance <code>nodemailer</code></td></tr>
+</table>
+</section>
+
+<section>
+<h2>4. Détail fichier par fichier — suppression d'un marchand</h2>
+
+<h3>app/api/marchands/[id]/route.ts <span class="badge new">nouveau</span></h3>
+<p>Route <code>DELETE</code>. Trois étapes :</p>
+<ol>
+  <li><code>requireUser(['admin'])</code> — seul un admin peut appeler cette route.</li>
+  <li>Vérifie que le marchand existe (sinon <code>404</code>).</li>
+  <li>Supprime <b>dans une transaction</b> la fiche <code>Marchand</code> puis l'<code>Utilisateur</code>
+    lié — les deux ou rien, jamais un compte "à moitié supprimé".</li>
+</ol>
+<p>Si ce marchand a déjà des colis ou ramassages enregistrés, la base de données refuse la suppression
+(contrainte de clé étrangère) : la route intercepte ce cas précis et répond <code>409</code> avec un message
+clair plutôt qu'une erreur technique générique.</p>
+
+<h3>app/admin/marchands/page.tsx <span class="badge mod">modifié</span></h3>
+<p>Ajout du bouton <b>Supprimer</b> : demande confirmation via une boîte de dialogue navigateur avant
+d'appeler <code>DELETE /api/marchands/{id}</code>, puis recharge la liste.</p>
+
+<h3>lib/api-client.ts <span class="badge mod">modifié</span></h3>
+<p>Ajout de <code>apiDelete(path)</code> — la fonction générique <code>apiGet</code>/<code>apiPost</code>/
+<code>apiPatch</code> existait déjà, il manquait juste l'équivalent pour <code>DELETE</code>.</p>
+</section>
+
+<section>
+<h2>5. Détail fichier par fichier — réinitialisation de mot de passe</h2>
+
+<h3>5.1 Modèle de données</h3>
+<p><span class="file">prisma/schema.prisma</span>, modèle <code>Utilisateur</code> — deux colonnes
+ajoutées :</p>
+<pre><code>resetTokenHash    String?   @unique @map("reset_token_hash")
+resetTokenExpire  DateTime? @map("reset_token_expire")</code></pre>
+<p>Elles restent <code>null</code> tant que personne n'a demandé de reset. Appliqué à la base avec
+<code>prisma db push</code> (voir encadré plus bas sur pourquoi pas <code>migrate dev</code>).</p>
+
+<h3>5.2 lib/auth.ts <span class="badge mod">modifié</span> — génération des jetons</h3>
+<pre><code>generateResetToken()       // { token, tokenHash, expiresAt } — token brut + son hash SHA-256
+hashResetToken(token)      // recalcule le hash pour retrouver l'utilisateur
+generateTemporarySecret()  // mot de passe temporaire lisible (8 caractères), pour le reset admin</code></pre>
+
+<h3>5.3 lib/mailer.ts <span class="badge new">nouveau</span></h3>
+<p>Enveloppe autour de <code>nodemailer</code>. Si les variables <code>SMTP_HOST/PORT/USER/PASS</code> ne
+sont pas remplies dans <code>.env</code>, la fonction <code>sendPasswordResetEmail</code> n'envoie rien et se
+contente d'un avertissement dans les logs serveur — elle ne fait jamais planter la requête.</p>
+
+<h3>5.4 Parcours "je clique sur mot de passe oublié"</h3>
+<table>
+<tr><th>Étape</th><th>Fichier</th><th>Ce qu'il fait</th></tr>
+<tr><td>1</td><td class="file">app/mot-de-passe-oublie/page.tsx</td><td>Formulaire : email → <code>POST /api/auth/mot-de-passe-oublie</code></td></tr>
+<tr><td>2</td><td class="file">app/api/auth/mot-de-passe-oublie/route.ts</td><td>Cherche l'utilisateur par email ; s'il existe, génère un token, l'enregistre (hashé) avec expiration à 30 min, envoie l'email. Répond <b>toujours</b> le même message, que l'email existe ou non.</td></tr>
+<tr><td>3</td><td>— (email reçu)</td><td>Contient un lien vers <code>/reinitialiser-mot-de-passe?token=...</code></td></tr>
+<tr><td>4</td><td class="file">app/reinitialiser-mot-de-passe/page.tsx</td><td>Formulaire nouveau mot de passe + confirmation → <code>POST /api/auth/reinitialiser-mot-de-passe</code></td></tr>
+<tr><td>5</td><td class="file">app/api/auth/reinitialiser-mot-de-passe/route.ts</td><td>Recalcule le hash du token reçu, cherche l'utilisateur correspondant, vérifie que le lien n'a pas expiré, met à jour le mot de passe, <b>efface le token</b> (usage unique).</td></tr>
+</table>
+
+<h3>5.5 Parcours "l'admin réinitialise à la place de l'utilisateur"</h3>
+<table>
+<tr><th>Étape</th><th>Fichier</th><th>Ce qu'il fait</th></tr>
+<tr><td>1</td><td class="file">app/admin/marchands/page.tsx</td><td>Bouton "Réinitialiser mot de passe" sur la ligne du marchand</td></tr>
+<tr><td>1'</td><td class="file">app/admin/equipe/page.tsx</td><td>Même bouton pour les comptes équipe (livreur, ramasseur, etc.)</td></tr>
+<tr><td>2</td><td class="file">app/api/utilisateurs/[id]/reinitialiser-mot-de-passe/route.ts</td><td><code>requireUser(['admin'])</code>, génère un mot de passe temporaire, l'enregistre (hashé bcrypt comme un mot de passe normal), le renvoie <b>en clair, une seule fois</b>, dans la réponse à l'admin</td></tr>
+<tr><td>3</td><td>—</td><td>L'admin communique ce mot de passe temporaire à la personne (téléphone, en personne...), qui pourra ensuite se connecter et, idéalement, le changer</td></tr>
+</table>
+</section>
+
+<section>
+<h2>6. Mesures de sécurité mises en place sur le reset de mot de passe</h2>
+
+<table>
+<tr><th>Mesure</th><th>Pourquoi</th></tr>
+<tr><td>Le jeton brut n'est jamais stocké en base — seul son hash SHA-256 l'est</td><td>Si la base fuite un jour, personne ne peut rejouer un lien de reset à partir de ce qui y est stocké</td></tr>
+<tr><td>Expiration à 30 minutes (<code>resetTokenExpire</code>)</td><td>Un lien intercepté ou oublié dans une boîte mail devient inutilisable après un court délai</td></tr>
+<tr><td>Le jeton est effacé après usage (<code>resetTokenHash: null</code>)</td><td>Empêche de réutiliser deux fois le même lien (vérifié : la 2ᵉ tentative avec le même token échoue)</td></tr>
+<tr><td>Message de réponse identique, que l'email existe ou non</td><td>Empêche quelqu'un de deviner quels emails sont enregistrés en observant les réponses de l'API (déjà le principe appliqué sur <code>/api/auth/login</code>)</td></tr>
+<tr><td>Le mot de passe temporaire (reset admin) est hashé avec bcrypt avant stockage, jamais conservé en clair</td><td>Même traitement que n'importe quel mot de passe choisi par l'utilisateur</td></tr>
+<tr><td>Les deux routes de reset self-service sont explicitement listées dans <code>PUBLIC_API_PATHS</code> (proxy.ts), et nulle part ailleurs</td><td>Elles doivent rester accessibles sans session (logique, on vient de perdre son mot de passe), mais aucune autre route sensible n'est concernée</td></tr>
+<tr><td>Le reset admin exige <code>requireUser(['admin'])</code></td><td>Seul un administrateur peut réinitialiser le mot de passe de quelqu'un d'autre</td></tr>
+</table>
+</section>
+
+<section>
+<h2>7. Comment lire et comprendre ce code toi-même</h2>
+
+<p>Voici l'ordre dans lequel je te conseille de lire les fichiers pour reconstituer le raisonnement, du plus
+général au plus spécifique :</p>
+
+<div class="step"><span class="num">1.</span> <span class="file">lib/auth.ts</span> — tout ce qui touche à
+l'identité : hash de mot de passe, signature de session, et maintenant génération de jetons de reset. C'est
+la "boîte à outils" que toutes les routes utilisent.</div>
+
+<div class="step"><span class="num">2.</span> <span class="file">proxy.ts</span> — la porte d'entrée de
+toutes les routes API. Regarde la liste <code>PUBLIC_API_PATHS</code> en premier : c'est la liste de tout ce
+qui est accessible sans être connecté.</div>
+
+<div class="step"><span class="num">3.</span> <span class="file">lib/api-utils.ts</span> — la fonction
+<code>requireUser</code>. Chaque route API sensible commence par un appel à cette fonction ; regarde à quels
+rôles chaque route est ouverte.</div>
+
+<div class="step"><span class="num">4.</span> Les routes elles-mêmes, dans l'ordre du tableau de la
+section 5 — chacune est courte (30-50 lignes), lis-les avec le tableau à côté.</div>
+
+<div class="step"><span class="num">5.</span> Les pages (<code>app/admin/...</code>,
+<code>app/mot-de-passe-oublie/page.tsx</code>...) — ce sont de simples formulaires React qui appellent les
+routes via <code>lib/api-client.ts</code>. Rien de spécifique à la sécurité ici, c'est de l'affichage.</div>
+
+<p>Astuce pratique : demande-moi à tout moment <i>"explique-moi le fichier X ligne par ligne"</i> ou
+<i>"pourquoi cette ligne existe"</i> — je peux détailler n'importe quel fichier de ce document en te montrant
+le code réel avec les numéros de ligne.</p>
+</section>
+
+<section>
+<h2>8. Comment tester ce qui a été livré</h2>
+
+<p>Tout ce qui suit a déjà été testé une fois en conditions réelles (comptes de test créés puis supprimés) —
+voici comment tu peux le refaire toi-même dans le navigateur.</p>
+
+<h3>8.1 Suppression d'un marchand</h3>
+<ol>
+  <li>Connecte-toi en admin (<code>0000000000</code> / <code>1234</code> — compte de seed).</li>
+  <li>Va sur <code>/admin/marchands</code>.</li>
+  <li>Clique "Supprimer" sur une fiche de test → confirmation → la ligne disparaît.</li>
+</ol>
+
+<h3>8.2 Réinitialisation par l'admin</h3>
+<ol>
+  <li>Sur <code>/admin/marchands</code> ou <code>/admin/equipe</code>, clique "Réinitialiser mot de passe".</li>
+  <li>Une alerte affiche le mot de passe temporaire.</li>
+  <li>Déconnecte-toi, reconnecte-toi avec le téléphone du compte + ce mot de passe temporaire → ça doit
+    fonctionner.</li>
+</ol>
+
+<h3>8.3 Réinitialisation par email (self-service)</h3>
+<div class="warn">
+<b>Ne fonctionnera pas tant que le SMTP n'est pas configuré.</b> Remplis <code>SMTP_HOST</code>,
+<code>SMTP_PORT</code>, <code>SMTP_USER</code>, <code>SMTP_PASS</code>, <code>MAIL_FROM</code> dans
+<code>.env</code> avec un vrai compte d'envoi (Gmail avec mot de passe d'application, Resend, etc.), puis
+redémarre <code>npm run dev</code>.
+</div>
+<ol>
+  <li>Va sur <code>/mot-de-passe-oublie</code>, entre l'email d'un compte marchand existant.</li>
+  <li>Vérifie la boîte mail → clique le lien reçu.</li>
+  <li>Renseigne un nouveau mot de passe → reconnecte-toi avec.</li>
+</ol>
+
+<h3>8.4 Note technique sur les migrations Prisma</h3>
+<p>L'historique de migrations contient un conflit préexistant (deux migrations différentes créent le même
+index <code>commandes_statut_idx</code>), sans rapport avec le travail d'aujourd'hui, mais qui empêche
+<code>prisma migrate dev</code> de fonctionner tant qu'il n'est pas nettoyé. Pour ajouter les 2 nouvelles
+colonnes du reset de mot de passe, j'ai donc utilisé <code>prisma db push</code> à la place — cette commande
+synchronise le schéma directement sans dépendre de l'historique des migrations. Elle a été exécutée
+uniquement après ta confirmation explicite, car Prisma bloque par défaut ce type de commande quand elle est
+lancée par un agent IA.</p>
+</section>
+
+<section>
+<h2>9. Comment avancer sur les prochains prompts</h2>
+
+<h3>9.1 Pour aller vite et bien</h3>
+<ul>
+  <li><b>Une demande = un besoin observable.</b> "Ajoute X" ou "pourquoi Y ne marche pas" fonctionnent très
+    bien — je vérifie toujours dans le vrai code et la vraie base avant de répondre, plutôt que de deviner.</li>
+  <li><b>Dis-moi si une action touche des données réelles</b> (supprimer, modifier un mot de passe, changer
+    un statut) — je le fais, mais je préfère confirmer avant toute action destructive ou irréversible.</li>
+  <li><b>Cite un fichier si tu le connais</b> (ex. "dans lib/auth.ts...") — ça accélère, mais ce n'est pas
+    obligatoire, je peux toujours le retrouver.</li>
+</ul>
+
+<h3>9.2 Ce qui reste ouvert depuis cette session</h3>
+<table>
+<tr><th>Sujet</th><th>Statut</th></tr>
+<tr><td>Compte "Magasin" avec un statut incohérent (<code>actif</code> alors que l'utilisateur est
+  <code>actif=false</code>) suite à une modification manuelle en base</td><td>En attente de ta décision : le
+  remettre en <code>en_attente_validation</code> ?</td></tr>
+<tr><td>Pages <code>/marchand</code> et <code>/ramasseur</code> sans garde de session côté serveur</td>
+  <td>Correction proposée, pas encore appliquée</td></tr>
+<tr><td>SMTP non configuré</td><td>Variables ajoutées dans <code>.env</code>, à remplir avec un vrai compte
+  d'envoi pour activer les emails</td></tr>
+<tr><td>Historique de migrations Prisma avec un conflit d'index préexistant</td><td>Non corrigé (hors
+  périmètre de cette session) — bloquera <code>prisma migrate dev</code> tant que ce n'est pas nettoyé</td></tr>
+</table>
+
+<h3>9.3 Comment je m'y prends en général</h3>
+<p>Pour toute nouvelle demande touchant l'authentification ou les données, mon réflexe est : lire le code
+existant concerné → si possible, tester directement contre ta vraie base de dev avec des comptes jetables
+(créés puis supprimés) → seulement ensuite conclure. C'est ce qui a permis, par exemple, de découvrir que le
+"doublon d'email" du début de session n'était pas un bug mais une donnée mal placée en base. Cette méthode
+reste la même pour tes prochaines demandes.</p>
+</section>
+
+</body>
+</html>

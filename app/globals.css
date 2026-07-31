@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* Thème Mathio Delivery : jaune de marque + noir, repris du logo. */
+  --brand: #ffd100;
+  --brand-foreground: #0a0a0a;
+  /* Nuance foncée du jaune de marque, réservée au texte sur fond clair
+     (le jaune brut manque de contraste écrit en direct sur du blanc). */
+  --brand-ink: #8a6d00;
+  /* Lavage très pâle du jaune de marque (aucune autre teinte introduite),
+     utilisé comme fond de coquille (sidebar/dashboard) pour que les cartes
+     blanches se détachent doucement au lieu de flotter sur du blanc pur. */
+  --surface: #fffcf0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-ink: var(--brand-ink);
+  --color-surface: var(--surface);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --surface: #0a0a0a;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-md bg-brand px-4 py-2 text-sm font-bold text-brand-foreground shadow-sm transition hover:brightness-95 disabled:opacity-50;
+  }
+  .btn-outline {
+    @apply rounded-md border border-black/70 px-3 py-1.5 text-sm font-semibold text-black transition hover:bg-black hover:text-white disabled:opacity-50 dark:border-white/70 dark:text-white dark:hover:bg-white dark:hover:text-black;
+  }
+  .input-basic {
+    @apply rounded-md border border-black/20 bg-transparent px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 dark:border-white/20;
+  }
+  .input-underline {
+    @apply w-full border-0 border-b border-black/20 bg-transparent px-0 py-2 text-sm text-black placeholder:text-black/40 focus:border-brand focus:outline-none;
+  }
+  .btn-gradient {
+    @apply w-full rounded-full bg-gradient-to-r from-sky-400 to-fuchsia-500 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:brightness-105 disabled:opacity-50;
+  }
+  .page-title {
+    @apply text-2xl font-black tracking-tight;
+  }
+  .table-card {
+    @apply overflow-hidden rounded-xl border border-black/10 shadow-sm dark:border-white/10;
+  }
+  .table-basic {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .table-basic thead th {
+    @apply whitespace-nowrap border-b border-black/10 bg-black/[0.03] px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-black/55 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55;
+  }
+  .table-basic tbody td {
+    @apply border-b border-black/[0.06] px-3 py-2.5 align-middle dark:border-white/[0.06];
+  }
+  .table-basic tbody tr {
+    @apply transition-colors hover:bg-brand/[0.08];
+  }
+  .table-basic tbody tr:nth-child(even) {
+    @apply bg-black/[0.015] dark:bg-white/[0.02];
+  }
+  .table-basic tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+  .badge-neutral {
+    @apply bg-black/[0.06] text-black/70 dark:bg-white/10 dark:text-white/70;
+  }
+  .badge-warn {
+    @apply bg-amber-500/15 text-amber-700 dark:text-amber-400;
+  }
+  .badge-danger {
+    @apply bg-red-500/15 text-red-700 dark:text-red-400;
+  }
+  .badge-brand {
+    @apply bg-brand/20 text-brand-foreground dark:text-brand;
+  }
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-1 py-10 text-center opacity-60;
+  }
+  .nav-link {
+    @apply rounded px-2 py-1 font-semibold text-sm text-white/80 transition hover:bg-brand hover:text-brand-foreground;
+  }
+
+  /* Fond de coquille (admin/marchand) : lavage jaune très pâle sous les
+     cartes blanches, pour la profondeur douce vue dans les maquettes de
+     référence, sans jamais sortir de la palette du logo. */
+  .shell-surface {
+    @apply bg-surface dark:bg-black;
+  }
+  /* Carte de tableau de bord par défaut : blanche, coins généreux, ombre
+     discrète — remplace les anciennes cartes à bordure dure. */
+  .dashboard-card {
+    @apply rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/[0.04] dark:border-white/10 dark:bg-white/[0.03] dark:shadow-none;
+  }
+  /* Variante pastel douce (~8% du jaune de marque) pour isoler une section
+     sans jamais introduire une teinte étrangère au logo. */
+  .card-tint-soft {
+    @apply rounded-2xl border border-brand/15 bg-brand/[0.08] p-4 dark:border-brand/10 dark:bg-brand/[0.06];
+  }
+  /* Carte "héros" pleine couleur de marque, réservée au KPI principal. */
+  .card-tint-strong {
+    @apply rounded-2xl bg-brand p-4 text-brand-foreground shadow-sm shadow-brand/30;
+  }
+
+  /* --- Espace Marchand : refonte "impeccable" (3 colonnes, glassmorphism) --- */
+
+  /* Carte en verre dépoli : base de tous les nouveaux widgets du dashboard
+     marchand (remplace les ombres dures par un flou de fond + bordure
+     translucide, coins très arrondis). */
+  .glass-card {
+    @apply rounded-3xl border border-black/[0.06] bg-white/70 p-5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-all dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none;
+  }
+  .glass-card-hover {
+    @apply hover:-translate-y-0.5 hover:shadow-[0_12px_36px_-12px_rgba(0,0,0,0.14)] dark:hover:bg-white/[0.06];
+  }
+  /* Pilule de tendance (%) affichée en coin des cartes KPI. */
+  .trend-pill {
+    @apply inline-flex items-center gap-0.5 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold shadow-sm dark:bg-black/30;
+  }
+  /* Masque la scrollbar d'une zone qui doit rester défilable au clavier/à la
+     molette sans afficher de piste visible (ex: nav interne de la sidebar). */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Impression des tickets colis : masque la coquille admin (sidebar/header)
+   ainsi que tout élément marqué .print-hide (ex. bouton "Imprimer" lui-même),
+   ne garde que le contenu de la page (voir app/admin/colis/[id]/ticket). */
+@media print {
+  aside,
+  header,
+  .print-hide {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+}

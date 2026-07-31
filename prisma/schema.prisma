@@ -1,0 +1,459 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum Role {
+  admin
+  finance
+  sav
+  agent_confirmation
+  marchand
+  livreur
+  ramasseur
+}
+
+enum TypeCompteMarchand {
+  marchand
+  entreprise
+  dropshipping
+}
+
+enum StatutMarchand {
+  en_attente_validation
+  actif
+  suspendu
+}
+
+// Cycle de vie d'un colis façon centre d'appel / plateforme de livraison COD
+// au Maroc : ces 27 valeurs remplacent l'ancien pipeline logistique linéaire
+// (voir migration 20260725_refonte_statuts_colis pour le mapping ancien →
+// nouveau). Les libellés affichés vivent dans lib/statuts.ts, pas ici.
+enum StatutCommande {
+  nouveau_colis
+  attente_de_ramassage
+  ramasse
+  recu
+  expedie
+  expedier_par_amana
+  en_voyage
+  mise_en_distribution
+  livre
+  en_cours
+  boite_vocale
+  deuxieme_appel_pas_reponse
+  troisieme_appel_pas_reponse
+  pas_de_reponse_sms
+  injoignable
+  numero_errone
+  client_interesse
+  relance_nouveau_client
+  attente_de_relancer
+  programme
+  reporte
+  hors_zone
+  refuse
+  retourne
+  en_retour_par_amana
+  annule
+  annule_par_vendeur
+}
+
+// État de règlement du COD entre le livreur/l'agence et le marchand —
+// indépendant du statut de livraison ci-dessus (un colis "livre" peut rester
+// "non_paye" tant que le marchand n'a pas été remboursé). "rembourse" couvre
+// l'action admin "Remboursement" (COD restitué au client/marchand).
+enum EtatPaiement {
+  non_paye
+  facture
+  paye
+  rembourse
+}
+
+enum SourceCommande {
+  manuel
+  import_csv
+  api
+}
+
+enum StatutRamassage {
+  en_attente
+  confirmee
+  effectuee
+  annulee
+}
+
+enum ModeCreationRamassage {
+  recurrent
+  manuel
+}
+
+enum TypeListeNoire {
+  telephone
+  client
+  adresse
+}
+
+enum MotifListeNoire {
+  fraude
+  refus_repetitifs
+  faux_numero
+  client_agressif
+  impaye
+  autre
+}
+
+enum NiveauRisque {
+  moyen
+  eleve
+  critique
+}
+
+enum StatutReclamation {
+  ouverte
+  en_cours
+  resolue
+  rejetee
+}
+
+// ============================================================
+// Utilisateurs et marchands
+// ============================================================
+
+model Utilisateur {
+  id                String    @id @default(uuid())
+  nomComplet        String    @map("nom_complet")
+  // Nullable : les membres d'équipe marchand invités par email (voir
+  // MarchandMembre) n'ont pas forcément de téléphone — ils se connectent
+  // avec leur email. Postgres autorise plusieurs NULL sous une contrainte
+  // unique, donc ça ne relâche pas l'unicité pour les comptes qui en ont un.
+  telephone         String?   @unique
+  email             String?   @unique
+  motDePasseHash    String    @map("mot_de_passe_hash")
+  role              Role
+  actif             Boolean   @default(true)
+  dateCreation      DateTime  @default(now()) @map("date_creation")
+  derniereConnexion DateTime? @map("derniere_connexion")
+  resetTokenHash    String?   @unique @map("reset_token_hash")
+  resetTokenExpire  DateTime? @map("reset_token_expire")
+
+  marchand       Marchand?
+  marchandMembre MarchandMembre?
+
+  historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
+  commandesRamassees Commande[]                 @relation("CommandeRamasseur")
+  commandesLivrees   Commande[]                 @relation("CommandeLivreur")
+  ramassagesRealises Ramassage[]                @relation("RamassageRamasseur")
+  ramassagesInities  Ramassage[]                @relation("RamassageInitiateur")
+  commentaires       CommentaireCommande[]
+  reclamations       Reclamation[]
+
+  @@map("utilisateurs")
+}
+
+model Marchand {
+  id            String             @id @default(uuid())
+  utilisateurId String             @unique @map("utilisateur_id")
+  utilisateur   Utilisateur        @relation(fields: [utilisateurId], references: [id])
+  nomBoutique   String             @map("nom_boutique")
+  raisonSociale String?            @map("raison_sociale")
+  iceRc         String?            @map("ice_rc")
+  typeCompte    TypeCompteMarchand @default(marchand) @map("type_compte")
+  ville         String?
+  rib           String?
+
+  // Champs collectés lors de l'inscription marchand (formulaire complet)
+  cin              String?        @map("cin")
+  siteWeb          String?        @map("site_web")
+  adresse          String?
+  nomBanque        String?        @map("nom_banque")
+  ribPhotoUrl      String?        @map("rib_photo_url")
+  villeRamassage   String?        @map("ville_ramassage")
+  registreCommerce String?        @map("registre_commerce")
+  // RF-22 : un compte marchand créé par auto-inscription reste en attente
+  // tant que l'admin ne l'a pas approuvé (dette technique : pas de compte
+  // "invité" — voir aussi Utilisateur.actif, synchronisé lors de l'approbation).
+  statut           StatutMarchand @default(en_attente_validation)
+
+  // Ramassage récurrent (modèle hybride, §5.6 / RG-15 / RG-16)
+  ramassageRecurrentActif Boolean @default(false) @map("ramassage_recurrent_actif")
+  ramassageJours          String? @map("ramassage_jours")
+  ramassageCreneauHoraire String? @map("ramassage_creneau_horaire")
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  adresses      AdresseMarchand[]
+  commandes     Commande[]
+  ramassages    Ramassage[]
+  bonsLivraison BonDeLivraison[]
+  marchandises  Marchandise[]
+  membres       MarchandMembre[]
+  reclamations  Reclamation[]
+
+  @@map("marchands")
+}
+
+// RF : le titulaire du compte marchand (Marchand.utilisateurId) peut inviter
+// d'autres comptes Utilisateur (role "marchand") à accéder à sa boutique —
+// ex. un employé qui gère les colis sans être le titulaire légal. L'accès est
+// total sur les données de la boutique (pas de permissions fines pour ce
+// scénario) : voir lib/marchand-scope.ts, résolu en plus du propriétaire
+// direct sur toutes les routes marchand.
+model MarchandMembre {
+  id            String      @id @default(uuid())
+  marchandId    String      @map("marchand_id")
+  marchand      Marchand    @relation(fields: [marchandId], references: [id])
+  utilisateurId String      @unique @map("utilisateur_id")
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+  dateAjout     DateTime    @default(now()) @map("date_ajout")
+
+  @@index([marchandId])
+  @@map("marchand_membres")
+}
+
+// Catalogue produit propre à chaque marchand (§ dropdown "Marchandise" du
+// formulaire colis) : un marchand ne voit et ne sélectionne que les
+// marchandises qu'il a lui-même déjà saisies dans son espace.
+model Marchandise {
+  id           String   @id @default(uuid())
+  marchandId   String   @map("marchand_id")
+  marchand     Marchand @relation(fields: [marchandId], references: [id])
+  nom          String   @map("nom_marchandise")
+  qteStock     Int      @default(0) @map("qte_stock")
+  prix         Decimal  @db.Decimal(10, 2)
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  commandes Commande[]
+
+  @@unique([marchandId, nom])
+  @@index([marchandId])
+  @@map("marchandises")
+}
+
+model AdresseMarchand {
+  id              String   @id @default(uuid())
+  marchandId      String   @map("marchand_id")
+  marchand        Marchand @relation(fields: [marchandId], references: [id])
+  libelle         String
+  adresseComplete String   @map("adresse_complete")
+  estParDefaut    Boolean  @default(false) @map("est_par_defaut")
+
+  ramassages Ramassage[]
+
+  @@index([marchandId])
+  @@map("adresses_marchand")
+}
+
+// ============================================================
+// Cœur métier
+// ============================================================
+
+model Commande {
+  id                 String         @id @default(uuid())
+  codeSuivi          String         @unique @map("code_suivi")
+  marchandId         String         @map("marchand_id")
+  marchand           Marchand       @relation(fields: [marchandId], references: [id])
+  clientNom          String         @map("client_nom")
+  clientTelephone    String         @map("client_telephone")
+  ville              String
+  adresse            String
+  codePostal         String?        @map("code_postal")
+  produitDescription String?        @map("produit_description")
+  marchandiseId      String?        @map("marchandise_id")
+  marchandise        Marchandise?   @relation(fields: [marchandiseId], references: [id])
+  quantite           Int            @default(1)
+  poidsKg            Decimal?       @map("poids_kg") @db.Decimal(6, 2)
+  montantCod         Decimal        @map("montant_cod") @db.Decimal(10, 2)
+  notes              String?
+  // RG colis échange : un colis peut remplacer un colis déjà livré/retourné
+  // chez le même client (auto-relation, résolue côté API via le code_suivi saisi).
+  colisARemplacerId  String?        @map("colis_a_remplacer_id")
+  colisARemplacer    Commande?      @relation("ColisRemplacement", fields: [colisARemplacerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  remplacements      Commande[]     @relation("ColisRemplacement")
+  ouvrir             Boolean        @default(false)
+  fragile            Boolean        @default(false)
+  // Échange : le livreur doit récupérer l'ancien colis chez le client et
+  // livrer celui-ci à la place (distinct de colisARemplacer, qui ne fait que
+  // lier deux commandes — ce booléen pilote le comportement de la tournée).
+  aRemplacer         Boolean        @default(false)
+  // Marchandise stockée dans l'entrepôt de la société (par opposition à un
+  // envoi géré directement depuis le stock du marchand).
+  enStock            Boolean        @default(false)
+  statut             StatutCommande @default(nouveau_colis)
+  etatPaiement       EtatPaiement   @default(non_paye) @map("etat_paiement")
+  aRisque            Boolean        @default(false) @map("a_risque")
+
+  ramasseurId String?      @map("ramasseur_id")
+  ramasseur   Utilisateur? @relation("CommandeRamasseur", fields: [ramasseurId], references: [id])
+  ramassageId String?      @map("ramassage_id")
+  ramassage   Ramassage?   @relation(fields: [ramassageId], references: [id])
+
+  // Livreur en charge de la distribution — distinct du ramasseur (§ modèle
+  // "poste de pilotage colis" admin, assignable indépendamment du ramassage).
+  livreurId String?      @map("livreur_id")
+  livreur   Utilisateur? @relation("CommandeLivreur", fields: [livreurId], references: [id])
+
+  // Bon de livraison marchand (regroupement de colis en_attente avant confirmation, §5.7)
+  bonLivraisonId String?         @map("bon_livraison_id")
+  bonLivraison   BonDeLivraison? @relation(fields: [bonLivraisonId], references: [id])
+
+  source SourceCommande @default(manuel)
+
+  dateCreation     DateTime  @default(now()) @map("date_creation")
+  dateConfirmation DateTime? @map("date_confirmation")
+  dateCollecte     DateTime? @map("date_collecte")
+  dateLivraison    DateTime? @map("date_livraison")
+
+  gpsLivraisonLat Decimal? @map("gps_livraison_lat") @db.Decimal(9, 6)
+  gpsLivraisonLng Decimal? @map("gps_livraison_lng") @db.Decimal(9, 6)
+  signatureUrl    String?  @map("signature_url")
+  photoPreuveUrl  String?  @map("photo_preuve_url")
+  motifRetour     String?  @map("motif_retour")
+  // Photo de la CIN client (data URL), même pattern que les preuves ci-dessus
+  // — pas de stockage objet dédié pour ce scénario.
+  cinUrl          String?  @map("cin_url")
+
+  historique   HistoriqueStatutCommande[]
+  commentaires CommentaireCommande[]
+  reclamations Reclamation[]
+
+  @@index([marchandId])
+  @@index([statut])
+  @@index([ramassageId])
+  @@index([bonLivraisonId])
+  @@index([livreurId])
+  @@index([marchandiseId])
+  @@index([colisARemplacerId])
+  @@map("commandes")
+}
+
+// ============================================================
+// Bon de livraison marchand (§5.7)
+// ============================================================
+
+// Regroupe des colis "en_attente" du marchand en un lot confirmé d'un coup :
+// génère un numéro (BL-AAAA-MMJJ-NNN) et fait passer les colis en "confirmee".
+model BonDeLivraison {
+  id              String   @id @default(uuid())
+  numero          String   @unique
+  marchandId      String   @map("marchand_id")
+  marchand        Marchand @relation(fields: [marchandId], references: [id])
+  nbColis         Int      @map("nb_colis")
+  montantTotalCod Decimal  @map("montant_total_cod") @db.Decimal(10, 2)
+  dateGeneration  DateTime @default(now()) @map("date_generation")
+
+  commandes Commande[]
+
+  @@index([marchandId])
+  @@map("bons_de_livraison")
+}
+
+model HistoriqueStatutCommande {
+  id            String          @id @default(uuid())
+  commandeId    String          @map("commande_id")
+  commande      Commande        @relation(fields: [commandeId], references: [id])
+  ancienStatut  StatutCommande? @map("ancien_statut")
+  nouveauStatut StatutCommande  @map("nouveau_statut")
+  utilisateurId String          @map("utilisateur_id")
+  utilisateur   Utilisateur     @relation("HistoriqueAuteur", fields: [utilisateurId], references: [id])
+  horodatage    DateTime        @default(now())
+
+  @@index([commandeId])
+  @@map("historique_statuts_commande")
+}
+
+// Notes internes libres sur un colis (suivi call-center), affichées avec
+// l'historique de statut dans la vue "circuit" du colis (admin).
+model CommentaireCommande {
+  id            String      @id @default(uuid())
+  commandeId    String      @map("commande_id")
+  commande      Commande    @relation(fields: [commandeId], references: [id])
+  utilisateurId String      @map("utilisateur_id")
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+  texte         String
+  dateCreation  DateTime    @default(now()) @map("date_creation")
+
+  @@index([commandeId])
+  @@map("commentaires_commande")
+}
+
+// ============================================================
+// Ramassage (§5.6)
+// ============================================================
+
+model Ramassage {
+  id             String                @id @default(uuid())
+  marchandId     String                @map("marchand_id")
+  marchand       Marchand              @relation(fields: [marchandId], references: [id])
+  adresseId      String                @map("adresse_id")
+  adresse        AdresseMarchand       @relation(fields: [adresseId], references: [id])
+  datePrevue     DateTime              @map("date_prevue") @db.Date
+  creneauHoraire String?               @map("creneau_horaire")
+  modeCreation   ModeCreationRamassage @map("mode_creation")
+  // Trace qui a déclenché une tournée manuelle (marchand ou admin) ;
+  // null pour les tournées générées par le planificateur récurrent (RG-16).
+  initieParId    String?               @map("initie_par")
+  initiePar      Utilisateur?          @relation("RamassageInitiateur", fields: [initieParId], references: [id])
+  nbColisEstimes Int?                  @map("nb_colis_estimes")
+  nbColisReels   Int                   @default(0) @map("nb_colis_reels")
+  ramasseurId    String?               @map("ramasseur_id")
+  ramasseur      Utilisateur?          @relation("RamassageRamasseur", fields: [ramasseurId], references: [id])
+  statut         StatutRamassage       @default(en_attente)
+
+  commandes Commande[]
+
+  @@index([marchandId, datePrevue])
+  @@map("ramassages")
+}
+
+// ============================================================
+// Autres modules
+// ============================================================
+
+model ListeNoire {
+  id           String          @id @default(uuid())
+  type         TypeListeNoire
+  valeur       String
+  nomAssocie   String?         @map("nom_associe")
+  motif        MotifListeNoire
+  niveauRisque NiveauRisque    @map("niveau_risque")
+  dateCreation DateTime        @default(now()) @map("date_creation")
+
+  @@index([type, valeur])
+  @@map("liste_noire")
+}
+
+// Réclamation marchand (SAV) : optionnellement rattachée à un colis, suivie
+// par le back-office (statut + réponse). Un seul niveau de suivi (pas de fil
+// de discussion multi-messages) pour ce scénario.
+model Reclamation {
+  id            String            @id @default(uuid())
+  marchandId    String            @map("marchand_id")
+  marchand      Marchand          @relation(fields: [marchandId], references: [id])
+  commandeId    String?           @map("commande_id")
+  commande      Commande?         @relation(fields: [commandeId], references: [id])
+  utilisateurId String            @map("utilisateur_id")
+  utilisateur   Utilisateur       @relation(fields: [utilisateurId], references: [id])
+  sujet         String
+  message       String
+  statut        StatutReclamation @default(ouverte)
+  reponse       String?
+  dateCreation  DateTime          @default(now()) @map("date_creation")
+  dateReponse   DateTime?         @map("date_reponse")
+
+  @@index([marchandId])
+  @@index([commandeId])
+  @@map("reclamations")
+}
+
