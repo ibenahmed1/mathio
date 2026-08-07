@@ -43,6 +43,8 @@ export async function POST(request: Request) {
     const nomBanque = optionalString(body, 'nomBanque');
     const registreCommerce = optionalString(body, 'registreCommerce');
     const villeRamassage = optionalString(body, 'villeRamassage');
+    const raisonSociale = optionalString(body, 'raisonSociale');
+    const iceRc = optionalString(body, 'iceRc');
 
     const typeCompteRaw = typeof body.typeCompte === 'string' ? body.typeCompte : 'marchand';
     if (!TYPES_COMPTE.includes(typeCompteRaw as TypeCompteMarchand)) {
@@ -98,6 +100,8 @@ export async function POST(request: Request) {
           typeCompte,
           registreCommerce,
           villeRamassage,
+          raisonSociale,
+          iceRc,
           statut: 'en_attente_validation',
         },
       });

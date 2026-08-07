@@ -1,13 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { generateTemporarySecret, hashSecret } from '@/lib/auth';
+import { hashSecret } from '@/lib/auth';
 import type { Role } from '@/app/generated/prisma/enums';
 
 // Rôles créables via cet endpoint : les comptes équipe internes (RF-22).
 // "marchand" passe par /api/marchands/inscription (auto-inscription) et
-// "admin" ne se crée pas via l'API pour ce scénario.
-const ROLES_EQUIPE: Role[] = ['agent_confirmation', 'ramasseur', 'livreur', 'finance', 'sav'];
+// "admin" ne se crée pas via l'API pour ce scénario. "design"/"gestionnaire_hub"
+// sont cantonnés à l'outil Kanban (ROLES_KANBAN_UNIQUEMENT, lib/auth.ts).
+const ROLES_EQUIPE: Role[] = [
+  'superviseur',
+  'moderateur',
+  'equipe_suivi',
+  'responsable',
+  'ramasseur',
+  'livreur',
+  'design',
+  'gestionnaire_hub',
+];
+
+// Rôles terrain : formulaire de création riche (photo, CIN, zones, banque…),
+// mot de passe saisi manuellement par l'admin (pas d'auto-génération, cf.
+// maquette "Ajouter Utilisateur" — contrairement aux autres rôles ci-dessus).
+const ROLES_TERRAIN: Role[] = ['ramasseur', 'livreur'];
+
+// Modérateur a une simple photo de profil (maquette "Ajouter Utilisateur"),
+// sans le reste des champs terrain (CIN, banque, frais…).
+const ROLES_AVEC_PHOTO: Role[] = ['ramasseur', 'livreur', 'moderateur'];
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,10 +45,23 @@ export async function GET(request: NextRequest) {
         id: true,
         nomComplet: true,
         telephone: true,
+        email: true,
         role: true,
         actif: true,
         dateCreation: true,
         derniereConnexion: true,
+        cin: true,
+        photoUrl: true,
+        zonePrincipale: true,
+        zoneSecondaire: true,
+        adresse: true,
+        nomBanque: true,
+        numeroCompte: true,
+        fraisLivraison: true,
+        fraisRefus: true,
+        cinRectoUrl: true,
+        cinVersoUrl: true,
+        ribPhotoUrl: true,
       },
     });
 
@@ -38,18 +71,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// RF-22 : création d'un compte équipe (agent de confirmation, ramasseur, etc.)
+// RF-22 : création d'un compte équipe (superviseur, ramasseur, etc.)
 // par l'admin. Créé directement actif (l'admin l'a créé lui-même de façon
 // délibérée) — contrairement à l'auto-inscription marchand qui reste en attente.
 //
-// Génération automatique des identifiants : l'identifiant de connexion est
-// le téléphone (donnée réelle, ne peut pas être "généré" — c'est le seul
-// champ que l'admin doit fournir lui-même). Le secret (mot de passe/PIN),
-// lui, est optionnel : si l'admin ne le fournit pas, le système en génère un
-// automatiquement (même mécanisme que /api/utilisateurs/:id/reinitialiser-
-// mot-de-passe), renvoyé une seule fois en clair pour être communiqué à la
-// personne concernée — ça évite les mots de passe faibles/réutilisés tapés à
-// la main, et accélère l'onboarding des livreurs/ramasseurs.
+// Identifiants : l'identifiant de connexion est le téléphone (donnée réelle,
+// ne peut pas être "généré" — c'est le seul champ que l'admin doit fournir
+// lui-même).
+//
+// Mot de passe : pour tous les rôles, la maquette "Ajouter Utilisateur"
+// impose une saisie manuelle + confirmation par l'admin lui-même (deux
+// champs) — jamais de génération automatique.
 export async function POST(request: Request) {
   try {
     await requireUser(['admin']);
@@ -66,30 +98,89 @@ export async function POST(request: Request) {
       throw new ApiError(400, `Rôle invalide. Valeurs possibles : ${ROLES_EQUIPE.join(', ')}`);
     }
 
-    const existing = await prisma.utilisateur.findUnique({ where: { telephone } });
-    if (existing) {
+    const existingTelephone = await prisma.utilisateur.findUnique({ where: { telephone } });
+    if (existingTelephone) {
       throw new ApiError(409, 'Ce numéro de téléphone est déjà utilisé');
     }
 
-    let secret = typeof body.secret === 'string' ? body.secret : '';
-    let secretGenere = false;
-    if (!secret) {
-      secret = generateTemporarySecret();
-      secretGenere = true;
-    } else if (secret.length < 4) {
-      throw new ApiError(400, 'Le secret (mot de passe/PIN) doit contenir au moins 4 caractères');
+    const estTerrain = ROLES_TERRAIN.includes(role);
+    const avecPhoto = ROLES_AVEC_PHOTO.includes(role);
+
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const cin = typeof body.cin === 'string' ? body.cin.trim() : '';
+
+    if (estTerrain) {
+      if (!email) {
+        throw new ApiError(400, 'email est requis pour un compte livreur/ramasseur');
+      }
+      if (!cin) {
+        throw new ApiError(400, 'cin est requis pour un compte livreur/ramasseur');
+      }
+    }
+
+    const secret = typeof body.secret === 'string' ? body.secret : '';
+    const confirmSecret = typeof body.confirmSecret === 'string' ? body.confirmSecret : '';
+    if (!secret || !confirmSecret) {
+      throw new ApiError(400, 'secret et confirmSecret sont requis');
+    }
+    if (secret.length < 4) {
+      throw new ApiError(400, 'Le mot de passe doit contenir au moins 4 caractères');
+    }
+    if (secret !== confirmSecret) {
+      throw new ApiError(400, 'Les mots de passe ne correspondent pas');
+    }
+
+    if (email) {
+      const existingEmail = await prisma.utilisateur.findUnique({ where: { email } });
+      if (existingEmail) {
+        throw new ApiError(409, 'Cette adresse électronique est déjà utilisée');
+      }
     }
 
     const motDePasseHash = await hashSecret(secret);
+
+    const data: Prisma.UtilisateurCreateInput = {
+      nomComplet,
+      telephone,
+      motDePasseHash,
+      role,
+      actif: true,
+    };
+
+    if (email) {
+      data.email = email;
+    }
+
+    if (avecPhoto) {
+      data.photoUrl = typeof body.photoUrl === 'string' && body.photoUrl ? body.photoUrl : null;
+    }
+
+    if (estTerrain) {
+      data.cin = cin;
+      data.zonePrincipale = typeof body.zonePrincipale === 'string' && body.zonePrincipale ? body.zonePrincipale : null;
+      data.zoneSecondaire = typeof body.zoneSecondaire === 'string' && body.zoneSecondaire ? body.zoneSecondaire : null;
+      data.adresse = typeof body.adresse === 'string' && body.adresse ? body.adresse : null;
+      data.nomBanque = typeof body.nomBanque === 'string' && body.nomBanque ? body.nomBanque : null;
+      data.numeroCompte = typeof body.numeroCompte === 'string' && body.numeroCompte ? body.numeroCompte : null;
+      data.fraisLivraison =
+        body.fraisLivraison !== undefined && body.fraisLivraison !== null && body.fraisLivraison !== ''
+          ? Number(body.fraisLivraison)
+          : null;
+      data.fraisRefus =
+        body.fraisRefus !== undefined && body.fraisRefus !== null && body.fraisRefus !== ''
+          ? Number(body.fraisRefus)
+          : null;
+      data.cinRectoUrl = typeof body.cinRectoUrl === 'string' && body.cinRectoUrl ? body.cinRectoUrl : null;
+      data.cinVersoUrl = typeof body.cinVersoUrl === 'string' && body.cinVersoUrl ? body.cinVersoUrl : null;
+      data.ribPhotoUrl = typeof body.ribPhotoUrl === 'string' && body.ribPhotoUrl ? body.ribPhotoUrl : null;
+    }
+
     const utilisateur = await prisma.utilisateur.create({
-      data: { nomComplet, telephone, motDePasseHash, role, actif: true },
+      data,
       select: { id: true, nomComplet: true, telephone: true, role: true, actif: true },
     });
 
-    return NextResponse.json(
-      { ...utilisateur, secretTemporaire: secretGenere ? secret : undefined },
-      { status: 201 }
-    );
+    return NextResponse.json(utilisateur, { status: 201 });
   } catch (error) {
     return jsonError(error);
   }

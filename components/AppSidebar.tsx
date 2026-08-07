@@ -6,8 +6,11 @@ import { useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
-export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string };
-export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavLeaf[]; section?: string };
+// `roles` restreint l'affichage d'un item aux rôles listés (vérifié contre les
+// permissions réelles des routes API qu'il consomme) ; omis = visible à tout
+// rôle ayant accès à l'espace courant (pas de restriction connue côté API).
+export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string; roles?: string[] };
+export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavLeaf[]; section?: string; roles?: string[] };
 export type NavItem = NavLeaf | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {

@@ -97,15 +97,15 @@ export function ColisEditModal({
 
   return (
     <Modal title={`Modifier le colis — ${commande.codeSuivi}`} onClose={onClose}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {champsRestreints && (
-          <p className="col-span-2 -mt-1 text-xs opacity-60">
+          <p className="sm:col-span-2 -mt-1 text-xs opacity-60">
             Ce colis est en attente de relance : seuls le téléphone et l&apos;adresse sont modifiables.
           </p>
         )}
 
         {!champsRestreints && (
-          <label className="col-span-2 flex flex-col gap-1 text-sm">
+          <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
             Destinataire <span className="text-red-600">*</span>
             <input
               className="input-basic"
@@ -135,7 +135,7 @@ export function ColisEditModal({
             />
           </label>
         )}
-        <label className="col-span-2 flex flex-col gap-1 text-sm">
+        <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
           Adresse <span className="text-red-600">*</span>
           <input
             className="input-basic"
@@ -207,7 +207,7 @@ export function ColisEditModal({
               />
             </label>
 
-            <label className="col-span-2 flex flex-col gap-1 text-sm">
+            <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
               Commentaire
               <textarea
                 className="input-basic"
@@ -217,7 +217,7 @@ export function ColisEditModal({
               />
             </label>
 
-            <div className="col-span-2 flex flex-wrap gap-4 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="sm:col-span-2 flex flex-wrap gap-4 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
@@ -255,7 +255,7 @@ export function ColisEditModal({
                 En stock (entrepôt)
               </label>
             </div>
-            <p className="col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
+            <p className="sm:col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
           </>
         )}
       </div>

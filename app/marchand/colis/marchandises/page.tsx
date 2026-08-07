@@ -70,9 +70,9 @@ export default function MarchandisesPage() {
 
       <form
         onSubmit={handleCreate}
-        className="grid max-w-xl grid-cols-3 gap-3 rounded-xl border border-black/10 bg-black/[0.015] p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.02]"
+        className="grid max-w-xl grid-cols-1 gap-3 rounded-xl border border-black/10 bg-black/[0.015] p-4 shadow-sm sm:grid-cols-3 dark:border-white/10 dark:bg-white/[0.02]"
       >
-        <label className="col-span-3 flex flex-col gap-1">
+        <label className="sm:col-span-3 flex flex-col gap-1">
           <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Nom de la marchandise</span>
           <input
             className="input-basic"

@@ -5,8 +5,9 @@ import type { EtatPaiement } from '@/app/generated/prisma/enums';
 
 // Cycle de règlement du COD, distinct du statut de livraison :
 // non_paye -> facture -> paye, avec "rembourse" atteignable depuis facture/paye
-// (action admin "Remboursement" — COD restitué). Réservé à la finance/admin
-// (le marchand ne facture/paye pas lui-même sa propre commande).
+// (action admin "Remboursement" — COD restitué). Réservé à responsable/admin
+// (reprend le périmètre de l'ancien rôle finance) et superviseur (portée
+// large) — le marchand ne facture/paye pas lui-même sa propre commande.
 const TRANSITIONS: Record<EtatPaiement, EtatPaiement[]> = {
   non_paye: ['facture'],
   facture: ['paye', 'rembourse'],
@@ -16,7 +17,7 @@ const TRANSITIONS: Record<EtatPaiement, EtatPaiement[]> = {
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['finance', 'admin']);
+    await requireUser(['responsable', 'admin', 'superviseur']);
     const { id } = await params;
     const body = await request.json();
     const nouvelEtat = body.etatPaiement as EtatPaiement | undefined;

@@ -9,14 +9,16 @@ import type { Role, StatutCommande } from '@/app/generated/prisma/enums';
 // d'ordre strict — un agent peut passer de "Boîte vocale" à "Programmé" puis
 // "Injoignable" sans séquence imposée. Le contrôle se fait donc par rôle,
 // avec seulement deux garde-fous ciblés ci-dessous (preuve / motif).
-const ROLES_AUTORISES: Role[] = ['admin', 'agent_confirmation', 'livreur', 'sav'];
+// equipe_suivi reprend le périmètre de l'ancien agent_confirmation, moderateur
+// celui de l'ancien sav (retours/refus) ; superviseur a une portée large.
+const ROLES_AUTORISES: Role[] = ['admin', 'superviseur', 'equipe_suivi', 'livreur', 'moderateur'];
 
 const STATUTS_REQUIS_PREUVE: StatutCommande[] = ['livre'];
 const STATUTS_REQUIS_MOTIF: StatutCommande[] = ['retourne', 'refuse', 'annule', 'annule_par_vendeur'];
 
 // La transition attente_de_ramassage -> ramasse reste réservée au scan de
-// ramassage (RG-13, POST /api/ramassages/[id]/scans) car elle rattache le
-// colis à une tournée ; l'admin peut cependant l'outrepasser directement.
+// ramassage (RG-13, POST /api/commandes/scan) ; l'admin peut cependant
+// l'outrepasser directement.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser(ROLES_AUTORISES);
@@ -40,7 +42,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     ) {
       throw new ApiError(
         400,
-        'La transition attente_de_ramassage → ramasse ne peut pas se faire via cet endpoint pour ce rôle : elle exige un scan de ramassage (POST /api/ramassages/{id}/scans).'
+        'La transition attente_de_ramassage → ramasse ne peut pas se faire via cet endpoint pour ce rôle : elle exige un scan de ramassage (POST /api/commandes/scan).'
       );
     }
 

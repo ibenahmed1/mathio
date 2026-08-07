@@ -14,14 +14,30 @@ generator client {
 // Enums
 // ============================================================
 
+// RF : jeu de rôles back-office aligné sur la maquette "Ajouter Utilisateur"
+// (dropdown Fonction). Remplace l'ancien jeu (finance/sav/agent_confirmation,
+// cf. migration 20260804_refonte_roles_equipe pour le mapping de migration
+// des données existantes) : superviseur a la portée la plus large (tout ce
+// que couvraient finance/sav/agent_confirmation combinés), équipe_suivi
+// reprend le périmètre d'agent_confirmation (statut colis, commentaires),
+// moderateur reprend celui de sav (réclamations, retours), responsable
+// reprend celui de finance (paiement). Voir les tableaux ROLES_AUTORISES
+// dans app/api/commandes/**/route.ts pour le détail par action.
 enum Role {
   admin
-  finance
-  sav
-  agent_confirmation
+  superviseur
+  moderateur
+  equipe_suivi
+  responsable
   marchand
   livreur
   ramasseur
+  // Rôles cantonnés à l'outil Kanban (§ /admin/tasks) uniquement — aucun accès
+  // au reste du back-office (colis, finances, statistiques, clients). Cf.
+  // ROLES_KANBAN_UNIQUEMENT dans lib/auth.ts (confinement appliqué dans
+  // proxy.ts) pour le détail du mécanisme.
+  design
+  gestionnaire_hub
 }
 
 enum TypeCompteMarchand {
@@ -127,6 +143,44 @@ enum StatutReclamation {
   rejetee
 }
 
+enum TypeVille {
+  principale
+  satellite
+}
+
+enum StatutTache {
+  a_faire
+  en_cours
+  termine
+}
+
+enum PrioriteTache {
+  faible
+  moyenne
+  elevee
+}
+
+// Sens d'une écriture comptable (§ /admin/comptabilite) : revenu = argent
+// gagné, depense = argent sorti. Le signe (+/-) et le code couleur (vert/rouge)
+// affichés côté UI se dérivent de ce champ, jamais saisis directement — cf.
+// lib/finance.ts pour le mapping libellé/couleur.
+enum TypeTransaction {
+  revenu
+  depense
+}
+
+// Catégorie d'origine ou de destination de l'argent — liste fermée pour
+// garder des totaux comparables d'une écriture à l'autre (cf. lib/finance.ts
+// pour les libellés affichés).
+enum CategorieTransaction {
+  paiement_client
+  frais_livraison
+  abonnement_outil
+  salaire
+  remboursement
+  autre
+}
+
 // ============================================================
 // Utilisateurs et marchands
 // ============================================================
@@ -148,6 +202,22 @@ model Utilisateur {
   resetTokenHash    String?   @unique @map("reset_token_hash")
   resetTokenExpire  DateTime? @map("reset_token_expire")
 
+  // Champs propres aux comptes terrain (livreur/ramasseur), saisis lors de la
+  // création via le formulaire admin "Ajouter Utilisateur" — nullable pour
+  // tous les autres rôles qui ne les utilisent pas.
+  cin            String?  @map("cin")
+  photoUrl       String?  @map("photo_url")
+  zonePrincipale String?  @map("zone_principale")
+  zoneSecondaire String?  @map("zone_secondaire")
+  adresse        String?  @map("adresse")
+  nomBanque      String?  @map("nom_banque")
+  numeroCompte   String?  @map("numero_compte")
+  fraisLivraison Decimal? @map("frais_livraison") @db.Decimal(10, 2)
+  fraisRefus     Decimal? @map("frais_refus") @db.Decimal(10, 2)
+  cinRectoUrl    String?  @map("cin_recto_url")
+  cinVersoUrl    String?  @map("cin_verso_url")
+  ribPhotoUrl    String?  @map("rib_photo_url")
+
   marchand       Marchand?
   marchandMembre MarchandMembre?
 
@@ -158,6 +228,20 @@ model Utilisateur {
   ramassagesInities  Ramassage[]                @relation("RamassageInitiateur")
   commentaires       CommentaireCommande[]
   reclamations       Reclamation[]
+  tarifsVilles       TarifLivreurVille[]
+
+  // Tableau Kanban interne (§ /admin/tasks) : une tâche a un assigné (optionnel)
+  // et un créateur (toujours renseigné, = l'auteur de la requête POST).
+  tachesAssignees         Tache[]                 @relation("TacheAssignee")
+  tachesCreees            Tache[]                 @relation("TacheCreateur")
+  commentairesTaches      CommentaireTache[]
+  equipesTaches           EquipeTacheMembre[]
+  historiqueStatutsTaches HistoriqueStatutTache[] @relation("HistoriqueStatutTacheAuteur")
+  piecesJointesTaches     PieceJointeTache[]      @relation("PieceJointeTacheAuteur")
+
+  // Comptabilité (§ /admin/comptabilite) : auteur des écritures qu'il a saisies.
+  transactions Transaction[] @relation("TransactionAuteur")
+  commandesStockHub CommandeStockHub[] @relation("CommandeStockHubAuteur")
 
   @@map("utilisateurs")
 }
@@ -200,6 +284,7 @@ model Marchand {
   marchandises  Marchandise[]
   membres       MarchandMembre[]
   reclamations  Reclamation[]
+  produits      Produit[]
 
   @@map("marchands")
 }
@@ -253,6 +338,86 @@ model AdresseMarchand {
 
   @@index([marchandId])
   @@map("adresses_marchand")
+}
+
+// ============================================================
+// Gestion inventaire (espace marchand — page "Ajouter Produit")
+// ============================================================
+
+// Verrou fonctionnel côté admin (page "Modifier produit") : tant qu'un
+// produit est pas_encore_recu, les champs de saisie de quantité (réception,
+// retrait) restent désactivés côté UI et rejetés côté API — l'admin doit
+// d'abord basculer explicitement sur "recu" avant de pouvoir taper les
+// quantités réellement constatées en entrepôt. Empêche la saisie accidentelle.
+enum StatutReceptionProduit {
+  pas_encore_recu
+  recu
+}
+
+// Distinct de Marchandise (catalogue simple qui alimente le formulaire colis) :
+// un Produit porte une référence (SKU) éditable, une photo et, en option, des
+// variantes (couleur/taille…) ayant chacune leur propre référence et stock.
+// La référence est unique par marchand seulement (deux marchands peuvent
+// réutiliser le même SKU interne), d'où l'@@unique composite ci-dessous.
+// Cycle de vie du stock : le marchand saisit une quantité (quantiteEnCours),
+// que l'admin déplace vers quantiteRecue une fois la marchandise physiquement
+// vérifiée et réceptionnée en entrepôt (voir POST /api/produits/[id]/reception
+// et /api/produits/variantes/[id]/reception). Suivi au niveau variante quand
+// variantesActivees est vrai, sinon directement sur le produit.
+model Produit {
+  id                String                 @id @default(uuid())
+  marchandId        String                 @map("marchand_id")
+  marchand          Marchand               @relation(fields: [marchandId], references: [id])
+  nom               String                 @map("nom_produit")
+  reference         String                 @map("reference")
+  quantiteEnCours   Int                    @default(0) @map("quantite_en_cours")
+  quantiteRecue     Int                    @default(0) @map("quantite_recue")
+  statutReception   StatutReceptionProduit @default(pas_encore_recu) @map("statut_reception")
+  // Emplacement d'entrepôt (admin uniquement) — n'a de sens que quand le
+  // produit ne suit pas ses variantes individuellement (sinon voir
+  // ProduitVariante.rayonnage).
+  rayonnage         String?                @map("rayonnage")
+  note              String?                @map("note")
+  photoUrl          String?                @map("photo_url")
+  variantesActivees Boolean                @default(false) @map("variantes_activees")
+  dateCreation      DateTime               @default(now()) @map("date_creation")
+
+  variantes  ProduitVariante[]
+  historique HistoriqueProduit[]
+
+  @@unique([marchandId, reference])
+  @@index([marchandId])
+  @@map("produits")
+}
+
+model ProduitVariante {
+  id              String  @id @default(uuid())
+  produitId       String  @map("produit_id")
+  produit         Produit @relation(fields: [produitId], references: [id], onDelete: Cascade)
+  nom             String  @map("nom_variante")
+  reference       String  @map("reference")
+  quantiteEnCours Int     @default(0) @map("quantite_en_cours")
+  quantiteRecue   Int     @default(0) @map("quantite_recue")
+  rayonnage       String? @map("rayonnage")
+
+  @@unique([produitId, reference])
+  @@index([produitId])
+  @@map("produit_variantes")
+}
+
+// Journal des mouvements de stock (ajout, réception, retrait) affiché dans
+// l'historique de la page admin "Modifier produit" — même logique que
+// CommentaireCommande : un texte pré-formaté plutôt qu'un modèle typé par
+// mouvement, l'affichage n'ayant besoin que du texte et de la date.
+model HistoriqueProduit {
+  id           String   @id @default(uuid())
+  produitId    String   @map("produit_id")
+  produit      Produit  @relation(fields: [produitId], references: [id], onDelete: Cascade)
+  texte        String
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@index([produitId])
+  @@map("historique_produits")
 }
 
 // ============================================================
@@ -457,3 +622,261 @@ model Reclamation {
   @@map("reclamations")
 }
 
+// ============================================================
+// Zonage logistique
+// ============================================================
+
+// Référentiel géographique national (zone → hub → ville), utilisé pour le
+// découpage des tournées et l'affectation des ramasseurs/livreurs. Distinct
+// des champs "ville" en texte libre (Commande.ville, Marchand.ville,
+// Utilisateur.zonePrincipale/zoneSecondaire) qui restent inchangés : les
+// relier à ce référentiel est une migration séparée, à faire une fois les
+// libellés de ville existants nettoyés/normalisés.
+model ZoneLogistique {
+  id   String @id @default(uuid())
+  code String @unique
+  nom  String
+
+  hubs HubRegional[]
+
+  @@map("zones_logistiques")
+}
+
+model HubRegional {
+  id     String         @id @default(uuid())
+  nom    String         @unique
+  zoneId String         @map("zone_id")
+  zone   ZoneLogistique @relation(fields: [zoneId], references: [id])
+
+  villes Ville[]
+
+  @@index([zoneId])
+  @@map("hubs_regionaux")
+}
+
+model Ville {
+  id    String      @id @default(uuid())
+  nom   String      @unique
+  type  TypeVille
+  hubId String      @map("hub_id")
+  hub   HubRegional @relation(fields: [hubId], references: [id])
+
+  tarifsLivreurs TarifLivreurVille[]
+
+  @@index([hubId])
+  @@map("villes")
+}
+
+// Surcharge des frais de livraison/refus d'un livreur pour une ville donnée
+// (maquette "Ajouter Utilisateur" : Frais de livraison (Agadir), etc.) —
+// distincte des frais par défaut Utilisateur.fraisLivraison/fraisRefus, qui
+// restent le tarif appliqué pour toute ville sans ligne ici.
+model TarifLivreurVille {
+  id             String      @id @default(uuid())
+  utilisateurId  String      @map("utilisateur_id")
+  utilisateur    Utilisateur @relation(fields: [utilisateurId], references: [id])
+  villeId        String      @map("ville_id")
+  ville          Ville       @relation(fields: [villeId], references: [id])
+  fraisLivraison Decimal     @map("frais_livraison") @db.Decimal(10, 2)
+  fraisRefus     Decimal     @map("frais_refus") @db.Decimal(10, 2)
+
+  @@unique([utilisateurId, villeId])
+  @@index([villeId])
+  @@map("tarifs_livreur_ville")
+}
+
+// ============================================================
+// Tableau Kanban interne (§ /admin/tasks)
+// ============================================================
+
+// Pôle interne (Développement, Administration, Gestionnaires/Hub…) — table
+// plutôt qu'un enum pour permettre d'en ajouter sans migration. Les 3 pôles
+// de départ (dev/admin/gestionnaire) sont créés par le seed.
+model EquipeTache {
+  id      String @id @default(uuid())
+  code    String @unique
+  nom     String
+  // Clé de couleur (ex. "blue", "violet", "emerald") consommée côté UI pour
+  // le tag d'équipe des cartes — pas de valeur CSS brute en base.
+  couleur String @default("gray")
+
+  taches  Tache[]
+  membres EquipeTacheMembre[]
+
+  @@map("equipes_taches")
+}
+
+// Rattachement d'un compte back-office à un pôle (§ /admin/tasks, gestion
+// d'équipe) : pilote le multi-select "membres" à l'édition d'une équipe et
+// restreint la liste "Assigné" du Kanban aux membres du pôle sélectionné.
+// Un même utilisateur peut appartenir à plusieurs pôles.
+model EquipeTacheMembre {
+  id            String      @id @default(uuid())
+  equipeId      String      @map("equipe_id")
+  equipe        EquipeTache @relation(fields: [equipeId], references: [id], onDelete: Cascade)
+  utilisateurId String      @map("utilisateur_id")
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+  dateAjout     DateTime    @default(now()) @map("date_ajout")
+
+  @@unique([equipeId, utilisateurId])
+  @@index([equipeId])
+  @@index([utilisateurId])
+  @@map("equipes_taches_membres")
+}
+
+model Tache {
+  id           String        @id @default(uuid())
+  numero       Int           @unique @default(autoincrement())
+  titre        String
+  description  String?
+  statut       StatutTache   @default(a_faire)
+  priorite     PrioriteTache @default(moyenne)
+  progress     Int           @default(0)
+  etiquettes   String[]      @default([])
+  teamId       String        @map("team_id")
+  team         EquipeTache   @relation(fields: [teamId], references: [id])
+  assigneeId   String?       @map("assignee_id")
+  assignee     Utilisateur?  @relation("TacheAssignee", fields: [assigneeId], references: [id])
+  createurId   String        @map("createur_id")
+  createur     Utilisateur   @relation("TacheCreateur", fields: [createurId], references: [id])
+  dateEcheance DateTime?     @map("date_echeance") @db.Date
+  dateCreation DateTime      @default(now()) @map("date_creation")
+
+  // Marquage de blocage (§ /admin/tasks) : signalé par un indicateur "Bloqué"
+  // avec raison explicite quand la tâche ne peut plus avancer.
+  bloque        Boolean @default(false)
+  raisonBlocage String? @map("raison_blocage")
+
+  commentaires      CommentaireTache[]
+  historiqueStatuts HistoriqueStatutTache[]
+  piecesJointes     PieceJointeTache[]
+
+  @@index([teamId])
+  @@index([assigneeId])
+  @@index([statut])
+  @@map("taches")
+}
+
+// Historise chaque changement de statut (§ traçabilité /admin/tasks), même
+// principe qu'HistoriqueStatutCommande : le temps passé dans chaque colonne
+// se déduit en diffant les horodatages consécutifs plutôt que de stocker des
+// bornes début/fin redondantes.
+model HistoriqueStatutTache {
+  id            String       @id @default(uuid())
+  tacheId       String       @map("tache_id")
+  tache         Tache        @relation(fields: [tacheId], references: [id], onDelete: Cascade)
+  ancienStatut  StatutTache? @map("ancien_statut")
+  nouveauStatut StatutTache  @map("nouveau_statut")
+  utilisateurId String       @map("utilisateur_id")
+  utilisateur   Utilisateur  @relation("HistoriqueStatutTacheAuteur", fields: [utilisateurId], references: [id])
+  horodatage    DateTime     @default(now())
+
+  @@index([tacheId])
+  @@map("historique_statuts_tache")
+}
+
+// Pièces jointes d'une tâche (§ /admin/tasks) : lien nommé plutôt qu'un
+// upload de fichier — même convention que Produit.photoUrl, pas d'infra de
+// stockage de fichiers dans ce projet.
+model PieceJointeTache {
+  id        String      @id @default(uuid())
+  tacheId   String      @map("tache_id")
+  tache     Tache       @relation(fields: [tacheId], references: [id], onDelete: Cascade)
+  nom       String
+  url       String
+  auteurId  String      @map("auteur_id")
+  auteur    Utilisateur @relation("PieceJointeTacheAuteur", fields: [auteurId], references: [id])
+  dateAjout DateTime    @default(now()) @map("date_ajout")
+
+  @@index([tacheId])
+  @@map("pieces_jointes_tache")
+}
+
+// Fil de discussion d'une tâche. mentionIds : identifiants des utilisateurs
+// tagués via "@" dans le texte (résolus/surlignés côté UI, pas de notification).
+model CommentaireTache {
+  id           String      @id @default(uuid())
+  tacheId      String      @map("tache_id")
+  tache        Tache       @relation(fields: [tacheId], references: [id], onDelete: Cascade)
+  auteurId     String      @map("auteur_id")
+  auteur       Utilisateur @relation(fields: [auteurId], references: [id])
+  texte        String
+  mentionIds   String[]    @map("mention_ids")
+  dateCreation DateTime    @default(now()) @map("date_creation")
+
+  @@index([tacheId])
+  @@map("commentaires_tache")
+}
+
+// ============================================================
+// Comptabilité (§ /admin/comptabilite)
+// ============================================================
+
+// Écriture comptable unique (revenu ou dépense) — accès restreint à
+// admin/responsable (cf. requireUser dans app/api/finance/**). Montant
+// toujours positif ; le signe affiché côté UI dépend uniquement de `type`.
+// Immuable une fois créée : pas de PATCH/DELETE, seule une transaction de
+// compensation (annulation) peut neutraliser une écriture — cf. estAnnulee /
+// transactionOrigineId, qui portent la traçabilité d'audit plutôt qu'une
+// suppression physique.
+model Transaction {
+  id         String               @id @default(uuid())
+  montant    Decimal              @db.Decimal(10, 2)
+  type       TypeTransaction
+  categorie  CategorieTransaction
+  dateEffet  DateTime             @map("date_effet")
+  description String?
+
+  auteurId    String      @map("auteur_id")
+  auteur      Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
+
+  // Une écriture annulée reste en base (audit) et gagne un lien vers sa
+  // transaction de compensation (montant/type inversés, même catégorie).
+  estAnnulee            Boolean      @default(false) @map("est_annulee")
+  transactionOrigineId  String?      @unique @map("transaction_origine_id")
+  transactionOrigine    Transaction? @relation("Annulation", fields: [transactionOrigineId], references: [id])
+  annulation            Transaction? @relation("Annulation")
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@index([type])
+  @@index([categorie])
+  @@index([dateEffet])
+  @@map("transactions")
+}
+
+// ============================================================
+// Commandes de stock des hubs (équipement, consommables)
+// ============================================================
+
+// Statut de réception d'une commande de matériel/équipement passée pour le
+// fonctionnement d'un hub (rayonnage, consommables d'emballage...) — distinct
+// de Produit.statutReception qui suit le stock des marchands.
+enum StatutCommandeStockHub {
+  en_attente
+  livre
+  annulee
+}
+
+// § Comptabilité (/admin/comptabilite, carte "Commandes d'inventaire") : même
+// périmètre d'accès que Transaction (admin/responsable, cf. requireUser dans
+// app/api/commandes-stock-hub/**). `numero` sert de référence bordereau
+// lisible (BC-{numero}) sans dépendre de l'UUID.
+model CommandeStockHub {
+  id           String                 @id @default(uuid())
+  numero       Int                    @unique @default(autoincrement())
+  titre        String
+  sousTitre    String?                @map("sous_titre")
+  montant      Decimal                @db.Decimal(10, 2)
+  statut       StatutCommandeStockHub @default(en_attente)
+  modePaiement String                 @map("mode_paiement")
+  dateCommande DateTime               @map("date_commande")
+
+  auteurId String      @map("auteur_id")
+  auteur   Utilisateur @relation("CommandeStockHubAuteur", fields: [auteurId], references: [id])
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@index([statut])
+  @@map("commandes_stock_hub")
+}

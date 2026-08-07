@@ -76,7 +76,7 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="page-title">Ajouter un bon de livraison</h1>
         <Link href="/marchand/bons-livraison" className="btn-outline">
           Voir les bons générés
@@ -182,7 +182,7 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
 function ModalConfirmation({ resultat, onFermer }: { resultat: BonDeLivraisonGenere; onFermer: () => void }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border border-black/10 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-black">
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-black/10 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-black">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm opacity-60">Bon de livraison généré</p>

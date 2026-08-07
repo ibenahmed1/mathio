@@ -13,12 +13,8 @@ export default function AdminRamassagesPage() {
 
   async function load() {
     try {
-      const [r, u] = await Promise.all([
-        apiGet<{ data: Ramassage[] }>('/api/ramassages'),
-        apiGet<{ data: Utilisateur[] }>('/api/utilisateurs?role=ramasseur'),
-      ]);
+      const r = await apiGet<{ data: Ramassage[] }>('/api/ramassages');
       setRamassages(r.data);
-      setRamasseurs(u.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     }
@@ -26,6 +22,13 @@ export default function AdminRamassagesPage() {
 
   useEffect(() => {
     load();
+    // /api/utilisateurs est réservé à "admin" : on l'isole dans son propre
+    // effet (comme /admin/commandes pour les livreurs) pour qu'un 403 ici
+    // n'empêche pas les autres rôles back-office de voir la liste des
+    // ramassages, même s'ils ne peuvent pas assigner de ramasseur.
+    apiGet<{ data: Utilisateur[] }>('/api/utilisateurs?role=ramasseur')
+      .then((res) => setRamasseurs(res.data))
+      .catch(() => {});
   }, []);
 
   async function assignerRamasseur(id: string, ramasseurId: string) {

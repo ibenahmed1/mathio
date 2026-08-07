@@ -5,7 +5,7 @@ import { resolveMarchandForUser } from '@/lib/marchand-scope';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireUser();
+    const session = await requireUser(['admin', 'marchand']);
     const statut = request.nextUrl.searchParams.get('statut');
 
     const where: { marchandId?: string; statut?: 'en_attente' | 'confirmee' | 'effectuee' | 'annulee' } = {};

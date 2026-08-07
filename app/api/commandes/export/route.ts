@@ -12,7 +12,7 @@ const LIMITE_EXPORT = 10_000;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireUser();
+    const session = await requireUser(['admin', 'marchand']);
     const { searchParams } = request.nextUrl;
 
     const where = await buildCommandesWhere(searchParams, session);

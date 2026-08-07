@@ -59,7 +59,7 @@ export default function ReclamationsPage() {
         <SupportProfilSubNav />
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-2xl text-sm opacity-70">
           Signalez un problème (colis, paiement, ramassage…) au support. Vous pouvez suivre ici la réponse du
           back-office.

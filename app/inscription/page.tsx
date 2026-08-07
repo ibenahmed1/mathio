@@ -5,6 +5,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import { Logo } from '@/components/Logo';
 import { VILLES_RAMASSAGE, BANQUES_MAROC, LABELS_TYPE_COMPTE, TYPES_COMPTE } from '@/lib/marchand-form-options';
+import { readFileAsDataUrl } from '@/lib/read-file';
 import type { TypeCompteMarchand } from '@/app/generated/prisma/enums';
 
 const RIB_MAX_LENGTH = 24;
@@ -26,6 +27,8 @@ interface InscriptionForm {
   typeCompte: TypeCompteMarchand;
   registreCommerce: string;
   villeRamassage: string;
+  raisonSociale: string;
+  iceRc: string;
 }
 
 const INITIAL_FORM: InscriptionForm = {
@@ -45,16 +48,9 @@ const INITIAL_FORM: InscriptionForm = {
   typeCompte: 'marchand',
   registreCommerce: '',
   villeRamassage: VILLES_RAMASSAGE[0],
+  raisonSociale: '',
+  iceRc: '',
 };
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function InscriptionPage() {
   const [form, setForm] = useState<InscriptionForm>(INITIAL_FORM);
@@ -116,6 +112,8 @@ export default function InscriptionPage() {
         typeCompte: form.typeCompte,
         registreCommerce: form.registreCommerce,
         villeRamassage: form.villeRamassage,
+        raisonSociale: form.raisonSociale,
+        iceRc: form.iceRc,
       };
       const res = await apiPost<{ message: string }>('/api/marchands/inscription', payload);
       setMessage(res.message);
@@ -297,6 +295,23 @@ export default function InscriptionPage() {
               />
             </label>
           </div>
+
+          {form.typeCompte === 'entreprise' && (
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
+                Raison sociale
+                <input
+                  className="input-underline"
+                  value={form.raisonSociale}
+                  onChange={(e) => update('raisonSociale', e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
+                ICE / RC
+                <input className="input-underline" value={form.iceRc} onChange={(e) => update('iceRc', e.target.value)} />
+              </label>
+            </div>
+          )}
 
           <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
             Ville de ramassage

@@ -28,11 +28,27 @@ const SESSION_SPACES: SessionSpace[] = ['admin', 'marchand', 'terrain'];
 // uniquement pour le supprimer proprement chez les clients qui l'ont encore.
 export const LEGACY_SESSION_COOKIE_NAME = 'pd_session';
 
+// Rôles ayant accès à l'espace back-office (/admin/**) — dérivé de ROLE_SPACES
+// ci-dessous (tout rôle dont l'espace est 'admin'), exposé ici pour que les
+// deux garde-fous indépendants (proxy.ts et app/admin/layout.tsx, cf. leurs
+// commentaires respectifs) partagent la même liste plutôt que de la dupliquer
+// en dur à chaque endroit et risquer qu'elle diverge.
+export const ROLES_BACKOFFICE: Role[] = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable'];
+
+// Rôles cantonnés à l'outil Kanban (/admin/tasks) uniquement : ils partagent
+// le cookie/espace admin (pour atteindre /admin/tasks) mais PAS ROLES_BACKOFFICE
+// — aucune route API hors taches/** ne les autorise, et proxy.ts les
+// redirige hors de toute page /admin/** qui n'est pas /admin/tasks.
+export const ROLES_KANBAN_UNIQUEMENT: Role[] = ['design', 'gestionnaire_hub'];
+
 const ROLE_SPACES: Record<Role, SessionSpace> = {
   admin: 'admin',
-  finance: 'admin',
-  sav: 'admin',
-  agent_confirmation: 'admin',
+  superviseur: 'admin',
+  moderateur: 'admin',
+  equipe_suivi: 'admin',
+  responsable: 'admin',
+  design: 'admin',
+  gestionnaire_hub: 'admin',
   marchand: 'marchand',
   livreur: 'terrain',
   ramasseur: 'terrain',
@@ -185,10 +201,4 @@ export function generateResetToken(): { token: string; tokenHash: string; expire
 
 export function hashResetToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
-}
-
-// Utilisé pour la réinitialisation manuelle par l'admin : un mot de passe
-// temporaire lisible, communiqué à l'utilisateur hors-app (téléphone, etc.).
-export function generateTemporarySecret(): string {
-  return randomBytes(6).toString('base64url'); // ~8 caractères, lisible
 }

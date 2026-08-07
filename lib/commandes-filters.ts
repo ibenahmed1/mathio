@@ -17,8 +17,11 @@ export async function buildCommandesWhere(
   const ville = searchParams.get('ville');
   const search = searchParams.get('search');
   const livreurId = searchParams.get('livreurId');
+  const ramasseurId = searchParams.get('ramasseurId');
   const dateFrom = searchParams.get('dateFrom');
   const dateTo = searchParams.get('dateTo');
+  const dateCollecteFrom = searchParams.get('dateCollecteFrom');
+  const dateCollecteTo = searchParams.get('dateCollecteTo');
 
   const where: Prisma.CommandeWhereInput = {};
 
@@ -43,10 +46,22 @@ export async function buildCommandesWhere(
   if (livreurId) {
     where.livreurId = livreurId;
   }
+  if (ramasseurId) {
+    where.ramasseurId = ramasseurId;
+  }
   if (dateFrom || dateTo) {
     where.dateCreation = {
       ...(dateFrom && { gte: new Date(dateFrom) }),
       ...(dateTo && { lte: new Date(dateTo) }),
+    };
+  }
+  // Utilisé par l'écran de scan ramasseur pour retrouver "mes colis scannés
+  // aujourd'hui" après un rechargement de page (le tableau y vit sinon
+  // uniquement en mémoire côté client).
+  if (dateCollecteFrom || dateCollecteTo) {
+    where.dateCollecte = {
+      ...(dateCollecteFrom && { gte: new Date(dateCollecteFrom) }),
+      ...(dateCollecteTo && { lte: new Date(dateCollecteTo) }),
     };
   }
   if (search) {
@@ -57,11 +72,18 @@ export async function buildCommandesWhere(
     ];
   }
 
-  // RG-07 / RNF-02 : cloisonnement des données par rôle.
+  // RG-07 / RNF-02 : cloisonnement des données par rôle. Pour ramasseur/livreur,
+  // on impose l'auto-cloisonnement côté serveur (écrase tout ramasseurId/livreurId
+  // fourni en query string) : avant ce correctif, ces rôles pouvaient interroger
+  // les colis de n'importe qui, le filtre n'étant qu'une convention côté client.
   if (session.role === 'marchand') {
     const marchand = await resolveMarchandForUser(session.sub);
     if (!marchand) throw new ApiError(403, 'Profil marchand introuvable');
     where.marchandId = marchand.id;
+  } else if (session.role === 'ramasseur') {
+    where.ramasseurId = session.sub;
+  } else if (session.role === 'livreur') {
+    where.livreurId = session.sub;
   }
 
   return where;

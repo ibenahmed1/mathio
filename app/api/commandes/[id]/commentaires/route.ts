@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import type { Role } from '@/app/generated/prisma/enums';
+
+// Notes internes sur un colis (équipe uniquement — le marchand ne les voit
+// pas, il ne peut d'ailleurs pas non plus en poster). Partagé entre GET et POST.
+const ROLES_NOTES_INTERNES: Role[] = ['admin', 'superviseur', 'equipe_suivi', 'moderateur', 'responsable', 'livreur', 'ramasseur'];
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser();
+    await requireUser(ROLES_NOTES_INTERNES);
     const { id } = await params;
 
     const commentaires = await prisma.commentaireCommande.findMany({
@@ -19,10 +24,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 }
 
-// Notes internes sur un colis (équipe uniquement — le marchand ne poste pas).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireUser(['admin', 'agent_confirmation', 'livreur', 'ramasseur', 'sav', 'finance']);
+    const session = await requireUser(ROLES_NOTES_INTERNES);
     const { id } = await params;
     const body = await request.json();
 

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  ROLES_BACKOFFICE,
+  ROLES_KANBAN_UNIQUEMENT,
   SESSION_COOKIE_NAMES,
   SPACE_HINT_HEADER,
   USER_ID_HEADER,
@@ -30,10 +32,16 @@ interface PageGuard {
 // bloquer l'accès : il vérifie systématiquement la validité du token ET le
 // rôle qu'il contient avant de laisser passer le rendu de la page.
 const PAGE_GUARDS: PageGuard[] = [
-  { prefix: '/admin', cookieSpace: 'admin', allowedRoles: ['admin'] },
+  // ROLES_KANBAN_UNIQUEMENT (design, gestionnaire_hub) partagent le cookie
+  // admin pour atteindre /admin/tasks, mais ne doivent voir AUCUNE autre page
+  // /admin/** — le confinement au sous-chemin /admin/tasks est appliqué
+  // juste après la vérification de session ci-dessous, pas ici.
+  { prefix: '/admin', cookieSpace: 'admin', allowedRoles: [...ROLES_BACKOFFICE, ...ROLES_KANBAN_UNIQUEMENT] },
   { prefix: '/marchand', cookieSpace: 'marchand', allowedRoles: ['marchand'] },
   { prefix: '/ramasseur', cookieSpace: 'terrain', allowedRoles: ['ramasseur'] },
 ];
+
+const PREFIXE_KANBAN = '/admin/tasks';
 
 function matchGuard(pathname: string): PageGuard | undefined {
   return PAGE_GUARDS.find((g) => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`));
@@ -70,6 +78,15 @@ export async function proxy(request: NextRequest) {
     const session = await verifyGuardCookie(request, guard);
     if (!session) {
       return NextResponse.redirect(new URL('/login', request.url));
+    }
+    // Confinement des rôles Kanban-only : même avec une session admin valide,
+    // toute page /admin/** hors /admin/tasks leur reste fermée.
+    if (
+      ROLES_KANBAN_UNIQUEMENT.includes(session.role) &&
+      pathname !== PREFIXE_KANBAN &&
+      !pathname.startsWith(`${PREFIXE_KANBAN}/`)
+    ) {
+      return NextResponse.redirect(new URL(PREFIXE_KANBAN, request.url));
     }
     return withUserHeaders(request, session);
   }

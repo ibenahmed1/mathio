@@ -22,7 +22,7 @@ async function findScopedRamassage(id: string, session: Awaited<ReturnType<typeo
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireUser();
+    const session = await requireUser(['admin', 'marchand']);
     const { id } = await params;
     const ramassage = await findScopedRamassage(id, session);
     return NextResponse.json(ramassage);

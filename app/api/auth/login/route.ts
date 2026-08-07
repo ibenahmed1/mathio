@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     // Un cookie distinct par espace applicatif (admin/marchand/terrain) :
     // deux sessions de rôles différents peuvent coexister dans le même
     // navigateur (ex. deux onglets) sans que l'une n'écrase l'autre.
-    // L'espace back-office (admin/finance/sav/agent_confirmation) est le seul
+    // L'espace back-office (admin/superviseur/moderateur/equipe_suivi/responsable) est le seul
     // à justifier `sameSite: 'strict'` : il n'a jamais besoin d'être atteint
     // depuis un lien externe (email/SMS), contrairement au marchand ou au
     // terrain, donc on retire toute exposition CSRF résiduelle pour lui.

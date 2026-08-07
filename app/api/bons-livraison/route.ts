@@ -6,7 +6,7 @@ import type { Prisma } from '@/app/generated/prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireUser();
+    const session = await requireUser(['admin', 'marchand']);
     const { searchParams } = request.nextUrl;
 
     const page = Math.max(1, Number(searchParams.get('page')) || 1);

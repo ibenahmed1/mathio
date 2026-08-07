@@ -49,7 +49,7 @@ export default function MarchandRamassagesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="page-title">Mes ramassages</h1>
         <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
           {showForm ? 'Annuler' : 'Demander un ramassage ponctuel'}
@@ -57,9 +57,9 @@ export default function MarchandRamassagesPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="grid max-w-xl grid-cols-2 gap-2 rounded-lg border border-black/10 p-4 dark:border-white/10">
+        <form onSubmit={handleCreate} className="grid max-w-xl grid-cols-1 gap-2 rounded-lg border border-black/10 p-4 sm:grid-cols-2 dark:border-white/10">
           <select
-            className="input-basic col-span-2"
+            className="input-basic sm:col-span-2"
             value={form.adresseId}
             onChange={(e) => setForm({ ...form, adresseId: e.target.value })}
             required
@@ -72,7 +72,7 @@ export default function MarchandRamassagesPage() {
             ))}
           </select>
           {adresses.length === 0 && (
-            <p className="col-span-2 text-xs text-amber-700">
+            <p className="sm:col-span-2 text-xs text-amber-700">
               Aucune adresse enregistrée — ajoutez-en une dans votre Profil avant de demander un ramassage.
             </p>
           )}
@@ -90,13 +90,13 @@ export default function MarchandRamassagesPage() {
             onChange={(e) => setForm({ ...form, creneauHoraire: e.target.value })}
           />
           <input
-            className="input-basic col-span-2"
+            className="input-basic sm:col-span-2"
             type="number"
             placeholder="Nombre de colis estimé"
             value={form.nbColisEstimes}
             onChange={(e) => setForm({ ...form, nbColisEstimes: e.target.value })}
           />
-          <button type="submit" disabled={!adresses.length} className="btn-primary col-span-2">
+          <button type="submit" disabled={!adresses.length} className="btn-primary sm:col-span-2">
             Envoyer la demande
           </button>
         </form>

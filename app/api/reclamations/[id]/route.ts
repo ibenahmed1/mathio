@@ -8,7 +8,7 @@ const STATUTS_VALIDES: StatutReclamation[] = ['ouverte', 'en_cours', 'resolue', 
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireUser(['marchand', 'admin', 'sav']);
+    const session = await requireUser(['marchand', 'admin', 'moderateur', 'superviseur']);
     const { id } = await params;
 
     const reclamation = await prisma.reclamation.findUnique({
@@ -34,10 +34,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 }
 
-// Réponse / changement de statut par le back-office (admin, SAV).
+// Réponse / changement de statut par le back-office (admin, moderateur : reprend le périmètre de l'ancien SAV).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin', 'sav']);
+    await requireUser(['admin', 'moderateur', 'superviseur']);
     const { id } = await params;
     const body = await request.json();
 

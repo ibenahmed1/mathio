@@ -1,4 +1,4 @@
-import type { StatutCommande, EtatPaiement, StatutReclamation } from '@/app/generated/prisma/enums';
+import type { StatutCommande, EtatPaiement, StatutReclamation, StatutTache, PrioriteTache } from '@/app/generated/prisma/enums';
 
 // Source unique pour l'ordre et le libellé des statuts colis / état de
 // paiement — évite que chaque page (admin, marchand, badges, validation API)
@@ -105,3 +105,76 @@ export const LABELS_STATUT_RECLAMATION: Record<StatutReclamation, string> = {
   resolue: 'Résolue',
   rejetee: 'Rejetée',
 };
+
+// Tableau Kanban interne (§ /admin/tasks) : ordre = ordre des colonnes.
+export const STATUTS_TACHE: StatutTache[] = ['a_faire', 'en_cours', 'termine'];
+
+export const LABELS_STATUT_TACHE: Record<StatutTache, string> = {
+  a_faire: 'À faire',
+  en_cours: 'En cours',
+  termine: 'Terminé',
+};
+
+export const PRIORITES_TACHE: PrioriteTache[] = ['faible', 'moyenne', 'elevee'];
+
+export const LABELS_PRIORITE_TACHE: Record<PrioriteTache, string> = {
+  faible: 'Faible',
+  moyenne: 'Moyenne',
+  elevee: 'Élevée',
+};
+
+// Jetons visuels du Kanban Kadence (design_handoff_kanban) : pastille de
+// statut de colonne et chip de priorité de carte, exprimés en classes
+// `.kdc-dot--*` / `.kdc-prio--*` (voir board.css + .kdc-board dans
+// app/globals.css) pour rester à l'identique de reference-board-light.html
+// dans les deux thèmes.
+export const STATUT_TACHE_DOT: Record<StatutTache, string> = {
+  a_faire: 'kdc-dot--todo',
+  en_cours: 'kdc-dot--doing',
+  termine: 'kdc-dot--done',
+};
+
+export const PRIORITE_TACHE_CLASS: Record<PrioriteTache, string> = {
+  faible: 'kdc-prio--basse',
+  moyenne: 'kdc-prio--moyenne',
+  elevee: 'kdc-prio--haute',
+};
+
+// La clé de couleur d'équipe (EquipeTache.couleur, choisie librement à la
+// création du pôle) est projetée sur les 6 chips "étiquette" du board Kadence
+// — seules couleurs de chip définies par la maquette — plutôt que d'inventer
+// une teinte hors charte.
+export const EQUIPE_COULEUR_LABEL: Record<string, string> = {
+  blue: 'design',
+  violet: 'research',
+  emerald: 'docs',
+  orange: 'bug',
+  sky: 'frontend',
+  pink: 'backend',
+  gray: 'docs',
+};
+
+export function labelClassName(labelKey: string): string {
+  return `kdc-label--${labelKey}`;
+}
+
+// Étiquettes de tâche (Tache.etiquettes), reprises à l'identique des 6 chips
+// du board Kadence (design_handoff_kanban) — indépendantes de l'équipe,
+// affectées librement par tâche depuis la modale de détail.
+export const ETIQUETTES_TACHE = ['design', 'frontend', 'backend', 'research', 'bug', 'docs'] as const;
+export type EtiquetteTache = (typeof ETIQUETTES_TACHE)[number];
+
+export const LABELS_ETIQUETTE_TACHE: Record<EtiquetteTache, string> = {
+  design: 'Design',
+  frontend: 'Frontend',
+  backend: 'Backend',
+  research: 'Research',
+  bug: 'Bug',
+  docs: 'Docs',
+};
+
+// Clé courte affichée sur la carte (KAD-118…), dérivée de Tache.numero
+// (colonne Postgres SERIAL, unique et croissante) — jamais stockée en texte.
+export function formatCleTache(numero: number): string {
+  return `KAD-${100 + numero}`;
+}

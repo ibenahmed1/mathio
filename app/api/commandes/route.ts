@@ -5,10 +5,16 @@ import { checkBlacklist } from '@/lib/blacklist';
 import { nextCodeSuivi } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { buildCommandesWhere } from '@/lib/commandes-filters';
+import { ROLES_BACKOFFICE } from '@/lib/auth';
+
+// Back-office (confirmation/SAV/paiement, cf. requireUser sur statut/paiement)
+// + marchand, ramasseur et livreur pour leurs propres colis (cloisonnés dans
+// buildCommandesWhere).
+const ROLES_LECTURE_COMMANDES = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur'] as const;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireUser();
+    const session = await requireUser([...ROLES_LECTURE_COMMANDES]);
     const { searchParams } = request.nextUrl;
 
     const page = Math.max(1, Number(searchParams.get('page')) || 1);

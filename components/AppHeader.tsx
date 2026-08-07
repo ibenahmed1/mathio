@@ -40,33 +40,33 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-black/[0.06] bg-white/90 px-4 py-3.5 backdrop-blur-sm dark:border-white/10 dark:bg-black/90">
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2">
         <button
           onClick={onToggleMobile}
-          className="rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
+          className="shrink-0 rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
           aria-label="Ouvrir le menu"
         >
           <Menu className="h-5 w-5" />
         </button>
         <button
           onClick={onToggleCollapse}
-          className="hidden rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:flex"
+          className="hidden shrink-0 rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:flex"
           aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
         >
           {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
         </button>
-        <span className="text-lg font-black tracking-tight">{title ?? ' '}</span>
+        <span className="truncate text-lg font-black tracking-tight">{title ?? ' '}</span>
       </div>
 
       {search && <div className="hidden flex-1 justify-center px-4 sm:flex">{search}</div>}
 
-      <div className="relative" ref={menuRef}>
+      <div className="relative shrink-0" ref={menuRef}>
         <button
           onClick={() => setMenuOpen((v) => !v)}
           className="flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.08] px-3 py-1.5 text-sm font-semibold hover:bg-brand/[0.15] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
         >
           <UserRound className="h-4 w-4" />
-          Mon compte
+          <span className="hidden sm:inline">Mon compte</span>
           <ChevronDown className={`h-4 w-4 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
         </button>
         {menuOpen && (

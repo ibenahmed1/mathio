@@ -277,7 +277,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="glass-card rounded-3xl">
-          <div className="mb-3 flex items-center gap-4">
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
             <h2 className="text-sm font-bold">Suivi des revenus</h2>
             <span className="flex items-center gap-1.5 text-xs text-black/50 dark:text-white/50">
               <span className="h-2 w-2 rounded-full bg-[#eda100]" /> Encaissé

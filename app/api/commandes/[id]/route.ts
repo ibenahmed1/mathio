@@ -2,10 +2,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { ROLES_BACKOFFICE } from '@/lib/auth';
+
+const ROLES_LECTURE_COMMANDE = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur'] as const;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireUser();
+    const session = await requireUser([...ROLES_LECTURE_COMMANDE]);
     const { id } = await params;
 
     const commande = await prisma.commande.findUnique({
@@ -31,6 +34,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       if (!marchand || commande.marchandId !== marchand.id) {
         throw new ApiError(403, 'Accès refusé à cette commande');
       }
+    } else if (session.role === 'ramasseur' && commande.ramasseurId !== session.sub) {
+      throw new ApiError(403, 'Accès refusé à cette commande');
+    } else if (session.role === 'livreur' && commande.livreurId !== session.sub) {
+      throw new ApiError(403, 'Accès refusé à cette commande');
     }
 
     return NextResponse.json(commande);

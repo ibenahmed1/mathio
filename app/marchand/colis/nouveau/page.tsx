@@ -33,7 +33,7 @@ function Field({
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="col-span-2 mt-1 text-sm font-bold uppercase tracking-wide text-black/70 first:mt-0 dark:text-white/70">{children}</h2>;
+  return <h2 className="sm:col-span-2 mt-1 text-sm font-bold uppercase tracking-wide text-black/70 first:mt-0 dark:text-white/70">{children}</h2>;
 }
 
 export default function NouveauColisPage() {
@@ -113,10 +113,10 @@ export default function NouveauColisPage() {
 
       <form
         onSubmit={handleCreate}
-        className="grid max-w-2xl grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-black/10 bg-black/[0.015] p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.02]"
+        className="grid max-w-2xl grid-cols-1 gap-x-4 gap-y-3 rounded-xl border border-black/10 bg-black/[0.015] p-5 shadow-sm sm:grid-cols-2 dark:border-white/10 dark:bg-white/[0.02]"
       >
         <SectionTitle>Destinataire</SectionTitle>
-        <Field label="Destinataire *" className="col-span-2">
+        <Field label="Destinataire *" className="sm:col-span-2">
           <input
             className="input-basic"
             value={form.clientNom}
@@ -140,7 +140,7 @@ export default function NouveauColisPage() {
             required
           />
         </Field>
-        <Field label="Adresse *" className="col-span-2">
+        <Field label="Adresse *" className="sm:col-span-2">
           <input
             className="input-basic"
             value={form.adresse}
@@ -225,7 +225,7 @@ export default function NouveauColisPage() {
           />
         </Field>
 
-        <Field label="Commentaire" className="col-span-2">
+        <Field label="Commentaire" className="sm:col-span-2">
           <textarea
             className="input-basic"
             value={form.notes}
@@ -234,7 +234,7 @@ export default function NouveauColisPage() {
           />
         </Field>
 
-        <div className="col-span-2 flex flex-wrap gap-4 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+        <div className="sm:col-span-2 flex flex-wrap gap-4 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
           <label className="flex items-center gap-2 text-sm font-medium">
             <input
               type="checkbox"
@@ -273,11 +273,11 @@ export default function NouveauColisPage() {
           </label>
         </div>
 
-        <p className="col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
+        <p className="sm:col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
 
-        {error && <p className="col-span-2 text-sm font-medium text-red-600">{error}</p>}
+        {error && <p className="sm:col-span-2 text-sm font-medium text-red-600">{error}</p>}
 
-        <button type="submit" disabled={submitting} className="btn-primary col-span-2 flex items-center justify-center gap-2">
+        <button type="submit" disabled={submitting} className="btn-primary sm:col-span-2 flex items-center justify-center gap-2">
           <PackagePlus className="h-4 w-4" />
           {submitting ? 'Création…' : 'Créer le colis'}
         </button>

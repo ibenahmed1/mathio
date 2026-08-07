@@ -76,6 +76,41 @@ export interface Marchandise {
   dateCreation: string;
 }
 
+export interface ProduitVariante {
+  id: string;
+  produitId: string;
+  nom: string;
+  reference: string;
+  quantiteEnCours: number;
+  quantiteRecue: number;
+  rayonnage: string | null;
+}
+
+export interface HistoriqueProduit {
+  id: string;
+  produitId: string;
+  texte: string;
+  dateCreation: string;
+}
+
+export interface Produit {
+  id: string;
+  marchandId: string;
+  nom: string;
+  reference: string;
+  quantiteEnCours: number;
+  quantiteRecue: number;
+  statutReception: 'pas_encore_recu' | 'recu';
+  rayonnage: string | null;
+  note: string | null;
+  photoUrl: string | null;
+  variantesActivees: boolean;
+  dateCreation: string;
+  variantes?: ProduitVariante[];
+  historique?: HistoriqueProduit[];
+  marchand?: { nomBoutique: string };
+}
+
 export interface HistoriqueStatut {
   id: string;
   ancienStatut: string | null;
@@ -104,6 +139,8 @@ export interface Marchand {
   id: string;
   utilisateurId: string;
   nomBoutique: string;
+  raisonSociale: string | null;
+  iceRc: string | null;
   ville: string | null;
   statut: 'en_attente_validation' | 'actif' | 'suspendu';
   typeCompte: 'marchand' | 'entreprise' | 'dropshipping';
@@ -118,8 +155,19 @@ export interface Marchand {
   ramassageRecurrentActif: boolean;
   ramassageJours: string | null;
   ramassageCreneauHoraire: string | null;
-  utilisateur?: { nomComplet: string; telephone: string | null; email?: string | null; actif: boolean };
+  dateCreation: string;
+  utilisateur?: {
+    id?: string;
+    nomComplet: string;
+    telephone: string | null;
+    email?: string | null;
+    actif: boolean;
+    dateCreation?: string;
+    derniereConnexion?: string | null;
+  };
+  adresses?: AdresseMarchand[];
   membres?: MarchandMembre[];
+  _count?: { commandes: number; ramassages: number; marchandises: number };
 }
 
 export interface Ramassage {
@@ -160,6 +208,27 @@ export interface Utilisateur {
   actif: boolean;
   dateCreation: string;
   derniereConnexion?: string | null;
+  cin?: string | null;
+  photoUrl?: string | null;
+  zonePrincipale?: string | null;
+  zoneSecondaire?: string | null;
+  adresse?: string | null;
+  nomBanque?: string | null;
+  numeroCompte?: string | null;
+  fraisLivraison?: string | null;
+  fraisRefus?: string | null;
+  cinRectoUrl?: string | null;
+  cinVersoUrl?: string | null;
+  ribPhotoUrl?: string | null;
+}
+
+export interface TarifLivreurVille {
+  id: string;
+  utilisateurId: string;
+  villeId: string;
+  fraisLivraison: string;
+  fraisRefus: string;
+  ville?: { id: string; nom: string };
 }
 
 export interface MarchandMembre {
@@ -167,6 +236,116 @@ export interface MarchandMembre {
   marchandId: string;
   dateAjout: string;
   utilisateur: { id: string; nomComplet: string; email: string | null; actif: boolean };
+}
+
+export interface Ville {
+  id: string;
+  nom: string;
+  type: 'principale' | 'satellite';
+  hubId: string;
+}
+
+export interface HubRegional {
+  id: string;
+  nom: string;
+  zoneId: string;
+  villes?: Ville[];
+}
+
+export interface ZoneLogistique {
+  id: string;
+  code: string;
+  nom: string;
+  hubs?: HubRegional[];
+}
+
+export interface EquipeTacheMembre {
+  id: string;
+  dateAjout: string;
+  utilisateur: { id: string; nomComplet: string; email: string | null; role: string; actif: boolean };
+}
+
+export interface EquipeTache {
+  id: string;
+  code: string;
+  nom: string;
+  couleur: string;
+  membres?: EquipeTacheMembre[];
+}
+
+export interface CommentaireTache {
+  id: string;
+  tacheId: string;
+  texte: string;
+  mentionIds: string[];
+  dateCreation: string;
+  auteur?: { id: string; nomComplet: string };
+}
+
+export interface Tache {
+  id: string;
+  numero: number;
+  titre: string;
+  description: string | null;
+  statut: 'a_faire' | 'en_cours' | 'termine';
+  priorite: 'faible' | 'moyenne' | 'elevee';
+  progress: number;
+  etiquettes: string[];
+  teamId: string;
+  assigneeId: string | null;
+  createurId: string;
+  dateEcheance: string | null;
+  dateCreation: string;
+  bloque: boolean;
+  raisonBlocage: string | null;
+  team?: EquipeTache;
+  assignee?: { id: string; nomComplet: string } | null;
+  createur?: { id: string; nomComplet: string };
+  commentaires?: CommentaireTache[];
+  historiqueStatuts?: HistoriqueStatutTache[];
+  piecesJointes?: PieceJointeTache[];
+  _count?: { commentaires: number };
+}
+
+export interface HistoriqueStatutTache {
+  id: string;
+  ancienStatut: 'a_faire' | 'en_cours' | 'termine' | null;
+  nouveauStatut: 'a_faire' | 'en_cours' | 'termine';
+  utilisateurId: string;
+  utilisateur?: { id: string; nomComplet: string };
+  horodatage: string;
+}
+
+export interface PieceJointeTache {
+  id: string;
+  tacheId: string;
+  nom: string;
+  url: string;
+  auteurId: string;
+  auteur?: { id: string; nomComplet: string };
+  dateAjout: string;
+}
+
+export interface MembreTache {
+  id: string;
+  nomComplet: string;
+  role: string;
+}
+
+export interface Transaction {
+  id: string;
+  montant: string;
+  type: 'revenu' | 'depense';
+  categorie: 'paiement_client' | 'frais_livraison' | 'abonnement_outil' | 'salaire' | 'remboursement' | 'autre';
+  dateEffet: string;
+  description: string | null;
+  auteurId: string;
+  estAnnulee: boolean;
+  transactionOrigineId: string | null;
+  dateCreation: string;
+  auteur?: { nomComplet: string; role: string };
+  transactionOrigine?: { id: string; categorie: string } | null;
+  annulation?: { id: string } | null;
 }
 
 export interface Reclamation {

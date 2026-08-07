@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { apiGet, apiPatch, apiDelete, apiPost } from '@/lib/api-client';
 import type { Marchand } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { ReinitialiserMotDePasse } from '@/components/ReinitialiserMotDePasse';
 
 export default function AdminMarchandsPage() {
   const [marchands, setMarchands] = useState<Marchand[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [resetId, setResetId] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -46,18 +49,6 @@ export default function AdminMarchandsPage() {
     }
   }
 
-  async function reinitialiserMotDePasse(utilisateurId: string, nomBoutique: string) {
-    setError(null);
-    try {
-      const res = await apiPost<{ secretTemporaire: string }>(`/api/utilisateurs/${utilisateurId}/reinitialiser-mot-de-passe`);
-      window.alert(
-        `Nouveau mot de passe temporaire pour "${nomBoutique}" : ${res.secretTemporaire}\n\nCommunique-le au marchand ; il pourra le changer après connexion.`
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    }
-  }
-
   // Ouvre l'espace marchand dans un nouvel onglet : pose une vraie session
   // marchand (cookie pd_session_marchand) sans toucher à la session admin en
   // cours, qui reste active dans l'onglet courant.
@@ -89,7 +80,11 @@ export default function AdminMarchandsPage() {
         <tbody>
           {marchands.map((m) => (
             <tr key={m.id}>
-              <td>{m.nomBoutique}</td>
+              <td>
+                <Link href={`/admin/marchands/${m.id}`} className="font-semibold underline-offset-2 hover:underline">
+                  {m.nomBoutique}
+                </Link>
+              </td>
               <td>
                 {m.utilisateur?.nomComplet} — {m.utilisateur?.telephone ?? m.utilisateur?.email ?? '—'}
               </td>
@@ -121,12 +116,13 @@ export default function AdminMarchandsPage() {
                     Suspendre
                   </button>
                 )}
-                <button
-                  onClick={() => reinitialiserMotDePasse(m.utilisateurId, m.nomBoutique)}
-                  className="btn-outline px-2 py-1 text-xs"
-                >
-                  Réinitialiser mot de passe
-                </button>
+                {resetId === m.utilisateurId ? (
+                  <ReinitialiserMotDePasse utilisateurId={m.utilisateurId} onDone={() => setResetId(null)} />
+                ) : (
+                  <button onClick={() => setResetId(m.utilisateurId)} className="btn-outline px-2 py-1 text-xs">
+                    Réinitialiser mot de passe
+                  </button>
+                )}
                 <button
                   onClick={() => supprimer(m.id, m.nomBoutique)}
                   className="btn-outline px-2 py-1 text-xs text-red-600 dark:text-red-400"

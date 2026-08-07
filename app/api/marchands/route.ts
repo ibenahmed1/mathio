@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const marchands = await prisma.marchand.findMany({
       where: statutParam ? { statut: statutParam as StatutMarchand } : undefined,
       orderBy: { dateCreation: 'desc' },
-      include: { utilisateur: { select: { nomComplet: true, telephone: true, actif: true } } },
+      include: { utilisateur: { select: { nomComplet: true, telephone: true, email: true, actif: true } } },
     });
 
     return NextResponse.json({ data: marchands });
