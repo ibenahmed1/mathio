@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Modèle relationnel — Système de livraison (Power Delivery)</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 22mm 18mm;
+    @bottom-center {
+      content: "Power Delivery — Modèle relationnel — page " counter(page) " / " counter(pages);
+      font-size: 8pt;
+      color: #888;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.55;
+    font-size: 10.5pt;
+  }
+  h1 {
+    font-size: 22pt;
+    color: #111;
+    border-bottom: 4px solid #ffd100;
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+  h2 {
+    font-size: 15pt;
+    color: #111;
+    margin-top: 28px;
+    border-left: 5px solid #ffd100;
+    padding-left: 10px;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 12pt;
+    color: #222;
+    margin-top: 18px;
+    page-break-after: avoid;
+  }
+  .cover {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    height: 240mm;
+    page-break-after: always;
+  }
+  .cover .tag {
+    display: inline-block;
+    background: #111;
+    color: #ffd100;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 10pt;
+    margin-bottom: 18px;
+    letter-spacing: 0.5px;
+  }
+  .cover h1 {
+    font-size: 30pt;
+    border: none;
+    padding: 0;
+    max-width: 480px;
+  }
+  .cover .subtitle {
+    font-size: 13pt;
+    color: #444;
+    margin-top: 10px;
+    max-width: 480px;
+  }
+  .cover .meta {
+    margin-top: 60px;
+    font-size: 10pt;
+    color: #666;
+  }
+  .cover .meta div { margin-bottom: 4px; }
+  code {
+    background: #f2f2f2;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 9.3pt;
+    color: #b3261e;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 9.3pt;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid #ddd;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #111;
+    color: #ffd100;
+    font-weight: 700;
+  }
+  tr:nth-child(even) td { background: #fafafa; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin-bottom: 4px; }
+  section { page-break-before: always; }
+  section:first-of-type { page-break-before: auto; }
+  .toc { page-break-after: always; }
+  .toc ol { list-style: none; padding-left: 0; counter-reset: toc; }
+  .toc li {
+    counter-increment: toc;
+    padding: 6px 0;
+    border-bottom: 1px dotted #ccc;
+    font-size: 11pt;
+  }
+  .toc li::before {
+    content: counter(toc) ". ";
+    font-weight: 700;
+    color: #91600b;
+    margin-right: 6px;
+  }
+  .mermaid { text-align: center; margin: 16px 0; }
+
+  /* Notation MERISE : relation sous forme de bloc texte */
+  .relation {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fafafa;
+    padding: 12px 16px;
+    margin: 14px 0;
+    page-break-inside: avoid;
+  }
+  .relation .nom {
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 11pt;
+    font-weight: 800;
+    color: #0b5cab;
+    margin-bottom: 6px;
+  }
+  .relation .attrs {
+    font-family: "Consolas", "SF Mono", monospace;
+    font-size: 9.5pt;
+    line-height: 1.9;
+  }
+  .pk { text-decoration: underline; font-weight: 700; }
+  .fk { color: #91600b; }
+  .fk::before { content: "#"; }
+  .uk { font-style: italic; }
+  .legend {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0;
+    font-size: 9.5pt;
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <span class="tag">POWER DELIVERY — SYSTÈME DE LIVRAISON</span>
+  <h1>Modèle relationnel</h1>
+  <div class="subtitle">Modèle relationnel complet de la base de données (notation MERISE), généré à partir
+    du schéma Prisma réellement en production sur ce projet — pas un modèle théorique reconstitué a
+    posteriori.</div>
+  <div class="meta">
+    <div><b>Projet :</b> next-one (Power Delivery)</div>
+    <div><b>Source :</b> prisma/schema.prisma</div>
+    <div><b>Date :</b> 25 juillet 2026</div>
+    <div><b>Préparé pour :</b> Basma Boutaib</div>
+  </div>
+</div>
+
+<div class="toc">
+<h2 style="border:none;padding:0;margin-top:0;">Sommaire</h2>
+<ol>
+  <li>Vue d'ensemble (diagramme entités-associations)</li>
+  <li>Notation utilisée</li>
+  <li>Domaine "Utilisateurs et marchands"</li>
+  <li>Domaine "Cœur métier — colis"</li>
+  <li>Domaine "Ramassage"</li>
+  <li>Modules indépendants</li>
+  <li>Tableau récapitulatif des cardinalités</li>
+  <li>Règles de gestion associées au modèle</li>
+</ol>
+</div>
+
+<section>
+<h2>1. Vue d'ensemble</h2>
+<p>11 tables au total : 3 pour les comptes (utilisateurs, marchands, adresses), 4 pour le cycle de vie d'un
+colis, 1 pour le ramassage, 2 modules indépendants (liste noire, produits — pas encore reliés au reste).</p>
+
+<pre class="mermaid">
+erDiagram
+    UTILISATEUR ||--o| MARCHAND : "possede (si role=marchand)"
+    MARCHAND ||--o{ ADRESSE_MARCHAND : possede
+    MARCHAND ||--o{ COMMANDE : passe
+    MARCHAND ||--o{ RAMASSAGE : demande
+    MARCHAND ||--o{ BON_DE_LIVRAISON : genere
+    ADRESSE_MARCHAND ||--o{ RAMASSAGE : localise
+    RAMASSAGE |o--o{ COMMANDE : regroupe
+    BON_DE_LIVRAISON |o--o{ COMMANDE : regroupe
+    UTILISATEUR |o--o{ COMMANDE : "ramasse (ramasseur)"
+    UTILISATEUR |o--o{ COMMANDE : "livre (livreur)"
+    UTILISATEUR |o--o{ RAMASSAGE : "effectue (ramasseur)"
+    UTILISATEUR |o--o{ RAMASSAGE : initie
+    COMMANDE ||--o{ HISTORIQUE_STATUT_COMMANDE : historise
+    UTILISATEUR ||--o{ HISTORIQUE_STATUT_COMMANDE : enregistre
+    COMMANDE ||--o{ COMMENTAIRE_COMMANDE : recoit
+    UTILISATEUR ||--o{ COMMENTAIRE_COMMANDE : ecrit
+</pre>
+
+<div class="legend">
+<b>Lecture des cardinalités Mermaid :</b> <code>||</code> = exactement un (1,1) &nbsp;•&nbsp;
+<code>|o</code> = zéro ou un (0,1) &nbsp;•&nbsp; <code>o{</code> = zéro ou plusieurs (0,n) &nbsp;•&nbsp;
+<code>}|</code> = un ou plusieurs (1,n).
+</div>
+</section>
+
+<section>
+<h2>2. Notation utilisée</h2>
+<p>Chaque table est présentée selon la notation relationnelle MERISE classique :</p>
+<div class="relation">
+  <div class="nom">NOM_TABLE</div>
+  <div class="attrs">(<span class="pk">id</span>, attribut1, attribut2, <span class="fk">cle_etrangere</span>, ...)</div>
+</div>
+<ul>
+  <li><span class="pk">Souligné</span> = clé primaire</li>
+  <li><span class="fk">#</span>préfixe = clé étrangère (référence une autre table)</li>
+  <li><span class="uk">Italique</span> = contrainte d'unicité (autre que la clé primaire)</li>
+</ul>
+<p>Les noms de colonnes correspondent exactement aux noms physiques en base PostgreSQL (tels que définis par
+les annotations <code>@map</code> du schéma Prisma), pas aux noms de variables TypeScript utilisés dans le
+code de l'application.</p>
+</section>
+
+<section>
+<h2>3. Domaine "Utilisateurs et marchands"</h2>
+
+<div class="relation">
+  <div class="nom">utilisateurs</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, nom_complet, <span class="uk">telephone</span>, <span class="uk">email</span>,
+    mot_de_passe_hash, role, actif, date_creation, derniere_connexion,
+    <span class="uk">reset_token_hash</span>, reset_token_expire)
+  </div>
+</div>
+<p><code>role</code> ∈ {admin, finance, sav, agent_confirmation, marchand, livreur, ramasseur}. Une seule
+table pour tous les rôles : c'est ce champ qui distingue un compte admin d'un compte marchand ou livreur
+(voir le document sur la sécurité des sessions pour le détail).</p>
+
+<div class="relation">
+  <div class="nom">marchands</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="fk">utilisateur_id</span> <span class="uk">(unique)</span>,
+    nom_boutique, raison_sociale, ice_rc, type_compte, ville, rib, cin, site_web, adresse, nom_banque,
+    rib_photo_url, ville_ramassage, registre_commerce, statut, ramassage_recurrent_actif, ramassage_jours,
+    ramassage_creneau_horaire, date_creation)
+  </div>
+</div>
+<p><code>utilisateur_id</code> est à la fois clé étrangère <b>et</b> unique : chaque marchand correspond à
+exactement un compte utilisateur, et un utilisateur a au plus un profil marchand (relation 1-1). <code>type_compte</code>
+∈ {marchand, entreprise, dropshipping}. <code>statut</code> ∈ {en_attente_validation, actif, suspendu}.</p>
+
+<div class="relation">
+  <div class="nom">adresses_marchand</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="fk">marchand_id</span>, libelle, adresse_complete, est_par_defaut)
+  </div>
+</div>
+<p>Un marchand peut avoir plusieurs adresses de ramassage enregistrées ; chaque <code>ramassage</code>
+référence l'une d'entre elles.</p>
+</section>
+
+<section>
+<h2>4. Domaine "Cœur métier — colis"</h2>
+
+<div class="relation">
+  <div class="nom">commandes</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="uk">code_suivi</span>, <span class="fk">marchand_id</span>,
+    client_nom, client_telephone, ville, adresse, code_postal, produit_description, quantite, poids_kg,
+    montant_cod, notes, statut, etat_paiement, a_risque, <span class="fk">ramasseur_id</span>,
+    <span class="fk">ramassage_id</span>, <span class="fk">livreur_id</span>,
+    <span class="fk">bon_livraison_id</span>, source, date_creation, date_confirmation, date_collecte,
+    date_livraison, gps_livraison_lat, gps_livraison_lng, signature_url, photo_preuve_url, motif_retour, cin_url)
+  </div>
+</div>
+<p>La table centrale du système. <code>marchand_id</code> est obligatoire ; <code>ramasseur_id</code>,
+<code>livreur_id</code>, <code>ramassage_id</code> et <code>bon_livraison_id</code> sont tous optionnels
+(un colis peut exister avant d'être affecté à qui que ce soit). <code>statut</code> compte 27 valeurs
+possibles (cycle de vie complet centre d'appel → livraison, voir <code>lib/statuts.ts</code>) et
+<code>etat_paiement</code> (COD) est <b>indépendant</b> du statut de livraison — un colis "livré" peut rester
+"non payé" tant que le marchand n'est pas remboursé.</p>
+
+<div class="relation">
+  <div class="nom">bons_de_livraison</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="uk">numero</span>, <span class="fk">marchand_id</span>,
+    nb_colis, montant_total_cod, date_generation)
+  </div>
+</div>
+<p>Regroupe plusieurs colis "en_attente" d'un même marchand en un lot confirmé d'un coup (numéro au format
+<code>BL-AAAA-MMJJ-NNN</code>).</p>
+
+<div class="relation">
+  <div class="nom">historique_statuts_commande</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="fk">commande_id</span>, ancien_statut, nouveau_statut,
+    <span class="fk">utilisateur_id</span>, horodatage)
+  </div>
+</div>
+<p>Journal d'audit : chaque changement de statut d'un colis est tracé avec qui l'a fait et quand.</p>
+
+<div class="relation">
+  <div class="nom">commentaires_commande</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="fk">commande_id</span>, <span class="fk">utilisateur_id</span>,
+    texte, date_creation)
+  </div>
+</div>
+<p>Notes libres internes (centre d'appel), affichées avec l'historique dans la vue "circuit" du colis côté admin.</p>
+</section>
+
+<section>
+<h2>5. Domaine "Ramassage"</h2>
+
+<div class="relation">
+  <div class="nom">ramassages</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, <span class="fk">marchand_id</span>, <span class="fk">adresse_id</span>,
+    date_prevue, creneau_horaire, mode_creation, <span class="fk">initie_par</span>, nb_colis_estimes,
+    nb_colis_reels, <span class="fk">ramasseur_id</span>, statut)
+  </div>
+</div>
+<p>Une tournée de ramassage planifiée chez un marchand. <code>mode_creation</code> ∈ {recurrent, manuel} :
+une tournée récurrente n'a pas d'<code>initie_par</code> (générée automatiquement par le planificateur),
+alors qu'une tournée manuelle trace qui l'a déclenchée (marchand ou admin). Une même tournée peut regrouper
+plusieurs <code>commandes</code>.</p>
+</section>
+
+<section>
+<h2>6. Modules indépendants</h2>
+<p>Ces deux tables existent dans le schéma mais ne sont reliées à aucune autre table pour l'instant — ce sont
+des modules autonomes, prévus pour une intégration future.</p>
+
+<div class="relation">
+  <div class="nom">liste_noire</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, type, valeur, nom_associe, motif, niveau_risque, date_creation)
+  </div>
+</div>
+<p><code>type</code> ∈ {telephone, client, adresse} — permet de blacklister un numéro, un client ou une
+adresse. <code>motif</code> ∈ {fraude, refus_repetitifs, faux_numero, client_agressif, impaye, autre}.
+<code>niveau_risque</code> ∈ {moyen, eleve, critique}.</p>
+
+<div class="relation">
+  <div class="nom">produits</div>
+  <div class="attrs">
+    (<span class="pk">id</span>, nom, <span class="uk">sku</span>, stock, prix_unitaire, seuil_alerte, date_creation)
+  </div>
+</div>
+<p>Catalogue produit avec suivi de stock — pas encore relié aux commandes (le champ
+<code>produit_description</code> de <code>commandes</code> reste aujourd'hui un texte libre, pas une
+référence vers cette table).</p>
+</section>
+
+<section>
+<h2>7. Tableau récapitulatif des cardinalités</h2>
+<table>
+<tr><th>Table source</th><th>Table cible</th><th>Cardinalité</th><th>Clé étrangère</th><th>Obligatoire ?</th></tr>
+<tr><td>utilisateurs</td><td>marchands</td><td>1,1 — 0,1</td><td>marchands.utilisateur_id</td><td>Oui côté marchand</td></tr>
+<tr><td>marchands</td><td>adresses_marchand</td><td>1,1 — 0,n</td><td>adresses_marchand.marchand_id</td><td>Oui</td></tr>
+<tr><td>marchands</td><td>commandes</td><td>1,1 — 0,n</td><td>commandes.marchand_id</td><td>Oui</td></tr>
+<tr><td>marchands</td><td>ramassages</td><td>1,1 — 0,n</td><td>ramassages.marchand_id</td><td>Oui</td></tr>
+<tr><td>marchands</td><td>bons_de_livraison</td><td>1,1 — 0,n</td><td>bons_de_livraison.marchand_id</td><td>Oui</td></tr>
+<tr><td>adresses_marchand</td><td>ramassages</td><td>1,1 — 0,n</td><td>ramassages.adresse_id</td><td>Oui</td></tr>
+<tr><td>ramassages</td><td>commandes</td><td>0,1 — 0,n</td><td>commandes.ramassage_id</td><td>Non</td></tr>
+<tr><td>bons_de_livraison</td><td>commandes</td><td>0,1 — 0,n</td><td>commandes.bon_livraison_id</td><td>Non</td></tr>
+<tr><td>utilisateurs (ramasseur)</td><td>commandes</td><td>0,1 — 0,n</td><td>commandes.ramasseur_id</td><td>Non</td></tr>
+<tr><td>utilisateurs (livreur)</td><td>commandes</td><td>0,1 — 0,n</td><td>commandes.livreur_id</td><td>Non</td></tr>
+<tr><td>utilisateurs (ramasseur)</td><td>ramassages</td><td>0,1 — 0,n</td><td>ramassages.ramasseur_id</td><td>Non</td></tr>
+<tr><td>utilisateurs (initiateur)</td><td>ramassages</td><td>0,1 — 0,n</td><td>ramassages.initie_par</td><td>Non</td></tr>
+<tr><td>commandes</td><td>historique_statuts_commande</td><td>1,1 — 0,n</td><td>historique_statuts_commande.commande_id</td><td>Oui</td></tr>
+<tr><td>utilisateurs</td><td>historique_statuts_commande</td><td>1,1 — 0,n</td><td>historique_statuts_commande.utilisateur_id</td><td>Oui</td></tr>
+<tr><td>commandes</td><td>commentaires_commande</td><td>1,1 — 0,n</td><td>commentaires_commande.commande_id</td><td>Oui</td></tr>
+<tr><td>utilisateurs</td><td>commentaires_commande</td><td>1,1 — 0,n</td><td>commentaires_commande.utilisateur_id</td><td>Oui</td></tr>
+</table>
+</section>
+
+<section>
+<h2>8. Règles de gestion associées au modèle</h2>
+<table>
+<tr><th>Règle</th><th>Traduction dans le modèle</th></tr>
+<tr><td>RF-22 — un marchand auto-inscrit reste bloqué tant qu'un admin ne l'a pas validé</td>
+  <td><code>marchands.statut = en_attente_validation</code> par défaut, synchronisé avec
+  <code>utilisateurs.actif = false</code> jusqu'à approbation</td></tr>
+<tr><td>RG-15 / RG-16 — modèle hybride de ramassage (récurrent + manuel)</td>
+  <td><code>ramassages.mode_creation</code> + <code>ramassages.initie_par</code> nullable pour le mode récurrent</td></tr>
+<tr><td>État de paiement COD indépendant du statut de livraison</td>
+  <td>Deux colonnes séparées sur <code>commandes</code> : <code>statut</code> et <code>etat_paiement</code></td></tr>
+<tr><td>Un colis n'est affecté à personne au départ</td>
+  <td><code>ramasseur_id</code>, <code>livreur_id</code>, <code>ramassage_id</code>, <code>bon_livraison_id</code>
+  tous nullable sur <code>commandes</code></td></tr>
+<tr><td>Traçabilité complète de chaque changement de statut</td>
+  <td>Table <code>historique_statuts_commande</code> dédiée, jamais de mise à jour destructive du statut sans trace</td></tr>
+</table>
+</section>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default', er: { useMaxWidth: true } });
+</script>
+</body>
+</html>

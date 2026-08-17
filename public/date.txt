@@ -1,0 +1,6 @@
+clientNom,clientTelephone,ville,adresse,montantCod,codeSuivi,marchandise,quantite,zone,commentaire,colisARemplacer,ouvrir,fragile
+Amine Benani,0661234567,Casablanca,Maarif Blvd Zerktouni,350,TRACK1001,Sac en cuir,1,Grand Casablanca,Appeler avant livraison,Non,Oui,Non
+Khadija El Amrani,0612345678,Rabat,Agdal Avenue de France,500,TRACK1002,Robe Kaftan,1,Rabat-Sale-Kenitra,Laissez chez le concierge,Non,Oui,Oui
+Youssef Mansouri,0678912345,Marrakech,Gueliz Rue de la Liberte,290,TRACK1003,Ecouteurs Bluetooth,2,Marrakech-Safi,Livraison apres 17h,Non,Non,Non
+Sanae Chraibi,0654321098,Fes,Ville Nouvelle Av Hassan II,420,TRACK1004,Montre Homme,1,Fes-Meknes,Demande d echange d article,Oui,Oui,Non
+Omar Berrada,0633445566,Tanger,Malabata Blvd Mohamed VI,650,TRACK1005,Parfum 100ml,1,Tangier-Tetouan,Manipuler avec soin,Non,Non,Oui

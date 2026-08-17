@@ -1,0 +1,295 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* Thème Mathio Delivery : jaune de marque + noir, repris du logo. */
+  --brand: #ffd100;
+  --brand-foreground: #0a0a0a;
+  /* Nuance foncée du jaune de marque, réservée au texte sur fond clair
+     (le jaune brut manque de contraste écrit en direct sur du blanc). */
+  --brand-ink: #8a6d00;
+  /* Lavage très pâle du jaune de marque (aucune autre teinte introduite),
+     utilisé comme fond de coquille (sidebar/dashboard) pour que les cartes
+     blanches se détachent doucement au lieu de flotter sur du blanc pur. */
+  --surface: #fffcf0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-ink: var(--brand-ink);
+  --color-surface: var(--surface);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+    --surface: #0a0a0a;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-md bg-brand px-4 py-2 text-sm font-bold text-brand-foreground shadow-sm transition hover:brightness-95 disabled:opacity-50;
+  }
+  .btn-outline {
+    @apply rounded-md border border-black/70 px-3 py-1.5 text-sm font-semibold text-black transition hover:bg-black hover:text-white disabled:opacity-50 dark:border-white/70 dark:text-white dark:hover:bg-white dark:hover:text-black;
+  }
+  .input-basic {
+    @apply rounded-md border border-black/20 bg-transparent px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 dark:border-white/20;
+  }
+  .input-underline {
+    @apply w-full border-0 border-b border-black/20 bg-transparent px-0 py-2 text-sm text-black placeholder:text-black/40 focus:border-brand focus:outline-none;
+  }
+  .btn-gradient {
+    @apply w-full rounded-full bg-gradient-to-r from-sky-400 to-fuchsia-500 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:brightness-105 disabled:opacity-50;
+  }
+  .page-title {
+    @apply text-2xl font-black tracking-tight;
+  }
+  .table-card {
+    @apply overflow-hidden rounded-xl border border-black/10 shadow-sm dark:border-white/10;
+  }
+  .table-basic {
+    @apply w-full border-collapse text-left text-sm;
+  }
+  .table-basic thead th {
+    @apply whitespace-nowrap border-b border-black/10 bg-black/[0.03] px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-black/55 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55;
+  }
+  .table-basic tbody td {
+    @apply border-b border-black/[0.06] px-3 py-2.5 align-middle dark:border-white/[0.06];
+  }
+  .table-basic tbody tr {
+    @apply transition-colors hover:bg-brand/[0.08];
+  }
+  .table-basic tbody tr:nth-child(even) {
+    @apply bg-black/[0.015] dark:bg-white/[0.02];
+  }
+  .table-basic tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+  .badge-neutral {
+    @apply bg-black/[0.06] text-black/70 dark:bg-white/10 dark:text-white/70;
+  }
+  .badge-warn {
+    @apply bg-amber-500/15 text-amber-700 dark:text-amber-400;
+  }
+  .badge-danger {
+    @apply bg-red-500/15 text-red-700 dark:text-red-400;
+  }
+  .badge-brand {
+    @apply bg-brand/20 text-brand-foreground dark:text-brand;
+  }
+  .empty-state {
+    @apply flex flex-col items-center justify-center gap-1 py-10 text-center opacity-60;
+  }
+  .nav-link {
+    @apply rounded px-2 py-1 font-semibold text-sm text-white/80 transition hover:bg-brand hover:text-brand-foreground;
+  }
+
+  /* Fond de coquille (admin/marchand) : lavage jaune très pâle sous les
+     cartes blanches, pour la profondeur douce vue dans les maquettes de
+     référence, sans jamais sortir de la palette du logo. */
+  .shell-surface {
+    @apply bg-surface dark:bg-black;
+  }
+  /* Carte de tableau de bord par défaut : blanche, coins généreux, ombre
+     discrète — remplace les anciennes cartes à bordure dure. */
+  .dashboard-card {
+    @apply rounded-2xl border border-black/5 bg-white p-4 shadow-sm shadow-black/[0.04] dark:border-white/10 dark:bg-white/[0.03] dark:shadow-none;
+  }
+  /* Variante pastel douce (~8% du jaune de marque) pour isoler une section
+     sans jamais introduire une teinte étrangère au logo. */
+  .card-tint-soft {
+    @apply rounded-2xl border border-brand/15 bg-brand/[0.08] p-4 dark:border-brand/10 dark:bg-brand/[0.06];
+  }
+  /* Carte "héros" pleine couleur de marque, réservée au KPI principal. */
+  .card-tint-strong {
+    @apply rounded-2xl bg-brand p-4 text-brand-foreground shadow-sm shadow-brand/30;
+  }
+
+  /* --- Espace Marchand : refonte "impeccable" (3 colonnes, glassmorphism) --- */
+
+  /* Carte en verre dépoli : base de tous les nouveaux widgets du dashboard
+     marchand (remplace les ombres dures par un flou de fond + bordure
+     translucide, coins très arrondis). */
+  .glass-card {
+    @apply rounded-3xl border border-black/[0.06] bg-white/70 p-5 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.10)] backdrop-blur-xl transition-all dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none;
+  }
+  .glass-card-hover {
+    @apply hover:-translate-y-0.5 hover:shadow-[0_12px_36px_-12px_rgba(0,0,0,0.14)] dark:hover:bg-white/[0.06];
+  }
+  /* Pilule de tendance (%) affichée en coin des cartes KPI. */
+  .trend-pill {
+    @apply inline-flex items-center gap-0.5 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold shadow-sm dark:bg-black/30;
+  }
+  /* Masque la scrollbar d'une zone qui doit rester défilable au clavier/à la
+     molette sans afficher de piste visible (ex: nav interne de la sidebar). */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Ligne de balayage animée du scanner QR (components/QrScanner.tsx). */
+@keyframes scan-line {
+  0%, 100% {
+    top: 6%;
+    opacity: 0.9;
+  }
+  50% {
+    top: 92%;
+    opacity: 0.4;
+  }
+}
+
+/* Impression des tickets colis : masque la coquille admin (sidebar/header)
+   ainsi que tout élément marqué .print-hide (ex. bouton "Imprimer" lui-même),
+   ne garde que le contenu de la page (voir app/admin/colis/[id]/ticket). */
+@media print {
+  aside,
+  header,
+  .print-hide {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Kanban Kadence (§ /admin/tasks, design_handoff_kanban) — jetons "Sunflower
+   Fields" portés à l'identique de tokens.css / reference-board-light.html.
+   Scopés à .kdc-board pour ne pas altérer le thème du reste de l'admin.
+   --------------------------------------------------------------------- */
+.kdc-board {
+  --font: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font);
+
+  --bg-page: #E9E9EA;
+  --bg-shell: #FFFFFF;
+  --bg-sidebar: #F6F6F5;
+  --bg-panel: rgba(255, 255, 255, .55);
+  --bg-panel-solid: #FFFFFF;
+  --bg-subtle: #EAEAE9;
+
+  --border: #EBE9E1;
+  --border-strong: #DADAD8;
+  --border-glass: rgba(255, 255, 255, .75);
+
+  --text-1: #202020;
+  --text-2: #5e605e;
+  --text-3: #7b7d7b;
+
+  --accent: #FFD100;
+  --accent-light: #FFEE32;
+  --on-accent: #202020;
+
+  --status-backlog: #7b7d7b;
+  --status-todo: #3f413f;
+  --status-doing: #FFD100;
+  --status-review: #FFEE32;
+  --status-done: #9a9c9a;
+
+  --r-chip: 6px;
+  --r-control: 10px;
+  --r-card: 12px;
+  --r-column: 14px;
+  --r-panel: 18px;
+  --r-pill: 20px;
+  --r-shell: 22px;
+
+  --sh-card: 0 1px 3px rgba(32, 32, 32, .06);
+  --sh-panel: 0 1px 2px rgba(32, 32, 32, .04);
+  --sh-shell: 0 40px 90px rgba(32, 32, 32, .13);
+  --sh-modal: 0 30px 70px rgba(32, 32, 32, .18);
+
+  --label-design-bg: rgba(255, 209, 0, .24); --label-design-fg: #8a7405;
+  --label-frontend-bg: rgba(255, 209, 0, .20); --label-frontend-fg: #8a7405;
+  --label-backend-bg: rgba(32, 32, 32, .07); --label-backend-fg: #444644;
+  --label-research-bg: rgba(32, 32, 32, .05); --label-research-fg: #3f413f;
+  --label-bug-bg: rgba(255, 209, 0, .18); --label-bug-fg: #C9A400;
+  --label-docs-bg: rgba(32, 32, 32, .07); --label-docs-fg: #5e605e;
+
+  --prio-basse-bg: rgba(32, 32, 32, .05); --prio-basse-fg: #5e605e;
+  --prio-moyenne-bg: rgba(32, 32, 32, .07); --prio-moyenne-fg: #444644;
+  --prio-haute-bg: rgba(255, 209, 0, .20); --prio-haute-fg: #8a7405;
+
+  --opt-on-bg: rgba(255, 209, 0, .22); --opt-on-fg: #8a7405;
+
+  --danger-bg: rgba(214, 69, 69, .12); --danger-fg: #B23A3A; --danger-border: rgba(214, 69, 69, .35);
+
+  --av-0-bg: #FFE888; --av-0-fg: #4a3a00;
+  --av-1-bg: #EAE7DC; --av-1-fg: #57544a;
+  --av-2-bg: #FFD100; --av-2-fg: #3d3100;
+  --av-3-bg: #DFDCD1; --av-3-fg: #4e4b42;
+  --av-4-bg: #F2EFE4; --av-4-fg: #5c594e;
+  --av-5-bg: #D8BE4E; --av-5-fg: #332900;
+  --av-all-bg: #EDEBE3; --av-all-fg: #7b7d7b;
+  --av-ring: inset 0 0 0 1px rgba(32, 32, 32, .06);
+}
+
+@media (prefers-color-scheme: dark) {
+  .kdc-board {
+    --bg-page: #171818;
+    --bg-shell: #202020;
+    --bg-sidebar: #1a1b1b;
+    --bg-panel: #1a1b1b;
+    --bg-panel-solid: #202020;
+    --bg-subtle: #333533;
+
+    --border: #333533;
+    --border-strong: #3f4140;
+    --border-glass: #333533;
+
+    --text-1: #D6D6D6;
+    --text-2: #8f918f;
+    --text-3: #6e706e;
+
+    --status-backlog: #6e706e;
+    --status-todo: #A9ABA9;
+    --status-done: #D6D6D6;
+
+    --label-design-bg: rgba(255, 209, 0, .16); --label-design-fg: #FFD100;
+    --label-frontend-bg: rgba(255, 238, 50, .13); --label-frontend-fg: #E8DA6B;
+    --label-backend-bg: rgba(214, 214, 214, .12); --label-backend-fg: #D6D6D6;
+    --label-research-bg: rgba(214, 214, 214, .08); --label-research-fg: #A9ABA9;
+    --label-bug-bg: rgba(255, 209, 0, .10); --label-bug-fg: #C9A400;
+    --label-docs-bg: rgba(51, 53, 51, .9); --label-docs-fg: #8f918f;
+
+    --prio-basse-bg: rgba(214, 214, 214, .07); --prio-basse-fg: #8f918f;
+    --prio-moyenne-bg: rgba(214, 214, 214, .12); --prio-moyenne-fg: #D6D6D6;
+    --prio-haute-bg: rgba(255, 238, 50, .14); --prio-haute-fg: #E8DA6B;
+
+    --opt-on-bg: rgba(255, 209, 0, .14); --opt-on-fg: #FFD100;
+
+    --danger-bg: rgba(255, 107, 107, .14); --danger-fg: #FF8C8C; --danger-border: rgba(255, 107, 107, .4);
+
+    --av-0-bg: linear-gradient(150deg, #FFEE32, #C9A400); --av-0-fg: #202020;
+    --av-1-bg: linear-gradient(150deg, #6e706e, #3a3c3a); --av-1-fg: #202020;
+    --av-2-bg: linear-gradient(150deg, #FFD100, #A88800); --av-2-fg: #202020;
+    --av-3-bg: linear-gradient(150deg, #9fa19f, #4a4c4a); --av-3-fg: #202020;
+    --av-4-bg: linear-gradient(150deg, #D6D6D6, #7e807e); --av-4-fg: #202020;
+    --av-5-bg: linear-gradient(150deg, #E8DA6B, #8a7a15); --av-5-fg: #202020;
+    --av-all-bg: #333533; --av-all-fg: #8f918f;
+    --av-ring: none;
+  }
+}

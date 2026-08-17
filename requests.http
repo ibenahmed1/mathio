@@ -1,0 +1,71 @@
+### Power Delivery — Lot 0 : jeu de requêtes de test
+### Nécessite l'extension VSCode "REST Client" (humao.rest-client).
+### Sans l'extension : voir les équivalents PowerShell dans le message de l'assistant.
+### Démarrer le serveur avant de tester : npm run dev  (http://localhost:3000)
+
+@baseUrl = http://localhost:3000
+
+### 1. Sans cookie -> 401 attendu
+GET {{baseUrl}}/api/commandes
+
+### 2. Login admin (0000000000 / 1234)
+# @name loginAdmin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "telephone": "0000000000",
+  "secret": "1234"
+}
+
+### 3. Login marchand démo (0611111111 / Marchand123!)
+# @name loginMarchand
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "telephone": "0611111111",
+  "secret": "Marchand123!"
+}
+
+### 4. Qui suis-je ? (utilise le cookie posé par la requête 2 ou 3 précédente)
+GET {{baseUrl}}/api/auth/me
+
+### 5. Le marchand crée une commande
+# @name creerCommande
+POST {{baseUrl}}/api/commandes
+Content-Type: application/json
+
+{
+  "clientNom": "Client Test",
+  "clientTelephone": "0699999999",
+  "ville": "Casablanca",
+  "adresse": "12 rue Test",
+  "montantCod": 199.5,
+  "produitDescription": "Coque téléphone"
+}
+
+### 6. Liste des commandes (scopée : marchand ne voit que les siennes)
+GET {{baseUrl}}/api/commandes
+
+### 7. Détail d'une commande (remplacer {{id}} par l'id renvoyé en 5)
+GET {{baseUrl}}/api/commandes/REMPLACER_PAR_ID
+
+### 8. Confirmer la commande (connecté en admin — requête 2) : en_attente -> confirmee
+PATCH {{baseUrl}}/api/commandes/REMPLACER_PAR_ID/statut
+Content-Type: application/json
+
+{
+  "statut": "confirmee"
+}
+
+### 9. Tentative de saut direct confirmee -> collectee (doit renvoyer 400 explicite)
+PATCH {{baseUrl}}/api/commandes/REMPLACER_PAR_ID/statut
+Content-Type: application/json
+
+{
+  "statut": "collectee"
+}
+
+### 10. Logout
+POST {{baseUrl}}/api/auth/logout
