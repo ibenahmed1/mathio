@@ -27,8 +27,12 @@ const STYLES: Record<string, string> = {
   reporte: 'bg-amber-200 text-amber-950',
 
   // Logistique (bleu)
-  ramasse: 'bg-brand text-brand-foreground',
+  ramasse: 'bg-[#eae8ff] text-[#4c46b3]',
   recu: 'bg-sky-300 text-sky-950',
+  // § Gestion de stock (pipeline propre aux colis enStock, cf. lib/hub-stock.ts)
+  pret_pour_preparation: 'bg-indigo-300 text-indigo-950',
+  recu_au_hub: 'bg-[#ffebe7] text-[#b5502e]',
+  en_transit: 'bg-[#ccfbfe] text-[#0f7a8c]',
   expedie: 'bg-black text-white dark:bg-white dark:text-black',
   expedier_par_amana: 'bg-sky-500 text-white',
   en_voyage: 'bg-sky-400 text-sky-950',
@@ -54,11 +58,15 @@ const STYLES: Record<string, string> = {
   rejetee: 'bg-red-600 text-white',
 };
 
-export function StatutBadge({ statut }: { statut: string }) {
-  const label =
+// § /admin/scan/reception : le hub de réception est celui de l'agent qui a
+// scanné le colis (résolu côté serveur, cf. resolveUserHub) — hubVille vient
+// donc de commande.hubActuel.ville, jamais saisi manuellement.
+export function StatutBadge({ statut, hubVille }: { statut: string; hubVille?: string | null }) {
+  const baseLabel =
     LABELS_STATUT_COMMANDE[statut as keyof typeof LABELS_STATUT_COMMANDE] ??
     LABELS_STATUT_RECLAMATION[statut as keyof typeof LABELS_STATUT_RECLAMATION] ??
     statut.replace(/_/g, ' ');
+  const label = statut === 'recu_au_hub' && hubVille ? `${baseLabel} (${hubVille})` : baseLabel;
   return (
     <span className={`badge ${STYLES[statut] ?? 'bg-black/10 text-black dark:bg-white/10 dark:text-white'}`}>
       {label}

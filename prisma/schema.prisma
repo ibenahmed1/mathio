@@ -38,6 +38,13 @@ enum Role {
   // proxy.ts) pour le détail du mécanisme.
   design
   gestionnaire_hub
+  // Agent de réception au hub régional (§ /admin/scan/reception) : scanne les
+  // colis au statut "ramasse" déposés au quai pour les faire passer à
+  // "recu_au_hub". Cantonné à cette unique page (ROLES_HUB_UNIQUEMENT,
+  // lib/auth.ts + proxy.ts), même mécanisme de confinement que
+  // design/gestionnaire_hub ci-dessus. Doit obligatoirement être rattaché à
+  // un Hub (Utilisateur.hubId, validé côté API).
+  agent_hub
 }
 
 enum TypeCompteMarchand {
@@ -84,6 +91,28 @@ enum StatutCommande {
   en_retour_par_amana
   annule
   annule_par_vendeur
+  // § Gestion de stock (/admin/stock/**) : pipeline propre aux colis enStock,
+  // qui ne passent pas par le Bon de Livraison marchand classique (cf.
+  // commentaire sur Commande.enStock) mais par un Bon de Préparation
+  // (BonDePreparation). Ajoutées en fin de liste plutôt qu'insérées au milieu
+  // du pipeline call-center ci-dessus pour que l'ajout reste un simple ALTER
+  // TYPE ... ADD VALUE (l'ordre d'affichage réel vit dans STATUTS_COMMANDE,
+  // lib/statuts.ts, indépendant de l'ordre de déclaration ici).
+  pret_pour_preparation
+  recu_au_hub
+  en_transit
+}
+
+// État du Bon de Préparation lui-même (§ Gestion de stock) : porte la
+// distinction "en cours de préparation" / "préparation validée" — c'est ce
+// champ, et non un statut Commande dédié, qui représente l'état "préparé"
+// (cf. discussion produit du 2026-08-10 : pas de statut Commande "prepare"
+// séparé, jugé redondant). Les colis du bon restent au statut
+// pret_pour_preparation jusqu'à la validation, qui les fait avancer
+// directement vers recu_au_hub ou en_transit (voir lib/hub-stock.ts).
+enum StatutBonPreparation {
+  en_attente
+  validee
 }
 
 // État de règlement du COD entre le livreur/l'agence et le marchand —
@@ -141,11 +170,6 @@ enum StatutReclamation {
   en_cours
   resolue
   rejetee
-}
-
-enum TypeVille {
-  principale
-  satellite
 }
 
 enum StatutTache {
@@ -218,6 +242,29 @@ model Utilisateur {
   cinVersoUrl    String?  @map("cin_verso_url")
   ribPhotoUrl    String?  @map("rib_photo_url")
 
+  // Hub de rattachement (§ /admin/scan/reception, § /admin/bon-distribution)
+  // — obligatoire pour un AGENT_HUB ou un LIVREUR (validé côté API dans
+  // POST/PATCH /api/utilisateurs, pas en contrainte DB pour rester nullable
+  // pour tous les autres rôles).
+  hubId String? @map("hub_id")
+  hub   Hub?    @relation("UtilisateurHub", fields: [hubId], references: [id])
+
+  // § /admin/bon-envoi : Bons d'Envoi marqués "Reçu" par cet utilisateur
+  // (admin ou agent_hub du hub d'arrivée).
+  bonsEnvoiReceptionnes BonEnvoi[] @relation("BonEnvoiReceptionnaire")
+
+  // Rôles supplémentaires accordés ponctuellement par un admin, EN PLUS du
+  // rôle réel ci-dessus — ex. un moderateur qui a aussi besoin d'un accès
+  // occasionnel à une fonctionnalité réservée aux superviseurs, sans changer
+  // son rôle "officiel" (espace de session, libellé UI, etc. restent basés
+  // sur `role`). Vérifié par `roleMatches()` (lib/auth.ts) en complément de
+  // `role` partout où `requireUser()`/les gardes de page vérifient une liste
+  // de rôles autorisés. Restreint à la création/modification (voir la route
+  // qui l'expose) aux rôles du même espace applicatif que l'utilisateur
+  // ciblé, pour éviter qu'un octroi ne fasse involontairement franchir une
+  // frontière d'espace (admin/marchand/terrain).
+  rolesSupplementaires Role[] @default([]) @map("roles_supplementaires")
+
   marchand       Marchand?
   marchandMembre MarchandMembre?
 
@@ -230,6 +277,8 @@ model Utilisateur {
   reclamations       Reclamation[]
   tarifsVilles       TarifLivreurVille[]
 
+  bonsDistribution BonDistribution[] @relation("BonDistributionLivreur")
+
   // Tableau Kanban interne (§ /admin/tasks) : une tâche a un assigné (optionnel)
   // et un créateur (toujours renseigné, = l'auteur de la requête POST).
   tachesAssignees         Tache[]                 @relation("TacheAssignee")
@@ -240,10 +289,54 @@ model Utilisateur {
   piecesJointesTaches     PieceJointeTache[]      @relation("PieceJointeTacheAuteur")
 
   // Comptabilité (§ /admin/comptabilite) : auteur des écritures qu'il a saisies.
-  transactions Transaction[] @relation("TransactionAuteur")
+  transactions      Transaction[]      @relation("TransactionAuteur")
   commandesStockHub CommandeStockHub[] @relation("CommandeStockHubAuteur")
 
+  // § Gestion de stock (/admin/stock/**) : admin ayant validé la préparation d'un bon.
+  bonsPreparationValidees BonDePreparation[]
+
+  // Traçabilité des actions sensibles (ex. impersonation) qu'il a effectuées
+  // en tant qu'admin — voir AuditLog.
+  auditLogs AuditLog[] @relation("AuditLogAuteur")
+
   @@map("utilisateurs")
+}
+
+// Compteur de rate limiting par clé (ex. "login:<ip>") à fenêtre glissante
+// simple, stocké en base plutôt qu'en mémoire process : ce projet tourne en
+// environnement serverless (plusieurs instances sans mémoire partagée), donc
+// un compteur en mémoire se réinitialiserait à chaque nouvelle instance et
+// laisserait passer le bruteforce. Voir lib/rate-limit.ts pour la logique
+// d'incrémentation/reset atomique. Pas de purge automatique des entrées
+// expirées pour l'instant (volumétrie faible attendue) — à revoir si la
+// table grossit significativement.
+model RateLimitEntry {
+  id           String   @id @default(uuid())
+  cle          String   @unique
+  compteur     Int      @default(1)
+  fenetreDebut DateTime @default(now()) @map("fenetre_debut")
+
+  @@map("rate_limit_entries")
+}
+
+// Traçabilité des actions admin sensibles qui ne modifient pas directement un
+// enregistrement métier suivi ailleurs (ex. HistoriqueStatutCommande) — pour
+// l'instant seulement l'impersonation (accès support admin -> marchand), mais
+// pensé pour être réutilisé par d'autres actions sensibles futures
+// (changement de rôle/permissions, etc.) sans nouvelle table à chaque fois.
+model AuditLog {
+  id         String      @id @default(uuid())
+  adminId    String      @map("admin_id")
+  admin      Utilisateur @relation("AuditLogAuteur", fields: [adminId], references: [id])
+  action     String
+  cibleType  String?     @map("cible_type")
+  cibleId    String?     @map("cible_id")
+  adresseIp  String?     @map("adresse_ip")
+  horodatage DateTime    @default(now())
+
+  @@index([adminId])
+  @@index([cibleType, cibleId])
+  @@map("audit_logs")
 }
 
 model Marchand {
@@ -277,14 +370,15 @@ model Marchand {
 
   dateCreation DateTime @default(now()) @map("date_creation")
 
-  adresses      AdresseMarchand[]
-  commandes     Commande[]
-  ramassages    Ramassage[]
-  bonsLivraison BonDeLivraison[]
-  marchandises  Marchandise[]
-  membres       MarchandMembre[]
-  reclamations  Reclamation[]
-  produits      Produit[]
+  adresses        AdresseMarchand[]
+  commandes       Commande[]
+  ramassages      Ramassage[]
+  bonsLivraison   BonDeLivraison[]
+  bonsPreparation BonDePreparation[]
+  marchandises    Marchandise[]
+  membres         MarchandMembre[]
+  reclamations    Reclamation[]
+  produits        Produit[]
 
   @@map("marchands")
 }
@@ -384,6 +478,7 @@ model Produit {
 
   variantes  ProduitVariante[]
   historique HistoriqueProduit[]
+  commandes  Commande[]
 
   @@unique([marchandId, reference])
   @@index([marchandId])
@@ -425,39 +520,56 @@ model HistoriqueProduit {
 // ============================================================
 
 model Commande {
-  id                 String         @id @default(uuid())
-  codeSuivi          String         @unique @map("code_suivi")
-  marchandId         String         @map("marchand_id")
-  marchand           Marchand       @relation(fields: [marchandId], references: [id])
-  clientNom          String         @map("client_nom")
-  clientTelephone    String         @map("client_telephone")
-  ville              String
-  adresse            String
-  codePostal         String?        @map("code_postal")
-  produitDescription String?        @map("produit_description")
-  marchandiseId      String?        @map("marchandise_id")
-  marchandise        Marchandise?   @relation(fields: [marchandiseId], references: [id])
-  quantite           Int            @default(1)
-  poidsKg            Decimal?       @map("poids_kg") @db.Decimal(6, 2)
-  montantCod         Decimal        @map("montant_cod") @db.Decimal(10, 2)
-  notes              String?
+  id                  String         @id @default(uuid())
+  codeSuivi           String         @unique @map("code_suivi")
+  // Référence de suivi du partenaire/marchand fournie à l'import Excel en
+  // masse (colonne "Code Suivi" du fichier, cf. app/api/commandes/import/route.ts)
+  // — sert de clé métier anti-doublon (@@unique ci-dessous, un même fichier
+  // réimporté ou une même commande partenaire soumise deux fois est bloquée)
+  // plutôt que d'être seulement embarquée en texte libre dans `notes`.
+  // Nullable : PostgreSQL ne compare pas les NULL entre eux dans un index
+  // unique, donc les colis sans référence partenaire (création manuelle,
+  // import "stock") ne sont jamais bloqués entre eux.
+  codeSuiviPartenaire String?        @map("code_suivi_partenaire")
+  marchandId          String         @map("marchand_id")
+  marchand            Marchand       @relation(fields: [marchandId], references: [id])
+  clientNom           String         @map("client_nom")
+  clientTelephone     String         @map("client_telephone")
+  ville               String
+  adresse             String
+  codePostal          String?        @map("code_postal")
+  produitDescription  String?        @map("produit_description")
+  marchandiseId       String?        @map("marchandise_id")
+  marchandise         Marchandise?   @relation(fields: [marchandiseId], references: [id])
+  // Résolution propre d'un colis "en stock" (enStock=true) vers sa fiche
+  // Produit (inventaire, § import Excel mode "stock" : la colonne Ref est
+  // rapprochée du SKU Produit.reference du marchand) — permet notamment
+  // d'afficher la vraie photo (Produit.photoUrl) sans repasser par un
+  // matching texte. Reste null pour un colis normal ou une Ref non résolue
+  // (produitDescription garde alors le texte brut en repli).
+  produitId           String?        @map("produit_id")
+  produit             Produit?       @relation(fields: [produitId], references: [id])
+  quantite            Int            @default(1)
+  poidsKg             Decimal?       @map("poids_kg") @db.Decimal(6, 2)
+  montantCod          Decimal        @map("montant_cod") @db.Decimal(10, 2)
+  notes               String?
   // RG colis échange : un colis peut remplacer un colis déjà livré/retourné
   // chez le même client (auto-relation, résolue côté API via le code_suivi saisi).
-  colisARemplacerId  String?        @map("colis_a_remplacer_id")
-  colisARemplacer    Commande?      @relation("ColisRemplacement", fields: [colisARemplacerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  remplacements      Commande[]     @relation("ColisRemplacement")
-  ouvrir             Boolean        @default(false)
-  fragile            Boolean        @default(false)
+  colisARemplacerId   String?        @map("colis_a_remplacer_id")
+  colisARemplacer     Commande?      @relation("ColisRemplacement", fields: [colisARemplacerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  remplacements       Commande[]     @relation("ColisRemplacement")
+  ouvrir              Boolean        @default(false)
+  fragile             Boolean        @default(false)
   // Échange : le livreur doit récupérer l'ancien colis chez le client et
   // livrer celui-ci à la place (distinct de colisARemplacer, qui ne fait que
   // lier deux commandes — ce booléen pilote le comportement de la tournée).
-  aRemplacer         Boolean        @default(false)
+  aRemplacer          Boolean        @default(false)
   // Marchandise stockée dans l'entrepôt de la société (par opposition à un
   // envoi géré directement depuis le stock du marchand).
-  enStock            Boolean        @default(false)
-  statut             StatutCommande @default(nouveau_colis)
-  etatPaiement       EtatPaiement   @default(non_paye) @map("etat_paiement")
-  aRisque            Boolean        @default(false) @map("a_risque")
+  enStock             Boolean        @default(false)
+  statut              StatutCommande @default(nouveau_colis)
+  etatPaiement        EtatPaiement   @default(non_paye) @map("etat_paiement")
+  aRisque             Boolean        @default(false) @map("a_risque")
 
   ramasseurId String?      @map("ramasseur_id")
   ramasseur   Utilisateur? @relation("CommandeRamasseur", fields: [ramasseurId], references: [id])
@@ -473,6 +585,41 @@ model Commande {
   bonLivraisonId String?         @map("bon_livraison_id")
   bonLivraison   BonDeLivraison? @relation(fields: [bonLivraisonId], references: [id])
 
+  // Bon de préparation stock (§ Gestion de stock /admin/stock/**, colis enStock
+  // uniquement) — pendant du bonLivraisonId ci-dessus pour le pipeline stock.
+  bonPreparationId String?           @map("bon_preparation_id")
+  bonPreparation   BonDePreparation? @relation(fields: [bonPreparationId], references: [id])
+
+  // Bon d'envoi (§ Transit inter-hubs /admin/bon-envoi) — regroupe des colis
+  // recu_au_hub (ou ramasse+enStock) vers un hub d'arrivée ; reste renseigné
+  // après réception (lien historique), cf. bonLivraisonId ci-dessus.
+  bonEnvoiId String?   @map("bon_envoi_id")
+  bonEnvoi   BonEnvoi? @relation(fields: [bonEnvoiId], references: [id])
+
+  // Bon de Distribution (§ Distribution locale /admin/bon-distribution) —
+  // regroupe des colis recu_au_hub d'un même hub local vers un livreur pour sa
+  // tournée ; reste renseigné après mise en distribution (lien historique).
+  bonDistributionId String?          @map("bon_distribution_id")
+  bonDistribution   BonDistribution? @relation(fields: [bonDistributionId], references: [id])
+
+  // Résolution best-effort (normalisation, cf. lib/hub-stock.ts
+  // normaliserVille) du champ ville (texte libre) vers une Ville connue du
+  // référentiel — nullable et non bloquant : ville reste la source de
+  // vérité saisie par le marchand/admin, villeId n'est qu'un enrichissement
+  // pour le routage automatique (cf. lib/hub-envoi.ts).
+  villeId  String? @map("ville_id")
+  villeRef Ville?  @relation(fields: [villeId], references: [id])
+
+  // Hub où le colis se trouve physiquement, réceptionné soit via le scan de
+  // quai (§ /admin/scan/reception, POST /api/commandes/scan-reception,
+  // ramasse → recu_au_hub) soit via un Bon d'Envoi (§ /admin/bon-envoi,
+  // POST /api/bons-envoi/[id]/marquer-recu, en_transit → recu_au_hub) —
+  // distinct de bonPreparation/hub-stock (lib/hub-stock.ts) qui vise le
+  // pipeline colis "stock". Jamais renseigné à la création.
+  hubActuelId      String?   @map("hub_actuel_id")
+  hubActuel        Hub?      @relation("CommandeHubActuel", fields: [hubActuelId], references: [id])
+  dateReceptionHub DateTime? @map("date_reception_hub")
+
   source SourceCommande @default(manuel)
 
   dateCreation     DateTime  @default(now()) @map("date_creation")
@@ -480,26 +627,43 @@ model Commande {
   dateCollecte     DateTime? @map("date_collecte")
   dateLivraison    DateTime? @map("date_livraison")
 
-  gpsLivraisonLat Decimal? @map("gps_livraison_lat") @db.Decimal(9, 6)
-  gpsLivraisonLng Decimal? @map("gps_livraison_lng") @db.Decimal(9, 6)
-  signatureUrl    String?  @map("signature_url")
-  photoPreuveUrl  String?  @map("photo_preuve_url")
-  motifRetour     String?  @map("motif_retour")
+  gpsLivraisonLat       Decimal?  @map("gps_livraison_lat") @db.Decimal(9, 6)
+  gpsLivraisonLng       Decimal?  @map("gps_livraison_lng") @db.Decimal(9, 6)
+  signatureUrl          String?   @map("signature_url")
+  photoPreuveUrl        String?   @map("photo_preuve_url")
+  motifRetour           String?   @map("motif_retour")
+  // § /livreur/tournee, action "Reporté" (PATCH /api/livreur/colis/[id]/statut) :
+  // date de nouvelle tentative de livraison choisie par le livreur — distincte
+  // de motifRetour (qui porte le motif du report), nullable pour tous les
+  // colis jamais reportés.
+  dateNouvelleLivraison DateTime? @map("date_nouvelle_livraison")
   // Photo de la CIN client (data URL), même pattern que les preuves ci-dessus
   // — pas de stockage objet dédié pour ce scénario.
-  cinUrl          String?  @map("cin_url")
+  cinUrl                String?   @map("cin_url")
 
   historique   HistoriqueStatutCommande[]
   commentaires CommentaireCommande[]
   reclamations Reclamation[]
 
+  // Garde-fou anti-doublon import (bug rapporté : réimporter le même fichier
+  // ne remonte aucune erreur et duplique les colis) — un même marchand ne
+  // peut pas avoir deux commandes avec la même référence partenaire. NULL
+  // n'est jamais considéré égal à NULL par Postgres dans un index unique,
+  // donc les colis sans référence partenaire restent illimités.
+  @@unique([marchandId, codeSuiviPartenaire], map: "commandes_marchand_ref_partenaire_key")
   @@index([marchandId])
   @@index([statut])
   @@index([ramassageId])
   @@index([bonLivraisonId])
   @@index([livreurId])
   @@index([marchandiseId])
+  @@index([produitId])
   @@index([colisARemplacerId])
+  @@index([bonPreparationId])
+  @@index([hubActuelId])
+  @@index([bonEnvoiId])
+  @@index([bonDistributionId])
+  @@index([villeId])
   @@map("commandes")
 }
 
@@ -524,6 +688,118 @@ model BonDeLivraison {
   @@map("bons_de_livraison")
 }
 
+// ============================================================
+// Bon de préparation stock (§ Gestion de stock /admin/stock/**)
+// ============================================================
+
+// Regroupe des colis "stock" (enStock=true) au statut pret_pour_preparation
+// en un lot à préparer ensemble à l'entrepôt — pendant de BonDeLivraison pour
+// le pipeline stock (aucun BL n'est généré pour ces colis, cf. commentaire
+// sur Commande.enStock). Générés groupés par marchand (un bon = un marchand),
+// numéro BPR-AAAA-MMJJ-NNN (lib/codes.ts, même schéma que BL). Le statut
+// porte l'état "en préparation" / "préparée" (voir StatutBonPreparation) :
+// les colis eux-mêmes ne changent de statut qu'à la validation, cf.
+// POST /api/bons-preparation/[id]/valider.
+model BonDePreparation {
+  id             String               @id @default(uuid())
+  numero         String               @unique
+  marchandId     String               @map("marchand_id")
+  marchand       Marchand             @relation(fields: [marchandId], references: [id])
+  nbColis        Int                  @map("nb_colis")
+  statut         StatutBonPreparation @default(en_attente)
+  dateGeneration DateTime             @default(now()) @map("date_generation")
+  dateValidation DateTime?            @map("date_validation")
+  validateurId   String?              @map("validateur_id")
+  validateur     Utilisateur?         @relation(fields: [validateurId], references: [id])
+
+  commandes Commande[]
+
+  @@index([marchandId])
+  @@map("bons_de_preparation")
+}
+
+// ============================================================
+// Bon d'envoi (§ Transit inter-hubs /admin/bon-envoi)
+// ============================================================
+
+enum StatutBonEnvoi {
+  nouveau
+  recu
+}
+
+// Regroupe des colis recu_au_hub (ou ramasse+enStock, § Gestion de stock) vers
+// un même hub d'arrivée en un lot numéroté (BE-AAAA-MMJJ-NNN, lib/codes.ts,
+// même schéma que BL/BPR) : à la création les colis passent en_transit
+// (statut BE 'nouveau'), puis l'agent du hub de destination (ou un admin)
+// clique "Marquer comme Reçu" (POST /api/bons-envoi/[id]/marquer-recu) — le
+// BE passe 'recu' et tous ses colis basculent recu_au_hub d'un coup. Un BE
+// ne vise volontairement qu'un seul Hub : la réception bascule tout le bon
+// en une seule action par un seul agent, donc il ne peut couvrir qu'un seul
+// quai physique. Sous le modèle plat Hub↔Ville, n'importe quel hub peut
+// être source ou destination d'un BE (éligibilité : villeDestination.hubId
+// !== hub actuel du colis, cf. lib/hub-envoi.ts) — il n'y a plus de "Hub
+// Central" privilégié pour ce flux.
+model BonEnvoi {
+  id               String         @id @default(uuid())
+  numero           String         @unique
+  hubDestinationId String         @map("hub_destination_id")
+  hubDestination   Hub            @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+  statut           StatutBonEnvoi @default(nouveau)
+  nbColis          Int            @map("nb_colis")
+  dateGeneration   DateTime       @default(now()) @map("date_generation")
+  dateReception    DateTime?      @map("date_reception")
+  receptionnaireId String?        @map("receptionnaire_id")
+  receptionnaire   Utilisateur?   @relation("BonEnvoiReceptionnaire", fields: [receptionnaireId], references: [id])
+
+  commandes Commande[]
+
+  @@index([hubDestinationId])
+  @@map("bons_envoi")
+}
+
+// ============================================================
+// Bon de distribution (§ Distribution locale /admin/bon-distribution)
+// ============================================================
+
+// État du Bon de Distribution lui-même : 'nouveau' n'est jamais persisté en
+// pratique — la ligne n'est créée en base qu'au clic "Valider & imprimer"
+// (POST /api/bons-distribution), directement en 'en_cours' (numéro +
+// affectation colis + livreur dans la même transaction). La valeur 'nouveau'
+// reste dans l'enum pour représenter l'état affiché côté client avant cette
+// création (composition du bon encore en mémoire, aucune ligne en base).
+enum StatutBonDistribution {
+  nouveau
+  en_cours
+}
+
+// Regroupe des colis recu_au_hub d'un hub local vers un même livreur pour sa
+// tournée (BD-AAAA-MMJJ-NNN, lib/codes.ts) : à la création (POST
+// /api/bons-distribution, admin only), les colis sélectionnés passent
+// mise_en_distribution et se voient assigner ce livreur (Commande.livreurId)
+// — pas de second état "reçu" comme BonEnvoi, la distribution est locale et
+// se conclut par le suivi normal du colis (statut livre/refuse/... hors de ce
+// module). La "zone" de l'étape 1 du wizard est directement le Hub existant
+// (§ /admin/hubs) — pas de niveau intermédiaire dédié. Éligibilité livreur :
+// un livreur ne couvre plus que son unique Hub de rattachement
+// (Utilisateur.hubId), plus de granularité par quartier.
+model BonDistribution {
+  id             String                @id @default(uuid())
+  numero         String                @unique
+  livreurId      String                @map("livreur_id")
+  livreur        Utilisateur           @relation("BonDistributionLivreur", fields: [livreurId], references: [id])
+  hubId          String                @map("hub_id")
+  hub            Hub                   @relation("BonDistributionHub", fields: [hubId], references: [id])
+  statut         StatutBonDistribution @default(en_cours)
+  nbColis        Int                   @map("nb_colis")
+  dateGeneration DateTime              @default(now()) @map("date_generation")
+
+  commandes Commande[]
+
+  @@index([livreurId])
+  @@index([hubId])
+  @@map("bons_distribution")
+}
+
 model HistoriqueStatutCommande {
   id            String          @id @default(uuid())
   commandeId    String          @map("commande_id")
@@ -532,9 +808,20 @@ model HistoriqueStatutCommande {
   nouveauStatut StatutCommande  @map("nouveau_statut")
   utilisateurId String          @map("utilisateur_id")
   utilisateur   Utilisateur     @relation("HistoriqueAuteur", fields: [utilisateurId], references: [id])
+  // Hub concerné par cette transition — renseigné sur l'entrée "recu_au_hub"
+  // créée par le scan AGENT_HUB (§ /admin/scan/reception) ainsi que sur les
+  // entrées "en_transit"/"recu_au_hub" créées par un Bon d'Envoi
+  // (§ /admin/bon-envoi), null pour toutes les autres entrées.
+  hubId         String?         @map("hub_id")
+  hub           Hub?            @relation(fields: [hubId], references: [id])
+  // Message explicite affiché dans l'historique (ex. "Colis bien réceptionné
+  // au Hub Casablanca") — sans lui, l'historique n'afficherait que le
+  // changement de statut brut, sans contexte métier.
+  note          String?
   horodatage    DateTime        @default(now())
 
   @@index([commandeId])
+  @@index([hubId])
   @@map("historique_statuts_commande")
 }
 
@@ -626,42 +913,50 @@ model Reclamation {
 // Zonage logistique
 // ============================================================
 
-// Référentiel géographique national (zone → hub → ville), utilisé pour le
-// découpage des tournées et l'affectation des ramasseurs/livreurs. Distinct
-// des champs "ville" en texte libre (Commande.ville, Marchand.ville,
-// Utilisateur.zonePrincipale/zoneSecondaire) qui restent inchangés : les
-// relier à ce référentiel est une migration séparée, à faire une fois les
-// libellés de ville existants nettoyés/normalisés.
-model ZoneLogistique {
-  id   String @id @default(uuid())
-  code String @unique
-  nom  String
-
-  hubs HubRegional[]
-
-  @@map("zones_logistiques")
-}
-
-model HubRegional {
-  id     String         @id @default(uuid())
-  nom    String         @unique
-  zoneId String         @map("zone_id")
-  zone   ZoneLogistique @relation(fields: [zoneId], references: [id])
+// Référentiel géographique national plat (Hub ↔ Ville, sans niveau
+// intermédiaire) : chaque Ville est rattachée à exactement un Hub. Sert au
+// routage inter-hubs (§ /admin/bon-envoi, éligibilité générique
+// villeDestination.hubId !== hub actuel du colis, cf. lib/hub-envoi.ts) et à
+// la distribution locale (§ /admin/bon-distribution, un livreur ne couvre
+// que son unique Hub de rattachement). Distinct des champs "ville" en texte
+// libre (Commande.ville, Marchand.ville, Utilisateur.zonePrincipale/
+// zoneSecondaire) qui restent inchangés.
+model Hub {
+  id        String  @id @default(uuid())
+  nom       String  @unique
+  ville     String
+  adresse   String?
+  telephone String?
+  // Vrai pour le hub central (entrepôt principal où arrive la marchandise
+  // "stock" avant préparation, cf. lib/hub-stock.ts) — au plus un hub central
+  // en pratique, mais pas contraint en DB.
+  isCentral Boolean @default(false) @map("is_central")
 
   villes Ville[]
 
-  @@index([zoneId])
-  @@map("hubs_regionaux")
+  // § /admin/scan/reception : agents hub et livreurs rattachés, colis
+  // réceptionnés à ce hub, historique des réceptions (cf.
+  // Utilisateur.hubId, Commande.hubActuelId, HistoriqueStatutCommande.hubId).
+  agentsHub            Utilisateur[]              @relation("UtilisateurHub")
+  commandesActuelles   Commande[]                 @relation("CommandeHubActuel")
+  historiqueReceptions HistoriqueStatutCommande[]
+  // § /admin/bon-envoi : Bons d'Envoi dont ce hub est la destination.
+  bonsEnvoiDestination BonEnvoi[]                 @relation("BonEnvoiHubDestination")
+  // § /admin/bon-distribution : Bons de Distribution locaux à ce hub (le hub
+  // lui-même sert de "zone" à l'étape 1 du wizard, cf. BonDistribution).
+  bonsDistribution     BonDistribution[]          @relation("BonDistributionHub")
+
+  @@map("hubs")
 }
 
 model Ville {
-  id    String      @id @default(uuid())
-  nom   String      @unique
-  type  TypeVille
-  hubId String      @map("hub_id")
-  hub   HubRegional @relation(fields: [hubId], references: [id])
+  id    String @id @default(uuid())
+  nom   String @unique
+  hubId String @map("hub_id")
+  hub   Hub    @relation(fields: [hubId], references: [id])
 
   tarifsLivreurs TarifLivreurVille[]
+  commandes      Commande[]
 
   @@index([hubId])
   @@map("villes")
@@ -820,22 +1115,22 @@ model CommentaireTache {
 // transactionOrigineId, qui portent la traçabilité d'audit plutôt qu'une
 // suppression physique.
 model Transaction {
-  id         String               @id @default(uuid())
-  montant    Decimal              @db.Decimal(10, 2)
-  type       TypeTransaction
-  categorie  CategorieTransaction
-  dateEffet  DateTime             @map("date_effet")
+  id          String               @id @default(uuid())
+  montant     Decimal              @db.Decimal(10, 2)
+  type        TypeTransaction
+  categorie   CategorieTransaction
+  dateEffet   DateTime             @map("date_effet")
   description String?
 
-  auteurId    String      @map("auteur_id")
-  auteur      Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
+  auteurId String      @map("auteur_id")
+  auteur   Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
 
   // Une écriture annulée reste en base (audit) et gagne un lien vers sa
   // transaction de compensation (montant/type inversés, même catégorie).
-  estAnnulee            Boolean      @default(false) @map("est_annulee")
-  transactionOrigineId  String?      @unique @map("transaction_origine_id")
-  transactionOrigine    Transaction? @relation("Annulation", fields: [transactionOrigineId], references: [id])
-  annulation            Transaction? @relation("Annulation")
+  estAnnulee           Boolean      @default(false) @map("est_annulee")
+  transactionOrigineId String?      @unique @map("transaction_origine_id")
+  transactionOrigine   Transaction? @relation("Annulation", fields: [transactionOrigineId], references: [id])
+  annulation           Transaction? @relation("Annulation")
 
   dateCreation DateTime @default(now()) @map("date_creation")
 

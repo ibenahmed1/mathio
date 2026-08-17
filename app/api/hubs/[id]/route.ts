@@ -9,23 +9,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await request.json();
 
-    const data: Prisma.HubRegionalUpdateInput = {};
+    const data: Prisma.HubUpdateInput = {};
     if (typeof body.nom === 'string' && body.nom.trim()) {
       data.nom = body.nom.trim();
     }
-    if (typeof body.zoneId === 'string' && body.zoneId.trim()) {
-      const zone = await prisma.zoneLogistique.findUnique({ where: { id: body.zoneId.trim() } });
-      if (!zone) {
-        throw new ApiError(404, 'Zone introuvable');
-      }
-      data.zone = { connect: { id: body.zoneId.trim() } };
+    if (typeof body.ville === 'string' && body.ville.trim()) {
+      data.ville = body.ville.trim();
+    }
+    if (body.adresse !== undefined) {
+      data.adresse = typeof body.adresse === 'string' && body.adresse.trim() ? body.adresse.trim() : null;
+    }
+    if (body.telephone !== undefined) {
+      data.telephone = typeof body.telephone === 'string' && body.telephone.trim() ? body.telephone.trim() : null;
+    }
+    if (typeof body.isCentral === 'boolean') {
+      data.isCentral = body.isCentral;
     }
     if (Object.keys(data).length === 0) {
       throw new ApiError(400, 'Aucune modification fournie');
     }
 
     try {
-      const hub = await prisma.hubRegional.update({ where: { id }, data });
+      const hub = await prisma.hub.update({ where: { id }, data });
       return NextResponse.json(hub);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -45,11 +50,11 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const { id } = await params;
 
     try {
-      await prisma.hubRegional.delete({ where: { id } });
+      await prisma.hub.delete({ where: { id } });
       return NextResponse.json({ success: true });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2003') throw new ApiError(409, "Supprimez d'abord les villes de ce hub");
+        if (error.code === 'P2003') throw new ApiError(409, "Supprimez d'abord les villes/utilisateurs rattachés à ce hub");
         if (error.code === 'P2025') throw new ApiError(404, 'Hub introuvable');
       }
       throw error;

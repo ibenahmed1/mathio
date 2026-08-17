@@ -12,7 +12,20 @@ function currentSpaceHint(): string | null {
   if (pathname.startsWith('/admin')) return 'admin';
   if (pathname.startsWith('/marchand')) return 'marchand';
   if (pathname.startsWith('/ramasseur')) return 'terrain';
+  if (pathname.startsWith('/livreur')) return 'terrain';
   return null;
+}
+
+// Porte le corps JSON complet de la réponse d'erreur (ex. le détail
+// ligne-par-ligne `erreurs`/`doublons` de POST /api/commandes/import) — les
+// appelants qui n'en ont pas besoin continuent à lire juste `.message`.
+export class ApiRequestError extends Error {
+  details: unknown;
+
+  constructor(message: string, details: unknown) {
+    super(message);
+    this.details = details;
+  }
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -32,7 +45,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const message = (data && typeof data.error === 'string' ? data.error : null) ?? `Erreur ${res.status}`;
-    throw new Error(message);
+    throw new ApiRequestError(message, data);
   }
   return data as T;
 }

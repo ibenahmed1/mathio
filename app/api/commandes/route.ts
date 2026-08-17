@@ -5,12 +5,13 @@ import { checkBlacklist } from '@/lib/blacklist';
 import { nextCodeSuivi } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { buildCommandesWhere } from '@/lib/commandes-filters';
+import { normaliserVille } from '@/lib/hub-stock';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
 
 // Back-office (confirmation/SAV/paiement, cf. requireUser sur statut/paiement)
-// + marchand, ramasseur et livreur pour leurs propres colis (cloisonnés dans
-// buildCommandesWhere).
-const ROLES_LECTURE_COMMANDES = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur'] as const;
+// + marchand, ramasseur, livreur et agent_hub pour leurs propres colis
+// (cloisonnés dans buildCommandesWhere).
+const ROLES_LECTURE_COMMANDES = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur', 'agent_hub'] as const;
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,7 +30,9 @@ export async function GET(request: NextRequest) {
           marchand: { select: { nomBoutique: true } },
           livreur: { select: { id: true, nomComplet: true } },
           marchandise: { select: { id: true, nom: true, prix: true } },
+          produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },
           colisARemplacer: { select: { id: true, codeSuivi: true } },
+          hubActuel: { select: { id: true, nom: true, ville: true } },
         },
         orderBy: { dateCreation: 'desc' },
         skip: (page - 1) * pageSize,
@@ -89,6 +92,20 @@ export async function POST(request: NextRequest) {
       if (!produitDescription) produitDescription = marchandise.nom;
     }
 
+    // Produit du stock (autocomplétion "Produit du stock") : optionnel, mais
+    // s'il est fourni il doit appartenir au même marchand — même garde que
+    // marchandiseId ci-dessus. Permet à ColisInfoModal d'afficher la vraie
+    // photo du produit (cf. Commande.produitId dans le schéma).
+    let produitId: string | null = null;
+    if (typeof body.produitId === 'string' && body.produitId) {
+      const produit = await prisma.produit.findUnique({ where: { id: body.produitId } });
+      if (!produit || produit.marchandId !== marchandId) {
+        throw new ApiError(400, 'produitId invalide pour ce marchand');
+      }
+      produitId = produit.id;
+      if (!produitDescription) produitDescription = produit.nom;
+    }
+
     // Prix (montant COD) : saisi manuellement, ou par défaut prix de la
     // marchandise × quantité si une marchandise du catalogue est sélectionnée
     // — reste un champ toujours modifiable côté formulaire, ceci n'est qu'un
@@ -124,6 +141,15 @@ export async function POST(request: NextRequest) {
 
     const codeSuivi = await nextCodeSuivi();
 
+    // Résolution best-effort de villeId (cf. lib/hub-envoi.ts) : `ville`
+    // reste le champ texte libre saisi par le marchand/admin (source de
+    // vérité) — ce matching normalisé (insensible casse/accents, comme le
+    // reste du routage Hub/Ville) n'est qu'un enrichissement optionnel,
+    // jamais bloquant si aucune Ville connue ne correspond.
+    const villeNormalisee = normaliserVille(ville);
+    const toutesVilles = await prisma.ville.findMany({ select: { id: true, nom: true } });
+    const villeId = toutesVilles.find((v) => normaliserVille(v.nom) === villeNormalisee)?.id ?? null;
+
     const commande = await prisma.$transaction(async (tx) => {
       const created = await tx.commande.create({
         data: {
@@ -136,6 +162,7 @@ export async function POST(request: NextRequest) {
           codePostal: typeof body.codePostal === 'string' ? body.codePostal : null,
           produitDescription,
           marchandiseId,
+          produitId,
           quantite,
           poidsKg: body.poidsKg != null ? Number(body.poidsKg) : null,
           montantCod,
@@ -148,6 +175,7 @@ export async function POST(request: NextRequest) {
           statut: 'nouveau_colis',
           aRisque,
           source: 'manuel',
+          villeId,
         },
       });
 

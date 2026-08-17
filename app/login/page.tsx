@@ -14,6 +14,7 @@ interface LoginResponse {
 function destinationForRole(role: string) {
   if (role === 'marchand') return '/marchand';
   if (role === 'ramasseur') return '/ramasseur';
+  if (role === 'livreur') return '/livreur';
   if (role === 'design' || role === 'gestionnaire_hub') return '/admin/tasks';
   return '/admin/commandes';
 }

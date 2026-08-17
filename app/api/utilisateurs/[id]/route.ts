@@ -3,6 +3,7 @@ import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { Role } from '@/app/generated/prisma/enums';
+import { getSessionSpace, normalizePhoneMaroc } from '@/lib/auth';
 
 // Mêmes jeux de rôles que POST /api/utilisateurs (voir ce fichier pour le
 // détail) : seuls les comptes équipe se modifient/suppriment depuis cet
@@ -17,9 +18,14 @@ const ROLES_EQUIPE: Role[] = [
   'livreur',
   'design',
   'gestionnaire_hub',
+  'agent_hub',
 ];
 const ROLES_TERRAIN: Role[] = ['ramasseur', 'livreur'];
 const ROLES_AVEC_PHOTO: Role[] = ['ramasseur', 'livreur', 'moderateur'];
+// § /admin/scan/reception + /admin/bon-distribution : un agent_hub ou un
+// livreur doit obligatoirement être rattaché à un Hub (même règle que POST
+// /api/utilisateurs).
+const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur'];
 
 // RF-22 : modification d'un compte équipe par l'admin (identité + champs
 // terrain le cas échéant). Le mot de passe se change via l'endpoint dédié
@@ -44,15 +50,64 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     const estTerrain = ROLES_TERRAIN.includes(role);
     const avecPhoto = ROLES_AVEC_PHOTO.includes(role);
+    const avecHub = ROLES_AVEC_HUB.includes(role);
 
     const data: Prisma.UtilisateurUpdateInput = { role };
+
+    // RF AGENT_HUB / LIVREUR : rattachement obligatoire à un Hub. Si le
+    // hubId est fourni, il est revalidé ; sinon on garde celui déjà en base
+    // (utile quand on modifie d'autres champs sans toucher au hub) — mais un
+    // compte qui devient agent_hub/livreur sans hub ni fourni ni existant
+    // est rejeté. À l'inverse, un rôle qui n'a plus besoin de hub le perd.
+    if (avecHub) {
+      const hubId = typeof body.hubId === 'string' && body.hubId.trim() ? body.hubId.trim() : utilisateur.hubId;
+      if (!hubId) {
+        throw new ApiError(400, 'hubId est requis pour ce rôle');
+      }
+      const hub = await prisma.hub.findUnique({ where: { id: hubId } });
+      if (!hub) {
+        throw new ApiError(400, 'Hub introuvable');
+      }
+      data.hub = { connect: { id: hubId } };
+    } else {
+      data.hub = { disconnect: true };
+    }
+
+    // Rôles supplémentaires accordés ponctuellement (voir roleMatches,
+    // lib/auth.ts) : optionnel, seulement si le champ est fourni. Restreint
+    // aux rôles équipe du même espace applicatif que le rôle (nouveau ou
+    // conservé) de cet utilisateur — un octroi ne doit jamais faire
+    // franchir une frontière d'espace (admin/marchand/terrain) ni inclure
+    // "admin" (jamais géré via cette API, cf. ROLES_EQUIPE ci-dessus).
+    if (body.rolesSupplementaires !== undefined) {
+      if (!Array.isArray(body.rolesSupplementaires)) {
+        throw new ApiError(400, 'rolesSupplementaires doit être un tableau');
+      }
+      const espaceCible = getSessionSpace(role);
+      const rolesSupplementaires = Array.from(new Set(body.rolesSupplementaires)) as unknown[];
+      for (const r of rolesSupplementaires) {
+        if (typeof r !== 'string' || !ROLES_EQUIPE.includes(r as Role)) {
+          throw new ApiError(400, `Rôle supplémentaire invalide : ${String(r)}. Valeurs possibles : ${ROLES_EQUIPE.join(', ')}`);
+        }
+        if (r === role) {
+          throw new ApiError(400, `"${r}" est déjà le rôle principal de cet utilisateur`);
+        }
+        if (getSessionSpace(r as Role) !== espaceCible) {
+          throw new ApiError(400, `Le rôle supplémentaire "${r}" n'appartient pas au même espace applicatif que cet utilisateur`);
+        }
+      }
+      data.rolesSupplementaires = rolesSupplementaires as Role[];
+    }
 
     if (typeof body.nomComplet === 'string' && body.nomComplet.trim()) {
       data.nomComplet = body.nomComplet.trim();
     }
 
     if (typeof body.telephone === 'string' && body.telephone.trim()) {
-      const telephone = body.telephone.trim();
+      const telephone = normalizePhoneMaroc(body.telephone.trim());
+      if (!telephone) {
+        throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+      }
       if (telephone !== utilisateur.telephone) {
         const existing = await prisma.utilisateur.findUnique({ where: { telephone } });
         if (existing) throw new ApiError(409, 'Ce numéro de téléphone est déjà utilisé');
@@ -125,6 +180,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         numeroCompte: true,
         fraisLivraison: true,
         fraisRefus: true,
+        rolesSupplementaires: true,
+        hubId: true,
+        hub: { select: { id: true, nom: true } },
       },
     });
 

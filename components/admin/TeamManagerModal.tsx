@@ -178,8 +178,8 @@ export function TeamManagerModal({
               <input
                 className="input-basic"
                 type="password"
-                placeholder="Mot de passe (6+ car.)"
-                minLength={6}
+                placeholder="Mot de passe (8+ car., maj/chiffre/spécial)"
+                minLength={8}
                 value={inviteForm.secret}
                 onChange={(e) => setInviteForm({ ...inviteForm, secret: e.target.value })}
                 required

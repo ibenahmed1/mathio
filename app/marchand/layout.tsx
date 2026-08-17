@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getPageSession } from '@/lib/auth';
+import { getPageSession, roleMatches } from '@/lib/auth';
 import { MarchandShell } from './MarchandShell';
 
 // Le proxy (proxy.ts) protège déjà /marchand/:path*, mais on revérifie ici
@@ -7,7 +7,7 @@ import { MarchandShell } from './MarchandShell';
 // et nécessaire pour les Server Actions qui ne passent pas par le proxy.
 export default async function MarchandLayout({ children }: { children: React.ReactNode }) {
   const session = await getPageSession('marchand');
-  if (!session || session.role !== 'marchand') {
+  if (!session || !roleMatches(session, ['marchand'])) {
     redirect('/login');
   }
 

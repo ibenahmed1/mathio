@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError } from '@/lib/api-utils';
-import { hashResetToken, hashSecret } from '@/lib/auth';
+import { hashResetToken, hashSecret, getPasswordPolicyError } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
@@ -12,8 +12,9 @@ export async function POST(request: Request) {
     if (!token || !secret) {
       return NextResponse.json({ error: 'Lien invalide' }, { status: 400 });
     }
-    if (secret.length < 4) {
-      return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 4 caractères' }, { status: 400 });
+    const passwordError = getPasswordPolicyError(secret);
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 });
     }
 
     const tokenHash = hashResetToken(token);

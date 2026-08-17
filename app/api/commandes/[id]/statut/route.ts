@@ -46,6 +46,33 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       );
     }
 
+    // La transition ramasse -> recu_au_hub reste réservée au scan de
+    // réception Agent Hub (POST /api/commandes/scan-reception), même
+    // principe que ci-dessus ; l'admin peut cependant l'outrepasser directement.
+    if (commande.statut === 'ramasse' && nouveauStatut === 'recu_au_hub' && session.role !== 'admin') {
+      throw new ApiError(
+        400,
+        'La transition ramasse → recu_au_hub ne peut pas se faire via cet endpoint pour ce rôle : elle exige un scan de réception (POST /api/commandes/scan-reception).'
+      );
+    }
+
+    // Les transitions recu_au_hub <-> en_transit restent réservées au module
+    // Bon d'Envoi (§ /admin/bon-envoi, POST /api/bons-envoi et
+    // POST /api/bons-envoi/[id]/marquer-recu), même principe que ci-dessus ;
+    // l'admin peut cependant les outrepasser directement.
+    if (commande.statut === 'recu_au_hub' && nouveauStatut === 'en_transit' && session.role !== 'admin') {
+      throw new ApiError(
+        400,
+        "La transition recu_au_hub → en_transit ne peut pas se faire via cet endpoint pour ce rôle : elle exige la création d'un Bon d'Envoi (POST /api/bons-envoi)."
+      );
+    }
+    if (commande.statut === 'en_transit' && nouveauStatut === 'recu_au_hub' && session.role !== 'admin') {
+      throw new ApiError(
+        400,
+        "La transition en_transit → recu_au_hub ne peut pas se faire via cet endpoint pour ce rôle : elle exige la réception du Bon d'Envoi (POST /api/bons-envoi/[id]/marquer-recu)."
+      );
+    }
+
     const photoPreuveUrl = typeof body.photoPreuveUrl === 'string' ? body.photoPreuveUrl : undefined;
     const signatureUrl = typeof body.signatureUrl === 'string' ? body.signatureUrl : undefined;
     const motifRetour = typeof body.motifRetour === 'string' ? body.motifRetour.trim() : undefined;

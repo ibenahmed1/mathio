@@ -15,14 +15,15 @@ import {
   FileText,
   MessageSquarePlus,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
-import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
+import { apiGet, apiPatch, apiPost, apiDelete } from '@/lib/api-client';
 import type { Commande, Marchandise } from '@/lib/types';
-import { StatutBadge } from '@/components/StatutBadge';
-import { EtatPaiementBadge } from '@/components/EtatPaiementBadge';
 import { LABELS_STATUT_COMMANDE, STATUTS_NON_LIVRAISON } from '@/lib/statuts';
 import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
+import { ColisInfoModal } from '@/components/admin/ColisInfoModal';
+import { ProduitSelect } from '@/components/ProduitSelect';
 
 type ActionKey =
   | 'suivi'
@@ -33,7 +34,8 @@ type ActionKey =
   | 'non_livre'
   | 'prix'
   | 'remboursement'
-  | 'commentaire';
+  | 'commentaire'
+  | 'supprimer';
 
 const ACTIONS: { key: ActionKey; label: string; icon: typeof Info }[] = [
   { key: 'information', label: 'Information du colis', icon: Info },
@@ -61,6 +63,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
   const [clientTelephone, setClientTelephone] = useState(commande.clientTelephone);
   const [adresse, setAdresse] = useState(commande.adresse);
   const [produitDescription, setProduitDescription] = useState(commande.produitDescription ?? '');
+  const [produitId, setProduitId] = useState(commande.produitId ?? '');
   const [marchandiseId, setMarchandiseId] = useState(commande.marchandiseId ?? '');
   const [marchandises, setMarchandises] = useState<Marchandise[]>([]);
   const [prixAuto, setPrixAuto] = useState(false);
@@ -179,6 +182,20 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
             >
               <FileText className="h-4 w-4" /> Imprimer E-Ticket
             </button>
+            {commande.statut === 'nouveau_colis' && (
+              <>
+                <div className="my-1 border-t border-black/10 dark:border-white/10" />
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setModal('supprimer');
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                >
+                  <Trash2 className="h-4 w-4" /> Supprimer le colis
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -186,53 +203,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
       {modal === 'suivi' && <ColisTrackingModal commandeId={commande.id} onClose={closeAll} />}
 
       {modal === 'information' && (
-        <Modal title="Information du colis" onClose={closeAll}>
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="opacity-60">Code d&apos;envoi</dt>
-            <dd className="font-mono">{commande.codeSuivi}</dd>
-            <dt className="opacity-60">Magasin</dt>
-            <dd>{commande.marchand?.nomBoutique ?? '—'}</dd>
-            <dt className="opacity-60">Client</dt>
-            <dd>{commande.clientNom}</dd>
-            <dt className="opacity-60">Téléphone</dt>
-            <dd>{commande.clientTelephone}</dd>
-            <dt className="opacity-60">Ville</dt>
-            <dd>{commande.ville}</dd>
-            <dt className="opacity-60">Adresse</dt>
-            <dd>{commande.adresse}</dd>
-            <dt className="opacity-60">Produit</dt>
-            <dd>
-              {commande.marchandise?.nom ?? commande.produitDescription ?? '—'}
-              {commande.quantite > 1 ? ` × ${commande.quantite}` : ''}
-            </dd>
-            <dt className="opacity-60">Montant</dt>
-            <dd>{commande.montantCod} DH</dd>
-            <dt className="opacity-60">Colis à remplacer</dt>
-            <dd className="font-mono">{commande.colisARemplacer?.codeSuivi ?? '—'}</dd>
-            <dt className="opacity-60">Options</dt>
-            <dd className="flex flex-wrap gap-1">
-              {commande.ouvrir && <span className="badge badge-neutral">Ouvrir</span>}
-              {commande.fragile && <span className="badge badge-warn">Fragile</span>}
-              {commande.aRemplacer && <span className="badge badge-brand">Échange</span>}
-              {commande.enStock && <span className="badge badge-neutral">Stock</span>}
-              {!commande.ouvrir && !commande.fragile && !commande.aRemplacer && !commande.enStock && '—'}
-            </dd>
-            <dt className="opacity-60">Commentaire</dt>
-            <dd>{commande.notes ?? '—'}</dd>
-            <dt className="opacity-60">Statut</dt>
-            <dd>
-              <StatutBadge statut={commande.statut} />
-            </dd>
-            <dt className="opacity-60">Paiement</dt>
-            <dd>
-              <EtatPaiementBadge etat={commande.etatPaiement} />
-            </dd>
-            <dt className="opacity-60">Livreur</dt>
-            <dd>{commande.livreur?.nomComplet ?? '— non assigné —'}</dd>
-            <dt className="opacity-60">Ramasseur</dt>
-            <dd>{commande.ramassage?.ramasseur?.nomComplet ?? '—'}</dd>
-          </dl>
-        </Modal>
+        <ColisInfoModal commande={commande} onClose={closeAll} onTrack={() => setModal('suivi')} />
       )}
 
       {modal === 'cin' && (
@@ -371,9 +342,30 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               À remplacer (échange)
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={enStockModif} onChange={(e) => setEnStockModif(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={enStockModif}
+                onChange={(e) => {
+                  setEnStockModif(e.target.checked);
+                  if (!e.target.checked) setProduitId('');
+                }}
+              />
               En stock (entrepôt)
             </label>
+            {enStockModif && (
+              <label className="col-span-2 flex flex-col gap-1 text-sm">
+                Produit du stock
+                <ProduitSelect
+                  marchandId={commande.marchandId}
+                  value={produitId}
+                  onSelect={(produit) => {
+                    setProduitId(produit?.id ?? '');
+                    if (produit) setProduitDescription(produit.nom);
+                  }}
+                />
+                <span className="text-xs opacity-50">Recherche par nom ou référence — pré-remplit la description</span>
+              </label>
+            )}
             <p className="col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
           </div>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
@@ -393,6 +385,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
                     adresse,
                     marchandiseId: marchandiseId || null,
                     produitDescription,
+                    produitId: produitId || null,
                     quantite: Number(quantite) || 1,
                     montantCod,
                     colisARemplacerCode,
@@ -521,6 +514,28 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               onClick={() => run(() => apiPatch(`/api/commandes/${commande.id}/paiement`, { etatPaiement: 'rembourse' }))}
             >
               Confirmer
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {modal === 'supprimer' && (
+        <Modal title="Supprimer le colis" onClose={closeAll}>
+          <p className="text-sm">
+            Supprimer définitivement le colis <span className="font-mono">{commande.codeSuivi}</span> ? Cette action est
+            irréversible.
+          </p>
+          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button className="btn-outline" onClick={closeAll} disabled={busy}>
+              Annuler
+            </button>
+            <button
+              className="btn-primary bg-red-600 hover:bg-red-700"
+              disabled={busy}
+              onClick={() => run(() => apiDelete(`/api/commandes/${commande.id}`))}
+            >
+              Supprimer
             </button>
           </div>
         </Modal>

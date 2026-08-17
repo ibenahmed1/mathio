@@ -16,6 +16,7 @@ export async function GET() {
         role: true,
         actif: true,
         marchand: { select: { id: true, nomBoutique: true } },
+        hub: { select: { id: true, nom: true } },
       },
     });
 

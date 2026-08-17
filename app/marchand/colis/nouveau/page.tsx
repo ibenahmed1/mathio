@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PackagePlus, Sparkles } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { ProduitSelect } from '@/components/ProduitSelect';
 import type { Marchandise } from '@/lib/types';
 
 function Field({
@@ -50,6 +51,8 @@ export default function NouveauColisPage() {
     ville: '',
     adresse: '',
     montantCod: '',
+    produitDescription: '',
+    produitId: '',
     notes: '',
     colisARemplacerCode: '',
     ouvrir: false,
@@ -92,6 +95,7 @@ export default function NouveauColisPage() {
         montantCod: Number(form.montantCod),
         quantite: Number(form.quantite) || 1,
         marchandiseId: form.marchandiseId || undefined,
+        produitId: form.produitId || undefined,
         colisARemplacerCode: form.colisARemplacerCode || undefined,
       });
       router.push('/marchand/colis');
@@ -217,6 +221,13 @@ export default function NouveauColisPage() {
           </div>
           {prixAuto && <span className="text-xs opacity-50">Calculé (prix × quantité) — modifiable</span>}
         </Field>
+        <Field label="Description produit" hint="Si le produit n'est pas encore au catalogue">
+          <input
+            className="input-basic"
+            value={form.produitDescription}
+            onChange={(e) => setForm({ ...form, produitDescription: e.target.value })}
+          />
+        </Field>
         <Field label="Colis à remplacer" hint="Code de suivi, si échange">
           <input
             className="input-basic"
@@ -267,11 +278,28 @@ export default function NouveauColisPage() {
               type="checkbox"
               className="h-4 w-4 accent-brand"
               checked={form.enStock}
-              onChange={(e) => setForm({ ...form, enStock: e.target.checked })}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, enStock: e.target.checked, produitId: e.target.checked ? f.produitId : '' }))
+              }
             />
             En stock (entrepôt)
           </label>
         </div>
+
+        {form.enStock && (
+          <Field label="Produit du stock" hint="Recherche par nom ou référence — pré-remplit la description" className="sm:col-span-2">
+            <ProduitSelect
+              value={form.produitId}
+              onSelect={(produit) =>
+                setForm((f) => ({
+                  ...f,
+                  produitId: produit?.id ?? '',
+                  produitDescription: produit ? produit.nom : f.produitDescription,
+                }))
+              }
+            />
+          </Field>
+        )}
 
         <p className="sm:col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
 

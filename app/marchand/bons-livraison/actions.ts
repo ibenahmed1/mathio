@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { getPageSession } from '@/lib/auth';
+import { getPageSession, roleMatches } from '@/lib/auth';
 import { nextBonLivraisonNumero } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 
@@ -25,7 +25,7 @@ export interface BonDeLivraisonGenere {
 // que `getSessionUser()`.
 export async function creerBonDeLivraison(colisIds: string[]): Promise<BonDeLivraisonGenere> {
   const session = await getPageSession('marchand');
-  if (!session || session.role !== 'marchand') {
+  if (!session || !roleMatches(session, ['marchand'])) {
     throw new Error('Authentification requise');
   }
 
@@ -40,7 +40,7 @@ export async function creerBonDeLivraison(colisIds: string[]): Promise<BonDeLivr
   }
 
   const colis = await prisma.commande.findMany({
-    where: { id: { in: ids }, marchandId: marchand.id, statut: 'nouveau_colis', bonLivraisonId: null },
+    where: { id: { in: ids }, marchandId: marchand.id, statut: 'nouveau_colis', bonLivraisonId: null, enStock: false },
   });
 
   if (colis.length !== ids.length) {

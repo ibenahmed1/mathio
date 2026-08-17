@@ -20,7 +20,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         marchand: { select: { nomBoutique: true } },
         ramassage: { include: { ramasseur: { select: { nomComplet: true } } } },
         marchandise: { select: { id: true, nom: true, prix: true } },
+        produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },
         colisARemplacer: { select: { id: true, codeSuivi: true } },
+        hubActuel: { select: { id: true, nom: true, ville: true } },
       },
     });
 
@@ -72,12 +74,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       marchandId = marchand.id;
     }
 
+    let nouveauLivreurNom: string | null = null;
     if (session.role === 'admin' && body.livreurId !== undefined && body.livreurId !== null) {
       const livreur = await prisma.utilisateur.findUnique({ where: { id: body.livreurId } });
       if (!livreur || livreur.role !== 'livreur') {
         throw new ApiError(400, 'livreurId doit référencer un utilisateur avec le rôle livreur');
       }
+      nouveauLivreurNom = livreur.nomComplet;
     }
+    // § Suivi colis / circuit : l'affectation d'un livreur (assignation
+    // directe depuis la liste des colis, hors Bon de Distribution — qui
+    // journalise déjà l'affectation dans HistoriqueStatutCommande.note) ne
+    // laissait jusqu'ici aucune trace consultable, alors que c'est justement
+    // l'information que le suivi doit montrer en premier : qui livre le
+    // colis, pas seulement qui a effectué l'action d'affectation.
+    const livreurModifie = session.role === 'admin' && body.livreurId !== undefined && body.livreurId !== commande.livreurId;
 
     const data: Record<string, unknown> = {};
     if (typeof body.clientNom === 'string' && body.clientNom.trim()) data.clientNom = body.clientNom.trim();
@@ -114,6 +125,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
+    // Produit du stock : réassignable, toujours vérifié dans le périmètre du
+    // marchand propriétaire du colis (même garde que marchandiseId ci-dessus).
+    if (body.produitId !== undefined) {
+      if (body.produitId === null || body.produitId === '') {
+        data.produitId = null;
+      } else {
+        const produit = await prisma.produit.findUnique({ where: { id: body.produitId } });
+        if (!produit || produit.marchandId !== commande.marchandId) {
+          throw new ApiError(400, 'produitId invalide pour ce marchand');
+        }
+        data.produitId = produit.id;
+      }
+    }
+
     if (body.colisARemplacerCode !== undefined) {
       const code = typeof body.colisARemplacerCode === 'string' ? body.colisARemplacerCode.trim() : '';
       if (!code) {
@@ -137,8 +162,70 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       throw new ApiError(400, 'Aucun champ modifiable fourni');
     }
 
-    const updated = await prisma.commande.update({ where: { id }, data });
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.commande.update({ where: { id }, data });
+
+      if (livreurModifie) {
+        const ancienLivreurNom = commande.livreurId
+          ? (await tx.utilisateur.findUnique({ where: { id: commande.livreurId }, select: { nomComplet: true } }))?.nomComplet ?? null
+          : null;
+
+        let texteCommentaire: string;
+        if (nouveauLivreurNom && ancienLivreurNom) {
+          texteCommentaire = `Colis réaffecté au livreur ${nouveauLivreurNom} (précédemment ${ancienLivreurNom}) — c'est lui qui livre désormais ce colis.`;
+        } else if (nouveauLivreurNom) {
+          texteCommentaire = `Colis affecté au livreur ${nouveauLivreurNom} — c'est lui qui livre ce colis.`;
+        } else {
+          texteCommentaire = `Livreur retiré du colis${ancienLivreurNom ? ` (était ${ancienLivreurNom})` : ''}.`;
+        }
+
+        await tx.commentaireCommande.create({
+          data: { commandeId: id, utilisateurId: session.sub, texte: texteCommentaire },
+        });
+      }
+
+      return result;
+    });
+
     return NextResponse.json(updated);
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
+// Suppression définitive. Restreinte au statut 'nouveau_colis' : dès qu'un
+// colis a été engagé (ramassage, bon de livraison/préparation, tournée…), on
+// annule via PATCH .../statut plutôt que de perdre l'historique logistique.
+// À ce statut, historique/commentaires sont les seules FK qui bloqueraient un
+// DELETE (RESTRICT), donc on les purge explicitement dans la transaction.
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireUser(['admin', 'marchand']);
+    const { id } = await params;
+
+    const commande = await prisma.commande.findUnique({ where: { id } });
+    if (!commande) {
+      throw new ApiError(404, 'Commande introuvable');
+    }
+
+    if (session.role === 'marchand') {
+      const marchand = await resolveMarchandForUser(session.sub);
+      if (!marchand || commande.marchandId !== marchand.id) {
+        throw new ApiError(403, 'Accès refusé à cette commande');
+      }
+    }
+
+    if (commande.statut !== 'nouveau_colis') {
+      throw new ApiError(400, 'Seul un colis au statut "Nouveau Colis" peut être supprimé — annulez-le sinon');
+    }
+
+    await prisma.$transaction([
+      prisma.historiqueStatutCommande.deleteMany({ where: { commandeId: id } }),
+      prisma.commentaireCommande.deleteMany({ where: { commandeId: id } }),
+      prisma.commande.delete({ where: { id } }),
+    ]);
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     return jsonError(error);
   }

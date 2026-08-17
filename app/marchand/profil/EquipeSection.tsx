@@ -105,10 +105,10 @@ export function EquipeSection() {
         <input
           className="input-basic"
           type="password"
-          placeholder="Mot de passe (6 caractères minimum)"
+          placeholder="Mot de passe (8+ car., maj/chiffre/spécial)"
           value={form.secret}
           onChange={(e) => setForm({ ...form, secret: e.target.value })}
-          minLength={6}
+          minLength={8}
           required
         />
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}

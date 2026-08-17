@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { hashSecret } from '@/lib/auth';
+import { hashSecret, getPasswordPolicyError } from '@/lib/auth';
 
 // Gestion des membres d'équipe : réservée au titulaire du compte (pas à un
 // membre déjà invité), pour éviter une chaîne d'invitations incontrôlée.
@@ -49,8 +49,9 @@ export async function POST(request: Request) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new ApiError(400, 'Email invalide');
     }
-    if (secret.length < 6) {
-      throw new ApiError(400, 'Le mot de passe doit contenir au moins 6 caractères');
+    const passwordError = getPasswordPolicyError(secret);
+    if (passwordError) {
+      throw new ApiError(400, passwordError);
     }
 
     const existant = await prisma.utilisateur.findUnique({ where: { email } });

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PackagePlus, Sparkles } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { ProduitSelect } from '@/components/ProduitSelect';
 import type { Marchand, Marchandise } from '@/lib/types';
 
 // Champs et exigences alignés sur /marchand/colis/nouveau (Field marque les
@@ -56,6 +57,7 @@ export default function AdminNouveauColisPage() {
     adresse: '',
     montantCod: '',
     produitDescription: '',
+    produitId: '',
     notes: '',
     colisARemplacerCode: '',
     ouvrir: false,
@@ -73,7 +75,7 @@ export default function AdminNouveauColisPage() {
   // Le catalogue affiché dépend du marchand choisi — propre à l'admin,
   // puisque côté marchand le catalogue est implicitement le sien.
   function handleMarchandChange(marchandId: string) {
-    setForm((f) => ({ ...f, marchandId, marchandiseId: '' }));
+    setForm((f) => ({ ...f, marchandId, marchandiseId: '', produitId: '' }));
     if (!marchandId) {
       setMarchandises([]);
       return;
@@ -109,6 +111,7 @@ export default function AdminNouveauColisPage() {
         montantCod: Number(form.montantCod),
         quantite: Number(form.quantite) || 1,
         marchandiseId: form.marchandiseId || undefined,
+        produitId: form.produitId || undefined,
         colisARemplacerCode: form.colisARemplacerCode || undefined,
       });
       router.push('/admin/commandes');
@@ -294,11 +297,35 @@ export default function AdminNouveauColisPage() {
               type="checkbox"
               className="h-4 w-4 accent-brand"
               checked={form.enStock}
-              onChange={(e) => setForm({ ...form, enStock: e.target.checked })}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, enStock: e.target.checked, produitId: e.target.checked ? f.produitId : '' }))
+              }
             />
             En stock (entrepôt)
           </label>
         </div>
+
+        {form.enStock && (
+          <Field
+            label="Produit du stock"
+            hint={!form.marchandId ? 'Choisissez un marchand pour voir son stock' : 'Recherche par nom ou référence — pré-remplit la description'}
+            className="col-span-2"
+          >
+            <ProduitSelect
+              marchandId={form.marchandId}
+              value={form.produitId}
+              disabled={!form.marchandId}
+              disabledHint="Choisissez un marchand…"
+              onSelect={(produit) =>
+                setForm((f) => ({
+                  ...f,
+                  produitId: produit?.id ?? '',
+                  produitDescription: produit ? produit.nom : f.produitDescription,
+                }))
+              }
+            />
+          </Field>
+        )}
 
         <p className="col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
 

@@ -1,348 +1,441 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  LabelList,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
-import { Package, PackageCheck, Wallet, PackagePlus, PackageX, Undo2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { CalendarDays, ChevronLeft, ChevronRight, Package, Phone, Truck, XCircle } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
-import type { Commande } from '@/lib/types';
-import { LABELS_STATUT_COMMANDE, STATUTS_NON_LIVRAISON } from '@/lib/statuts';
-import { MarchandKpiCard } from '@/components/marchand/MarchandKpiCard';
-import { MarchandAgendaPanel } from '@/components/marchand/MarchandAgendaPanel';
+import type { Marchand } from '@/lib/types';
 
 interface DashboardData {
-  kpi: {
-    totalColis: number;
-    colisLivres: number;
+  kpiCards: {
+    collecte: number;
     colisEnCours: number;
-    demandesRamassage: number;
-    totalCod: number;
-    tauxLivre: number;
-    tauxRetourne: number;
-    tauxAnnule: number;
+    colisInjoignables: number;
+    colisAnnules: number;
   };
-  evolution7j: { date: string; label: string; count: number }[];
-  paiements7j: { date: string; label: string; paye: number; enAttente: number }[];
-  statutRepartition: { statut: string; count: number }[];
-  derniersColis: Commande[];
-  aTraiterAujourdhui: { id: string; codeSuivi: string; clientNom: string; ville: string; statut: string; dateCreation: string }[];
-  derniersClients: { nom: string; ville: string; date: string }[];
+  stats: {
+    totalColis: number;
+    colisLivre: number;
+    colisLivreDeltaPct: number;
+    tauxLivraison: number;
+    tauxLivraisonDeltaPts: number;
+  };
+  bars: { label: string; livre: number; total: number }[];
+  crbt: {
+    brut: number;
+    rembourse: number;
+    aRembourser: number;
+  };
+  rates: {
+    livraison: number;
+    collecte: number;
+    encaissement: number;
+  };
 }
 
-// Anomalies / échecs d'appel / retours-annulations : au-delà du sous-ensemble
-// "non-livraison" déjà partagé avec l'admin, on y ajoute les statuts
-// terminaux négatifs (retour, annulation) et les relances sans réponse.
-const STATUTS_ALERTE = new Set<string>([
-  ...STATUTS_NON_LIVRAISON,
-  'deuxieme_appel_pas_reponse',
-  'troisieme_appel_pas_reponse',
-  'retourne',
-  'en_retour_par_amana',
-  'annule',
-  'annule_par_vendeur',
-]);
+// Index = valeur du paramètre `period` attendu par /api/marchands/dashboard.
+const PERIODES = [
+  { valeur: '0', label: 'Ce mois-ci', delta: 'vs mois dernier' },
+  { valeur: '1', label: 'Cette semaine', delta: 'vs semaine dernière' },
+  { valeur: '2', label: "Aujourd'hui", delta: 'vs hier' },
+];
 
-// Palette du donut : mêmes teintes pastel que les cartes KPI et le chart
-// hebdomadaire (jaune #FFF8DB / indigo #EEF2FF).
-const JAUNE_PASTEL = '#FFF8DB';
-const INDIGO_PASTEL = '#EEF2FF';
-// Palette de l'icône dans le flux d'activité : mêmes 2 familles, en version
-// vive pour rester lisible sur un fond pastel à 15% d'opacité.
-const JAUNE_VIF = '#FFC909';
-const INDIGO_VIF = '#6366F1';
+// Toutes les tuiles KPI partagent désormais la même bordure et la même ombre :
+// la couleur ne vit plus que dans la pastille d'icône, ce qui laisse les
+// chiffres porter la hiérarchie. Les teintes elles-mêmes sont des classes
+// `.kpi-*` (globals.css) pour avoir une contrepartie sombre.
+const TEINTES_KPI = ['ambre', 'indigo', 'ardoise', 'rouge'] as const;
 
-const STATUT_META: Record<string, { label: string; colorPastel: string; colorVif: string }> = Object.fromEntries(
-  Object.entries(LABELS_STATUT_COMMANDE).map(([statut, label]) => {
-    const alerte = STATUTS_ALERTE.has(statut);
-    return [statut, { label, colorPastel: alerte ? INDIGO_PASTEL : JAUNE_PASTEL, colorVif: alerte ? INDIGO_VIF : JAUNE_VIF }];
-  }),
-);
+// Couleurs de données (graphique + répartition CRBT). L'ambre marque toujours
+// ce qui est acquis (livré, remboursé), l'ardoise ce qui ne l'est pas encore.
+const SERIE_ACQUIS = '#F2C200';
+const SERIE_RESTE = '#CBD5E1';
 
-// Palette alternée à 2 tons du chart hebdomadaire, en version pastel claire
-// (mêmes teintes que le fond des cartes KPI : jaune #FFF8DB / indigo #EEF2FF)
-// plutôt que les tons vifs — indépendante de STATUT_META.
-const BAR_COLORS = ['#FFF8DB', '#EEF2FF'];
+const CARTE =
+  'mk-card-accent rounded-[14px] border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] shadow-[var(--mk-shadow)]';
 
-function dateRelative(iso: string) {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const diffH = Math.round(diffMs / 3_600_000);
-  if (diffH < 1) return "à l'instant";
-  if (diffH < 24) return `il y a ${diffH} h`;
-  return `il y a ${Math.round(diffH / 24)} j`;
-}
-
-function TooltipStatut({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
-  if (!active || !payload?.length) return null;
-  const p = payload[0];
-  return (
-    <div className="rounded-xl border border-black/10 bg-white/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur dark:border-white/10 dark:bg-black/95">
-      <span className="font-semibold">{STATUT_META[p.name]?.label ?? p.name}</span> — {p.value} colis
-    </div>
-  );
-}
-
-function TooltipEvolution({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-xl border border-black/10 bg-white/95 px-3 py-1.5 text-xs shadow-lg backdrop-blur dark:border-white/10 dark:bg-black/95">
-      <p className="font-bold capitalize">{label}</p>
-      <span className="font-semibold">{payload[0].value}</span> expédition(s)
-    </div>
-  );
-}
-
-function TooltipPaiements({
-  active,
-  payload,
+function KpiTile({
+  icon: Icon,
+  value,
   label,
+  teinte,
 }: {
-  active?: boolean;
-  payload?: { dataKey: string; value: number }[];
-  label?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  value: number;
+  label: string;
+  teinte: (typeof TEINTES_KPI)[number];
 }) {
-  if (!active || !payload?.length) return null;
-  const paye = payload.find((p) => p.dataKey === 'paye')?.value ?? 0;
-  const enAttente = payload.find((p) => p.dataKey === 'enAttente')?.value ?? 0;
   return (
-    <div className="rounded-xl border border-black/10 bg-white/95 px-3 py-2 text-xs shadow-lg backdrop-blur dark:border-white/10 dark:bg-black/95">
-      <p className="mb-1 font-bold capitalize">{label}</p>
-      <p className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full bg-[#eda100]" /> Encaissé :{' '}
-        <span className="font-semibold">{paye.toLocaleString('fr-FR')} DH</span>
-      </p>
-      <p className="flex items-center gap-1.5">
-        <span className="h-2 w-2 rounded-full bg-gray-400" /> En attente :{' '}
-        <span className="font-semibold">{enAttente.toLocaleString('fr-FR')} DH</span>
-      </p>
+    <div className={`${CARTE} kpi-${teinte} flex flex-col gap-6 p-[18px]`}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[13px] font-medium text-[color:var(--mk-muted)]">{label}</span>
+        <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px] bg-[color:var(--kpi-chip)] text-[color:var(--kpi-icon)]">
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      {/* Un zéro est atténué : il se lit comme "rien à signaler" plutôt que
+          d'attirer l'œil autant qu'un vrai volume. */}
+      <div
+        className="text-[34px] font-semibold leading-none tracking-[-0.03em] tabular-nums"
+        style={{ color: value === 0 ? 'var(--mk-faint)' : 'var(--mk-ink)' }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
 
-// Badge flottant "meilleur jour" superposé à la barre concernée, dans l'esprit
-// du "95% Wednesday" de la maquette de référence — dérivé du vrai maximum de
-// la semaine, jamais d'une valeur inventée.
-function bestDayBadge(bestIndex: number) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- forme exacte des props imposée par recharts (LabelList content)
-  return function BestDayBadge(props: any) {
-    const x = Number(props.x ?? 0);
-    const y = Number(props.y ?? 0);
-    const width = Number(props.width ?? 0);
-    const index = props.index as number | undefined;
-    const value = props.value as number | undefined;
-    if (index !== bestIndex || !value) return null;
-    const cx = x + width / 2;
-    return (
-      <g>
-        <rect
-          x={cx - 36}
-          y={y - 30}
-          width={72}
-          height={22}
-          rx={11}
-          className="fill-white stroke-black/10 dark:fill-neutral-900 dark:stroke-white/10"
-          strokeWidth={1}
-        />
-        <text x={cx} y={y - 15} textAnchor="middle" fontSize={11} fontWeight={700} className="fill-black dark:fill-white">
-          {value} colis
-        </text>
-      </g>
-    );
-  };
+function RateBar({ label, pct, color }: { label: string; pct: number; color: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-medium text-[color:var(--mk-muted)]">{label}</span>
+        <span className="text-[13px] font-semibold tabular-nums text-[color:var(--mk-ink)]">{pct} %</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--mk-line-soft)]">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+// Légende du graphique : sans elle, rien ne dit laquelle des deux barres est
+// la part livrée.
+function Legende({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--mk-muted)]">
+      <span className="h-2 w-2 rounded-[3px]" style={{ background: color }} />
+      {label}
+    </span>
+  );
+}
+
+function CrbtFigure({
+  label,
+  montant,
+  pastille,
+  className,
+}: {
+  label: string;
+  montant: number;
+  /** Rappelle la couleur du segment correspondant dans la barre de répartition. */
+  pastille?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`min-w-0 ${className ?? ''}`}>
+      <div className="flex items-center gap-1.5">
+        {pastille && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: pastille }} />}
+        <span className="truncate text-[11px] font-medium text-[color:var(--mk-muted)]">{label}</span>
+      </div>
+      <div className="mt-1.5 whitespace-nowrap text-[14px] font-semibold tracking-[-0.02em] tabular-nums text-[color:var(--mk-ink)]">
+        {fmtDh(montant)}
+      </div>
+    </div>
+  );
+}
+
+function fmtDelta(pts: number) {
+  return `${pts} %`;
+}
+
+function fmtDh(montant: number) {
+  return `${montant.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH`;
 }
 
 export default function DashboardPage() {
+  const [period, setPeriod] = useState(0);
+  const [date, setDate] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
+  const [boutique, setBoutique] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
+
+  // Décale la date d'un jour : les flèches ‹ › ne servent à rien tant qu'aucune
+  // date n'est choisie, donc elles partent d'aujourd'hui dans ce cas.
+  function decalerDate(jours: number) {
+    const base = date ? new Date(date) : new Date();
+    base.setDate(base.getDate() + jours);
+    setDate(base.toISOString().slice(0, 10));
+  }
 
   useEffect(() => {
-    apiGet<DashboardData>('/api/marchands/dashboard')
+    const query = date ? `date=${date}` : `period=${period}`;
+    apiGet<DashboardData>(`/api/marchands/dashboard?${query}`)
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+  }, [period, date]);
+
+  // Nom affiché dans le message d'accueil — l'échec est silencieux : on retombe
+  // sur un "Bonjour" sec plutôt que de bloquer tout le dashboard.
+  useEffect(() => {
+    apiGet<Marchand>('/api/marchands/me')
+      .then((m) => setBoutique(m.nomBoutique))
+      .catch(() => setBoutique(null));
   }, []);
 
-  if (error) return <p className="text-sm font-medium text-red-600">{error}</p>;
-  if (!data) return <p className="opacity-60">Chargement…</p>;
+  if (error)
+    return (
+      <div className={`${CARTE} p-6 text-[13px] font-medium text-[color:var(--mk-danger-ink)]`} role="alert">
+        {error}
+      </div>
+    );
+  if (!data) return <p className="text-[13px] text-[color:var(--mk-muted)]">Chargement…</p>;
 
-  const totalStatuts = data.statutRepartition.reduce((acc, s) => acc + s.count, 0);
-  const bestIndex = data.evolution7j.reduce(
-    (best, cur, i, arr) => (cur.count > arr[best].count ? i : best),
-    0,
-  );
+  const periodLabel = date
+    ? new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : PERIODES[period].label;
+  const deltaLabel = date ? 'vs jour précédent' : PERIODES[period].delta;
+  // Échelle de l'axe : arrondie au multiple de 4 supérieur pour que les 5
+  // graduations (max → 0) restent des entiers, comme le 100/75/50/25/0 du
+  // mockup, sans jamais mentir sur la hauteur réelle des barres.
+  const maxBar = Math.max(...data.bars.flatMap((b) => [b.livre, b.total]));
+  const echelle = Math.max(4, Math.ceil(maxBar / 4) * 4);
+  const graduations = [4, 3, 2, 1, 0].map((i) => (echelle / 4) * i);
+  const partRembourse = data.crbt.brut > 0 ? Math.round((data.crbt.rembourse / data.crbt.brut) * 100) : 0;
 
   return (
-    <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-      <div className="flex min-w-0 flex-1 flex-col gap-5">
-        <div className="flex items-center justify-between">
-          <h1 className="page-title">Dashboard</h1>
-          <Link href="/marchand/colis/nouveau" className="btn-primary flex items-center gap-2">
-            <PackagePlus className="h-4 w-4" />
-            Nouveau colis
-          </Link>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-0.5 pb-1">
+        <div>
+          <h1 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.02em] text-[color:var(--mk-ink)]">
+            Dashboard
+          </h1>
+          <p className="mt-2 text-[13px] font-normal text-[color:var(--mk-muted)]">
+            Bonjour <span className="font-semibold text-[color:var(--mk-ink-2)]">{boutique ?? '…'}</span>, bienvenue à
+            nouveau
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <MarchandKpiCard icon={PackageCheck} label="Taux livré" value={`${data.kpi.tauxLivre.toLocaleString('fr-FR')}%`} tint={0} />
-          <MarchandKpiCard icon={Undo2} label="Taux retourné" value={`${data.kpi.tauxRetourne.toLocaleString('fr-FR')}%`} tint={1} />
-          <MarchandKpiCard icon={PackageX} label="Taux annulé" value={`${data.kpi.tauxAnnule.toLocaleString('fr-FR')}%`} tint={0} />
-          <MarchandKpiCard icon={Wallet} label="Total COD (DH)" value={data.kpi.totalCod.toLocaleString('fr-FR')} tint={1} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="glass-card rounded-3xl">
-            <h2 className="mb-3 text-sm font-bold">Répartition des statuts</h2>
-            <div className="flex flex-col items-center gap-4 sm:flex-row">
-              <div className="relative sm:w-1/2">
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={data.statutRepartition}
-                      dataKey="count"
-                      nameKey="statut"
-                      innerRadius={60}
-                      outerRadius={85}
-                      paddingAngle={2}
-                      strokeWidth={2}
-                      stroke="#ffffff"
-                      isAnimationActive={false}
-                    >
-                      {data.statutRepartition.map((s) => (
-                        <Cell key={s.statut} fill={STATUT_META[s.statut]?.colorPastel ?? JAUNE_PASTEL} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<TooltipStatut />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold text-black dark:text-white">{totalStatuts}</span>
-                  <span className="text-xs text-slate-400">Colis</span>
-                </div>
-              </div>
-              <ul className="flex w-full flex-col gap-1.5 text-sm sm:w-1/2">
-                {data.statutRepartition.map((s) => (
-                  <li key={s.statut} className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: STATUT_META[s.statut]?.colorPastel ?? JAUNE_PASTEL }}
-                      />
-                      {STATUT_META[s.statut]?.label ?? s.statut}
-                    </span>
-                    <span className="font-semibold opacity-70">
-                      {s.count} {totalStatuts > 0 ? `(${Math.round((s.count / totalStatuts) * 100)}%)` : ''}
-                    </span>
-                  </li>
-                ))}
-                {totalStatuts === 0 && <li className="opacity-60">Aucune donnée</li>}
-              </ul>
-            </div>
-          </div>
-
-          <div className="glass-card rounded-3xl">
-            <h2 className="mb-3 text-sm font-bold">Statistiques hebdomadaires des livraisons</h2>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={data.evolution7j} margin={{ top: 30, right: 8, left: -20, bottom: 0 }} barCategoryGap="30%" barGap={0}>
-                <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.08} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'currentColor', opacity: 0.6 }} />
-                <YAxis
-                  allowDecimals={false}
-                  tickLine={false}
-                  axisLine={false}
-                  width={28}
-                  tick={{ fontSize: 12, fill: 'currentColor', opacity: 0.6 }}
-                />
-                <Tooltip content={<TooltipEvolution />} cursor={{ fill: 'currentColor', fillOpacity: 0.06 }} />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={44} isAnimationActive={false}>
-                  {data.evolution7j.map((_, i) => (
-                    <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                  ))}
-                  <LabelList dataKey="count" content={bestDayBadge(bestIndex)} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div className="glass-card rounded-3xl">
-          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <h2 className="text-sm font-bold">Suivi des revenus</h2>
-            <span className="flex items-center gap-1.5 text-xs text-black/50 dark:text-white/50">
-              <span className="h-2 w-2 rounded-full bg-[#eda100]" /> Encaissé
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-black/50 dark:text-white/50">
-              <span className="h-2 w-2 rounded-full bg-gray-400" /> En attente
-            </span>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={data.paiements7j} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.08} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'currentColor', opacity: 0.6 }} />
-              <YAxis tickLine={false} axisLine={false} width={40} tick={{ fontSize: 12, fill: 'currentColor', opacity: 0.6 }} />
-              <Tooltip content={<TooltipPaiements />} cursor={{ stroke: 'currentColor', strokeOpacity: 0.15 }} />
-              <Line type="monotone" dataKey="paye" stroke="#eda100" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-              <Line
-                type="monotone"
-                dataKey="enAttente"
-                stroke="#9ca3af"
-                strokeWidth={2.5}
-                strokeDasharray="4 4"
-                dot={false}
-                isAnimationActive={false}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-0.5 rounded-[10px] border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] px-1.5 py-1.5 shadow-[var(--mk-shadow)]">
+            <button
+              onClick={() => decalerDate(-1)}
+              aria-label="Jour précédent"
+              className="rounded-md p-1 text-[color:var(--mk-faint)] transition-colors hover:text-[color:var(--mk-ink-2)]"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {/* Le natif <input type="date"> ne s'ouvre au clic que sur son icône :
+                on affiche donc notre propre libellé et on déclenche showPicker(),
+                l'input restant superposé en repli si le navigateur ne l'expose pas. */}
+            <button
+              onClick={() => dateRef.current?.showPicker?.()}
+              className="relative flex items-center gap-2 px-2 text-[12px] font-medium text-[color:var(--mk-ink-2)]"
+            >
+              <CalendarDays className="h-4 w-4 text-[color:var(--mk-muted-2)]" />
+              {date
+                ? new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+                : 'Choisir une date'}
+              <input
+                ref={dateRef}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="glass-card rounded-3xl">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-bold">Activité récente</h2>
-            <Link href="/marchand/colis" className="text-sm font-semibold text-brand-foreground hover:underline dark:text-brand">
-              Voir tout
-            </Link>
+            </button>
+            <button
+              onClick={() => decalerDate(1)}
+              aria-label="Jour suivant"
+              className="rounded-md p-1 text-[color:var(--mk-faint)] transition-colors hover:text-[color:var(--mk-ink-2)]"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
-          <ul className="flex flex-col gap-1">
-            {data.derniersColis.map((c) => {
-              const meta = STATUT_META[c.statut];
-              return (
-                <li key={c.id} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors hover:bg-brand/[0.08]">
-                  <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-                    style={{ backgroundColor: `${meta?.colorVif ?? JAUNE_VIF}22`, color: meta?.colorVif ?? JAUNE_VIF }}
-                  >
-                    <Package className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">
-                      {c.clientNom} · {c.ville}
-                    </p>
-                    <p className="truncate text-xs text-black/50 dark:text-white/50">
-                      {c.codeSuivi} · {meta?.label ?? c.statut}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-[11px] text-black/40 dark:text-white/40">{dateRelative(c.dateCreation)}</span>
-                </li>
-              );
-            })}
-            {data.derniersColis.length === 0 && <li className="py-4 text-center text-sm opacity-50">Aucun colis</li>}
-          </ul>
+
+          {/* Visible seulement en mode "date précise" : sans ça, la liste
+              déroulante afficherait une période qui n'est pas celle appliquée. */}
+          {date && (
+            <button
+              onClick={() => setDate('')}
+              className="px-1 text-[12px] font-normal text-[color:var(--mk-muted-2)] underline underline-offset-2 hover:text-[color:var(--mk-ink-2)]"
+            >
+              Effacer
+            </button>
+          )}
+
+          <select
+            value={date ? '' : period}
+            onChange={(e) => {
+              setPeriod(Number(e.target.value));
+              setDate('');
+            }}
+            className="cursor-pointer rounded-[10px] border border-[color:var(--mk-line)] py-[9px] pl-3.5 pr-9 text-[12px] font-medium text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] outline-none focus-visible:border-[color:var(--mk-amber-ink)]"
+            style={{
+              background:
+                // `appearance:none` retire le chevron natif (trop lourd ici) ;
+                // on le redessine en data-URI, aligné à droite du libellé.
+                "var(--mk-card) url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2364748B' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E\") no-repeat right 14px center",
+              appearance: 'none',
+            }}
+          >
+            {date && <option value="">{periodLabel}</option>}
+            {PERIODES.map((p) => (
+              <option key={p.valeur} value={p.valeur}>
+                {p.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="w-full shrink-0 xl:w-80">
-        <MarchandAgendaPanel aTraiterAujourdhui={data.aTraiterAujourdhui} derniersClients={data.derniersClients} />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiTile icon={Package} teinte="ambre" value={data.kpiCards.collecte} label="Collecté" />
+        <KpiTile icon={Truck} teinte="indigo" value={data.kpiCards.colisEnCours} label="Colis en cours" />
+        <KpiTile icon={Phone} teinte="ardoise" value={data.kpiCards.colisInjoignables} label="Colis injoignables" />
+        <KpiTile icon={XCircle} teinte="rouge" value={data.kpiCards.colisAnnules} label="Colis annulé" />
+      </div>
+
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1.55fr_1fr]">
+        <div className={`${CARTE} flex flex-col gap-5 p-6 pb-[18px]`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[10px] bg-[color:var(--mk-line-soft)]">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6">
+                  <path d="M12 2.6 21 7.8 21 17 12 22.2 3 17 3 7.8Z" stroke="#64748B" />
+                  <path d="M3 7.8 12 13 21 7.8" stroke="#64748B" />
+                  <path d="M12 13 12 22.2" stroke="#64748B" />
+                </svg>
+              </div>
+              <span className="text-[15px] font-semibold text-[color:var(--mk-ink)]">Statistiques des colis</span>
+            </div>
+            <div className="rounded-[10px] border border-[color:var(--mk-line)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--mk-muted)]">
+              {periodLabel}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-start gap-x-8 gap-y-4 sm:gap-x-12">
+            <div>
+              <div className="text-[13px] font-medium text-[color:var(--mk-muted)]">Colis livré</div>
+              <div className="mt-1 text-[28px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[color:var(--mk-ink)]">
+                {data.stats.colisLivre}
+              </div>
+              <div className="mt-2 text-[11px] font-normal text-[color:var(--mk-muted-2)]">
+                {fmtDelta(data.stats.colisLivreDeltaPct)} {deltaLabel}
+              </div>
+            </div>
+            <div className="border-l border-[color:var(--mk-line)] pl-8 sm:pl-12">
+              <div className="text-[13px] font-medium text-[color:var(--mk-muted)]">Taux de livraison</div>
+              <div className="mt-1 text-[28px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[color:var(--mk-ink)]">
+                {data.stats.tauxLivraison} %
+              </div>
+              <div className="mt-2 text-[11px] font-normal text-[color:var(--mk-muted-2)]">
+                {fmtDelta(data.stats.tauxLivraisonDeltaPts)} {deltaLabel}
+              </div>
+            </div>
+            <div className="ml-auto flex items-center gap-4 pt-1">
+              <Legende color={SERIE_ACQUIS} label="Livrés" />
+              <Legende color={SERIE_RESTE} label="Total créés" />
+            </div>
+          </div>
+
+          <div className="flex flex-1 gap-3.5" style={{ minHeight: 230 }}>
+            <div className="flex flex-col justify-between pb-[26px] text-[11px] font-normal tabular-nums text-[color:var(--mk-muted-2)]">
+              {graduations.map((g) => (
+                <span key={g}>{g}</span>
+              ))}
+            </div>
+            <div className="relative flex flex-1 items-end justify-around gap-2.5 border-l border-[color:var(--mk-line-soft)]">
+              {/* Chaque colonne est plafonnée : avec deux ou trois mois de
+                  données seulement, des colonnes en `flex-1` pur donnaient des
+                  barres démesurément épaisses par rapport aux mois voisins. */}
+              {data.bars.map((b) => (
+                <div key={b.label} className="flex h-full max-w-[86px] flex-1 flex-col items-center justify-end gap-2.5">
+                  <div className="flex h-full w-full items-end justify-center gap-[6px]">
+                    <div
+                      className="w-full max-w-[18px] rounded-t-[5px]"
+                      style={{
+                        height: `${(b.livre / echelle) * 100}%`,
+                        minHeight: 4,
+                        background: SERIE_ACQUIS,
+                      }}
+                    />
+                    <div
+                      className="w-full max-w-[18px] rounded-t-[5px]"
+                      style={{
+                        height: `${(b.total / echelle) * 100}%`,
+                        minHeight: 4,
+                        background: SERIE_RESTE,
+                      }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-normal capitalize text-[color:var(--mk-muted)]">{b.label}</span>
+                </div>
+              ))}
+              <div className="pointer-events-none absolute left-0 right-0 top-[34%] flex justify-center">
+                {/* Pastille inversée (encre ↔ fond) : contrastée dans les deux
+                    thèmes sans couleur codée en dur. */}
+                <div className="rounded-[10px] bg-[color:var(--mk-ink)] px-3 py-2 text-center leading-[1.3] text-[color:var(--mk-page)] shadow-[var(--mk-shadow-lift)]">
+                  <div className="text-[13px] font-semibold tabular-nums">{data.stats.totalColis} colis</div>
+                  <div className="text-[10px] font-normal opacity-60">{periodLabel}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className={`${CARTE} flex flex-col gap-6 p-6`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[10px] bg-[color:var(--mk-line-soft)]">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6">
+                  <path d="M12 2.6 21 7.8 21 17 12 22.2 3 17 3 7.8Z" stroke="#64748B" />
+                  <path d="M3 7.8 12 13 21 7.8" stroke="#64748B" />
+                  <path d="M12 13 12 22.2" stroke="#64748B" />
+                </svg>
+              </div>
+              <span className="text-[15px] font-semibold text-[color:var(--mk-ink)]">CRBT</span>
+            </div>
+            <div className="rounded-[10px] border border-[color:var(--mk-line)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--mk-muted)]">
+              {periodLabel}
+            </div>
+          </div>
+
+          {/* Trois montants alignés sur une même ligne de base, puis la barre
+              qui montre comment le brut se répartit — les anciens cercles de
+              tailles inégales n'encodaient aucune proportion réelle. */}
+          <div>
+            {/* Empilé sous 640px : à trois colonnes, un montant à cinq chiffres
+                déborderait de sa cellule sur un téléphone. */}
+            <div className="grid grid-cols-1 gap-y-3 sm:grid-cols-3 sm:gap-y-0">
+              <CrbtFigure label="Brut" montant={data.crbt.brut} className="sm:pr-3" />
+              <CrbtFigure
+                label="Remboursé"
+                montant={data.crbt.rembourse}
+                pastille={SERIE_ACQUIS}
+                className="sm:border-l sm:border-[color:var(--mk-line-soft)] sm:px-3"
+              />
+              <CrbtFigure
+                label="À rembourser"
+                montant={data.crbt.aRembourser}
+                pastille={SERIE_RESTE}
+                className="sm:border-l sm:border-[color:var(--mk-line-soft)] sm:pl-3"
+              />
+            </div>
+
+            {/* Piste seule tant qu'il n'y a rien à répartir : un aplat gris à
+                100 % se lirait à tort comme "tout est à rembourser". */}
+            <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-[color:var(--mk-line-soft)]">
+              {data.crbt.brut > 0 && (
+                <>
+                  <div style={{ width: `${partRembourse}%`, background: SERIE_ACQUIS }} />
+                  <div style={{ width: `${100 - partRembourse}%`, background: SERIE_RESTE }} />
+                </>
+              )}
+            </div>
+            <p className="mt-2 text-[11px] font-normal text-[color:var(--mk-muted-2)]">
+              {data.crbt.brut > 0
+                ? `${partRembourse} % du montant brut déjà remboursé`
+                : 'Aucun montant à rembourser sur cette période'}
+            </p>
+          </div>
+
+          <div className="mt-auto flex flex-col gap-3.5">
+            <RateBar label="Taux de livraison" pct={data.rates.livraison} color={SERIE_ACQUIS} />
+            <RateBar label="Taux de collecte" pct={data.rates.collecte} color={SERIE_RESTE} />
+            <RateBar label="Taux d'encaissement" pct={data.rates.encaissement} color={SERIE_RESTE} />
+          </div>
+        </div>
       </div>
     </div>
   );

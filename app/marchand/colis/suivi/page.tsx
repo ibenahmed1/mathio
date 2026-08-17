@@ -85,7 +85,7 @@ function SuiviColisContent() {
                 {commande.clientNom} — {commande.ville}
               </p>
             </div>
-            <StatutBadge statut={commande.statut} />
+            <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
           </div>
 
           <ol className="flex flex-col gap-3 border-l-2 border-brand pl-4">

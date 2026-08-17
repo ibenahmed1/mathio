@@ -2,9 +2,6 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import type { TypeVille } from '@/app/generated/prisma/enums';
-
-const TYPES_VILLE: TypeVille[] = ['principale', 'satellite'];
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,14 +13,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.nom === 'string' && body.nom.trim()) {
       data.nom = body.nom.trim();
     }
-    if (body.type !== undefined) {
-      if (!TYPES_VILLE.includes(body.type)) {
-        throw new ApiError(400, `type invalide. Valeurs possibles : ${TYPES_VILLE.join(', ')}`);
-      }
-      data.type = body.type as TypeVille;
-    }
     if (typeof body.hubId === 'string' && body.hubId.trim()) {
-      const hub = await prisma.hubRegional.findUnique({ where: { id: body.hubId.trim() } });
+      const hub = await prisma.hub.findUnique({ where: { id: body.hubId.trim() } });
       if (!hub) {
         throw new ApiError(404, 'Hub introuvable');
       }

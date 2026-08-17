@@ -10,6 +10,7 @@ export interface Commande {
   adresse: string;
   produitDescription: string | null;
   marchandiseId: string | null;
+  produitId: string | null;
   quantite: number;
   notes: string | null;
   colisARemplacerId: string | null;
@@ -18,11 +19,15 @@ export interface Commande {
   aRemplacer: boolean;
   enStock: boolean;
   montantCod: string;
+  poidsKg: string | null;
   statut:
     | 'nouveau_colis'
     | 'attente_de_ramassage'
     | 'ramasse'
     | 'recu'
+    | 'pret_pour_preparation'
+    | 'recu_au_hub'
+    | 'en_transit'
     | 'expedie'
     | 'expedier_par_amana'
     | 'en_voyage'
@@ -50,6 +55,11 @@ export interface Commande {
   aRisque: boolean;
   ramassageId: string | null;
   bonLivraisonId: string | null;
+  bonPreparationId: string | null;
+  bonEnvoiId: string | null;
+  bonDistributionId: string | null;
+  villeId: string | null;
+  ramasseurId: string | null;
   livreurId: string | null;
   cinUrl: string | null;
   motifRetour: string | null;
@@ -58,11 +68,21 @@ export interface Commande {
   dateCreation: string;
   dateCollecte: string | null;
   dateLivraison: string | null;
+  // § /livreur/colis, action "Reporté" : date de nouvelle tentative choisie
+  // par le livreur — null tant que le colis n'a jamais été reporté.
+  dateNouvelleLivraison: string | null;
+  // § /admin/scan/reception : hub où le colis a été réceptionné au quai
+  // (POST /api/commandes/scan-reception) — null avant le scan.
+  hubActuelId: string | null;
+  dateReceptionHub: string | null;
   marchand?: { nomBoutique: string };
   livreur?: { id: string; nomComplet: string } | null;
+  ramasseur?: { id: string; nomComplet: string } | null;
   ramassage?: { ramasseur?: { nomComplet: string } | null } | null;
   marchandise?: { id: string; nom: string; prix: string } | null;
+  produit?: { id: string; nom: string; reference: string; photoUrl: string | null } | null;
   colisARemplacer?: { id: string; codeSuivi: string } | null;
+  hubActuel?: { id: string; nom: string; ville: string } | null;
   historique?: HistoriqueStatut[];
   commentaires?: CommentaireCommande[];
 }
@@ -116,7 +136,12 @@ export interface HistoriqueStatut {
   ancienStatut: string | null;
   nouveauStatut: string;
   horodatage: string;
+  // § /admin/scan/reception et /admin/bon-envoi : renseignés sur les entrées
+  // recu_au_hub / en_transit liées à un hub.
+  hubId?: string | null;
+  note?: string | null;
   utilisateur?: { nomComplet: string };
+  hub?: { nom: string } | null;
 }
 
 export interface CommentaireCommande {
@@ -199,6 +224,57 @@ export interface BonDeLivraison {
   marchand?: { nomBoutique: string; utilisateur?: { nomComplet: string; telephone: string | null } };
 }
 
+export interface BonDePreparation {
+  id: string;
+  numero: string;
+  marchandId: string;
+  nbColis: number;
+  statut: 'en_attente' | 'validee';
+  dateGeneration: string;
+  dateValidation: string | null;
+  validateurId: string | null;
+  commandes?: Commande[];
+  marchand?: { nomBoutique: string; utilisateur?: { nomComplet: string; telephone: string | null } };
+  validateur?: { nomComplet: string } | null;
+}
+
+export interface BonEnvoi {
+  id: string;
+  numero: string;
+  hubDestinationId: string;
+  statut: 'nouveau' | 'recu';
+  nbColis: number;
+  dateGeneration: string;
+  dateReception: string | null;
+  receptionnaireId: string | null;
+  commandes?: Commande[];
+  hubDestination?: { nom: string };
+  receptionnaire?: { nomComplet: string } | null;
+}
+
+// § Étape 1 du wizard de création (GET /api/bons-distribution/zones) : un
+// Hub existant, enrichi des compteurs propres au module. Le hub sert
+// directement de "zone" — cf. lib/bon-distribution.ts.
+export interface HubDistribution {
+  id: string;
+  nom: string;
+  nbColisAuHub: number;
+  nbLivreursActifs: number;
+}
+
+export interface BonDistribution {
+  id: string;
+  numero: string;
+  livreurId: string;
+  hubId: string;
+  statut: 'nouveau' | 'en_cours';
+  nbColis: number;
+  dateGeneration: string;
+  commandes?: Commande[];
+  livreur?: { nomComplet: string; telephone?: string | null };
+  hub?: { nom: string };
+}
+
 export interface Utilisateur {
   id: string;
   nomComplet: string;
@@ -220,6 +296,11 @@ export interface Utilisateur {
   cinRectoUrl?: string | null;
   cinVersoUrl?: string | null;
   ribPhotoUrl?: string | null;
+  rolesSupplementaires?: string[];
+  // § /admin/scan/reception + /admin/bon-distribution : hub de rattachement,
+  // obligatoire pour un agent_hub ou un livreur.
+  hubId?: string | null;
+  hub?: { id: string; nom: string } | null;
 }
 
 export interface TarifLivreurVille {
@@ -241,22 +322,18 @@ export interface MarchandMembre {
 export interface Ville {
   id: string;
   nom: string;
-  type: 'principale' | 'satellite';
   hubId: string;
 }
 
-export interface HubRegional {
+export interface Hub {
   id: string;
   nom: string;
-  zoneId: string;
+  ville: string;
+  adresse: string | null;
+  telephone: string | null;
+  isCentral: boolean;
   villes?: Ville[];
-}
-
-export interface ZoneLogistique {
-  id: string;
-  code: string;
-  nom: string;
-  hubs?: HubRegional[];
+  nbColisDepot?: number;
 }
 
 export interface EquipeTacheMembre {
@@ -346,6 +423,44 @@ export interface Transaction {
   auteur?: { nomComplet: string; role: string };
   transactionOrigine?: { id: string; categorie: string } | null;
   annulation?: { id: string } | null;
+}
+
+// ============================================================
+// Espace livreur (§ /livreur/colis — PATCH /api/livreur/colis/[id]/statut)
+// ============================================================
+
+// Les 3 actions de livraison exposées côté mobile — distinctes du PATCH
+// générique /api/commandes/[id]/statut (back-office, 27 statuts libres) :
+// chacune ne couvre qu'une transition précise avec ses propres champs requis.
+export type ActionLivreur = 'livre' | 'reporte' | 'annule';
+
+// Motifs fermés proposés à l'action "Reporté" (dropdown, pas de texte libre)
+// — stockés dans Commande.motifRetour, avec Commande.dateNouvelleLivraison
+// pour la date de nouvelle tentative.
+export const MOTIFS_REPORT_LIVREUR = ['Pas de réponse', 'Client absent', 'Adresse incomplète', 'Demande client'] as const;
+export type MotifReportLivreur = (typeof MOTIFS_REPORT_LIVREUR)[number];
+
+// Motifs fermés proposés à l'action "Annulé" — stockés dans Commande.motifRetour.
+export const MOTIFS_ANNULATION_LIVREUR = ['Refusé', 'Endommagé', 'Annulé'] as const;
+export type MotifAnnulationLivreur = (typeof MOTIFS_ANNULATION_LIVREUR)[number];
+
+// Corps du PATCH /api/livreur/colis/[id]/statut, une forme par action.
+export type ActionLivreurPayload =
+  | { action: 'livre'; photoPreuveUrl?: string; signatureUrl?: string }
+  | { action: 'reporte'; motif: MotifReportLivreur; dateNouvelleLivraison: string }
+  | { action: 'annule'; motif: MotifAnnulationLivreur };
+
+// Réponse de GET /api/livreur/caisse : récapitulatif du CRBT encaissé du jour.
+export interface CaisseLivreurJour {
+  commandes: Commande[];
+  total: string;
+}
+
+// Réponse de GET /api/livreur/dashboard (§ /livreur, Accueil) : les 2 blocs de
+// stats sur la plage de dates sélectionnée.
+export interface DashboardLivreurStats {
+  colis: { total: number; livres: number; retournes: number; tauxLivre: number; tauxRetourne: number };
+  bonsDistribution: { total: number; nouveau: number; enCours: number; nbColisTotal: number };
 }
 
 export interface Reclamation {
