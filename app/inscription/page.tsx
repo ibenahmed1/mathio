@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import { Logo } from '@/components/Logo';
@@ -53,7 +54,28 @@ const INITIAL_FORM: InscriptionForm = {
 };
 
 export default function InscriptionPage() {
-  const [form, setForm] = useState<InscriptionForm>(INITIAL_FORM);
+  return (
+    <Suspense fallback={null}>
+      <InscriptionFormulaire />
+    </Suspense>
+  );
+}
+
+function InscriptionFormulaire() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Pré-remplissage depuis un lien "Créer le compte" (ex. import de colis
+  // admin, marchand identifié par email ou téléphone introuvable en base) —
+  // returnTo ramène l'admin là d'où il vient une fois le compte créé.
+  const emailPrefill = searchParams.get('email') ?? '';
+  const telephonePrefill = searchParams.get('telephone') ?? '';
+  const returnTo = searchParams.get('returnTo');
+
+  const [form, setForm] = useState<InscriptionForm>(() => ({
+    ...INITIAL_FORM,
+    email: emailPrefill,
+    telephone: telephonePrefill,
+  }));
   const [ribPhotoName, setRibPhotoName] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
   const [showConfirmSecret, setShowConfirmSecret] = useState(false);
@@ -116,6 +138,10 @@ export default function InscriptionPage() {
         iceRc: form.iceRc,
       };
       const res = await apiPost<{ message: string }>('/api/marchands/inscription', payload);
+      if (returnTo) {
+        router.push(returnTo);
+        return;
+      }
       setMessage(res.message);
       setForm(INITIAL_FORM);
       setRibPhotoName(null);
@@ -160,6 +186,8 @@ export default function InscriptionPage() {
               Numéro de téléphone *
               <input
                 className="input-underline"
+                type="tel"
+                placeholder="06XXXXXXXX"
                 value={form.telephone}
                 onChange={(e) => update('telephone', e.target.value)}
                 required
@@ -182,7 +210,7 @@ export default function InscriptionPage() {
             </label>
 
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Mot de passe *
+              Mot de passe * <span className="text-xs font-normal opacity-60">(8+ car., maj. + chiffre + spécial)</span>
               <span className="flex items-center gap-2 border-b border-black/20 focus-within:border-brand">
                 <input
                   type={showSecret ? 'text' : 'password'}
@@ -190,7 +218,7 @@ export default function InscriptionPage() {
                   value={form.secret}
                   onChange={(e) => update('secret', e.target.value)}
                   required
-                  minLength={4}
+                  minLength={8}
                 />
                 <button type="button" onClick={() => setShowSecret((v) => !v)} className="text-black/40" tabIndex={-1}>
                   {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}

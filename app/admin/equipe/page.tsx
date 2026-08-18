@@ -156,7 +156,22 @@ export default function AdminEquipePage() {
             <tr key={u.id}>
               <td>{u.nomComplet}</td>
               <td>{u.telephone ?? '—'}</td>
-              <td>{ROLE_LABELS[u.role] ?? u.role}</td>
+              <td>
+                {ROLE_LABELS[u.role] ?? u.role}
+                {u.rolesSupplementaires && u.rolesSupplementaires.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {u.rolesSupplementaires.map((r) => (
+                      <span
+                        key={r}
+                        title="Rôle supplémentaire accordé"
+                        className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 dark:bg-teal-900/30 dark:text-teal-300"
+                      >
+                        + {ROLE_LABELS[r] ?? r}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </td>
               <td>
                 <StatutBadge statut={u.actif ? 'actif' : 'suspendu'} />
               </td>

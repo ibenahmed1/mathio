@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import type { Commande, Marchandise } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
+import { ProduitSelect } from '@/components/ProduitSelect';
 
 // Toute donnée saisie manuellement à la création reste modifiable ici — même
 // logique de pré-remplissage du prix (marchandise × quantité) que le
@@ -35,6 +36,8 @@ export function ColisEditModal({
     ville: commande.ville,
     adresse: commande.adresse,
     montantCod: commande.montantCod,
+    produitDescription: commande.produitDescription ?? '',
+    produitId: commande.produitId ?? '',
     notes: commande.notes ?? '',
     colisARemplacerCode: commande.colisARemplacer?.codeSuivi ?? '',
     ouvrir: commande.ouvrir,
@@ -70,6 +73,8 @@ export function ColisEditModal({
               marchandiseId: form.marchandiseId || null,
               quantite: Number(form.quantite) || 1,
               montantCod: form.montantCod,
+              produitDescription: form.produitDescription,
+              produitId: form.produitId || null,
               notes: form.notes,
               colisARemplacerCode: form.colisARemplacerCode,
               ouvrir: form.ouvrir,
@@ -206,6 +211,14 @@ export function ColisEditModal({
                 onChange={(e) => setForm({ ...form, colisARemplacerCode: e.target.value })}
               />
             </label>
+            <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
+              Description produit
+              <input
+                className="input-basic"
+                value={form.produitDescription}
+                onChange={(e) => setForm({ ...form, produitDescription: e.target.value })}
+              />
+            </label>
 
             <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
               Commentaire
@@ -250,11 +263,29 @@ export function ColisEditModal({
                   type="checkbox"
                   className="h-4 w-4 accent-brand"
                   checked={form.enStock}
-                  onChange={(e) => setForm({ ...form, enStock: e.target.checked })}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, enStock: e.target.checked, produitId: e.target.checked ? f.produitId : '' }))
+                  }
                 />
                 En stock (entrepôt)
               </label>
             </div>
+            {form.enStock && (
+              <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
+                Produit du stock
+                <ProduitSelect
+                  value={form.produitId}
+                  onSelect={(produit) =>
+                    setForm((f) => ({
+                      ...f,
+                      produitId: produit?.id ?? '',
+                      produitDescription: produit ? produit.nom : f.produitDescription,
+                    }))
+                  }
+                />
+                <span className="text-xs opacity-50">Recherche par nom ou référence — pré-remplit la description</span>
+              </label>
+            )}
             <p className="sm:col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
           </>
         )}

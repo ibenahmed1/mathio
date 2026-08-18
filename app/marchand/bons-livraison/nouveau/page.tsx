@@ -1,13 +1,13 @@
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { getPageSession } from '@/lib/auth';
+import { getPageSession, roleMatches } from '@/lib/auth';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { NouveauBonLivraisonClient } from './NouveauBonLivraisonClient';
 import type { Commande } from '@/lib/types';
 
 export default async function AjouterBonLivraisonPage() {
   const session = await getPageSession('marchand');
-  if (!session || session.role !== 'marchand') {
+  if (!session || !roleMatches(session, ['marchand'])) {
     redirect('/login');
   }
 
@@ -17,7 +17,7 @@ export default async function AjouterBonLivraisonPage() {
   }
 
   const colisEligibles = await prisma.commande.findMany({
-    where: { marchandId: marchand.id, statut: 'nouveau_colis', bonLivraisonId: null },
+    where: { marchandId: marchand.id, statut: 'nouveau_colis', bonLivraisonId: null, enStock: false },
     orderBy: { dateCreation: 'desc' },
   });
 

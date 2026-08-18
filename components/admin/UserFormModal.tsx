@@ -1,11 +1,11 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye, EyeOff, Upload, X } from 'lucide-react';
-import { apiPatch, apiPost } from '@/lib/api-client';
+import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { readFileAsDataUrl } from '@/lib/read-file';
 import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
-import type { Utilisateur } from '@/lib/types';
+import type { Hub, Utilisateur } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 
 export type UserFormMode = { kind: 'create' } | { kind: 'edit'; utilisateur: Utilisateur };
@@ -19,6 +19,7 @@ const ROLES = [
   'livreur',
   'design',
   'gestionnaire_hub',
+  'agent_hub',
 ] as const;
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -30,10 +31,20 @@ export const ROLE_LABELS: Record<string, string> = {
   livreur: 'Livreur',
   design: 'Design (Kanban uniquement)',
   gestionnaire_hub: 'Gestionnaire Hub (Kanban uniquement)',
+  agent_hub: 'Agent Hub (Réception dépôt uniquement)',
 };
 
 const ROLES_TERRAIN = ['ramasseur', 'livreur'];
 const ROLES_AVEC_PHOTO = ['ramasseur', 'livreur', 'moderateur'];
+const ROLES_AVEC_HUB = ['agent_hub', 'livreur'];
+
+// Même règle que côté serveur (PATCH /api/utilisateurs/[id]) : un rôle
+// supplémentaire ne peut être accordé qu'au sein du même espace applicatif
+// (back-office vs terrain) que le rôle réel de l'utilisateur — jamais admin
+// ni marchand, non gérés par cette API.
+function espaceDe(r: string): 'admin' | 'terrain' {
+  return ROLES_TERRAIN.includes(r) ? 'terrain' : 'admin';
+}
 
 type PieceKey = 'cinRectoUrl' | 'cinVersoUrl' | 'ribPhotoUrl';
 const PIECES: { key: PieceKey; label: string }[] = [
@@ -107,6 +118,9 @@ export function UserFormModal({
   const [photosNonSauvegardees, setPhotosNonSauvegardees] = useState(false);
 
   const [role, setRole] = useState(draft?.role ?? existant?.role ?? 'superviseur');
+  const [rolesSupplementaires, setRolesSupplementaires] = useState<string[]>(existant?.rolesSupplementaires ?? []);
+  const [hubId, setHubId] = useState(draft?.hubId ?? existant?.hubId ?? '');
+  const [hubs, setHubs] = useState<Hub[]>([]);
   const [photo, setPhoto] = useState<string | null>(draft?.photoUrl ?? existant?.photoUrl ?? null);
   const [cinRecto, setCinRecto] = useState<string | null>(draft?.cinRectoUrl ?? null);
   const [cinVerso, setCinVerso] = useState<string | null>(draft?.cinVersoUrl ?? null);
@@ -123,11 +137,21 @@ export function UserFormModal({
 
   const estTerrain = ROLES_TERRAIN.includes(role);
   const avecPhoto = ROLES_AVEC_PHOTO.includes(role);
+  const avecHub = ROLES_AVEC_HUB.includes(role);
   const pieces: Record<PieceKey, [string | null, (v: string | null) => void]> = {
     cinRectoUrl: [cinRecto, setCinRecto],
     cinVersoUrl: [cinVerso, setCinVerso],
     ribPhotoUrl: [rib, setRib],
   };
+
+  // Liste des hubs pour le select "Hub de rattachement" (agent_hub et
+  // livreur) — chargée une seule fois, indépendamment du rôle sélectionné au
+  // moment du montage (l'utilisateur peut changer de rôle en cours de route).
+  useEffect(() => {
+    apiGet<{ data: Hub[] }>('/api/hubs')
+      .then((res) => setHubs(res.data))
+      .catch(() => {});
+  }, []);
 
   // Sauvegarde best-effort de tout ce qui est saisi (hors mot de passe),
   // pour survivre à une fermeture accidentelle / un plantage. `overrides`
@@ -181,6 +205,16 @@ export function UserFormModal({
   function handleRoleChange(newRole: string) {
     setRole(newRole);
     saveDraftNow({ role: newRole });
+    // Un octroi n'a de sens que dans le même espace applicatif que le rôle
+    // (voir espaceDe ci-dessus) : si la fonction change d'espace (ex.
+    // superviseur -> livreur), les rôles supplémentaires précédents ne
+    // s'appliqueraient plus et seraient rejetés par l'API — on les retire ici
+    // plutôt que de laisser l'utilisateur découvrir l'erreur à la soumission.
+    setRolesSupplementaires((prev) => prev.filter((r) => r !== newRole && espaceDe(r) === espaceDe(newRole)));
+  }
+
+  function toggleRoleSupplementaire(r: string) {
+    setRolesSupplementaires((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
   }
 
   function ignorerBrouillon() {
@@ -220,12 +254,21 @@ export function UserFormModal({
         payload.cinVersoUrl = cinVerso ?? '';
         payload.ribPhotoUrl = rib ?? '';
       }
+      if (avecHub) {
+        if (!hubId) {
+          setError('Un hub de rattachement est requis pour cette fonction');
+          setSaving(false);
+          return;
+        }
+        payload.hubId = hubId;
+      }
 
       if (mode.kind === 'create') {
         payload.secret = secret;
         payload.confirmSecret = confirmSecret;
         await apiPost<Utilisateur>('/api/utilisateurs', payload);
       } else {
+        payload.rolesSupplementaires = rolesSupplementaires;
         await apiPatch(`/api/utilisateurs/${mode.utilisateur.id}`, payload);
       }
       // Succès : le brouillon n'a plus lieu d'être.
@@ -298,6 +341,8 @@ export function UserFormModal({
             <input
               className="input-basic"
               name="telephone"
+              type="tel"
+              placeholder="06XXXXXXXX"
               defaultValue={draft?.telephone ?? existant?.telephone ?? ''}
               required
             />
@@ -313,6 +358,49 @@ export function UserFormModal({
             />
           </label>
 
+          {avecHub && (
+            <label className="flex flex-col gap-1 text-sm font-medium">
+              Hub de rattachement *
+              <select
+                className="input-basic"
+                name="hubId"
+                value={hubId}
+                onChange={(e) => setHubId(e.target.value)}
+                required
+              >
+                <option value="">Sélectionner un hub</option>
+                {hubs.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {mode.kind === 'edit' && (
+            <div className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
+              <span>
+                Rôles supplémentaires{' '}
+                <span className="text-xs font-normal opacity-60">
+                  (accès ponctuel à d&apos;autres fonctions du même espace, sans changer la fonction principale)
+                </span>
+              </span>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {ROLES.filter((r) => r !== role && espaceDe(r) === espaceDe(role)).map((r) => (
+                  <label key={r} className="flex items-center gap-1.5 text-sm font-normal">
+                    <input
+                      type="checkbox"
+                      checked={rolesSupplementaires.includes(r)}
+                      onChange={() => toggleRoleSupplementaire(r)}
+                    />
+                    {ROLE_LABELS[r]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {estTerrain && (
             <>
               <label className="flex flex-col gap-1 text-sm font-medium">
@@ -323,7 +411,7 @@ export function UserFormModal({
 
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Zone principale
-                <select className="input-basic" name="zonePrincipale" defaultValue={draft?.zonePrincipale ?? ''}>
+                <select className="input-basic" name="zonePrincipale" defaultValue={draft?.zonePrincipale ?? existant?.zonePrincipale ?? ''}>
                   <option value="">Zone</option>
                   {VILLES_RAMASSAGE.map((v) => (
                     <option key={v} value={v}>
@@ -334,7 +422,7 @@ export function UserFormModal({
               </label>
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Zone secondaire
-                <select className="input-basic" name="zoneSecondaire" defaultValue={draft?.zoneSecondaire ?? ''}>
+                <select className="input-basic" name="zoneSecondaire" defaultValue={draft?.zoneSecondaire ?? existant?.zoneSecondaire ?? ''}>
                   <option value="">Zone</option>
                   {VILLES_RAMASSAGE.map((v) => (
                     <option key={v} value={v}>
@@ -351,7 +439,7 @@ export function UserFormModal({
 
               <label className="flex flex-col gap-1 text-sm font-medium">
                 Nom de la banque
-                <select className="input-basic" name="nomBanque" defaultValue={draft?.nomBanque ?? ''}>
+                <select className="input-basic" name="nomBanque" defaultValue={draft?.nomBanque ?? existant?.nomBanque ?? ''}>
                   <option value="">Nom Du Banque</option>
                   {BANQUES_MAROC.map((b) => (
                     <option key={b} value={b}>
@@ -436,7 +524,7 @@ export function UserFormModal({
         {mode.kind === 'create' && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm font-medium">
-              Mot de passe *
+              Mot de passe * <span className="text-xs font-normal opacity-60">(8+ car., maj. + chiffre + spécial)</span>
               <span className="input-basic flex items-center gap-2 py-0">
                 <input
                   type={showSecret ? 'text' : 'password'}
@@ -444,7 +532,7 @@ export function UserFormModal({
                   value={secret}
                   onChange={(e) => setSecret(e.target.value)}
                   required
-                  minLength={4}
+                  minLength={8}
                 />
                 <button type="button" onClick={() => setShowSecret((v) => !v)} className="opacity-60" tabIndex={-1}>
                   {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -460,7 +548,7 @@ export function UserFormModal({
                   value={confirmSecret}
                   onChange={(e) => setConfirmSecret(e.target.value)}
                   required
-                  minLength={4}
+                  minLength={8}
                 />
                 <button
                   type="button"

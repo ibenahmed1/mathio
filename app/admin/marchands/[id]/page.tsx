@@ -62,10 +62,19 @@ export default function AdminMarchandDetailPage() {
 
   async function accederEspace() {
     setError(null);
+    // Ouvre l'onglet tout de suite, à l'intérieur du gestionnaire de clic —
+    // pas après le await ci-dessous, sinon les navigateurs ne rattachent plus
+    // l'ouverture au geste utilisateur et bloquent silencieusement le popup.
+    const onglet = window.open('', '_blank');
     try {
       await apiPost(`/api/marchands/${id}/impersonation`);
-      window.open('/marchand', '_blank');
+      if (onglet) {
+        onglet.location.href = '/marchand';
+      } else {
+        setError("Le navigateur a bloqué l'ouverture du nouvel onglet. Autorisez les popups pour ce site puis réessayez.");
+      }
     } catch (err) {
+      onglet?.close();
       setError(err instanceof Error ? err.message : 'Erreur');
     }
   }

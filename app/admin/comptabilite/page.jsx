@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import ComptabiliteBoard from "@/components/accounting/ComptabiliteBoard";
+import { SidebarToggleButtons } from "@/components/admin/SidebarToggleButtons";
 import a from "@/components/accounting/Accounting.module.css";
 import { getPageSession } from "@/lib/auth";
 
@@ -18,28 +19,35 @@ export default async function ComptabiliteAdminPage() {
   }
 
   return (
-    <div className={a.pageRoot}>
-      {/* ---------- En-tête ---------- */}
-      <header className={a.pageHead}>
-        <div>
-          <div className={a.crumb}>
-            Mathio <span className={a.crumbSep}>/</span>{" "}
-            <span className={a.crumbCurrent}>Comptabilité</span>
-          </div>
-          <h1 className={a.pageTitle}>Comptabilité &amp; paie</h1>
-        </div>
+    <div className={a.pageGlow}>
+      <div className={a.pageGlowInner}>
+        <div className={a.pageRoot}>
+          {/* ---------- En-tête ---------- */}
+          <header className={a.pageHead}>
+            <div className={a.crumbRow}>
+              <SidebarToggleButtons className={a.sidebarToggle} />
+              <div>
+                <div className={a.crumb}>
+                  Mathio <span className={a.crumbSep}>/</span>{" "}
+                  <span className={a.crumbCurrent}>Comptabilité</span>
+                </div>
+                <h1 className={a.pageTitle}>Comptabilité &amp; paie</h1>
+              </div>
+            </div>
 
-        <div className={a.headActions}>
-          <div className={a.segmented}>
-            <button className={a.segItem}>Board</button>
-            <button className={`${a.segItem} ${a.segItemActive}`}>Comptabilité</button>
-            <button className={a.segItem}>Équipes</button>
-          </div>
-        </div>
-      </header>
+            <div className={a.headActions}>
+              <div className={a.segmented}>
+                <button className={a.segItem}>Board</button>
+                <button className={`${a.segItem} ${a.segItemActive}`}>Comptabilité</button>
+                <button className={a.segItem}>Équipes</button>
+              </div>
+            </div>
+          </header>
 
-      {/* ---------- Grille comptabilité ---------- */}
-      <ComptabiliteBoard />
+          {/* ---------- Grille comptabilité ---------- */}
+          <ComptabiliteBoard />
+        </div>
+      </div>
     </div>
   );
 }

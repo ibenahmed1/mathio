@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert } from 'lucide-react';
-import { apiGet, apiPost } from '@/lib/api-client';
-import type { Marchand } from '@/lib/types';
-import { AppHeader } from '@/components/AppHeader';
+import { Menu, ShieldAlert } from 'lucide-react';
+import { apiPost } from '@/lib/api-client';
 import { MarchandSidebar } from '@/components/marchand/MarchandSidebar';
 import { NAV_MARCHAND_MENU, NAV_MARCHAND_AUTRE } from '@/components/marchand/nav';
-import { CommandMenu } from '@/components/marchand/CommandMenu';
 
 export function MarchandShell({
   children,
@@ -22,14 +19,6 @@ export function MarchandShell({
 }) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [boutique, setBoutique] = useState<string | null>(null);
-
-  useEffect(() => {
-    apiGet<Marchand>('/api/marchands/me')
-      .then((m) => setBoutique(m.nomBoutique))
-      .catch(() => setBoutique(null));
-  }, []);
 
   // Termine réellement la session marchand empruntée (pas seulement une
   // navigation) : sans ça, le cookie pd_session_marchand resterait valide
@@ -46,11 +35,10 @@ export function MarchandShell({
   }
 
   return (
-    <div className="shell-surface min-h-screen lg:flex">
+    <div className="marchand-typo marchand-surface min-h-screen lg:flex">
       <MarchandSidebar
         nav={NAV_MARCHAND_MENU}
         autre={NAV_MARCHAND_AUTRE}
-        collapsed={collapsed}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />
@@ -64,14 +52,18 @@ export function MarchandShell({
             </button>
           </div>
         )}
-        <AppHeader
-          title={boutique}
-          profileHref="/marchand/profil"
-          collapsed={collapsed}
-          onToggleMobile={() => setMobileOpen(true)}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
-          search={<CommandMenu />}
-        />
+        {/* La sidebar reste dépliée en permanence en desktop. Ne subsiste que
+            l'ouverture en mobile : la sidebar est alors hors-écran, donc son
+            propre bouton de fermeture est inatteignable. */}
+        <div className="px-4 pt-4 lg:hidden">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="shrink-0 rounded-lg border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] p-2 text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] transition-colors hover:bg-[color:var(--mk-line-soft)]"
+            aria-label="Ouvrir le menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>

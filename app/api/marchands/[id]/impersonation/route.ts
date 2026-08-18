@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { signSession, getSessionCookieName, SESSION_MAX_AGE_SECONDS } from '@/lib/auth';
+import { getClientIp } from '@/lib/rate-limit';
 
 // Permet à un admin d'accéder directement à l'espace d'un marchand (support,
 // dépannage) sans connaître son mot de passe : on émet une vraie session
@@ -14,7 +15,7 @@ import { signSession, getSessionCookieName, SESSION_MAX_AGE_SECONDS } from '@/li
 // (Utilisateur.actif est synchronisé sur Marchand.statut, voir
 // /api/marchands/[id]/statut) : un compte en attente de validation ne doit
 // pas être "visitable" comme s'il était opérationnel.
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser(['admin']);
     const { id } = await params;
@@ -32,11 +33,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     const token = await signSession({ sub: marchand.utilisateurId, role: 'marchand' });
 
-    // Traçabilité minimale : pas de table d'audit dédiée dans ce projet,
-    // donc on journalise au moins qui a accédé à quel compte et quand.
-    console.info(
-      `[impersonation] admin ${session.sub} -> marchand ${marchand.id} (utilisateur ${marchand.utilisateurId}) le ${new Date().toISOString()}`
-    );
+    // Traçabilité : table AuditLog dédiée (voir prisma/schema.prisma) plutôt
+    // qu'un simple console.info — nécessaire pour établir les responsabilités
+    // en cas de modification frauduleuse sur le compte d'un marchand pendant
+    // une session d'impersonation.
+    await prisma.auditLog.create({
+      data: {
+        adminId: session.sub,
+        action: 'impersonation_marchand',
+        cibleType: 'marchand',
+        cibleId: marchand.id,
+        adresseIp: getClientIp(request),
+      },
+    });
 
     const response = NextResponse.json({ ok: true });
     response.cookies.set(getSessionCookieName('marchand'), token, {

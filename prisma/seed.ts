@@ -15,166 +15,65 @@ async function upsertUtilisateur(telephone: string, nomComplet: string, secret: 
   });
 }
 
-type VilleSeed = { nom: string; type: 'principale' | 'satellite' };
-type HubSeed = { nom: string; villes: VilleSeed[] };
-type ZoneSeed = { code: string; nom: string; hubs: HubSeed[] };
+type HubSeed = {
+  nom: string;
+  ville: string;
+  adresse?: string;
+  telephone?: string;
+  isCentral?: boolean;
+  villes: string[];
+};
 
-// Découpage national zone → hub(s) → villes, utilisé pour le zonage des
-// tournées (ramasseurs/livreurs). Une zone peut avoir plusieurs hubs
-// régionaux (ex. Centre-Sud & Souss : Marrakech et Agadir).
-const ZONAGE_LOGISTIQUE: ZoneSeed[] = [
+// Référentiel plat Hub ↔ Ville, utilisé pour le routage inter-hubs (Bon
+// d'Envoi) et la distribution locale (Bon de Distribution). Jeu de départ
+// volontairement minimal (3 hubs, chacun rattaché à sa seule ville
+// principale) — l'admin peut ensuite ajouter d'autres hubs/villes depuis
+// /admin/hubs selon les besoins réels. "Hub Casablanca" est le hub central
+// (entrepôt principal de préparation stock, cf. lib/hub-stock.ts).
+const HUBS_SEED: HubSeed[] = [
   {
-    code: 'hub_central',
-    nom: 'Hub Central (Casa Grand Public & Périphérie)',
-    hubs: [
-      {
-        nom: 'Casablanca / Nouaceur',
-        villes: [
-          { nom: 'Casablanca', type: 'principale' },
-          { nom: 'Mohammédia', type: 'satellite' },
-          { nom: 'Bouskoura', type: 'satellite' },
-          { nom: 'Dar Bouazza', type: 'satellite' },
-          { nom: 'Tit Mellil', type: 'satellite' },
-          { nom: 'Médiouna', type: 'satellite' },
-          { nom: 'Berrechid', type: 'satellite' },
-          { nom: 'Settat', type: 'satellite' },
-        ],
-      },
-    ],
+    nom: 'Hub Casablanca',
+    ville: 'Casablanca',
+    isCentral: true,
+    villes: ['Casablanca'],
   },
   {
-    code: 'nord',
-    nom: 'Nord (Axe Tanger-Tétouan)',
-    hubs: [
-      {
-        nom: 'Tanger',
-        villes: [
-          { nom: 'Tanger', type: 'principale' },
-          { nom: 'Tétouan', type: 'principale' },
-          { nom: 'Larache', type: 'satellite' },
-          { nom: 'Ksar El Kébir', type: 'satellite' },
-          { nom: 'Asilah', type: 'satellite' },
-          { nom: 'Chefchaouen', type: 'satellite' },
-        ],
-      },
-    ],
+    nom: 'Hub Tanger',
+    ville: 'Tanger',
+    villes: ['Tanger'],
   },
   {
-    code: 'centre_atlantique',
-    nom: 'Centre-Atlantique (Axe Capitale / Littoral)',
-    hubs: [
-      {
-        nom: 'Rabat / Salé',
-        villes: [
-          { nom: 'Rabat', type: 'principale' },
-          { nom: 'Salé', type: 'principale' },
-          { nom: 'Témara', type: 'satellite' },
-          { nom: 'Skhirat', type: 'satellite' },
-          { nom: 'Kénitra', type: 'satellite' },
-        ],
-      },
-    ],
-  },
-  {
-    code: 'centre_sud_souss',
-    nom: 'Centre-Sud & Souss',
-    hubs: [
-      {
-        nom: 'Marrakech',
-        villes: [
-          { nom: 'Marrakech', type: 'principale' },
-          { nom: 'Safi', type: 'satellite' },
-          { nom: 'El Jadida', type: 'satellite' },
-          { nom: 'Essaouira', type: 'satellite' },
-          { nom: 'Kelâat Sraghna', type: 'satellite' },
-          { nom: 'Ben Guerir', type: 'satellite' },
-        ],
-      },
-      {
-        nom: 'Agadir',
-        villes: [
-          { nom: 'Agadir', type: 'principale' },
-          { nom: 'Inezgane', type: 'satellite' },
-          { nom: 'Aït Melloul', type: 'satellite' },
-          { nom: 'Taroudant', type: 'satellite' },
-          { nom: 'Tiznit', type: 'satellite' },
-        ],
-      },
-    ],
-  },
-  {
-    code: 'oriental',
-    nom: 'Oriental',
-    hubs: [
-      {
-        nom: 'Oujda / Nador',
-        villes: [
-          { nom: 'Oujda', type: 'principale' },
-          { nom: 'Nador', type: 'principale' },
-          { nom: 'Berkane', type: 'satellite' },
-          { nom: 'Taourirt', type: 'satellite' },
-          { nom: 'Al Hoceïma', type: 'satellite' },
-          { nom: 'Guercif', type: 'satellite' },
-        ],
-      },
-    ],
-  },
-  {
-    code: 'interieur_saiss',
-    nom: 'Intérieur / Saïss',
-    hubs: [
-      {
-        nom: 'Fès / Meknès',
-        villes: [
-          { nom: 'Fès', type: 'principale' },
-          { nom: 'Meknès', type: 'principale' },
-          { nom: 'Taza', type: 'satellite' },
-          { nom: 'Ifrane', type: 'satellite' },
-          { nom: 'Azrou', type: 'satellite' },
-          { nom: 'Khénifra', type: 'satellite' },
-        ],
-      },
-    ],
-  },
-  {
-    code: 'sud_sahara',
-    nom: 'Sud / Sahara',
-    hubs: [
-      {
-        nom: 'Laâyoune',
-        villes: [
-          { nom: 'Laâyoune', type: 'principale' },
-          { nom: 'Guelmim', type: 'satellite' },
-          { nom: 'Tan-Tan', type: 'satellite' },
-          { nom: 'Dakhla', type: 'satellite' },
-        ],
-      },
-    ],
+    nom: 'Hub Marrakech',
+    ville: 'Marrakech',
+    villes: ['Marrakech'],
   },
 ];
 
-async function seedZonageLogistique() {
-  for (const zoneSeed of ZONAGE_LOGISTIQUE) {
-    const zone = await prisma.zoneLogistique.upsert({
-      where: { code: zoneSeed.code },
-      update: { nom: zoneSeed.nom },
-      create: { code: zoneSeed.code, nom: zoneSeed.nom },
+async function seedHubs() {
+  for (const hubSeed of HUBS_SEED) {
+    const hub = await prisma.hub.upsert({
+      where: { nom: hubSeed.nom },
+      update: {
+        ville: hubSeed.ville,
+        adresse: hubSeed.adresse,
+        telephone: hubSeed.telephone,
+        isCentral: hubSeed.isCentral ?? false,
+      },
+      create: {
+        nom: hubSeed.nom,
+        ville: hubSeed.ville,
+        adresse: hubSeed.adresse,
+        telephone: hubSeed.telephone,
+        isCentral: hubSeed.isCentral ?? false,
+      },
     });
 
-    for (const hubSeed of zoneSeed.hubs) {
-      const hub = await prisma.hubRegional.upsert({
-        where: { nom: hubSeed.nom },
-        update: { zoneId: zone.id },
-        create: { nom: hubSeed.nom, zoneId: zone.id },
+    for (const villeNom of hubSeed.villes) {
+      await prisma.ville.upsert({
+        where: { nom: villeNom },
+        update: { hubId: hub.id },
+        create: { nom: villeNom, hubId: hub.id },
       });
-
-      for (const villeSeed of hubSeed.villes) {
-        await prisma.ville.upsert({
-          where: { nom: villeSeed.nom },
-          update: { type: villeSeed.type, hubId: hub.id },
-          create: { nom: villeSeed.nom, type: villeSeed.type, hubId: hub.id },
-        });
-      }
     }
   }
 }
@@ -249,7 +148,7 @@ async function seedPersonnelInterne() {
 }
 
 async function main() {
-  await seedZonageLogistique();
+  await seedHubs();
   await seedEquipesTaches();
 
   const admin = await upsertUtilisateur('0000000000', 'Administrateur', '1234', 'admin');

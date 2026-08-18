@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreVertical, MapPinned, SquarePen, Printer } from 'lucide-react';
+import { MoreVertical, MapPinned, SquarePen, Printer, Trash2 } from 'lucide-react';
+import { apiDelete } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
+import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from './ColisTrackingModal';
 import { ColisEditModal } from './ColisEditModal';
 
@@ -20,7 +22,23 @@ export function ColisActionsMenu({
   champsRestreints?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [modal, setModal] = useState<'suivi' | 'modifier' | null>(null);
+  const [modal, setModal] = useState<'suivi' | 'modifier' | 'supprimer' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiDelete(`/api/commandes/${commande.id}`);
+      onChanged();
+      setModal(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="relative inline-block text-left">
@@ -65,6 +83,20 @@ export function ColisActionsMenu({
             >
               <Printer className="h-4 w-4" /> Imprimer le ticket
             </button>
+            {commande.statut === 'nouveau_colis' && (
+              <>
+                <div className="my-1 border-t border-black/10 dark:border-white/10" />
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setModal('supprimer');
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                >
+                  <Trash2 className="h-4 w-4" /> Supprimer le colis
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -77,6 +109,23 @@ export function ColisActionsMenu({
           onSaved={onChanged}
           champsRestreints={champsRestreints}
         />
+      )}
+      {modal === 'supprimer' && (
+        <Modal title="Supprimer le colis" onClose={() => setModal(null)}>
+          <p className="text-sm">
+            Supprimer définitivement le colis <span className="font-mono">{commande.codeSuivi}</span> ? Cette action est
+            irréversible.
+          </p>
+          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button className="btn-outline" onClick={() => setModal(null)} disabled={busy}>
+              Annuler
+            </button>
+            <button className="btn-primary bg-red-600 hover:bg-red-700" disabled={busy} onClick={handleDelete}>
+              Supprimer
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

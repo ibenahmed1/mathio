@@ -12,6 +12,7 @@ interface EvenementCircuit {
   auteur: string;
   statut?: string;
   texte?: string;
+  note?: string | null;
 }
 
 // Timeline verticale à colonne unique, identique à celle du marchand
@@ -26,6 +27,7 @@ function construireCircuit(commande: Commande): EvenementCircuit[] {
       horodatage: h.horodatage,
       auteur: h.utilisateur?.nomComplet ?? '—',
       statut: h.nouveauStatut,
+      note: h.note,
     });
   }
   for (const c of commande.commentaires ?? []) {
@@ -66,7 +68,7 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
                 {commande.ville} — {commande.marchand?.nomBoutique ?? '—'}
               </p>
             </div>
-            <StatutBadge statut={commande.statut} />
+            <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
           </div>
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
@@ -85,12 +87,19 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
                   </span>
                   <div className={isCurrent ? 'rounded-lg border border-brand/40 bg-brand/5 p-3' : ''}>
                     {ev.type === 'statut' ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatutBadge statut={ev.statut!} />
-                        {isCurrent && (
-                          <span className="text-xs font-bold uppercase tracking-wide text-brand">État actuel</span>
-                        )}
-                      </div>
+                      <>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatutBadge statut={ev.statut!} />
+                          {isCurrent && (
+                            <span className="text-xs font-bold uppercase tracking-wide text-brand">État actuel</span>
+                          )}
+                        </div>
+                        {/* § Qui livre, pas seulement qui a agi : la note porte
+                            l'info métier (ex. affecté au livreur X) quand elle
+                            existe — sinon "par {auteur}" ci-dessous ne montre
+                            que l'auteur de l'action (souvent un admin). */}
+                        {ev.note && <p className="mt-1 text-sm font-medium opacity-90">{ev.note}</p>}
+                      </>
                     ) : (
                       <p className="text-sm italic opacity-90">« {ev.texte} »</p>
                     )}

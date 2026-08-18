@@ -15,6 +15,7 @@ interface EvenementCircuit {
   horodatage: string;
   auteur: string;
   texte: string;
+  note?: string | null;
 }
 
 function construireCircuit(commande: Commande): EvenementCircuit[] {
@@ -25,6 +26,7 @@ function construireCircuit(commande: Commande): EvenementCircuit[] {
       horodatage: h.horodatage,
       auteur: h.utilisateur?.nomComplet ?? '—',
       texte: LABELS_STATUT_COMMANDE[h.nouveauStatut as keyof typeof LABELS_STATUT_COMMANDE] ?? h.nouveauStatut,
+      note: h.note,
     });
   }
   for (const c of commande.commentaires ?? []) {
@@ -137,7 +139,7 @@ function AdminSuiviColisContent() {
             </div>
             <div className="flex items-center gap-2">
               <EtatPaiementBadge etat={commande.etatPaiement} />
-              <StatutBadge statut={commande.statut} />
+              <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
             </div>
           </div>
 
@@ -179,7 +181,14 @@ function AdminSuiviColisContent() {
             {circuit.map((ev, i) => (
               <li key={i} className="text-sm">
                 {ev.type === 'statut' ? (
-                  <p className="font-semibold">{ev.texte}</p>
+                  <>
+                    <p className="font-semibold">{ev.texte}</p>
+                    {/* § Qui livre, pas seulement qui a agi : la note porte
+                        l'info métier (ex. affecté au livreur X) quand elle
+                        existe — sinon " — {auteur}" ci-dessous ne montre que
+                        l'auteur de l'action (souvent un admin). */}
+                    {ev.note && <p className="opacity-90">{ev.note}</p>}
+                  </>
                 ) : (
                   <p className="italic opacity-90">&laquo; {ev.texte} &raquo;</p>
                 )}

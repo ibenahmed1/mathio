@@ -5,17 +5,29 @@ import {
   verifySecret,
   getSessionCookieName,
   getSessionSpace,
+  normalizePhoneMaroc,
   LEGACY_SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
 } from '@/lib/auth';
 import { jsonError } from '@/lib/api-utils';
+import { checkRateLimit, getClientIp, rateLimitedResponse } from '@/lib/rate-limit';
 
 // Message générique : ne jamais révéler si le compte existe, si le mot de
 // passe/PIN est incorrect, ou si le compte est désactivé (RG-12).
 const INVALID_CREDENTIALS_MESSAGE = 'Téléphone/email ou identifiant incorrect';
 
+// 5 tentatives/minute/IP : assez pour une faute de frappe légitime, trop peu
+// pour un bruteforce d'identifiants.
+const LOGIN_RATE_LIMIT = { max: 5, windowMs: 60_000 };
+
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request) ?? 'unknown';
+    const rateLimit = await checkRateLimit(`login:${ip}`, LOGIN_RATE_LIMIT.max, LOGIN_RATE_LIMIT.windowMs);
+    if (!rateLimit.allowed) {
+      return rateLimitedResponse(rateLimit.retryAfterSeconds);
+    }
+
     const body = await request.json();
     // Le champ "telephone" du body accepte historiquement un numéro, mais
     // aussi un email : les membres d'équipe marchand invités par email (voir
@@ -28,8 +40,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Téléphone/email et identifiant requis' }, { status: 400 });
     }
 
+    // L'identifiant peut être saisi avec des espaces ou un préfixe +212/212
+    // (ex. copié depuis un contact) : on le normalise vers le même format
+    // que celui stocké en base avant de chercher par téléphone. Si ce n'est
+    // pas un numéro reconnu, `normalizePhoneMaroc` renvoie null et seule la
+    // recherche par email s'applique (comportement identique à avant).
+    const telephoneNormalise = normalizePhoneMaroc(identifiant);
+
     const user = await prisma.utilisateur.findFirst({
-      where: { OR: [{ telephone: identifiant }, { email: identifiant }] },
+      where: { OR: [{ telephone: telephoneNormalise ?? identifiant }, { email: identifiant }] },
     });
 
     if (!user || !user.actif) {

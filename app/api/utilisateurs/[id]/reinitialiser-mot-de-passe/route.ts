@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { hashSecret } from '@/lib/auth';
+import { hashSecret, getPasswordPolicyError } from '@/lib/auth';
 
 // RF-22 : réinitialisation manuelle par l'admin — pour tout type de compte
 // (équipe terrain, back-office, marchand), l'admin saisit lui-même le nouveau
@@ -21,8 +21,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!motDePasse || !confirmationMotDePasse) {
       throw new ApiError(400, 'motDePasse et confirmationMotDePasse sont requis');
     }
-    if (motDePasse.length < 4) {
-      throw new ApiError(400, 'Le mot de passe doit contenir au moins 4 caractères');
+    const passwordError = getPasswordPolicyError(motDePasse);
+    if (passwordError) {
+      throw new ApiError(400, passwordError);
     }
     if (motDePasse !== confirmationMotDePasse) {
       throw new ApiError(400, 'Les mots de passe ne correspondent pas');

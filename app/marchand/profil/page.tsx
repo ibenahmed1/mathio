@@ -61,6 +61,11 @@ export default function MarchandProfilPage() {
         ramassageJours: marchand.ramassageJours,
         ramassageCreneauHoraire: marchand.ramassageCreneauHoraire,
         ...(nouvelleRibPhoto ? { ribPhotoUrl: nouvelleRibPhoto } : {}),
+        // Identifiants de connexion : seul le titulaire peut les modifier
+        // (le backend re-vérifie de toute façon, cf. app/api/marchands/me/route.ts).
+        ...(estTitulaire
+          ? { telephone: marchand.utilisateur?.telephone, email: marchand.utilisateur?.email }
+          : {}),
       });
       setMarchand(updated);
       setNouvelleRibPhoto(null);
@@ -120,6 +125,43 @@ export default function MarchandProfilPage() {
               onChange={(e) => setMarchand({ ...marchand, ville: e.target.value })}
             />
           </label>
+
+          <fieldset className="rounded-lg border border-black/10 p-3 dark:border-white/10">
+            <legend className="px-2 text-sm font-bold">Coordonnées de connexion</legend>
+            {estTitulaire ? (
+              <div className="flex flex-col gap-3">
+                <label className="flex flex-col gap-1 text-sm">
+                  Téléphone
+                  <input
+                    className="input-basic"
+                    type="tel"
+                    placeholder="06XXXXXXXX"
+                    value={marchand.utilisateur?.telephone ?? ''}
+                    onChange={(e) =>
+                      setMarchand({ ...marchand, utilisateur: { ...marchand.utilisateur!, telephone: e.target.value } })
+                    }
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Adresse électronique
+                  <input
+                    className="input-basic"
+                    type="email"
+                    value={marchand.utilisateur?.email ?? ''}
+                    onChange={(e) =>
+                      setMarchand({ ...marchand, utilisateur: { ...marchand.utilisateur!, email: e.target.value } })
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
+              <p className="text-xs opacity-60">
+                Téléphone : {marchand.utilisateur?.telephone ?? '—'} · Email : {marchand.utilisateur?.email ?? '—'}
+                <br />
+                Géré par le titulaire du compte, pas modifiable depuis un profil membre d&apos;équipe.
+              </p>
+            )}
+          </fieldset>
 
           <fieldset className="rounded-lg border border-black/10 p-3 dark:border-white/10">
             <legend className="px-2 text-sm font-bold">Identité & légal</legend>

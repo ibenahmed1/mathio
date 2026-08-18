@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
-import type { TarifLivreurVille, ZoneLogistique } from '@/lib/types';
+import type { Hub, TarifLivreurVille } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 
 // Surcharge des frais de livraison/refus d'un livreur pour des villes
@@ -27,14 +27,14 @@ export function TarifsVilleModal({
 
   async function load() {
     try {
-      const [tarifsRes, zonesRes] = await Promise.all([
+      const [tarifsRes, hubsRes] = await Promise.all([
         apiGet<{ data: TarifLivreurVille[] }>(`/api/utilisateurs/${utilisateurId}/tarifs-villes`),
-        apiGet<{ data: ZoneLogistique[] }>('/api/zones'),
+        apiGet<{ data: Hub[] }>('/api/hubs'),
       ]);
       setTarifs(tarifsRes.data);
       setVilles(
-        zonesRes.data
-          .flatMap((z) => (z.hubs ?? []).flatMap((h) => h.villes ?? []))
+        hubsRes.data
+          .flatMap((h) => h.villes ?? [])
           .map((v) => ({ id: v.id, nom: v.nom }))
           .sort((a, b) => a.nom.localeCompare(b.nom))
       );

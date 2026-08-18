@@ -54,10 +54,19 @@ export default function AdminMarchandsPage() {
   // cours, qui reste active dans l'onglet courant.
   async function accederEspace(id: string) {
     setError(null);
+    // Ouvert tout de suite dans le gestionnaire de clic — pas après le await
+    // ci-dessous, sinon les navigateurs bloquent silencieusement le popup
+    // (le lien avec le geste utilisateur est perdu après un appel async).
+    const onglet = window.open('', '_blank');
     try {
       await apiPost(`/api/marchands/${id}/impersonation`);
-      window.open('/marchand', '_blank');
+      if (onglet) {
+        onglet.location.href = '/marchand';
+      } else {
+        setError("Le navigateur a bloqué l'ouverture du nouvel onglet. Autorisez les popups pour ce site puis réessayez.");
+      }
     } catch (err) {
+      onglet?.close();
       setError(err instanceof Error ? err.message : 'Erreur');
     }
   }
@@ -86,7 +95,13 @@ export default function AdminMarchandsPage() {
                 </Link>
               </td>
               <td>
-                {m.utilisateur?.nomComplet} — {m.utilisateur?.telephone ?? m.utilisateur?.email ?? '—'}
+                <div className="flex flex-col">
+                  <span>{m.utilisateur?.nomComplet}</span>
+                  <span className="text-xs opacity-60">
+                    {m.utilisateur?.telephone ?? '—'}
+                    {m.utilisateur?.email ? ` · ${m.utilisateur.email}` : ''}
+                  </span>
+                </div>
               </td>
               <td>{m.ville ?? '—'}</td>
               <td>

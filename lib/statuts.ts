@@ -11,6 +11,9 @@ export const STATUTS_COMMANDE: StatutCommande[] = [
   'attente_de_ramassage',
   'ramasse',
   'recu',
+  'pret_pour_preparation',
+  'recu_au_hub',
+  'en_transit',
   'expedie',
   'expedier_par_amana',
   'en_voyage',
@@ -41,6 +44,9 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   attente_de_ramassage: 'Attente De Ramassage',
   ramasse: 'Ramassé',
   recu: 'Reçu',
+  pret_pour_preparation: 'Prêt pour préparation',
+  recu_au_hub: 'Reçu au Hub',
+  en_transit: 'En transit',
   expedie: 'Expédié',
   expedier_par_amana: 'Expédier par AMANA',
   en_voyage: 'En Voyage',
@@ -87,6 +93,22 @@ export const STATUTS_A_RELANCER: StatutCommande[] = [
   'deuxieme_appel_pas_reponse',
   'troisieme_appel_pas_reponse',
 ];
+
+// Sous-ensemble "client injoignable" utilisé par la tuile dédiée du dashboard
+// marchand — motifs d'échec de contact téléphonique uniquement, à l'exclusion
+// des refus/zone/report qui ont une cause différente.
+export const STATUTS_INJOIGNABLES: StatutCommande[] = [
+  'injoignable',
+  'boite_vocale',
+  'pas_de_reponse_sms',
+  'deuxieme_appel_pas_reponse',
+  'troisieme_appel_pas_reponse',
+  'numero_errone',
+];
+
+// Colis pas encore récupérés chez le marchand (avant ramassage effectif) —
+// sert à dériver le taux de collecte du dashboard marchand.
+export const STATUTS_AVANT_COLLECTE: StatutCommande[] = ['nouveau_colis', 'attente_de_ramassage'];
 
 export const ETATS_PAIEMENT: EtatPaiement[] = ['non_paye', 'facture', 'paye', 'rembourse'];
 

@@ -50,7 +50,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: 100%;
+  height: 100vh;
   padding: 18px 12px;
   background-color: var(--mt-surface-2);
   background-image: var(--mt-gradient-soft);
@@ -281,3 +281,55 @@
   white-space: nowrap;
 }
 .profileRole { font-size: 10.5px; color: var(--mt-muted); }
+
+.profileBtn {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, box-shadow .15s;
+}
+.profileBtn:hover { border-color: var(--mt-yellow); }
+
+.profileMenu {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: #FFFFFF;
+  border: 1px solid var(--mt-line);
+  border-radius: 12px;
+  box-shadow: var(--sh-modal, 0 20px 45px rgba(32,32,32,.18));
+  font-family: var(--mt-font);
+}
+.profileMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mt-ink);
+  cursor: pointer;
+}
+.profileMenuItem:hover { background: rgba(255,209,0,.14); }
+.profileMenuItemDanger { color: #b04a37; }
+.profileMenuItemDanger:hover { background: rgba(214,90,70,.13); }
+
+/* ---------- Repli (sidebar réduite) ----------
+   Tailwind v4 place ses utilitaires (dont `lg:hidden`) dans `@layer utilities` ;
+   ce module CSS n'est lui rattaché à aucun layer, donc — par la spec CSS
+   Cascade Layers — ses règles (display:flex sur .brandText/.search/.navLabel/
+   .profileText) gagnent TOUJOURS contre `lg:hidden`, quelle que soit la
+   largeur d'écran. Résultat : texte de marque, recherche et libellés de nav
+   débordaient au lieu de disparaître quand la sidebar était réduite. On
+   masque donc ici, dans le même fichier non-layé, pour rester sur un terrain
+   de cascade égal (l'ordre dans la feuille tranche, cette règle arrivant en
+   dernier gagne dès 1024px). */
+@media (min-width: 1024px) {
+  .collapseHide { display: none; }
+}

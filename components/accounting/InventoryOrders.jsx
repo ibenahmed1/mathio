@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Box } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api-client";
 import {
   LABELS_STATUT_COMMANDE_STOCK_HUB,
@@ -109,7 +110,9 @@ export default function InventoryOrders() {
 
             <div className={a.orderBody}>
               <div className={a.orderMain}>
-                <span className={a.orderThumb}>📦</span>
+                <span className={a.orderThumb}>
+                  <Box className="h-4 w-4" strokeWidth={2} />
+                </span>
                 <div className={a.orderText}>
                   <div className={a.orderItem}>{c.titre}</div>
                   {c.sousTitre && <div className={a.orderDivision}>{c.sousTitre}</div>}

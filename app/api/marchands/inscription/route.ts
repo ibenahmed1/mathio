@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError } from '@/lib/api-utils';
-import { hashSecret } from '@/lib/auth';
+import { hashSecret, getPasswordPolicyError, normalizePhoneMaroc, isValidEmail } from '@/lib/auth';
 import { TYPES_COMPTE } from '@/lib/marchand-form-options';
 import type { TypeCompteMarchand } from '@/app/generated/prisma/enums';
+import { checkRateLimit, getClientIp, rateLimitedResponse } from '@/lib/rate-limit';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// 5 tentatives/minute/IP : endpoint public sans session, aussi exposé au
+// bruteforce/spam qu'un login (voir critique #2 du plan sécurité).
+const INSCRIPTION_RATE_LIMIT = { max: 5, windowMs: 60_000 };
+
 const RIB_REGEX = /^\d{24}$/;
 
 function requiredString(body: Record<string, unknown>, key: string): string {
@@ -26,12 +30,22 @@ function optionalString(body: Record<string, unknown>, key: string): string | nu
 // "invité").
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request) ?? 'unknown';
+    const rateLimit = await checkRateLimit(`marchands-inscription:${ip}`, INSCRIPTION_RATE_LIMIT.max, INSCRIPTION_RATE_LIMIT.windowMs);
+    if (!rateLimit.allowed) {
+      return rateLimitedResponse(rateLimit.retryAfterSeconds);
+    }
+
     const body = await request.json();
 
     const nomComplet = requiredString(body, 'nomComplet');
     const cin = requiredString(body, 'cin');
     const nomBoutique = requiredString(body, 'nomBoutique');
-    const telephone = requiredString(body, 'telephone');
+    const telephoneRaw = requiredString(body, 'telephone');
+    const telephone = normalizePhoneMaroc(telephoneRaw);
+    if (!telephone) {
+      throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+    }
     const email = requiredString(body, 'email').toLowerCase();
     const secret = typeof body.secret === 'string' ? body.secret : '';
     const ville = requiredString(body, 'ville');
@@ -52,11 +66,12 @@ export async function POST(request: Request) {
     }
     const typeCompte = typeCompteRaw as TypeCompteMarchand;
 
-    if (!EMAIL_REGEX.test(email)) {
+    if (!isValidEmail(email)) {
       throw new ApiError(400, 'Adresse électronique invalide');
     }
-    if (secret.length < 4) {
-      throw new ApiError(400, 'Le mot de passe doit contenir au moins 4 caractères');
+    const passwordError = getPasswordPolicyError(secret);
+    if (passwordError) {
+      throw new ApiError(400, passwordError);
     }
     if (!RIB_REGEX.test(rib)) {
       throw new ApiError(400, 'Le RIB doit contenir exactement 24 chiffres');

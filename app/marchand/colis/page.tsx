@@ -3,8 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { PackagePlus, FileUp, FileDown, PackageSearch, DoorOpen, TriangleAlert, Search, X, CalendarRange, MapPin, Wallet } from 'lucide-react';
-import { apiGet } from '@/lib/api-client';
+import { PackagePlus, FileUp, FileDown, PackageSearch, DoorOpen, TriangleAlert, Search, X, CalendarRange, MapPin, Wallet, Trash2 } from 'lucide-react';
+import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { EtatPaiementBadge } from '@/components/EtatPaiementBadge';
@@ -26,6 +26,8 @@ function ColisListContent() {
   const [error, setError] = useState<string | null>(null);
   const [chargement, setChargement] = useState(true);
   const [exportEnCours, setExportEnCours] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
 
   const filtresActifs = [etatPaiementFiltre, villeFiltre, dateFrom, dateTo, search].filter(Boolean).length;
 
@@ -61,10 +63,44 @@ function ColisListContent() {
       const params = buildFiltreParams(overrides);
       const res = await apiGet<{ data: Commande[] }>(`/api/commandes?${params.toString()}`);
       setCommandes(res.data);
+      setSelected(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
       setChargement(false);
+    }
+  }
+
+  // Seuls les colis "Nouveau Colis" sont supprimables (cf. DELETE
+  // /api/commandes/[id]) — au-delà, on passe par un changement de statut.
+  const idsEligibles = commandes.filter((c) => c.statut === 'nouveau_colis').map((c) => c.id);
+  const touteLaSelection = idsEligibles.length > 0 && idsEligibles.every((id) => selected.has(id));
+
+  function toggleUn(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTout() {
+    setSelected(touteLaSelection ? new Set() : new Set(idsEligibles));
+  }
+
+  async function supprimerSelection() {
+    if (selected.size === 0) return;
+    if (!confirm(`Supprimer définitivement ${selected.size} colis sélectionné(s) ?`)) return;
+    setSuppressionEnCours(true);
+    setError(null);
+    try {
+      await apiPost('/api/commandes/bulk-delete', { colisIds: Array.from(selected) });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setSuppressionEnCours(false);
     }
   }
 
@@ -244,11 +280,34 @@ function ColisListContent() {
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-900/40 dark:bg-red-950/20">
+          <span>{selected.size} colis sélectionné(s)</span>
+          <button
+            onClick={supprimerSelection}
+            disabled={suppressionEnCours}
+            className="btn-primary flex items-center gap-1.5 bg-red-600 px-3 py-1.5 text-xs hover:bg-red-700 disabled:opacity-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            {suppressionEnCours ? 'Suppression…' : 'Supprimer la sélection'}
+          </button>
+        </div>
+      )}
+
       <div className="table-card">
         <div className="overflow-x-auto">
           <table className="table-basic min-w-[1420px]">
             <thead>
               <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={touteLaSelection}
+                    onChange={toggleTout}
+                    disabled={idsEligibles.length === 0}
+                    aria-label="Tout sélectionner"
+                  />
+                </th>
                 <th>Code d&apos;envoi</th>
                 <th>Destinataire</th>
                 <th>Téléphone</th>
@@ -267,6 +326,15 @@ function ColisListContent() {
             <tbody>
               {commandes.map((c) => (
                 <tr key={c.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(c.id)}
+                      onChange={() => toggleUn(c.id)}
+                      disabled={c.statut !== 'nouveau_colis'}
+                      aria-label={`Sélectionner ${c.codeSuivi}`}
+                    />
+                  </td>
                   <td className="font-mono text-xs font-semibold text-black/70 dark:text-white/70">{c.codeSuivi}</td>
                   <td className="font-medium">{c.clientNom}</td>
                   <td className="whitespace-nowrap">{c.clientTelephone}</td>
@@ -280,7 +348,7 @@ function ColisListContent() {
                     <EtatPaiementBadge etat={c.etatPaiement} />
                   </td>
                   <td>
-                    <StatutBadge statut={c.statut} />
+                    <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
                   </td>
                   <td className="whitespace-nowrap text-xs opacity-70">
                     {c.dateLivraison ? new Date(c.dateLivraison).toLocaleString('fr-FR') : '—'}
@@ -316,7 +384,7 @@ function ColisListContent() {
               ))}
               {!chargement && commandes.length === 0 && (
                 <tr>
-                  <td colSpan={13}>
+                  <td colSpan={14}>
                     <div className="empty-state">
                       <PackageSearch className="h-8 w-8 opacity-40" />
                       <p className="font-medium">Aucun colis</p>

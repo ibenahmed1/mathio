@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { hashSecret } from '@/lib/auth';
+import { hashSecret, getPasswordPolicyError, normalizePhoneMaroc } from '@/lib/auth';
 import type { Role } from '@/app/generated/prisma/enums';
 
 // Rôles créables via cet endpoint : les comptes équipe internes (RF-22).
 // "marchand" passe par /api/marchands/inscription (auto-inscription) et
 // "admin" ne se crée pas via l'API pour ce scénario. "design"/"gestionnaire_hub"
-// sont cantonnés à l'outil Kanban (ROLES_KANBAN_UNIQUEMENT, lib/auth.ts).
+// sont cantonnés à l'outil Kanban (ROLES_KANBAN_UNIQUEMENT, lib/auth.ts) et
+// "agent_hub" à la réception de dépôt (ROLES_HUB_UNIQUEMENT).
 const ROLES_EQUIPE: Role[] = [
   'superviseur',
   'moderateur',
@@ -18,7 +19,13 @@ const ROLES_EQUIPE: Role[] = [
   'livreur',
   'design',
   'gestionnaire_hub',
+  'agent_hub',
 ];
+
+// § /admin/scan/reception + /admin/bon-distribution : un agent_hub ou un
+// livreur doit obligatoirement être rattaché à un Hub — validé ici (POST) et
+// dans PATCH /api/utilisateurs/[id].
+const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur'];
 
 // Rôles terrain : formulaire de création riche (photo, CIN, zones, banque…),
 // mot de passe saisi manuellement par l'admin (pas d'auto-génération, cf.
@@ -62,6 +69,9 @@ export async function GET(request: NextRequest) {
         cinRectoUrl: true,
         cinVersoUrl: true,
         ribPhotoUrl: true,
+        rolesSupplementaires: true,
+        hubId: true,
+        hub: { select: { id: true, nom: true } },
       },
     });
 
@@ -88,14 +98,19 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const nomComplet = typeof body.nomComplet === 'string' ? body.nomComplet.trim() : '';
-    const telephone = typeof body.telephone === 'string' ? body.telephone.trim() : '';
+    const telephoneRaw = typeof body.telephone === 'string' ? body.telephone.trim() : '';
     const role = body.role as Role | undefined;
 
-    if (!nomComplet || !telephone || !role) {
+    if (!nomComplet || !telephoneRaw || !role) {
       throw new ApiError(400, 'nomComplet, telephone et role sont requis');
     }
     if (!ROLES_EQUIPE.includes(role)) {
       throw new ApiError(400, `Rôle invalide. Valeurs possibles : ${ROLES_EQUIPE.join(', ')}`);
+    }
+
+    const telephone = normalizePhoneMaroc(telephoneRaw);
+    if (!telephone) {
+      throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
     }
 
     const existingTelephone = await prisma.utilisateur.findUnique({ where: { telephone } });
@@ -105,6 +120,7 @@ export async function POST(request: Request) {
 
     const estTerrain = ROLES_TERRAIN.includes(role);
     const avecPhoto = ROLES_AVEC_PHOTO.includes(role);
+    const avecHub = ROLES_AVEC_HUB.includes(role);
 
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const cin = typeof body.cin === 'string' ? body.cin.trim() : '';
@@ -118,13 +134,28 @@ export async function POST(request: Request) {
       }
     }
 
+    // RF AGENT_HUB / LIVREUR : doit obligatoirement être rattaché à un Hub
+    // (Utilisateur.hubId).
+    let hubId: string | null = null;
+    if (avecHub) {
+      hubId = typeof body.hubId === 'string' ? body.hubId.trim() : '';
+      if (!hubId) {
+        throw new ApiError(400, 'hubId est requis pour ce rôle');
+      }
+      const hub = await prisma.hub.findUnique({ where: { id: hubId } });
+      if (!hub) {
+        throw new ApiError(400, 'Hub introuvable');
+      }
+    }
+
     const secret = typeof body.secret === 'string' ? body.secret : '';
     const confirmSecret = typeof body.confirmSecret === 'string' ? body.confirmSecret : '';
     if (!secret || !confirmSecret) {
       throw new ApiError(400, 'secret et confirmSecret sont requis');
     }
-    if (secret.length < 4) {
-      throw new ApiError(400, 'Le mot de passe doit contenir au moins 4 caractères');
+    const passwordError = getPasswordPolicyError(secret);
+    if (passwordError) {
+      throw new ApiError(400, passwordError);
     }
     if (secret !== confirmSecret) {
       throw new ApiError(400, 'Les mots de passe ne correspondent pas');
@@ -175,9 +206,13 @@ export async function POST(request: Request) {
       data.ribPhotoUrl = typeof body.ribPhotoUrl === 'string' && body.ribPhotoUrl ? body.ribPhotoUrl : null;
     }
 
+    if (avecHub) {
+      data.hub = { connect: { id: hubId! } };
+    }
+
     const utilisateur = await prisma.utilisateur.create({
       data,
-      select: { id: true, nomComplet: true, telephone: true, role: true, actif: true },
+      select: { id: true, nomComplet: true, telephone: true, role: true, actif: true, hubId: true },
     });
 
     return NextResponse.json(utilisateur, { status: 201 });

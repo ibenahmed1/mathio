@@ -4,8 +4,9 @@ import { prisma } from '@/lib/prisma';
 import { getPageSession } from '@/lib/auth';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { buildParcelLabels, type ParcelLabel } from '@/lib/parcel-label';
+import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import type { Prisma } from '@/app/generated/prisma/client';
-import { AutoPrint } from './AutoPrint';
+import { AutoPrint } from '@/components/AutoPrint';
 
 type BonAvecDetails = Prisma.BonDeLivraisonGetPayload<{
   include: { marchand: { include: { utilisateur: true } }; commandes: true };
@@ -46,7 +47,9 @@ export default async function BonDeLivraisonDetailPage({
     }
   }
 
-  return format === 'etiquettes' ? <VueEtiquettes bon={bon} /> : <VueRecapA4 bon={bon} />;
+  if (format === 'etiquettes') return <VueEtiquettes bon={bon} />;
+  if (format === 'e-tickets') return <VueETickets bon={bon} />;
+  return <VueRecapA4 bon={bon} />;
 }
 
 async function VueRecapA4({ bon }: { bon: BonAvecDetails }) {
@@ -143,6 +146,53 @@ async function VueRecapA4({ bon }: { bon: BonAvecDetails }) {
           <p className="mb-12 font-semibold">Signature Ramasseur</p>
           <div className="border-t border-black" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function VueETickets({ bon }: { bon: BonAvecDetails }) {
+  return (
+    <div className="bg-white p-6 text-black">
+      <style>{`
+        @page { size: A4; margin: 10mm; }
+        @media print { .e-ticket { break-inside: avoid; } }
+      `}</style>
+      <AutoPrint />
+
+      <div className="mx-auto flex max-w-md flex-col gap-4">
+        {bon.commandes.map((c) => (
+          <div key={c.id} className="e-ticket flex flex-col gap-4 rounded-lg border-2 border-black p-5">
+            <div className="text-center">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-60">E-Ticket colis</p>
+              <p className="mt-1 break-all font-mono text-2xl font-black tracking-widest">{c.codeSuivi}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-1 border-t border-dashed border-black/30 pt-3 text-sm">
+              <p>
+                <span className="opacity-60">Magasin :</span> {bon.marchand.nomBoutique}
+              </p>
+              <p>
+                <span className="opacity-60">Destinataire :</span> {c.clientNom}
+              </p>
+              <p>
+                <span className="opacity-60">Téléphone :</span> {c.clientTelephone}
+              </p>
+              <p>
+                <span className="opacity-60">Ville :</span> {c.ville}
+              </p>
+              <p>
+                <span className="opacity-60">Adresse :</span> {c.adresse}
+              </p>
+              <p>
+                <span className="opacity-60">Montant COD :</span> {Number(c.montantCod).toFixed(2)} DH
+              </p>
+              <p>
+                <span className="opacity-60">Statut :</span> {LABELS_STATUT_COMMANDE[c.statut]}
+              </p>
+            </div>
+          </div>
+        ))}
+        {bon.commandes.length === 0 && <p className="text-center opacity-60">Aucun colis dans ce bon.</p>}
       </div>
     </div>
   );

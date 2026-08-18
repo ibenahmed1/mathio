@@ -33,7 +33,7 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
               <p className="font-semibold">{commande.clientNom}</p>
               <p className="text-xs opacity-60">{commande.ville}</p>
             </div>
-            <StatutBadge statut={commande.statut} />
+            <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
           </div>
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
@@ -55,6 +55,9 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
                       <StatutBadge statut={h.nouveauStatut} />
                       {isCurrent && <span className="text-xs font-bold uppercase tracking-wide text-brand">État actuel</span>}
                     </div>
+                    {/* § Qui livre, pas seulement qui a agi : la note porte
+                        l'info métier (ex. affecté au livreur X) quand elle existe. */}
+                    {h.note && <p className="mt-1 text-sm font-medium opacity-90">{h.note}</p>}
                     <p className="mt-1 text-xs opacity-60">{new Date(h.horodatage).toLocaleString('fr-FR')}</p>
                     {h.utilisateur && <p className="text-xs opacity-50">par {h.utilisateur.nomComplet}</p>}
                   </div>

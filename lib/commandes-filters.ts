@@ -1,4 +1,5 @@
 import { ApiError } from '@/lib/api-utils';
+import { prisma } from '@/lib/prisma';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { STATUTS_COMMANDE } from '@/lib/statuts';
 import type { Prisma } from '@/app/generated/prisma/client';
@@ -22,6 +23,22 @@ export async function buildCommandesWhere(
   const dateTo = searchParams.get('dateTo');
   const dateCollecteFrom = searchParams.get('dateCollecteFrom');
   const dateCollecteTo = searchParams.get('dateCollecteTo');
+  const dateReceptionHubFrom = searchParams.get('dateReceptionHubFrom');
+  const dateReceptionHubTo = searchParams.get('dateReceptionHubTo');
+  // § Gestion de stock (/admin/stock/nouveaux, /admin/stock/prets) : filtres
+  // propres au pipeline colis "stock" (Commande.enStock), cf. lib/hub-stock.ts.
+  const enStockParam = searchParams.get('enStock');
+  const sansBonPreparationParam = searchParams.get('sansBonPreparation');
+  // Isolation des vues (bug rapporté : colis stock encore en préparation
+  // polluant la liste globale /admin/commandes). Un colis enStock=true tant
+  // qu'il n'a pas quitté le picking Hub (statut nouveau_colis ou
+  // pret_pour_preparation) ne doit apparaître QUE dans /admin/stock/nouveaux
+  // et /admin/stock/prets — jamais dans la liste back-office générique. Une
+  // fois recu_au_hub/en_transit, il rejoint le pipeline générique et redevient
+  // visible normalement. Opt-in (plutôt que par défaut dans buildCommandesWhere)
+  // pour ne pas casser la recherche /admin/colis/suivi ni la vue marchand, qui
+  // doivent pouvoir retrouver un colis stock même avant sa prise en charge Hub.
+  const excludeEnPreparationStockParam = searchParams.get('excludeEnPreparationStock');
 
   const where: Prisma.CommandeWhereInput = {};
 
@@ -64,12 +81,34 @@ export async function buildCommandesWhere(
       ...(dateCollecteTo && { lte: new Date(dateCollecteTo) }),
     };
   }
+  // Utilisé par l'écran de scan Agent Hub (/admin/scan/reception) pour
+  // retrouver "colis réceptionnés aujourd'hui" après un rechargement de page
+  // — même principe que dateCollecteFrom/To ci-dessus pour le ramasseur.
+  if (dateReceptionHubFrom || dateReceptionHubTo) {
+    where.dateReceptionHub = {
+      ...(dateReceptionHubFrom && { gte: new Date(dateReceptionHubFrom) }),
+      ...(dateReceptionHubTo && { lte: new Date(dateReceptionHubTo) }),
+    };
+  }
   if (search) {
     where.OR = [
       { codeSuivi: { contains: search, mode: 'insensitive' } },
       { clientNom: { contains: search, mode: 'insensitive' } },
       { clientTelephone: { contains: search } },
     ];
+  }
+  if (enStockParam != null) {
+    where.enStock = enStockParam === 'true';
+  }
+  if (sansBonPreparationParam === 'true') {
+    where.bonPreparationId = null;
+  }
+  if (excludeEnPreparationStockParam === 'true') {
+    where.NOT = {
+      ...(where.NOT as Prisma.CommandeWhereInput | undefined),
+      enStock: true,
+      statut: { in: ['nouveau_colis', 'pret_pour_preparation'] },
+    };
   }
 
   // RG-07 / RNF-02 : cloisonnement des données par rôle. Pour ramasseur/livreur,
@@ -83,7 +122,20 @@ export async function buildCommandesWhere(
   } else if (session.role === 'ramasseur') {
     where.ramasseurId = session.sub;
   } else if (session.role === 'livreur') {
+    const livreur = await prisma.utilisateur.findUnique({
+      where: { id: session.sub },
+      select: { hubId: true },
+    });
+    if (!livreur?.hubId) throw new ApiError(403, "Votre compte n'est rattaché à aucun hub");
     where.livreurId = session.sub;
+    where.hubActuelId = livreur.hubId;
+  } else if (session.role === 'agent_hub') {
+    const agent = await prisma.utilisateur.findUnique({
+      where: { id: session.sub },
+      select: { hubId: true },
+    });
+    if (!agent?.hubId) throw new ApiError(403, "Votre compte n'est rattaché à aucun hub");
+    where.hubActuelId = agent.hubId;
   }
 
   return where;

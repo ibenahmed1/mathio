@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, LogOut, Search, UserRound, X } from 'lucide-react';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
+import { apiPost } from '@/lib/api-client';
 import s from './AdminSidebar.module.css';
 
 const LOGO = '/mathio-logo.png';
@@ -22,6 +24,7 @@ const ROLE_LABELS: Record<Role, string> = {
   ramasseur: 'Ramasseur',
   design: 'Design',
   gestionnaire_hub: 'Gestionnaire Hub',
+  agent_hub: 'Agent Hub',
 };
 
 function isGroup(item: NavItem): item is NavGroup {
@@ -57,6 +60,7 @@ export function AdminSidebar({
   onCloseMobile: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
@@ -68,6 +72,40 @@ export function AdminSidebar({
 
   function toggleGroup(label: string) {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
+
+  // Menu Profil/Déconnexion : rendu en portail sur document.body pour échapper
+  // à `overflow: hidden` sur .sidebar (nécessaire pour clipper le contenu
+  // pendant l'animation de repli), sinon le menu serait tronqué.
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [profileMenuRect, setProfileMenuRect] = useState<{ bottom: number; left: number; width: number } | null>(null);
+  const profileBtnRef = useRef<HTMLButtonElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (profileBtnRef.current?.contains(target)) return;
+      if (profileMenuRef.current?.contains(target)) return;
+      setProfileMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [profileMenuOpen]);
+
+  function toggleProfileMenu() {
+    if (!profileMenuOpen && profileBtnRef.current) {
+      const rect = profileBtnRef.current.getBoundingClientRect();
+      setProfileMenuRect({ bottom: window.innerHeight - rect.top + 8, left: rect.left, width: rect.width });
+    }
+    setProfileMenuOpen((v) => !v);
+  }
+
+  async function handleLogout() {
+    setProfileMenuOpen(false);
+    await apiPost('/api/auth/logout');
+    router.push('/login');
   }
 
   const q = query.trim().toLowerCase();
@@ -95,9 +133,9 @@ export function AdminSidebar({
             <span className={s.navIcon}>
               <Icon className="h-4 w-4" />
             </span>
-            <span className={`${s.navLabel} ${collapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
+            <span className={`${s.navLabel} ${collapsed ? s.collapseHide : ''}`}>{item.label}</span>
             <ChevronDown
-              className={`${s.navChevronIcon} ${open ? s.navChevronOpen : ''} ${collapsed ? 'lg:hidden' : ''}`}
+              className={`${s.navChevronIcon} ${open ? s.navChevronOpen : ''} ${collapsed ? s.collapseHide : ''}`}
             />
           </button>
           {open && (
@@ -137,7 +175,7 @@ export function AdminSidebar({
           <span className={s.navIcon}>
             <Icon className="h-4 w-4" />
           </span>
-          <span className={`${s.navLabel} ${collapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
+          <span className={`${s.navLabel} ${collapsed ? s.collapseHide : ''}`}>{item.label}</span>
         </Link>
       </li>
     );
@@ -162,7 +200,7 @@ export function AdminSidebar({
           <div className={s.logoTile}>
             <Image src={LOGO} alt="Mathio Delivery" width={42} height={42} className={s.logoImg} priority />
           </div>
-          <div className={`${s.brandText} ${collapsed ? 'lg:hidden' : ''}`}>
+          <div className={`${s.brandText} ${collapsed ? s.collapseHide : ''}`}>
             <span className={s.brandName}>MATHIO</span>
             <span className={s.brandSub}>DELIVERY</span>
           </div>
@@ -172,7 +210,7 @@ export function AdminSidebar({
         </div>
 
         {/* ---------- Recherche ---------- */}
-        <div className={`${s.search} ${collapsed ? 'lg:hidden' : ''}`}>
+        <div className={`${s.search} ${collapsed ? s.collapseHide : ''}`}>
           <Search className={s.searchIconSvg} />
           <input
             className={s.searchInput}
@@ -188,14 +226,46 @@ export function AdminSidebar({
         </nav>
 
         {/* ---------- Profil ---------- */}
-        <div className={s.profile}>
+        <button
+          type="button"
+          ref={profileBtnRef}
+          onClick={toggleProfileMenu}
+          className={`${s.profile} ${s.profileBtn}`}
+          aria-haspopup="menu"
+          aria-expanded={profileMenuOpen}
+        >
           <span className={s.profileAvatar}>{initialsOf(adminName).toUpperCase() || 'AD'}</span>
-          <span className={`${s.profileText} ${collapsed ? 'lg:hidden' : ''}`}>
+          <span className={`${s.profileText} ${collapsed ? s.collapseHide : ''}`}>
             <span className={s.profileName}>{adminName}</span>
             <span className={s.profileRole}>{ROLE_LABELS[role]}</span>
           </span>
-        </div>
+        </button>
       </aside>
+      {profileMenuOpen &&
+        profileMenuRect &&
+        createPortal(
+          <div
+            ref={profileMenuRef}
+            role="menu"
+            className={s.profileMenu}
+            style={{ bottom: profileMenuRect.bottom, left: profileMenuRect.left, width: profileMenuRect.width }}
+          >
+            <Link
+              href="/admin/parametres"
+              role="menuitem"
+              onClick={() => setProfileMenuOpen(false)}
+              className={s.profileMenuItem}
+            >
+              <UserRound className="h-4 w-4" />
+              Profil
+            </Link>
+            <button type="button" role="menuitem" onClick={handleLogout} className={`${s.profileMenuItem} ${s.profileMenuItemDanger}`}>
+              <LogOut className="h-4 w-4" />
+              Déconnexion
+            </button>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

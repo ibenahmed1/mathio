@@ -102,11 +102,21 @@ body {
     @apply rounded px-2 py-1 font-semibold text-sm text-white/80 transition hover:bg-brand hover:text-brand-foreground;
   }
 
-  /* Fond de coquille (admin/marchand) : lavage jaune très pâle sous les
-     cartes blanches, pour la profondeur douce vue dans les maquettes de
-     référence, sans jamais sortir de la palette du logo. */
+  /* Fond de coquille (admin/marchand/ramasseur) : même glow jaune que les
+     pages Comptabilité et Kanban (cf. .pageGlow / .kdc-board-glow), pour une
+     identité visuelle cohérente sur l'ensemble des interfaces internes.
+     Base blanc pur (pas --surface) pour matcher exactement ces deux pages. */
   .shell-surface {
-    @apply bg-surface dark:bg-black;
+    @apply bg-white dark:bg-black;
+    background-image:
+      radial-gradient(680px 420px at 12% -8%, rgba(255, 209, 0, 0.3), rgba(255, 209, 0, 0) 62%),
+      radial-gradient(560px 380px at 88% -4%, rgba(255, 238, 50, 0.26), rgba(255, 238, 50, 0) 60%),
+      radial-gradient(900px 520px at 60% 108%, rgba(255, 209, 0, 0.1), rgba(255, 209, 0, 0) 65%);
+  }
+  @media (prefers-color-scheme: dark) {
+    .shell-surface {
+      background-image: none;
+    }
   }
   /* Carte de tableau de bord par défaut : blanche, coins généreux, ombre
      discrète — remplace les anciennes cartes à bordure dure. */
@@ -137,6 +147,129 @@ body {
   /* Pilule de tendance (%) affichée en coin des cartes KPI. */
   .trend-pill {
     @apply inline-flex items-center gap-0.5 rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold shadow-sm dark:bg-black/30;
+  }
+  /* Typographie de l'espace marchand : Inter Tight (chargée dans
+     app/layout.tsx). Portée volontairement limitée à cette coquille — les
+     espaces admin/terrain gardent leur police actuelle.
+
+     Porte aussi les jetons --mk-* de l'espace marchand : une échelle de gris
+     froide (ardoise) qui remplace les beiges/jaunes de fond. Le jaune de
+     marque n'y sert plus de couleur d'ambiance mais uniquement d'accent
+     ponctuel (état actif, pastille, CTA). Scopés ici pour ne pas toucher aux
+     jetons --mt-* partagés avec l'admin. */
+  .marchand-typo {
+    font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+
+    --mk-page: #f7f8fa;
+    --mk-card: #ffffff;
+    --mk-line: #e2e8f0;
+    --mk-line-soft: #eef1f5;
+    --mk-ink: #0f172a;
+    --mk-ink-2: #334155;
+    --mk-muted: #64748b;
+    --mk-muted-2: #94a3b8;
+    --mk-faint: #cbd5e1;
+
+    /* Jaune : ambré adouci pour les fonds, jaune de marque réservé aux
+       pastilles et aux actions. */
+    --mk-amber: #ffd100;
+    --mk-amber-soft: #fdf6dd;
+    --mk-amber-line: #f3e3a8;
+    --mk-amber-ink: #8a6d00;
+
+    --mk-danger-soft: #fef2f2;
+    --mk-danger-ink: #b91c1c;
+
+    --mk-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+    --mk-shadow-lift: 0 4px 12px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.04);
+
+    /* Pastilles d'icône des tuiles KPI : seul endroit du dashboard où la
+       couleur subsiste. Déclarées ici (et non en JS) pour avoir une contrepartie
+       sombre sans dépendre d'un media query côté client. */
+    --kpi-chip: var(--mk-line-soft);
+    --kpi-icon: var(--mk-muted);
+  }
+
+  /* Liseré dégradé jaune → transparent en haut des cartes du dashboard.
+     Posé en ::before par-dessus la bordure (inset négatif) plutôt qu'en
+     border-top, seul moyen de garder les coins arrondis nets. Transparent
+     plutôt que blanc en fin de course : la fin du dégradé se fond alors dans
+     la carte quel que soit le thème. */
+  .mk-card-accent {
+    position: relative;
+    /* Laisse le border-radius de la carte découper le liseré : sans ça, ses
+       extrémités carrées dépassent de la courbe des coins hauts. L'ombre
+       portée n'est pas affectée, elle se dessine hors du bloc. */
+    overflow: hidden;
+  }
+  .mk-card-accent::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--mk-amber) 0%, rgba(255, 238, 50, 0.55) 38%, rgba(255, 209, 0, 0) 82%);
+    pointer-events: none;
+  }
+
+  .kpi-ambre { --kpi-chip: #fdf6dd; --kpi-icon: #8a6d00; }
+  .kpi-indigo { --kpi-chip: #eef2ff; --kpi-icon: #4f46e5; }
+  .kpi-ardoise { --kpi-chip: #f1f5f9; --kpi-icon: #64748b; }
+  .kpi-rouge { --kpi-chip: #fef2f2; --kpi-icon: #dc2626; }
+
+  /* Fond de coquille marchand : gris ardoise très clair et uni. Remplace le
+     glow jaune de .shell-surface — les cartes blanches y ressortent nettement
+     au lieu d'être noyées dans une ambiance colorée. */
+  .marchand-surface {
+    background-color: var(--mk-page);
+    color: var(--mk-ink);
+    /* Halo jaune de marque posé sur la base ardoise. Les foyers sont décalés
+       vers la droite (30 % / 86 %) : à 12 % comme dans .shell-surface, le
+       premier tombait derrière la sidebar et ne se voyait pas. Opacités
+       volontairement basses pour que les cartes blanches gardent leur
+       détachement — c'est le seul réglage à toucher pour doser l'effet. */
+    background-image:
+      radial-gradient(760px 460px at 30% -10%, rgba(255, 209, 0, 0.20), rgba(255, 209, 0, 0) 62%),
+      radial-gradient(600px 400px at 86% -4%, rgba(255, 238, 50, 0.16), rgba(255, 238, 50, 0) 60%),
+      radial-gradient(900px 520px at 62% 106%, rgba(255, 209, 0, 0.09), rgba(255, 209, 0, 0) 65%);
+    background-attachment: fixed;
+  }
+  @media (prefers-color-scheme: dark) {
+    .marchand-surface {
+      background-image: none;
+    }
+  }
+
+  /* Contrepartie sombre : la sidebar et le dashboard marchand étaient jusqu'ici
+     figés en clair (fond blanc) alors que la coquille passait en noir — les
+     jetons --mk-* règlent les deux d'un coup, et les variantes `dark:` des
+     sous-pages marchand retrouvent un fond sombre sous elles. */
+  @media (prefers-color-scheme: dark) {
+    .marchand-typo {
+      --mk-page: #0b0d12;
+      --mk-card: #14171f;
+      --mk-line: #262b36;
+      --mk-line-soft: #1c212b;
+      --mk-ink: #f1f5f9;
+      --mk-ink-2: #cbd5e1;
+      --mk-muted: #94a3b8;
+      --mk-muted-2: #7c8798;
+      --mk-faint: #4b5566;
+
+      --mk-amber-soft: rgba(255, 209, 0, 0.12);
+      --mk-amber-line: rgba(255, 209, 0, 0.26);
+      --mk-amber-ink: #f0c419;
+
+      --mk-danger-soft: rgba(185, 28, 28, 0.16);
+      --mk-danger-ink: #f87171;
+
+      --mk-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+      --mk-shadow-lift: 0 6px 18px rgba(0, 0, 0, 0.5);
+    }
+
+    .kpi-ambre { --kpi-chip: rgba(240, 196, 25, 0.14); --kpi-icon: #f0c419; }
+    .kpi-indigo { --kpi-chip: rgba(129, 140, 248, 0.14); --kpi-icon: #a5b4fc; }
+    .kpi-ardoise { --kpi-chip: rgba(148, 163, 184, 0.14); --kpi-icon: #94a3b8; }
+    .kpi-rouge { --kpi-chip: rgba(248, 113, 113, 0.14); --kpi-icon: #f87171; }
   }
   /* Masque la scrollbar d'une zone qui doit rester défilable au clavier/à la
      molette sans afficher de piste visible (ex: nav interne de la sidebar). */
@@ -292,4 +425,184 @@ body {
     --av-all-bg: #333533; --av-all-fg: #8f918f;
     --av-ring: none;
   }
+}
+
+/* ---------------------------------------------------------------------
+   Modal "Information du colis" — thème Mathio (verre dépoli + jaune de
+   marque). Scopé sous .mtOverlay pour ne rien altérer hors du modal ;
+   réutilise --brand / --brand-ink (déjà définis plus haut) plutôt que de
+   redéfinir une palette jaune parallèle.
+   --------------------------------------------------------------------- */
+.mtOverlay {
+  --mt-ink: #202020;
+  --mt-ink-2: #3f413f;
+  --mt-muted: #6b6d6b;
+  --mt-muted-2: #8d8f8c;
+  --mt-glass: linear-gradient(160deg, rgba(255, 255, 255, .92) 0%, rgba(255, 255, 255, .86) 46%, rgba(255, 253, 235, .90) 100%);
+  --mt-card-bg: rgba(255, 255, 255, .7);
+  --mt-border: rgba(255, 255, 255, .9);
+  --mt-row-border: rgba(32, 32, 32, .06);
+
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 28px 18px;
+  background: radial-gradient(900px 600px at 50% 40%, rgba(32, 32, 32, .16), rgba(32, 32, 32, .34));
+  backdrop-filter: blur(9px) saturate(115%);
+  -webkit-backdrop-filter: blur(9px) saturate(115%);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  animation: mtFadeIn .28s ease both;
+}
+.mtOverlay.mtClosing { animation: mtFadeOut .22s ease both; }
+
+@media (prefers-color-scheme: dark) {
+  .mtOverlay {
+    --mt-ink: #ededed;
+    --mt-ink-2: #d6d6d6;
+    --mt-muted: #a9aba9;
+    --mt-muted-2: #8f918f;
+    --mt-glass: linear-gradient(160deg, rgba(28, 28, 26, .94) 0%, rgba(18, 18, 16, .90) 46%, rgba(40, 36, 10, .82) 100%);
+    --mt-card-bg: rgba(255, 255, 255, .06);
+    --mt-border: rgba(255, 255, 255, .1);
+    --mt-row-border: rgba(255, 255, 255, .08);
+  }
+}
+
+.mtModal {
+  width: 860px;
+  max-width: 100%;
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+  position: relative;
+  border-radius: 26px;
+  background: var(--mt-glass);
+  backdrop-filter: blur(26px) saturate(160%);
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  border: 1px solid var(--mt-border);
+  box-shadow: 0 40px 90px rgba(32, 32, 32, .28), inset 0 2px 0 rgba(255, 255, 255, .35);
+  color: var(--mt-ink);
+  animation: mtModalIn .34s cubic-bezier(.2, .8, .25, 1) both;
+}
+.mtOverlay.mtClosing .mtModal { animation: mtModalOut .22s cubic-bezier(.4, 0, 1, 1) both; }
+.mtModal::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  border-radius: 26px 26px 0 0;
+  background: linear-gradient(90deg, #ffee32, var(--brand) 55%, rgba(255, 209, 0, 0));
+}
+
+@keyframes mtFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mtFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mtModalIn { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes mtModalOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.99); } }
+@media (prefers-reduced-motion: reduce) {
+  .mtOverlay, .mtModal { animation: none !important; }
+}
+
+/* Le contenu du dashboard (sidebar + tableau, cf. .shell-surface dans
+   AdminShell) devient flou + figé pendant que le modal est ouvert — le
+   modal lui-même est monté via portal directement sous <body>, donc en
+   dehors de .mtContent, pour ne pas se flouter lui-même. */
+.mtContent { transition: filter .35s ease, transform .35s ease; }
+body.mtModalOpen { overflow: hidden; }
+body.mtModalOpen .mtContent { filter: blur(7px); transform: scale(1.02); pointer-events: none; user-select: none; }
+
+.mtHead { display: flex; align-items: flex-start; gap: 14px; padding: 22px 24px 16px; }
+.mtIcon {
+  width: 44px; height: 44px; flex: none; border-radius: 14px; display: grid; place-items: center;
+  background: linear-gradient(140deg, #ffee32, var(--brand)); box-shadow: 0 8px 18px rgba(255, 209, 0, .38);
+  color: var(--brand-foreground);
+}
+.mtEyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 1.4px; color: var(--brand-ink); }
+.mtTitle { font-size: 23px; font-weight: 800; letter-spacing: -.5px; }
+.mtTitleRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 5px; }
+.mtBadge {
+  font-size: 10.5px; font-weight: 800; border-radius: 20px; padding: 4px 11px;
+  color: #4d7a34; background: rgba(120, 170, 90, .16); border: 1px solid rgba(120, 170, 90, .28);
+}
+.mtBadge--danger { color: #b23a3a; background: rgba(214, 69, 69, .14); border-color: rgba(214, 69, 69, .3); }
+.mtBadge--warn { color: #8a7405; background: rgba(255, 209, 0, .22); border-color: rgba(255, 209, 0, .35); }
+.mtBadge--neutral { color: var(--mt-muted); background: rgba(120, 122, 120, .14); border-color: rgba(120, 122, 120, .22); }
+.mtCrbt { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.mtCrbtLabel { font-size: 10px; font-weight: 800; letter-spacing: .8px; color: var(--mt-muted-2); text-align: right; }
+.mtCrbtValue { font-size: 19px; font-weight: 800; letter-spacing: -.4px; text-align: right; }
+.mtClose {
+  width: 34px; height: 34px; border-radius: 12px; cursor: pointer; font-size: 16px; line-height: 1;
+  display: grid; place-items: center;
+  border: 1px solid var(--mt-border); background: rgba(255, 255, 255, .6); color: var(--mt-ink-2); transition: background .15s;
+}
+.mtClose:hover { background: #fff; color: var(--mt-ink); }
+@media (prefers-color-scheme: dark) {
+  .mtClose { background: rgba(255, 255, 255, .06); }
+  .mtClose:hover { background: rgba(255, 255, 255, .14); color: var(--mt-ink); }
+}
+
+.mtGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 0 24px; }
+.mtCard {
+  background: var(--mt-card-bg); border: 1px solid var(--mt-border); border-radius: 18px;
+  padding: 15px 16px; display: flex; flex-direction: column; gap: 11px;
+}
+.mtCardHead { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 800; letter-spacing: 1.1px; color: var(--mt-muted); }
+.mtDot { width: 6px; height: 6px; border-radius: 50%; background: var(--brand); }
+.mtDot.dark { background: var(--mt-ink); }
+.mtChip { margin-left: auto; font-size: 10.5px; font-weight: 800; color: var(--brand-ink); background: rgba(255, 209, 0, .22); border-radius: 20px; padding: 3px 10px; }
+.mtRow {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; align-items: baseline;
+  padding-bottom: 9px; border-bottom: 1px solid var(--mt-row-border);
+}
+.mtRow:last-child { border-bottom: none; padding-bottom: 0; }
+.mtLabel { font-size: 11px; font-weight: 700; color: var(--mt-muted-2); }
+.mtValue { font-size: 13px; font-weight: 700; color: var(--mt-ink); overflow-wrap: anywhere; }
+
+.mtTableWrap { padding: 14px 24px 0; }
+.mtTable { background: var(--mt-card-bg); border: 1px solid var(--mt-border); border-radius: 18px; overflow: hidden; }
+.mtTHead, .mtTRow { display: grid; grid-template-columns: 64px minmax(0, 1fr) 150px; gap: 14px; align-items: center; }
+.mtTHead {
+  padding: 11px 16px; background: rgba(255, 209, 0, .16); border-bottom: 1px solid var(--mt-border);
+  font-size: 10.5px; font-weight: 800; letter-spacing: 1px; color: var(--mt-muted);
+}
+.mtTHead span:last-child { text-align: right; }
+.mtTRow { padding: 12px 16px; border-bottom: 1px solid var(--mt-row-border); }
+.mtTRow:last-child { border-bottom: none; }
+/* Photo produit : uniquement pour un colis "en stock" dont le nom rapproche
+   une fiche Produit (inventaire) avec photoUrl — sinon la cellule reste
+   vide (.mtPhoto--empty), pas de vignette générique. */
+.mtPhoto { width: 52px; height: 52px; border-radius: 13px; overflow: hidden; }
+.mtPhoto--img { border: 1px solid rgba(32, 32, 32, .08); background: #fff; }
+.mtPhoto--img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mtPhoto--empty { background: none; }
+@media (prefers-color-scheme: dark) {
+  .mtPhoto--img { border-color: rgba(255, 255, 255, .08); background: #1a1a18; }
+}
+.mtProduct { font-size: 14px; font-weight: 800; }
+.mtVariant { font-size: 11px; color: var(--mt-muted); margin-top: 3px; }
+.mtQty { justify-self: end; display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 800; }
+.mtPrice { font-size: 11px; font-weight: 700; color: var(--brand-ink); background: rgba(255, 209, 0, .22); border-radius: 8px; padding: 4px 9px; }
+
+.mtFoot {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 16px 24px 20px; margin-top: 14px;
+  border-top: 1px solid var(--mt-border); background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .25));
+}
+.mtNote { font-size: 11px; color: var(--mt-muted); }
+.mtActions { margin-left: auto; display: flex; gap: 9px; }
+.mtBtn { border-radius: 12px; padding: 10px 16px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; border: none; }
+.mtBtnGhost { border: 1px solid var(--mt-border); background: rgba(255, 255, 255, .66); color: var(--mt-ink); }
+.mtBtnGhost:hover { background: #fff; }
+@media (prefers-color-scheme: dark) {
+  .mtBtnGhost { background: rgba(255, 255, 255, .06); }
+  .mtBtnGhost:hover { background: rgba(255, 255, 255, .12); }
+}
+.mtBtnPrimary {
+  font-weight: 800; padding: 10px 18px; color: var(--brand-foreground);
+  background: linear-gradient(140deg, #ffee32, var(--brand)); box-shadow: 0 8px 18px rgba(255, 209, 0, .38);
+}
+.mtBtnPrimary:hover { filter: brightness(1.04); }
+
+@media (max-width: 720px) {
+  .mtGrid { grid-template-columns: 1fr; }
+  .mtModal { border-radius: 20px; }
 }

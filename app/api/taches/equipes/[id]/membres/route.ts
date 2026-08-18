@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { hashSecret, ROLES_KANBAN_UNIQUEMENT } from '@/lib/auth';
+import { hashSecret, ROLES_KANBAN_UNIQUEMENT, getPasswordPolicyError } from '@/lib/auth';
 import type { Role } from '@/app/generated/prisma/enums';
 
 const ROLES_BACKOFFICE: Role[] = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable', 'design', 'gestionnaire_hub'];
@@ -87,8 +87,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new ApiError(400, 'Email invalide');
     }
-    if (secret.length < 6) {
-      throw new ApiError(400, 'Le mot de passe doit contenir au moins 6 caractères');
+    const passwordError = getPasswordPolicyError(secret);
+    if (passwordError) {
+      throw new ApiError(400, passwordError);
     }
     if (!ROLES_BACKOFFICE.includes(role)) {
       throw new ApiError(400, `Rôle invalide. Valeurs possibles : ${ROLES_BACKOFFICE.join(', ')}`);

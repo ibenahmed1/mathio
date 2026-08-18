@@ -15,8 +15,8 @@ export function ReinitialiserMotDePasse({ utilisateurId, onDone }: { utilisateur
 
   async function handleValider() {
     setError(null);
-    if (motDePasse.length < 4) {
-      setError('4 caractères minimum');
+    if (motDePasse.length < 8 || !/[A-Z]/.test(motDePasse) || !/[0-9]/.test(motDePasse) || !/[^A-Za-z0-9]/.test(motDePasse)) {
+      setError('8 caractères min., avec majuscule, chiffre et caractère spécial');
       return;
     }
     if (motDePasse !== confirmation) {
@@ -42,7 +42,7 @@ export function ReinitialiserMotDePasse({ utilisateurId, onDone }: { utilisateur
       <input
         type="password"
         className="input-basic px-2 py-1 text-xs"
-        placeholder="Nouveau mot de passe"
+        placeholder="Nouveau mot de passe (8+ car., maj/chiffre/spécial)"
         value={motDePasse}
         onChange={(e) => setMotDePasse(e.target.value)}
         autoFocus
