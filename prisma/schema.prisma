@@ -45,6 +45,14 @@ enum Role {
   // design/gestionnaire_hub ci-dessus. Doit obligatoirement être rattaché à
   // un Hub (Utilisateur.hubId, validé côté API).
   agent_hub
+  // Planificateur de tournées du hub (§ /admin/bon-distribution) : compose les
+  // Bons de Distribution de SON hub, puis au retour du livreur scanne les
+  // colis non livrés et clôture la tournée (reddition de caisse). Cantonné à
+  // ce module (ROLES_PLANNER_UNIQUEMENT, lib/auth.ts + proxy.ts), même
+  // mécanisme de confinement que agent_hub ci-dessus. Doit obligatoirement
+  // être rattaché à un Hub (Utilisateur.hubId, validé côté API) : c'est ce
+  // hub — et lui seul — dont il planifie les tournées.
+  planner
 }
 
 enum TypeCompteMarchand {
@@ -101,6 +109,16 @@ enum StatutCommande {
   pret_pour_preparation
   recu_au_hub
   en_transit
+  // § Clôture de tournée (/admin/bon-distribution/[id]/cloture) : état
+  // PHYSIQUE du colis revenu au dépôt après une tentative de livraison
+  // infructueuse, scanné un par un par le Planner. Distinct de `retourne`
+  // (retour définitif au marchand) et de `recu_au_hub` (colis jamais parti en
+  // tournée, ou revenu d'un transit inter-hubs) : le motif terrain
+  // (refuse/reporte/annule) reste lisible dans l'historique, ce statut ne dit
+  // que "il est de nouveau au hub X". Un colis retourne_au_hub n'est pas
+  // automatiquement réinjecté dans une nouvelle tournée — il faut une action
+  // explicite (relance marchand ou Bon de Retour).
+  retourne_au_hub
 }
 
 // État du Bon de Préparation lui-même (§ Gestion de stock) : porte la
@@ -278,6 +296,12 @@ model Utilisateur {
   tarifsVilles       TarifLivreurVille[]
 
   bonsDistribution BonDistribution[] @relation("BonDistributionLivreur")
+
+  // § Planner : tournées qu'il a composées, et tournées qu'il a clôturées au
+  // retour du livreur (le plus souvent le même, pas nécessairement — une
+  // tournée du matin peut être déchargée par le planner de l'après-midi).
+  bonsDistributionPlanifies BonDistribution[] @relation("BonDistributionPlanner")
+  bonsDistributionClotures  BonDistribution[] @relation("BonDistributionCloturePar")
 
   // Tableau Kanban interne (§ /admin/tasks) : une tâche a un assigné (optionnel)
   // et un créateur (toujours renseigné, = l'auteur de la requête POST).
@@ -770,6 +794,11 @@ model BonEnvoi {
 enum StatutBonDistribution {
   nouveau
   en_cours
+  // Tournée rentrée au dépôt : tous les colis non livrés ont été scannés au
+  // retour par le Planner et la reddition de caisse est enregistrée. C'est
+  // cet état — et pas un statut de colis — qui fait disparaître la tournée de
+  // la feuille de route du livreur (§ /livreur/colis).
+  cloture
 }
 
 // Regroupe des colis recu_au_hub d'un hub local vers un même livreur pour sa
@@ -793,10 +822,51 @@ model BonDistribution {
   nbColis        Int                   @map("nb_colis")
   dateGeneration DateTime              @default(now()) @map("date_generation")
 
+  // Planificateur qui a composé la tournée (rôle planner, ou admin en
+  // dépannage) — nullable pour les bons créés avant l'introduction du rôle.
+  // Alimente la ligne d'historique "Affecté à la tournée [n°] par [nom]".
+  plannerId String?      @map("planner_id")
+  planner   Utilisateur? @relation("BonDistributionPlanner", fields: [plannerId], references: [id])
+
+  // --- Clôture / déchargement au retour au dépôt -------------------------
+  // Tout ce bloc est null tant que statut != cloture ; il est écrit d'un seul
+  // coup, en transaction, par POST /api/bons-distribution/[id]/cloturer.
+  dateCloture   DateTime?    @map("date_cloture")
+  clotureParId  String?      @map("cloture_par_id")
+  cloturePar    Utilisateur? @relation("BonDistributionCloturePar", fields: [clotureParId], references: [id])
+  nbColisLivres Int?         @map("nb_colis_livres")
+  // Colis non livrés effectivement scannés au retour au hub (= le nombre de
+  // colis physiquement récupérés par le Planner).
+  nbColisRetournes Int? @map("nb_colis_retournes")
+
+  // Volet caisse — le livreur ne déduit RIEN de ce qu'il a collecté : il
+  // remet le brut. montantCrbtAttendu = somme des montantCod des colis livrés
+  // de cette tournée, figée au moment de la clôture ; montantRemis = ce que
+  // le Planner a réellement compté. La clôture est refusée si montantRemis <
+  // montantCrbtAttendu (tolérance zéro sur le manquant), d'où un ecartCaisse
+  // toujours >= 0 (un excédent reste possible et tracé).
+  montantCrbtAttendu Decimal? @map("montant_crbt_attendu") @db.Decimal(10, 2)
+  montantRemis       Decimal? @map("montant_remis") @db.Decimal(10, 2)
+  ecartCaisse        Decimal? @map("ecart_caisse") @db.Decimal(10, 2)
+
+  // Volet rémunération, calculé mais JAMAIS déduit de la caisse ci-dessus :
+  // (colis livrés x tarif livraison) + (colis retournés x tarif refus), tarifs
+  // résolus par ville (TarifLivreurVille) avec repli sur
+  // Utilisateur.fraisLivraison/fraisRefus. Constitue le solde à payer au
+  // livreur, réglé séparément (§ Bon de paiement livreur).
+  gainLivreur    Decimal?  @map("gain_livreur") @db.Decimal(10, 2)
+  gainRegleLe    DateTime? @map("gain_regle_le")
+
+  // Écriture comptable d'entrée de caisse générée à la clôture (§
+  // /admin/comptabilite) — 1-1, jamais recréée si la tournée est rouverte.
+  transactionId String?      @unique @map("transaction_id")
+  transaction   Transaction? @relation("TransactionRemiseTournee", fields: [transactionId], references: [id])
+
   commandes Commande[]
 
   @@index([livreurId])
   @@index([hubId])
+  @@index([statut])
   @@map("bons_distribution")
 }
 
@@ -985,8 +1055,9 @@ model TarifLivreurVille {
 // ============================================================
 
 // Pôle interne (Développement, Administration, Gestionnaires/Hub…) — table
-// plutôt qu'un enum pour permettre d'en ajouter sans migration. Les 3 pôles
-// de départ (dev/admin/gestionnaire) sont créés par le seed.
+// plutôt qu'un enum pour permettre d'en ajouter sans migration. Aucun pôle
+// n'est seedé : ils se créent depuis /admin/tasks (POST /api/taches/equipes,
+// réservé à l'admin), donc une base fraîche démarre sans aucune équipe.
 model EquipeTache {
   id      String @id @default(uuid())
   code    String @unique
@@ -1131,6 +1202,11 @@ model Transaction {
   transactionOrigineId String?      @unique @map("transaction_origine_id")
   transactionOrigine   Transaction? @relation("Annulation", fields: [transactionOrigineId], references: [id])
   annulation           Transaction? @relation("Annulation")
+
+  // Remise de caisse d'une tournée (§ clôture de tournée) : l'écriture est
+  // générée automatiquement, ce lien permet de remonter du journal comptable
+  // au Bon de Distribution qui l'a produite.
+  bonDistribution BonDistribution? @relation("TransactionRemiseTournee")
 
   dateCreation DateTime @default(now()) @map("date_creation")
 

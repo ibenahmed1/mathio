@@ -160,17 +160,27 @@ const VILLE_CODES: Record<string, string> = {
   dakhla: "DAK",
 };
 
+/** Code de repli quand `ville` ne fournit pas 3 lettres exploitables (donnée
+ * libre saisie par le marchand : champ vide, numéro de téléphone collé dans
+ * la mauvaise colonne, etc.). Purement cosmétique sur l'étiquette :
+ * l'unicité du numéro de série vient du code masqué (ID du colis), pas du
+ * code ville. */
+const VILLE_CODE_INCONNU = "XXX";
+
 /** Déduit un code ville de 3 lettres à partir d'un nom libre (ex: `ville`
  * en base sur Commande). Repli sur les 3 premières lettres si la ville
- * n'est pas dans la table. */
+ * n'est pas dans la table, puis sur `XXX` si le nom ne contient pas assez
+ * de lettres : une donnée ville douteuse ne doit jamais empêcher
+ * l'impression d'une planche d'étiquettes entière. */
 export function resolveVilleCode(ville: string): string {
   const key = ville.trim().toLowerCase();
   if (VILLE_CODES[key]) return VILLE_CODES[key];
   const letters = ville.replace(/[^a-zA-Z]/g, "").toUpperCase();
-  if (letters.length < 3) {
-    throw new Error(`Impossible de déduire un code ville à partir de "${ville}".`);
+  if (letters.length === 0) {
+    console.warn(`[parcel-serial] Ville non exploitable ("${ville}") : code "${VILLE_CODE_INCONNU}" utilisé.`);
+    return VILLE_CODE_INCONNU;
   }
-  return letters.slice(0, 3);
+  return letters.slice(0, 3).padEnd(3, "X");
 }
 
 // ---------------------------------------------------------------------------

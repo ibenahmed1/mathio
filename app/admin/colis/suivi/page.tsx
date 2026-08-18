@@ -9,6 +9,7 @@ import { StatutBadge } from '@/components/StatutBadge';
 import { EtatPaiementBadge } from '@/components/EtatPaiementBadge';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import { Modal } from '@/components/admin/Modal';
+import { PreuveLivraison } from '@/components/PreuveLivraison';
 
 interface EvenementCircuit {
   type: 'statut' | 'commentaire';
@@ -167,6 +168,19 @@ function AdminSuiviColisContent() {
             <p className="col-span-3">{commande.ramassage?.ramasseur?.nomComplet ?? '—'}</p>
             <p className="opacity-60">Livreur</p>
             <p className="col-span-3">{commande.livreur?.nomComplet ?? '— non assigné —'}</p>
+          </div>
+
+          {/* § Preuve de livraison (RG-02) : photo et signature recueillies
+              par le livreur, seule pièce justificative de la remise au
+              client — affichée ici, sur la fiche de suivi, plutôt que
+              seulement stockée en base. */}
+          <div className="flex flex-col gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide opacity-70">Preuve de livraison</h2>
+            <PreuveLivraison
+              photoPreuveUrl={commande.photoPreuveUrl}
+              signatureUrl={commande.signatureUrl}
+              dateLivraison={commande.dateLivraison}
+            />
           </div>
 
           <div className="flex items-center justify-between">

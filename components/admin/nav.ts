@@ -65,6 +65,10 @@ const RECLAMATIONS: Role[] = ['admin', 'superviseur', 'moderateur'];
 // § Comptabilité (RBAC) : réservé à admin + responsable (responsables
 // comptables), cf. ROLES_COMPTABILITE dans app/api/finance/route.ts.
 const COMPTABILITE: Role[] = ['admin', 'responsable'];
+// § Bon de distribution (/admin/bon-distribution) : l'admin voit tous les
+// hubs, le planner uniquement le sien (périmètre forcé côté API, cf.
+// resolveHubPlanification dans lib/bon-distribution.ts).
+const PLANIFICATION_TOURNEES: Role[] = ['admin', 'planner'];
 
 export const NAV_ADMIN: NavItem[] = [
   { label: 'Accueil', href: '/admin', icon: LayoutDashboard },
@@ -107,7 +111,9 @@ export const NAV_ADMIN: NavItem[] = [
   // ROLES_HUB_UNIQUEMENT (confinement à /admin/scan/reception + /admin/bon-envoi
   // hors création, cf. proxy.ts), qui ne consulte jamais `roles`.
   { label: "Bon d'envoi", href: '/admin/bon-envoi', icon: Send, roles: ADMIN_SEUL },
-  { label: 'Bon de distribution', href: '/admin/bon-distribution', icon: Share2, roles: ADMIN_SEUL },
+  // § Planner : seul item ouvert au rôle planner (cf. ROLES_PLANNER_UNIQUEMENT
+  // ci-dessous et le confinement correspondant dans proxy.ts).
+  { label: 'Bon de distribution', href: '/admin/bon-distribution', icon: Share2, roles: PLANIFICATION_TOURNEES },
   {
     label: 'Bon de paiement',
     icon: Wallet,
@@ -166,6 +172,13 @@ const ROLES_KANBAN_UNIQUEMENT: Role[] = ['design', 'gestionnaire_hub'];
 // nav ne doit lui montrer que "Scan Réception Hub".
 const ROLES_HUB_UNIQUEMENT: Role[] = ['agent_hub'];
 
+// § Planner : depuis l'ouverture de sa web app dédiée, proxy.ts le renvoie
+// hors de TOUT /admin/** vers /planner — cette sidebar ne lui est donc en
+// principe jamais rendue. La branche est conservée par sécurité (si le
+// confinement venait à être assoupli, la nav ne doit toujours lui montrer que
+// son module) — même principe que les deux listes ci-dessus.
+const ROLES_PLANNER_UNIQUEMENT: Role[] = ['planner'];
+
 // Filtre récursif : un groupe ne survit que s'il lui reste au moins un enfant
 // visible pour `role` (évite d'afficher un intitulé de section vide).
 export function filterNavByRole(nav: NavItem[], role: Role): NavItem[] {
@@ -176,6 +189,9 @@ export function filterNavByRole(nav: NavItem[], role: Role): NavItem[] {
     return nav.filter(
       (item) => 'href' in item && (item.href === '/admin/scan/reception' || item.href === '/admin/bon-envoi')
     );
+  }
+  if (ROLES_PLANNER_UNIQUEMENT.includes(role)) {
+    return nav.filter((item) => 'href' in item && item.href === '/admin/bon-distribution');
   }
   return nav.reduce<NavItem[]>((acc, item) => {
     if (item.roles && !item.roles.includes(role)) return acc;

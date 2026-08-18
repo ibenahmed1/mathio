@@ -5,6 +5,7 @@ import { apiGet } from '@/lib/api-client';
 import type { Commande, HistoriqueStatut } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Modal } from '@/components/admin/Modal';
+import { PreuveLivraison } from '@/components/PreuveLivraison';
 
 // Timeline verticale à colonne unique (tout le texte du même côté de la
 // ligne, contrairement au zigzag gauche/droite d'une frise classique) :
@@ -35,6 +36,16 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
             </div>
             <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
           </div>
+
+          {/* § Preuve de livraison : le marchand voit la photo/signature
+              recueillie par le livreur — c'est son justificatif de remise en
+              cas de contestation du client. */}
+          <PreuveLivraison
+            photoPreuveUrl={commande.photoPreuveUrl}
+            signatureUrl={commande.signatureUrl}
+            dateLivraison={commande.dateLivraison}
+            compact
+          />
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
             {historique.map((h, i) => {

@@ -6,17 +6,27 @@ import {
   ROLES_BACKOFFICE,
   ROLES_HUB_UNIQUEMENT,
   ROLES_KANBAN_UNIQUEMENT,
+  ROLES_PLANNER_UNIQUEMENT,
 } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { AdminShell } from '@/components/admin/AdminShell';
 
 // Le confinement des rôles Kanban-only (design, gestionnaire_hub) à
-// /admin/tasks et de l'Agent Hub (agent_hub) à /admin/scan/reception est déjà
-// fait par proxy.ts (chemin par chemin) ; ce layout ne vérifie ici que
-// l'appartenance à l'espace admin au sens large.
+// /admin/tasks, de l'Agent Hub (agent_hub) à /admin/scan/reception et du
+// Planner (planner) à /admin/bon-distribution est déjà fait par proxy.ts
+// (chemin par chemin) ; ce layout ne vérifie ici que l'appartenance à
+// l'espace admin au sens large.
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getPageSession('admin');
-  if (!session || !roleMatches(session, [...ROLES_BACKOFFICE, ...ROLES_KANBAN_UNIQUEMENT, ...ROLES_HUB_UNIQUEMENT])) {
+  if (
+    !session ||
+    !roleMatches(session, [
+      ...ROLES_BACKOFFICE,
+      ...ROLES_KANBAN_UNIQUEMENT,
+      ...ROLES_HUB_UNIQUEMENT,
+      ...ROLES_PLANNER_UNIQUEMENT,
+    ])
+  ) {
     redirect('/login');
   }
 

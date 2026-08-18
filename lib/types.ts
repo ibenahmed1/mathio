@@ -48,6 +48,7 @@ export interface Commande {
     | 'hors_zone'
     | 'refuse'
     | 'retourne'
+    | 'retourne_au_hub'
     | 'en_retour_par_amana'
     | 'annule'
     | 'annule_par_vendeur';
@@ -86,6 +87,10 @@ export interface Commande {
   historique?: HistoriqueStatut[];
   commentaires?: CommentaireCommande[];
 }
+
+// Alias dérivé de l'union ci-dessus plutôt qu'une seconde liste à maintenir :
+// tout ajout de statut sur Commande se propage automatiquement.
+export type StatutCommande = Commande['statut'];
 
 export interface Marchandise {
   id: string;
@@ -267,12 +272,61 @@ export interface BonDistribution {
   numero: string;
   livreurId: string;
   hubId: string;
-  statut: 'nouveau' | 'en_cours';
+  statut: 'nouveau' | 'en_cours' | 'cloture';
   nbColis: number;
   dateGeneration: string;
   commandes?: Commande[];
   livreur?: { nomComplet: string; telephone?: string | null };
-  hub?: { nom: string };
+  hub?: { nom: string; ville?: string };
+  planner?: { nomComplet: string } | null;
+  // Bloc de reddition, renseigné uniquement quand statut === 'cloture'
+  // (§ clôture de tournée). Les montants transitent en string : ce sont des
+  // Decimal côté Prisma, sérialisés tels quels par NextResponse.json.
+  dateCloture?: string | null;
+  cloturePar?: { nomComplet: string } | null;
+  nbColisLivres?: number | null;
+  nbColisRetournes?: number | null;
+  montantCrbtAttendu?: string | null;
+  montantRemis?: string | null;
+  ecartCaisse?: string | null;
+  gainLivreur?: string | null;
+}
+
+// Réponse de GET /api/bons-distribution/[id]/bilan : le décompte présenté au
+// Planner au retour du livreur (§ clôture de tournée). Miroir de l'interface
+// BilanTournee côté serveur (lib/bon-distribution.ts).
+export interface ColisTournee {
+  id: string;
+  codeSuivi: string;
+  clientNom: string;
+  clientTelephone: string;
+  ville: string;
+  villeId: string | null;
+  adresse: string;
+  montantCod: string;
+  statut: StatutCommande;
+  motifRetour: string | null;
+  dateNouvelleLivraison: string | null;
+  dateLivraison: string | null;
+  marchand?: { nomBoutique: string };
+}
+
+export interface BilanTournee {
+  bonId: string;
+  numero: string;
+  statut: 'nouveau' | 'en_cours' | 'cloture';
+  dateGeneration: string;
+  dateCloture: string | null;
+  hub: { id: string; nom: string; ville: string };
+  livreur: { id: string; nomComplet: string; telephone: string | null };
+  nbColis: number;
+  colisLivres: ColisTournee[];
+  montantCrbtAttendu: number;
+  colisARecuperer: ColisTournee[];
+  colisRetournes: ColisTournee[];
+  gainLivreur: number;
+  detailGain: { libelle: string; nb: number; tarifMoyen: number; total: number }[];
+  pretACloturer: boolean;
 }
 
 export interface Utilisateur {

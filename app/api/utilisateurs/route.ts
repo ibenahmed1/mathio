@@ -20,12 +20,13 @@ const ROLES_EQUIPE: Role[] = [
   'design',
   'gestionnaire_hub',
   'agent_hub',
+  'planner',
 ];
 
-// § /admin/scan/reception + /admin/bon-distribution : un agent_hub ou un
+// § /admin/scan/reception + /admin/bon-distribution : un agent_hub, un planner ou un
 // livreur doit obligatoirement être rattaché à un Hub — validé ici (POST) et
 // dans PATCH /api/utilisateurs/[id].
-const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur'];
+const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur', 'planner'];
 
 // Rôles terrain : formulaire de création riche (photo, CIN, zones, banque…),
 // mot de passe saisi manuellement par l'admin (pas d'auto-génération, cf.

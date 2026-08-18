@@ -1,4 +1,11 @@
-import type { StatutCommande, EtatPaiement, StatutReclamation, StatutTache, PrioriteTache } from '@/app/generated/prisma/enums';
+import type {
+  StatutCommande,
+  EtatPaiement,
+  StatutReclamation,
+  StatutTache,
+  PrioriteTache,
+  StatutBonDistribution,
+} from '@/app/generated/prisma/enums';
 
 // Source unique pour l'ordre et le libellé des statuts colis / état de
 // paiement — évite que chaque page (admin, marchand, badges, validation API)
@@ -34,6 +41,7 @@ export const STATUTS_COMMANDE: StatutCommande[] = [
   'hors_zone',
   'refuse',
   'retourne',
+  'retourne_au_hub',
   'en_retour_par_amana',
   'annule',
   'annule_par_vendeur',
@@ -67,6 +75,7 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   hors_zone: 'Hors-zone',
   refuse: 'Refusé',
   retourne: 'Retourné',
+  retourne_au_hub: 'Retourné au Hub',
   en_retour_par_amana: 'En retour par AMANA',
   annule: 'Annulé',
   annule_par_vendeur: 'Annulé par Vendeur',
@@ -117,6 +126,22 @@ export const LABELS_ETAT_PAIEMENT: Record<EtatPaiement, string> = {
   facture: 'Facturé',
   paye: 'Payé',
   rembourse: 'Remboursé',
+};
+
+// § Bon de Distribution / tournée (/admin/bon-distribution) : libellé et
+// pastille de l'état du bon lui-même — source unique partagée par la liste,
+// le détail et l'écran de clôture, qui affichaient jusqu'ici deux ternaires
+// dupliqués incapables de rendre le nouvel état "cloture".
+export const LABELS_STATUT_BON_DISTRIBUTION: Record<StatutBonDistribution, string> = {
+  nouveau: 'Nouveau',
+  en_cours: 'En cours',
+  cloture: 'Clôturée',
+};
+
+export const STYLE_STATUT_BON_DISTRIBUTION: Record<StatutBonDistribution, string> = {
+  nouveau: 'bg-amber-300 text-amber-950',
+  en_cours: 'bg-cyan-400 text-cyan-950',
+  cloture: 'bg-green-600 text-white',
 };
 
 export const STATUTS_RECLAMATION: StatutReclamation[] = ['ouverte', 'en_cours', 'resolue', 'rejetee'];

@@ -56,6 +56,26 @@ export const ROLES_KANBAN_UNIQUEMENT: Role[] = ['design', 'gestionnaire_hub'];
 // API (POST/PATCH /api/utilisateurs).
 export const ROLES_HUB_UNIQUEMENT: Role[] = ['agent_hub'];
 
+// Rôle cantonné à sa propre web app (§ /planner : accueil, bons de
+// distribution — composition, clôture de tournée — et poste de scan) : même
+// principe et mécanisme de confinement que ROLES_HUB_UNIQUEMENT ci-dessus,
+// appliqué dans proxy.ts, à ceci près que le Planner est renvoyé hors du
+// back-office entièrement plutôt que cantonné à une de ses pages. Aucun accès
+// au reste du back-office (colis marchand, finances, utilisateurs). Doit
+// obligatoirement
+// être rattaché à un Hub (Utilisateur.hubId, validé côté API) : toutes les
+// routes /api/bons-distribution/** forcent son périmètre sur ce hub, jamais
+// sur un hubId fourni dans la requête.
+export const ROLES_PLANNER_UNIQUEMENT: Role[] = ['planner'];
+
+// Rôles ayant accès à la web app Planner (/planner/**) : le Planner lui-même,
+// et l'admin — qui planifie tous les hubs et doit pouvoir dépanner depuis
+// l'écran terrain. Exactement la liste que les routes
+// /api/bons-distribution/** autorisent déjà (`requireUser(['admin',
+// 'planner'])`), exposée ici pour que le proxy et app/planner/layout.tsx
+// partagent la même définition plutôt que de la redupliquer.
+export const ROLES_PLANIFICATION: Role[] = ['admin', ...ROLES_PLANNER_UNIQUEMENT];
+
 const ROLE_SPACES: Record<Role, SessionSpace> = {
   admin: 'admin',
   superviseur: 'admin',
@@ -65,6 +85,7 @@ const ROLE_SPACES: Record<Role, SessionSpace> = {
   design: 'admin',
   gestionnaire_hub: 'admin',
   agent_hub: 'admin',
+  planner: 'admin',
   marchand: 'marchand',
   livreur: 'terrain',
   ramasseur: 'terrain',

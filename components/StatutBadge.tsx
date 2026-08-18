@@ -45,6 +45,10 @@ const STYLES: Record<string, string> = {
   hors_zone: 'bg-orange-500 text-white',
   refuse: 'bg-red-500 text-white',
   retourne: 'bg-orange-500 text-white',
+  // § Clôture de tournée : colis physiquement rentré au dépôt après une
+  // tentative infructueuse — même famille visuelle que recu_au_hub (le colis
+  // est au hub) mais teinté retour.
+  retourne_au_hub: 'bg-[#ffe3d6] text-[#9a3d16]',
   en_retour_par_amana: 'bg-orange-600 text-white',
   annule: 'bg-red-600 text-white',
   annule_par_vendeur: 'bg-red-700 text-white',
@@ -60,13 +64,17 @@ const STYLES: Record<string, string> = {
 
 // § /admin/scan/reception : le hub de réception est celui de l'agent qui a
 // scanné le colis (résolu côté serveur, cf. resolveUserHub) — hubVille vient
-// donc de commande.hubActuel.ville, jamais saisi manuellement.
+// donc de commande.hubActuel.ville, jamais saisi manuellement. Même principe
+// pour retourne_au_hub (§ clôture de tournée), où le hub est celui du Planner
+// qui a scanné le retour.
+const STATUTS_SUFFIXES_HUB = ['recu_au_hub', 'retourne_au_hub'];
+
 export function StatutBadge({ statut, hubVille }: { statut: string; hubVille?: string | null }) {
   const baseLabel =
     LABELS_STATUT_COMMANDE[statut as keyof typeof LABELS_STATUT_COMMANDE] ??
     LABELS_STATUT_RECLAMATION[statut as keyof typeof LABELS_STATUT_RECLAMATION] ??
     statut.replace(/_/g, ' ');
-  const label = statut === 'recu_au_hub' && hubVille ? `${baseLabel} (${hubVille})` : baseLabel;
+  const label = STATUTS_SUFFIXES_HUB.includes(statut) && hubVille ? `${baseLabel} (${hubVille})` : baseLabel;
   return (
     <span className={`badge ${STYLES[statut] ?? 'bg-black/10 text-black dark:bg-white/10 dark:text-white'}`}>
       {label}
