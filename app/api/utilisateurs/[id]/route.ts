@@ -19,13 +19,14 @@ const ROLES_EQUIPE: Role[] = [
   'design',
   'gestionnaire_hub',
   'agent_hub',
+  'planner',
 ];
 const ROLES_TERRAIN: Role[] = ['ramasseur', 'livreur'];
 const ROLES_AVEC_PHOTO: Role[] = ['ramasseur', 'livreur', 'moderateur'];
-// § /admin/scan/reception + /admin/bon-distribution : un agent_hub ou un
+// § /admin/scan/reception + /admin/bon-distribution : un agent_hub, un planner ou un
 // livreur doit obligatoirement être rattaché à un Hub (même règle que POST
 // /api/utilisateurs).
-const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur'];
+const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur', 'planner'];
 
 // RF-22 : modification d'un compte équipe par l'admin (identité + champs
 // terrain le cas échéant). Le mot de passe se change via l'endpoint dédié

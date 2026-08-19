@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { getColisEligiblesDistribution } from '@/lib/bon-distribution';
+import { getColisEligiblesDistribution, resolveHubPlanification } from '@/lib/bon-distribution';
 
 // § Étape 3 de la création d'un Bon de Distribution : liste complète des
 // colis éligibles pour le couple hub/livreur, avec ajout manuel via bouton '+'.
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin', 'planner']);
+    const hub = await resolveHubPlanification(session, request.nextUrl.searchParams.get('hubId'));
 
-    const hubId = request.nextUrl.searchParams.get('hubId')?.trim();
     const livreurId = request.nextUrl.searchParams.get('livreurId')?.trim();
-    if (!hubId || !livreurId) {
-      throw new ApiError(400, 'hubId et livreurId sont requis');
+    if (!livreurId) {
+      throw new ApiError(400, 'livreurId est requis');
     }
 
-    const data = await getColisEligiblesDistribution(hubId, livreurId);
+    const data = await getColisEligiblesDistribution(hub.id, livreurId);
     return NextResponse.json({ data });
   } catch (error) {
     return jsonError(error);

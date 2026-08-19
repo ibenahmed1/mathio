@@ -5,6 +5,7 @@ import { apiGet } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Modal } from '@/components/admin/Modal';
+import { PreuveLivraison } from '@/components/PreuveLivraison';
 
 interface EvenementCircuit {
   type: 'statut' | 'commentaire';
@@ -70,6 +71,16 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
             </div>
             <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
           </div>
+
+          {/* § Preuve de livraison : photo/signature capturées par le livreur
+              au moment du "Livré" — jusqu'ici stockées sans jamais être
+              affichées nulle part. */}
+          <PreuveLivraison
+            photoPreuveUrl={commande.photoPreuveUrl}
+            signatureUrl={commande.signatureUrl}
+            dateLivraison={commande.dateLivraison}
+            compact
+          />
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
             {circuit.map((ev, i) => {

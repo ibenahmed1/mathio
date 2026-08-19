@@ -65,8 +65,12 @@ const C = {
 };
 
 const S = {
+  // NB : le `padding` de <main>, ainsi que toutes les grilles de mise en page
+  // (S n'en porte aucune), vivent dans la feuille `css` injectée plus bas et
+  // non ici — un style inline gagne toujours contre une media query, donc
+  // toute propriété qui doit varier avec la largeur d'écran ne peut pas être
+  // déclarée dans cet objet.
   main: {
-    padding: "20px 24px 26px",
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
@@ -154,11 +158,114 @@ const S = {
   num: { fontVariantNumeric: "tabular-nums" },
 };
 
-const keyframes = `
+// Feuille injectée par le composant : animations + TOUTE la mise en page qui
+// doit réagir à la largeur d'écran. Les grilles ne peuvent pas rester en style
+// inline — une media query ne peut pas battre un attribut `style`, et l'écran
+// est utilisé aussi bien sur poste fixe au bureau que sur tablette/téléphone
+// au quai (web app Planner, § /planner/bons-distribution/creer).
+const css = `
 @keyframes bdFade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes bdIn { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
 @keyframes bdSlide { from { opacity: 0; transform: translateX(12px) } to { opacity: 1; transform: none } }
 @keyframes bdPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,209,0,.55) } 50% { box-shadow: 0 0 0 7px rgba(255,209,0,0) } }
+
+.bd-main { padding: 20px 24px 26px; }
+
+/* Le repli est piloté par la largeur RÉELLE du wizard, pas par celle de la
+   fenêtre : la sidebar de l'espace (admin ou Planner) lui prend ~280px, une
+   media query sur le viewport se tromperait donc de cette largeur sur poste
+   fixe — et de rien du tout sur téléphone, où la sidebar est masquée. Un
+   conteneur de requête donne le bon seuil dans les deux cas. Le repli
+   @supports plus bas couvre les navigateurs sans container queries.
+   Le conteneur est posé ICI, sur le bloc des étapes, et surtout PAS sur
+   <main> : container-type implique "contain: layout", ce qui ferait du
+   porteur le bloc conteneur des descendants "position: fixed" — la modale de
+   confirmation, qui est un frère de ce bloc, se retrouverait cadrée sur le
+   wizard au lieu de l'écran. */
+.bd-etapes { display: flex; flex-direction: column; gap: 14px; container-type: inline-size; }
+
+/* Actions d'en-tête (Réinitialiser / Valider) : collées à droite tant qu'il y
+   a la place, pleine largeur ensuite. */
+.bd-actions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex: none; }
+
+/* Étape 1 — cartes de zone. Le min() évite qu'une carte de 268px déborde d'un
+   écran de 320px : elle ne descend jamais sous la largeur disponible. */
+.bd-zones { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(268px, 100%), 1fr)); gap: 12px; }
+
+/* Étapes 2 & 3 — colonne livreurs + poste de travail. */
+.bd-split { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.bd-livreurs { max-height: 392px; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+
+/* Poste de travail — colis éligibles à gauche, bon en cours à droite. */
+.bd-workspace { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; align-items: start; min-width: 0; }
+
+.bd-ligne-colis { display: grid; grid-template-columns: 16px minmax(0, 1.15fr) minmax(0, 1fr) auto 30px; gap: 10px; align-items: center; padding: 10px 15px; border-bottom: 1px solid #F5F3EA; cursor: grab; }
+
+/* Le padding de <main> ne peut pas venir d'une @container (une requête de
+   conteneur ne peut pas styler son propre conteneur) : il reste sur le
+   viewport, où la sidebar ne change rien à la marge à réserver au doigt. */
+@media (max-width: 640px) {
+  .bd-main { padding: 14px 14px 20px; }
+  .bd-actions { margin-left: 0; width: 100%; }
+  .bd-actions > button { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Les seuils sont exprimés sur le conteneur (largeur totale du wizard), mais
+   ce qu'ils protègent, c'est la largeur du PANNEAU COLIS — qui vaut le
+   conteneur moins la colonne livreurs (300px + 14px de gouttière) tant que
+   .bd-split est en deux colonnes, puis le conteneur entier ensuite. D'où des
+   seuils décalés de ces ~314px plutôt que des nombres ronds. */
+
+/* Les deux panneaux du poste de travail se superposent dès qu'ils ne tiennent
+   plus côte à côte sans devenir illisibles — le bon reste alors sous la liste
+   des colis, dans l'ordre de lecture du geste (je choisis, puis j'ajoute).
+   1080 = 314 (colonne livreurs) + ~766 pour les deux panneaux. */
+@container (max-width: 1080px) {
+  .bd-workspace { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Tablette : la colonne des livreurs passe au-dessus du poste de travail et
+   sa hauteur est réduite pour ne pas repousser le travail sous la ligne de
+   flottaison. */
+@container (max-width: 760px) {
+  .bd-split { grid-template-columns: minmax(0, 1fr); }
+  .bd-livreurs { max-height: 260px; }
+}
+
+/* Téléphone : une ligne de colis passe sur deux rangées — identité puis ville
+   à gauche, CRBT et bouton d'ajout calés à droite sur toute la hauteur. La
+   poignée de glisser disparaît : le drag & drop HTML5 ne fonctionne pas au
+   doigt, l'ajout se fait par le bouton « + » (ou le double-tap). */
+@container (max-width: 620px) {
+  .bd-ligne-colis { grid-template-columns: minmax(0, 1fr) auto 32px; column-gap: 10px; row-gap: 2px; padding: 10px 12px; }
+  .bd-ligne-colis > .bd-grip { display: none; }
+  .bd-ligne-colis > .bd-colis-identite { grid-column: 1; grid-row: 1; }
+  .bd-ligne-colis > .bd-colis-lieu { grid-column: 1; grid-row: 2; }
+  .bd-ligne-colis > .bd-colis-crbt { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; }
+  .bd-ligne-colis > .bd-colis-ajout { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+}
+
+/* Repli sans container queries : mêmes seuils, majorés de la largeur de la
+   sidebar (~280px) plus les marges de la coquille, puisqu'on mesure alors la
+   fenêtre entière. Approximatif par construction — c'est précisément ce que
+   les @container ci-dessus évitent quand le navigateur les gère. */
+@supports not (container-type: inline-size) {
+  @media (max-width: 1410px) {
+    .bd-workspace { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 1090px) {
+    .bd-split { grid-template-columns: minmax(0, 1fr); }
+    .bd-livreurs { max-height: 260px; }
+  }
+  @media (max-width: 660px) {
+    .bd-ligne-colis { grid-template-columns: minmax(0, 1fr) auto 32px; column-gap: 10px; row-gap: 2px; padding: 10px 12px; }
+    .bd-ligne-colis > .bd-grip { display: none; }
+    .bd-ligne-colis > .bd-colis-identite { grid-column: 1; grid-row: 1; }
+    .bd-ligne-colis > .bd-colis-lieu { grid-column: 1; grid-row: 2; }
+    .bd-ligne-colis > .bd-colis-crbt { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; }
+    .bd-ligne-colis > .bd-colis-ajout { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  }
+}
 `;
 
 export default function BonDistributionCreerUI({
@@ -220,8 +327,8 @@ export default function BonDistributionCreerUI({
   };
 
   return (
-    <main style={S.main}>
-      <style>{keyframes}</style>
+    <main className="bd-main" style={S.main}>
+      <style>{css}</style>
 
       {/* EN-TÊTE : kicker + code + statut + actions (pas de titre, pas de stepper) */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
@@ -234,7 +341,7 @@ export default function BonDistributionCreerUI({
             </span>
           </div>
         </div>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 9, flex: "none" }}>
+        <div className="bd-actions">
           <button type="button" style={S.btnGhost} onClick={onReset}>Réinitialiser</button>
           <button type="button" style={S.btnPrimary} onClick={onValider}>
             <span>🖨</span><span>Valider &amp; imprimer</span>
@@ -249,7 +356,7 @@ export default function BonDistributionCreerUI({
             <span style={S.label}>ÉTAPE 1 · ZONE DE DISTRIBUTION</span>
             <span style={{ fontSize: 11.5, color: C.muted2 }}>Choisissez la zone : la suite s'y limite.</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(268px,1fr))", gap: 12 }}>
+          <div className="bd-zones">
             {zones.map((z) => (
               <button
                 key={z.id}
@@ -299,7 +406,7 @@ export default function BonDistributionCreerUI({
 
       {/* ÉTAPES 2 & 3 */}
       {etape !== "zone" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div className="bd-etapes">
           {/* bandeau de contexte zone */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.encre, borderRadius: 16, padding: "11px 14px", flexWrap: "wrap" }}>
             <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.1, color: C.jaune }}>ZONE</span>
@@ -313,7 +420,7 @@ export default function BonDistributionCreerUI({
             </button>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,300px) minmax(0,1fr)", gap: 14, alignItems: "start" }}>
+          <div className="bd-split">
             {/* ÉTAPE 2 — LIVREUR : colonne compacte + recherche */}
             <section style={S.card}>
               <div style={{ padding: "13px 14px 11px", display: "flex", flexDirection: "column", gap: 10, borderBottom: `1px solid ${C.ligne2}` }}>
@@ -331,7 +438,7 @@ export default function BonDistributionCreerUI({
                   />
                 </div>
               </div>
-              <div style={{ maxHeight: 392, overflow: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="bd-livreurs">
                 {livreurs.map((l) => (
                   <button
                     key={l.id}
@@ -378,7 +485,7 @@ export default function BonDistributionCreerUI({
                 </div>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", gap: 14, alignItems: "start", minWidth: 0 }}>
+              <div className="bd-workspace">
                 {/* ÉTAPE 3 — COLIS : recherche, puces de filtre, pagination */}
                 <section style={S.card}>
                   <div style={{ padding: "13px 15px 11px", display: "flex", flexDirection: "column", gap: 10, borderBottom: `1px solid ${C.ligne2}` }}>
@@ -429,22 +536,23 @@ export default function BonDistributionCreerUI({
                         onDragStart={(e) => { e.dataTransfer.effectAllowed = "copyMove"; e.dataTransfer.setData("text/plain", String(c.id)); setSource("pool"); }}
                         onDragEnd={finDrag}
                         onDoubleClick={() => onColisAdd && onColisAdd(c.id)}
-                        style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1.15fr) minmax(0,1fr) auto 30px", gap: 10, alignItems: "center", padding: "10px 15px", borderBottom: "1px solid #F5F3EA", cursor: "grab" }}
+                        className="bd-ligne-colis"
                         onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,209,0,.08)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                       >
-                        <span style={{ color: "#C9C7BA", fontSize: 12, letterSpacing: -1 }}>⠿</span>
-                        <div style={{ minWidth: 0 }}>
+                        <span className="bd-grip" style={{ color: "#C9C7BA", fontSize: 12, letterSpacing: -1 }}>⠿</span>
+                        <div className="bd-colis-identite" style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 800, ...S.num }}>{c.code}</div>
                           <div style={{ fontSize: 10.5, color: C.muted2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.client}</div>
                         </div>
-                        <div style={{ minWidth: 0 }}>
+                        <div className="bd-colis-lieu" style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 11.5, fontWeight: 700, color: C.encre2 }}>{c.ville}</div>
                           <div style={{ fontSize: 10.5, color: C.muted2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.quartier}</div>
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 800, textAlign: "right", ...S.num }}>{c.crbt}</div>
+                        <div className="bd-colis-crbt" style={{ fontSize: 12, fontWeight: 800, textAlign: "right", ...S.num }}>{c.crbt}</div>
                         <button
                           type="button"
+                          className="bd-colis-ajout"
                           onClick={() => onColisAdd && onColisAdd(c.id)}
                           style={{ width: 28, height: 28, borderRadius: 9, border: "1px solid rgba(255,209,0,.5)", background: "rgba(255,209,0,.18)", color: "#8a7405", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1, fontFamily: "inherit" }}
                         >
@@ -571,7 +679,10 @@ export default function BonDistributionCreerUI({
                     ))}
                   </div>
 
-                  <div style={{ padding: "11px 15px 13px", borderTop: `1px solid ${C.ligne2}`, display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 }}>
+                  {/* auto-fit plutôt que 3 colonnes fixes : « 1 234,00 DH » ne
+                      tient pas dans un tiers de colonne étroite, les totaux se
+                      replient d'eux-mêmes plutôt que de déborder. */}
+                  <div style={{ padding: "11px 15px 13px", borderTop: `1px solid ${C.ligne2}`, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 10 }}>
                     {totaux.map((t) => (
                       <div key={t.label}>
                         <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.8, color: C.muted3 }}>{t.label}</div>
@@ -624,7 +735,7 @@ export default function BonDistributionCreerUI({
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2, marginTop: 3 }}>{confirmation.sousTitre}</div>
               </div>
             </div>
-            <div style={{ padding: "12px 22px 0", display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 }}>
+            <div style={{ padding: "12px 22px 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 10 }}>
               {(confirmation.totaux || []).map((t) => (
                 <div key={t.label} style={{ background: "rgba(255,255,255,.6)", border: "1px solid rgba(255,255,255,.9)", borderRadius: 14, padding: "11px 12px" }}>
                   <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.9, color: C.muted3 }}>{t.label}</div>

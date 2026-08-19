@@ -16,6 +16,8 @@ function destinationForRole(role: string) {
   if (role === 'ramasseur') return '/ramasseur';
   if (role === 'livreur') return '/livreur';
   if (role === 'design' || role === 'gestionnaire_hub') return '/admin/tasks';
+  if (role === 'planner') return '/planner';
+  if (role === 'agent_hub') return '/admin/scan/reception';
   return '/admin/commandes';
 }
 

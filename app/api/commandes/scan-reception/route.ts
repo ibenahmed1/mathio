@@ -14,7 +14,12 @@ import { resolveUserHub } from '@/lib/hub-envoi';
 // et ne recrée pas d'entrée d'historique.
 export async function POST(request: Request) {
   try {
-    const session = await requireUser(['agent_hub', 'admin']);
+    // § /planner/scan : le Planner scanne lui aussi au quai de son hub. C'est
+    // le même geste que l'Agent Hub (et la même transition), avec le même
+    // cantonnement — son hub de rattachement, jamais celui du body — mais
+    // depuis sa propre web app : sans ça, il ne pourrait pas alimenter le
+    // stock de colis "recu_au_hub" qu'il doit ensuite répartir en tournées.
+    const session = await requireUser(['agent_hub', 'planner', 'admin']);
     const body = await request.json();
 
     const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
@@ -32,12 +37,13 @@ export async function POST(request: Request) {
       throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
     }
 
-    // Résolution du hub de réception : pour un agent_hub, c'est toujours son
-    // propre hub de rattachement (obligatoire, jamais celui fourni dans le
-    // body — évite qu'un agent réceptionne "au nom" d'un autre hub). Pour
-    // l'admin (dépannage/tests), le hub doit être fourni explicitement.
+    // Résolution du hub de réception : pour un agent_hub comme pour un
+    // planner, c'est toujours son propre hub de rattachement (obligatoire,
+    // jamais celui fourni dans le body — évite de réceptionner "au nom" d'un
+    // autre hub). Pour l'admin (dépannage/tests), le hub doit être fourni
+    // explicitement.
     let hub: { id: string; nom: string; ville: string } | null = null;
-    if (session.role === 'agent_hub') {
+    if (session.role === 'agent_hub' || session.role === 'planner') {
       hub = await resolveUserHub(session.sub);
     } else {
       const hubId = typeof body.hubId === 'string' ? body.hubId.trim() : '';

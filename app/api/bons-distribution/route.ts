@@ -1,25 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
-import { getColisEligiblesDistribution, type CommandeEligibleDistribution } from '@/lib/bon-distribution';
+import {
+  getColisEligiblesDistribution,
+  resolveHubPlanification,
+  scopeHubBonsDistribution,
+  type CommandeEligibleDistribution,
+} from '@/lib/bon-distribution';
 import { nextBonDistributionNumero } from '@/lib/codes';
+import type { Prisma } from '@/app/generated/prisma/client';
+import type { StatutBonDistribution } from '@/app/generated/prisma/enums';
+
+const STATUTS_BON_DISTRIBUTION: StatutBonDistribution[] = ['nouveau', 'en_cours', 'cloture'];
 
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin', 'planner']);
     const { searchParams } = request.nextUrl;
 
     const page = Math.max(1, Number(searchParams.get('page')) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize')) || 20));
 
+    // Le planner ne voit que les tournées de son hub (périmètre forcé côté
+    // serveur, jamais dérivé d'un paramètre de requête).
+    const statutParam = searchParams.get('statut');
+    const where: Prisma.BonDistributionWhereInput = {
+      ...(await scopeHubBonsDistribution(session)),
+      ...(statutParam && STATUTS_BON_DISTRIBUTION.includes(statutParam as StatutBonDistribution)
+        ? { statut: statutParam as StatutBonDistribution }
+        : {}),
+    };
+
     const [data, total] = await Promise.all([
       prisma.bonDistribution.findMany({
-        include: { livreur: { select: { nomComplet: true } }, hub: { select: { nom: true } } },
+        where,
+        include: {
+          livreur: { select: { nomComplet: true } },
+          hub: { select: { nom: true } },
+          planner: { select: { nomComplet: true } },
+          cloturePar: { select: { nomComplet: true } },
+        },
         orderBy: { dateGeneration: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.bonDistribution.count(),
+      prisma.bonDistribution.count({ where }),
     ]);
 
     return NextResponse.json({ data, total, page, pageSize });
@@ -32,16 +57,18 @@ export async function GET(request: NextRequest) {
 // "Valider & imprimer" (statut 'en_cours' dès la création, pas d'étape
 // brouillon persistée — cf. plan) — revalide server-side chaque colis soumis
 // contre l'éligibilité réelle du couple hub/livreur, même principe que
-// POST /api/bons-envoi.
+// POST /api/bons-envoi. Les colis affectés apparaissent immédiatement sur la
+// feuille de route du livreur (§ /livreur/colis), qui interroge ses tournées
+// non clôturées.
 export async function POST(request: Request) {
   try {
-    const session = await requireUser(['admin']);
+    const session = await requireUser(['admin', 'planner']);
     const body = await request.json();
 
-    const hubId = typeof body.hubId === 'string' ? body.hubId.trim() : '';
+    const hub = await resolveHubPlanification(session, typeof body.hubId === 'string' ? body.hubId : null);
     const livreurId = typeof body.livreurId === 'string' ? body.livreurId.trim() : '';
-    if (!hubId || !livreurId) {
-      throw new ApiError(400, 'hubId et livreurId sont requis');
+    if (!livreurId) {
+      throw new ApiError(400, 'livreurId est requis');
     }
 
     const colisIds = parseStringIdArray(body.colisIds);
@@ -49,16 +76,19 @@ export async function POST(request: Request) {
       throw new ApiError(400, 'Sélectionnez au moins un colis');
     }
 
-    const livreur = await prisma.utilisateur.findUnique({
-      where: { id: livreurId },
-      select: { id: true, nomComplet: true, role: true, actif: true },
-    });
+    const [livreur, planificateur] = await Promise.all([
+      prisma.utilisateur.findUnique({
+        where: { id: livreurId },
+        select: { id: true, nomComplet: true, role: true, actif: true },
+      }),
+      prisma.utilisateur.findUnique({ where: { id: session.sub }, select: { nomComplet: true } }),
+    ]);
     if (!livreur || livreur.role !== 'livreur' || !livreur.actif) {
       throw new ApiError(400, 'Livreur introuvable ou inactif');
     }
 
     const eligibles = new Map<string, CommandeEligibleDistribution>(
-      (await getColisEligiblesDistribution(hubId, livreurId)).map((c) => [c.id, c])
+      (await getColisEligiblesDistribution(hub.id, livreurId)).map((c) => [c.id, c])
     );
 
     const colis = colisIds.map((id) => eligibles.get(id)).filter((c): c is CommandeEligibleDistribution => Boolean(c));
@@ -73,7 +103,14 @@ export async function POST(request: Request) {
       const numero = await nextBonDistributionNumero(tx);
 
       const created = await tx.bonDistribution.create({
-        data: { numero, livreurId, hubId, statut: 'en_cours', nbColis: colis.length },
+        data: {
+          numero,
+          livreurId,
+          hubId: hub.id,
+          statut: 'en_cours',
+          nbColis: colis.length,
+          plannerId: session.sub,
+        },
       });
 
       await tx.commande.updateMany({
@@ -81,13 +118,19 @@ export async function POST(request: Request) {
         data: { bonDistributionId: created.id, livreurId, statut: 'mise_en_distribution' },
       });
 
+      // Traçabilité (RG-10) : la ligne d'historique nomme la tournée, le
+      // planificateur qui l'a composée et le livreur qui l'emporte — c'est
+      // l'entrée "Affecté à la tournée [réf] par le Planner [nom]" attendue
+      // dans le circuit du colis.
+      const auteur = planificateur?.nomComplet ?? 'Planificateur';
       await tx.historiqueStatutCommande.createMany({
         data: colis.map((c) => ({
           commandeId: c.id,
           ancienStatut: c.statut,
           nouveauStatut: 'mise_en_distribution' as const,
           utilisateurId: session.sub,
-          note: `Colis affecté au Bon de Distribution ${numero} — En cours de livraison par ${livreur.nomComplet}`,
+          hubId: hub.id,
+          note: `Affecté à la tournée ${numero} par ${auteur} — en cours de livraison par ${livreur.nomComplet}`,
         })),
       });
 

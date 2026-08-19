@@ -10,6 +10,11 @@ function currentSpaceHint(): string | null {
   if (typeof window === 'undefined') return null;
   const { pathname } = window.location;
   if (pathname.startsWith('/admin')) return 'admin';
+  // La web app Planner est un espace de PAGES distinct, mais elle s'appuie sur
+  // le cookie de l'espace 'admin' (le rôle `planner` y est rattaché, cf.
+  // ROLE_SPACES dans lib/auth.ts) — c'est donc bien ce cookie-là que le proxy
+  // doit essayer en premier depuis /planner/**.
+  if (pathname.startsWith('/planner')) return 'admin';
   if (pathname.startsWith('/marchand')) return 'marchand';
   if (pathname.startsWith('/ramasseur')) return 'terrain';
   if (pathname.startsWith('/livreur')) return 'terrain';

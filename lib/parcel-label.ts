@@ -66,16 +66,30 @@ export async function buildParcelLabel(params: {
 }
 
 /** Génère les étiquettes de plusieurs colis en parallèle (toujours O(1) par
- * colis : pas de requête DB additionnelle). */
+ * colis : pas de requête DB additionnelle).
+ *
+ * Tolérant à la ligne près : un colis dont l'étiquette ne peut pas être
+ * construite (codeSuivi hors format "PD-000000", par ex. un import
+ * partenaire) est simplement absent de la Map — les vues d'impression
+ * traitent déjà `labels.get(codeSuivi)` comme optionnel. Un seul colis
+ * douteux ne doit pas faire échouer l'impression de tout un bon. */
 export async function buildParcelLabels(
   commandes: Array<{ codeSuivi: string; ville: string; dateCreation: Date }>
 ): Promise<Map<string, ParcelLabel>> {
   const entries = await Promise.all(
-    commandes.map(async (c) => [c.codeSuivi, await buildParcelLabel({
-      codeSuivi: c.codeSuivi,
-      ville: c.ville,
-      date: c.dateCreation,
-    })] as const)
+    commandes.map(async (c) => {
+      try {
+        const label = await buildParcelLabel({
+          codeSuivi: c.codeSuivi,
+          ville: c.ville,
+          date: c.dateCreation,
+        });
+        return [c.codeSuivi, label] as const;
+      } catch (error) {
+        console.error(`[parcel-label] Étiquette non générée pour "${c.codeSuivi}" :`, error);
+        return null;
+      }
+    })
   );
-  return new Map(entries);
+  return new Map(entries.filter((e): e is NonNullable<typeof e> => e !== null));
 }

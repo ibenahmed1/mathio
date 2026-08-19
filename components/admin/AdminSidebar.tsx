@@ -25,6 +25,7 @@ const ROLE_LABELS: Record<Role, string> = {
   design: 'Design',
   gestionnaire_hub: 'Gestionnaire Hub',
   agent_hub: 'Agent Hub',
+  planner: 'Planner',
 };
 
 function isGroup(item: NavItem): item is NavGroup {

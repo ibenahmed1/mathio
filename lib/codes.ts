@@ -99,9 +99,17 @@ export async function nextBonDistributionNumero(db: Db = prisma): Promise<string
   const moisJour = `${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
   const prefixe = `BD-${annee}-${moisJour}-`;
 
-  const count = await db.bonDistribution.count({
+  // Dernier numéro du jour + 1, et non `count() + 1` comme les fonctions
+  // ci-dessus : un trou dans la séquence (une tournée supprimée en base, un
+  // nettoyage de jeu de test) ferait retomber le compteur sur un numéro déjà
+  // pris et la création échouerait sur la contrainte d'unicité — observé en
+  // dev sur ce module. Chercher le maximum reste juste dans les deux cas.
+  const dernier = await db.bonDistribution.findFirst({
     where: { numero: { startsWith: prefixe } },
+    orderBy: { numero: 'desc' },
+    select: { numero: true },
   });
 
-  return `${prefixe}${String(count + 1).padStart(3, '0')}`;
+  const suivant = dernier ? Number(dernier.numero.slice(prefixe.length)) + 1 : 1;
+  return `${prefixe}${String(suivant).padStart(3, '0')}`;
 }

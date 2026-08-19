@@ -22,7 +22,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       throw new ApiError(400, 'Le champ action est requis (livre, reporte ou annule)');
     }
 
-    const commande = await prisma.commande.findUnique({ where: { id } });
+    const commande = await prisma.commande.findUnique({
+      where: { id },
+      include: { bonDistribution: { select: { numero: true, statut: true } } },
+    });
     if (!commande) {
       throw new ApiError(404, 'Colis introuvable');
     }
@@ -31,6 +34,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     if (commande.statut !== 'mise_en_distribution') {
       throw new ApiError(400, "Ce colis n'est pas en cours de distribution");
+    }
+    // § Clôture de tournée : une fois la tournée déchargée et fermée par le
+    // Planner, la session du livreur est terminée — plus aucune saisie
+    // terrain n'est acceptée dessus (le colis relève alors du back-office).
+    if (commande.bonDistribution?.statut === 'cloture') {
+      throw new ApiError(
+        409,
+        `La tournée ${commande.bonDistribution.numero} a été clôturée au dépôt : ce colis n'est plus modifiable depuis l'application livreur.`
+      );
     }
 
     let nouveauStatut: 'livre' | 'reporte' | 'annule';

@@ -4,6 +4,8 @@ import {
   ROLES_BACKOFFICE,
   ROLES_HUB_UNIQUEMENT,
   ROLES_KANBAN_UNIQUEMENT,
+  ROLES_PLANIFICATION,
+  ROLES_PLANNER_UNIQUEMENT,
   SESSION_COOKIE_NAMES,
   SPACE_HINT_HEADER,
   USER_ID_HEADER,
@@ -44,8 +46,18 @@ const PAGE_GUARDS: PageGuard[] = [
   {
     prefix: '/admin',
     cookieSpace: 'admin',
-    allowedRoles: [...ROLES_BACKOFFICE, ...ROLES_KANBAN_UNIQUEMENT, ...ROLES_HUB_UNIQUEMENT],
+    allowedRoles: [
+      ...ROLES_BACKOFFICE,
+      ...ROLES_KANBAN_UNIQUEMENT,
+      ...ROLES_HUB_UNIQUEMENT,
+      ...ROLES_PLANNER_UNIQUEMENT,
+    ],
   },
+  // § Web app Planner : espace de pages distinct du back-office, mais adossé
+  // au même cookie (le rôle `planner` appartient à l'espace de session
+  // 'admin', cf. ROLE_SPACES dans lib/auth.ts) — c'est le chemin des pages
+  // qui change, pas la session.
+  { prefix: '/planner', cookieSpace: 'admin', allowedRoles: ROLES_PLANIFICATION },
   { prefix: '/marchand', cookieSpace: 'marchand', allowedRoles: ['marchand'] },
   { prefix: '/ramasseur', cookieSpace: 'terrain', allowedRoles: ['ramasseur'] },
   { prefix: '/livreur', cookieSpace: 'terrain', allowedRoles: ['livreur'] },
@@ -58,6 +70,11 @@ const PREFIXE_SCAN_RECEPTION_HUB = '/admin/scan/reception';
 // (création réservée admin, cf. PREFIXE_BON_ENVOI_CREER ci-dessous).
 const PREFIXE_BON_ENVOI = '/admin/bon-envoi';
 const PREFIXE_BON_ENVOI_CREER = '/admin/bon-envoi/creer';
+// § Planner : sa web app dédiée (/planner — accueil, bons de distribution,
+// poste de scan) et rien d'autre. Le module reste servi en parallèle dans le
+// back-office sous /admin/bon-distribution pour l'admin, mais le Planner n'y
+// passe plus : il est renvoyé vers son propre espace.
+const PREFIXE_PLANNER = '/planner';
 
 function matchGuard(pathname: string): PageGuard | undefined {
   return PAGE_GUARDS.find((g) => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`));
@@ -145,6 +162,19 @@ export async function proxy(request: NextRequest) {
     ) {
       return NextResponse.redirect(new URL(PREFIXE_SCAN_RECEPTION_HUB, request.url));
     }
+    // Confinement du Planner (§ /planner) : même mécanique que les deux
+    // confinements ci-dessus, vers sa web app. Comme le rôle `planner` reste
+    // dans l'espace de session 'admin', il pourrait autrement atteindre les
+    // pages /admin/** — cette redirection est ce qui rend l'espace /planner
+    // exclusif pour lui.
+    if (
+      ROLES_PLANNER_UNIQUEMENT.includes(session.role) &&
+      !roleMatches(session, ROLES_BACKOFFICE) &&
+      pathname !== PREFIXE_PLANNER &&
+      !pathname.startsWith(`${PREFIXE_PLANNER}/`)
+    ) {
+      return NextResponse.redirect(new URL(PREFIXE_PLANNER, request.url));
+    }
     return withUserHeaders(request, session);
   }
 
@@ -169,5 +199,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/:path*', '/admin/:path*', '/marchand/:path*', '/ramasseur/:path*', '/livreur/:path*'],
+  matcher: [
+    '/api/:path*',
+    '/admin/:path*',
+    '/planner/:path*',
+    '/marchand/:path*',
+    '/ramasseur/:path*',
+    '/livreur/:path*',
+  ],
 };

@@ -20,6 +20,7 @@ const ROLES = [
   'design',
   'gestionnaire_hub',
   'agent_hub',
+  'planner',
 ] as const;
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -32,11 +33,12 @@ export const ROLE_LABELS: Record<string, string> = {
   design: 'Design (Kanban uniquement)',
   gestionnaire_hub: 'Gestionnaire Hub (Kanban uniquement)',
   agent_hub: 'Agent Hub (Réception dépôt uniquement)',
+  planner: 'Planner (Tournées de son hub uniquement)',
 };
 
 const ROLES_TERRAIN = ['ramasseur', 'livreur'];
 const ROLES_AVEC_PHOTO = ['ramasseur', 'livreur', 'moderateur'];
-const ROLES_AVEC_HUB = ['agent_hub', 'livreur'];
+const ROLES_AVEC_HUB = ['agent_hub', 'livreur', 'planner'];
 
 // Même règle que côté serveur (PATCH /api/utilisateurs/[id]) : un rôle
 // supplémentaire ne peut être accordé qu'au sein du même espace applicatif
