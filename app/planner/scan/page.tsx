@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Building2, PackageCheck, ScanLine, Share2, Undo2 } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
-import type { BonDistribution, Commande } from '@/lib/types';
+import type { Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
 
@@ -20,7 +20,19 @@ interface HubOption {
   nom: string;
 }
 
-type Mode = 'reception' | 'retour';
+interface BonResolu {
+  id: string;
+  numero: string;
+  statut: string;
+  hub: { nom: string };
+}
+
+interface Resolution {
+  commande: { id: string; codeSuivi: string; clientNom: string; ville: string; statut: string };
+  action: 'reception' | 'retour' | 'aucune';
+  bon: BonResolu | null;
+  raison?: string;
+}
 
 interface EntreeJournal {
   cle: string;
@@ -30,41 +42,26 @@ interface EntreeJournal {
   commande?: Commande;
 }
 
-const MODES: { cle: Mode; label: string; icone: React.ComponentType<{ className?: string }>; aide: string }[] = [
-  {
-    cle: 'reception',
-    label: 'Réception au hub',
-    icone: PackageCheck,
-    aide: "Colis déposé au quai par un ramasseur ou arrivé en transit : le scan le passe en « Reçu au hub » et le rend éligible à une prochaine tournée.",
-  },
-  {
-    cle: 'retour',
-    label: 'Retour de tournée',
-    icone: Undo2,
-    aide: 'Colis non livré ramené par le livreur : le scan le repasse physiquement au dépôt (« Retourné au hub ») sans écraser le motif terrain.',
-  },
-];
-
 function heureCourante() {
   return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // § /planner/scan — poste de scan du Planner.
 //
-// C'est l'écran qui lui donne la main sur le quai : les deux scans de son
-// métier, au même endroit, avec la caméra du téléphone/de la tablette (ou une
-// douchette via la saisie manuelle intégrée à <QrScanner />).
-//   • Réception au hub  -> POST /api/commandes/scan-reception
-//   • Retour de tournée -> POST /api/bons-distribution/[id]/scan-retour
+// UN SEUL GESTE. Le Planner scanne, le serveur décide quoi faire du colis à
+// partir de son état réel (POST /api/bons-distribution/resoudre-scan), puis la
+// page appelle l'endpoint correspondant :
+//   • colis déposé au quai ("ramasse"/"en_transit")  -> réception au hub
+//   • colis d'une tournée ouverte, non livré          -> retour de tournée
 //
-// Aucune logique métier ici : les deux endpoints existants restent seuls
-// juges (statuts autorisés, idempotence du rejeu, historisation, périmètre du
-// hub). Le mode est explicite plutôt que déduit du statut du colis — au quai,
-// le Planner sait ce qu'il est en train de faire, et un mode figé évite qu'un
-// code mal lu déclenche la mauvaise transition.
+// Une version antérieure de cet écran demandait au Planner de choisir le mode
+// AVANT de scanner. C'était lui demander de deviner l'état d'un colis qu'il a
+// simplement dans la main : scanner un retour de tournée alors que le mode
+// "Réception au hub" était actif renvoyait « seul un colis ramasse ou
+// en_transit peut être réceptionné au hub », sans indiquer le bon geste. Les
+// deux cas étant disjoints par construction, c'est au serveur de trancher.
 export default function PlannerScanPage() {
   const [me, setMe] = useState<MeResponse | null>(null);
-  const [mode, setMode] = useState<Mode>('reception');
   const [journal, setJournal] = useState<EntreeJournal[]>([]);
   const [enCours, setEnCours] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
@@ -74,18 +71,9 @@ export default function PlannerScanPage() {
   const [hubs, setHubs] = useState<HubOption[]>([]);
   const [hubChoisiId, setHubChoisiId] = useState('');
 
-  // Retour : le scan est rattaché à une tournée précise — un colis ne peut
-  // rentrer que dans celle qui l'a emporté (vérifié côté serveur).
-  const [tournees, setTournees] = useState<BonDistribution[]>([]);
-  const [tourneeId, setTourneeId] = useState('');
-
   useEffect(() => {
     apiGet<MeResponse>('/api/auth/me')
       .then(setMe)
-      .catch(() => {});
-
-    apiGet<{ data: BonDistribution[] }>('/api/bons-distribution?statut=en_cours&pageSize=100')
-      .then((res) => setTournees(res.data))
       .catch(() => {});
   }, []);
 
@@ -99,19 +87,10 @@ export default function PlannerScanPage() {
   const besoinHubExplicite = Boolean(me && me.role === 'admin' && !me.hub);
   const hubLibelle = me?.hub?.nom ?? hubs.find((h) => h.id === hubChoisiId)?.nom ?? null;
 
-  const modeCourant = MODES.find((m) => m.cle === mode)!;
-
-  const bloquant = useMemo(() => {
-    if (mode === 'reception' && besoinHubExplicite && !hubChoisiId) {
-      return 'Choisissez le hub de réception avant de scanner.';
-    }
-    if (mode === 'retour' && !tourneeId) {
-      return tournees.length === 0
-        ? "Aucune tournée ouverte : il n'y a pas de retour à enregistrer."
-        : 'Choisissez la tournée que le livreur vient de rentrer.';
-    }
-    return null;
-  }, [mode, besoinHubExplicite, hubChoisiId, tourneeId, tournees.length]);
+  // Seul l'admin sans hub doit choisir : il ne peut pas réceptionner "au nom"
+  // d'un hub que le serveur ne peut pas déduire de son compte.
+  const bloquant =
+    besoinHubExplicite && !hubChoisiId ? 'Choisissez le hub sur lequel vous travaillez avant de scanner.' : null;
 
   function noter(entree: Omit<EntreeJournal, 'cle' | 'heure'>) {
     setJournal((prev) => [{ ...entree, cle: `${prev.length}-${prev[0]?.cle ?? 'init'}`, heure: heureCourante() }, ...prev]);
@@ -128,9 +107,17 @@ export default function PlannerScanPage() {
     if (!code || enCours || bloquant) return;
     setEnCours(true);
     try {
-      if (mode === 'reception') {
+      const corps = corpsDuCode(code);
+      const resolution = await apiPost<Resolution>('/api/bons-distribution/resoudre-scan', corps);
+
+      if (resolution.action === 'aucune') {
+        noter({ ton: 'erreur', texte: `${resolution.commande.codeSuivi} — ${resolution.raison}` });
+        return;
+      }
+
+      if (resolution.action === 'reception') {
         const commande = await apiPost<Commande>('/api/commandes/scan-reception', {
-          ...corpsDuCode(code),
+          ...corps,
           ...(besoinHubExplicite ? { hubId: hubChoisiId } : {}),
         });
         noter({
@@ -138,19 +125,26 @@ export default function PlannerScanPage() {
           texte: `${commande.codeSuivi} — ${commande.clientNom} reçu au hub${hubLibelle ? ` ${hubLibelle}` : ''}.`,
           commande,
         });
-      } else {
-        const res = await apiPost<{ commande: Commande; dejaScanne: boolean }>(
-          `/api/bons-distribution/${tourneeId}/scan-retour`,
-          corpsDuCode(code)
-        );
-        noter({
-          ton: res.dejaScanne ? 'info' : 'ok',
-          texte: res.dejaScanne
-            ? `${res.commande.codeSuivi} déjà enregistré au retour.`
-            : `${res.commande.codeSuivi} — ${res.commande.clientNom} rentré au dépôt.`,
-          commande: res.commande,
-        });
+        return;
       }
+
+      // Retour de tournée : la tournée vient de la résolution, le Planner n'a
+      // pas à la désigner — un colis ne peut rentrer que dans celle qui l'a
+      // emporté, et c'est déjà revérifié côté serveur.
+      const bonId = resolution.bon!.id;
+      const res = await apiPost<{ commande: Commande; dejaScanne: boolean; parDerogation: boolean }>(
+        `/api/bons-distribution/${bonId}/scan-retour`,
+        corps
+      );
+      noter({
+        ton: res.dejaScanne ? 'info' : 'ok',
+        texte: res.dejaScanne
+          ? `${res.commande.codeSuivi} déjà enregistré au retour de la tournée ${resolution.bon!.numero}.`
+          : res.parDerogation
+            ? `${res.commande.codeSuivi} — ${res.commande.clientNom} réintégré par dérogation (non qualifié par le livreur), tournée ${resolution.bon!.numero}.`
+            : `${res.commande.codeSuivi} — ${res.commande.clientNom} rentré au dépôt, tournée ${resolution.bon!.numero}.`,
+        commande: res.commande,
+      });
     } catch (err) {
       noter({ ton: 'erreur', texte: err instanceof Error ? err.message : 'Erreur de scan' });
     } finally {
@@ -179,53 +173,34 @@ export default function PlannerScanPage() {
         </Link>
       </div>
 
-      {/* Choix du geste : réception au quai ou déchargement au retour. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {MODES.map((m) => {
-          const Icone = m.icone;
-          return (
-            <button
-              key={m.cle}
-              type="button"
-              onClick={() => setMode(m.cle)}
-              className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                mode === m.cle
-                  ? 'bg-brand text-brand-ink'
-                  : 'bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20'
-              }`}
-            >
-              <Icone className="h-4 w-4" />
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
-
       <section className="card-tint-strong flex flex-col gap-4 p-5">
-        <p className="text-xs opacity-70">{modeCourant.aide}</p>
+        <div className="flex flex-col gap-2 text-xs">
+          <p className="font-semibold opacity-80">
+            Scannez n&apos;importe quel colis : le geste est déduit de son état, vous n&apos;avez rien à choisir.
+          </p>
+          <ul className="flex flex-col gap-1 opacity-70">
+            <li className="flex items-start gap-1.5">
+              <PackageCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Colis déposé au quai par un ramasseur ou arrivé en transit → <strong>reçu au hub</strong>, il devient
+              éligible à une prochaine tournée.
+            </li>
+            <li className="flex items-start gap-1.5">
+              <Undo2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Colis non livré ramené par le livreur → <strong>retourné au Hub</strong>, sans écraser le motif terrain.
+              Un colis que le livreur n&apos;a pas qualifié est réintégré par dérogation Planner/Admin, et tracé comme
+              tel. Un colis livré est refusé.
+            </li>
+          </ul>
+        </div>
 
-        {mode === 'reception' && besoinHubExplicite && (
+        {besoinHubExplicite && (
           <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-            Hub de réception
+            Hub de travail
             <select className="input-basic" value={hubChoisiId} onChange={(e) => setHubChoisiId(e.target.value)}>
               <option value="">Sélectionner un hub</option>
               {hubs.map((h) => (
                 <option key={h.id} value={h.id}>
                   {h.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-
-        {mode === 'retour' && (
-          <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-            Tournée rentrée
-            <select className="input-basic" value={tourneeId} onChange={(e) => setTourneeId(e.target.value)}>
-              <option value="">Sélectionner une tournée ouverte</option>
-              {tournees.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.numero} — {t.livreur?.nomComplet ?? '—'} ({t.nbColis} colis)
                 </option>
               ))}
             </select>
@@ -249,15 +224,6 @@ export default function PlannerScanPage() {
                 active — inutile de dupliquer un second champ ici. */}
             <QrScanner active={cameraActive} disabled={enCours} onScan={(raw) => scanner(raw)} />
           </>
-        )}
-
-        {mode === 'retour' && tourneeId && (
-          <Link
-            href={`/planner/bons-distribution/${tourneeId}/cloture`}
-            className="text-xs font-semibold hover:underline"
-          >
-            Passer à la clôture de cette tournée (caisse & gains) →
-          </Link>
         )}
       </section>
 
@@ -285,7 +251,7 @@ export default function PlannerScanPage() {
               >
                 <span className="font-mono text-xs opacity-60">{e.heure}</span>
                 <span className="flex-1 font-medium">{e.texte}</span>
-                {e.commande && <StatutBadge statut={e.commande.statut} />}
+                {e.commande && <StatutBadge statut={e.commande.statut} hubVille={e.commande.hubActuel?.ville} />}
               </li>
             ))}
           </ul>

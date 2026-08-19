@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiPost } from '@/lib/api-client';
+import { ApiRequestError, apiPost } from '@/lib/api-client';
 import { Logo } from '@/components/Logo';
 
 interface LoginResponse {
@@ -11,6 +11,10 @@ interface LoginResponse {
   role: string;
 }
 
+// Toujours un chemin de l'hôte courant : chaque espace a son propre domaine,
+// et l'API refuse d'ouvrir une session pour un rôle qui n'appartient pas à
+// l'espace de cet hôte. Une connexion réussie ici atterrit donc forcément sur
+// une page du même domaine.
 function destinationForRole(role: string) {
   if (role === 'marchand') return '/marchand';
   if (role === 'ramasseur') return '/ramasseur';
@@ -19,6 +23,16 @@ function destinationForRole(role: string) {
   if (role === 'planner') return '/planner';
   if (role === 'agent_hub') return '/admin/scan/reception';
   return '/admin/commandes';
+}
+
+// L'API renvoie une URL absolue quand des identifiants valides sont saisis sur
+// le mauvais sous-domaine MÉTIER (ex. un livreur sur le portail marchand) —
+// jamais vers le back-office, dont l'existence n'est pas divulguée depuis le
+// domaine métier. Voir POST /api/auth/login.
+function redirectionEspace(err: unknown): string | null {
+  if (!(err instanceof ApiRequestError)) return null;
+  const details = err.details as { redirectTo?: unknown } | null;
+  return typeof details?.redirectTo === 'string' ? details.redirectTo : null;
 }
 
 export default function LoginPage() {
@@ -36,6 +50,12 @@ export default function LoginPage() {
       const user = await apiPost<LoginResponse>('/api/auth/login', { telephone, secret });
       router.push(destinationForRole(user.role));
     } catch (err) {
+      const ailleurs = redirectionEspace(err);
+      if (ailleurs) {
+        // Changement de domaine : hors du périmètre du routeur Next.
+        window.location.href = ailleurs;
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Erreur de connexion');
     } finally {
       setLoading(false);

@@ -4,16 +4,21 @@ import { getPageSession, roleMatches, ROLES_PLANIFICATION } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { PlannerShell } from '@/components/planner/PlannerShell';
 
-// § Web app Planner (/planner) : espace applicatif dédié au rôle `planner`,
-// hors du back-office. Le proxy (proxy.ts) protège déjà /planner/:path* ; ce
-// layout revérifie indépendamment — défense en profondeur, cohérente avec
+// § Web app Planner (/planner) : espace applicatif à part entière depuis la
+// séparation par domaines — son propre sous-domaine du domaine métier, son
+// propre cookie, son propre claim `aud`. Le proxy (proxy.ts) protège déjà
+// /planner/:path* et refuse ces pages sur tout autre hôte ; ce layout
+// revérifie indépendamment — défense en profondeur, cohérente avec
 // app/admin/layout.tsx et app/livreur/layout.tsx.
 //
 // L'admin y a accès lui aussi (il travaille sur tous les hubs et doit pouvoir
-// dépanner depuis l'écran terrain), le module restant par ailleurs disponible
-// dans le back-office sous /admin/bon-distribution.
+// dépanner depuis l'écran terrain), mais par transfert de session depuis le
+// back-office (POST /api/session-handoff/planner) et non par mot de passe :
+// ses identifiants ne transitent jamais par le domaine métier. Le module
+// reste par ailleurs disponible dans le back-office sous
+// /admin/bon-distribution.
 export default async function PlannerLayout({ children }: { children: React.ReactNode }) {
-  const session = await getPageSession('admin');
+  const session = await getPageSession('planner');
   if (!session || !roleMatches(session, ROLES_PLANIFICATION)) {
     redirect('/login');
   }

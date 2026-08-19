@@ -59,9 +59,12 @@ export default function AdminMarchandsPage() {
     // (le lien avec le geste utilisateur est perdu après un appel async).
     const onglet = window.open('', '_blank');
     try {
-      await apiPost(`/api/marchands/${id}/impersonation`);
+      // L'espace marchand vit sur un autre domaine racine : le back-office ne
+      // peut pas y poser de cookie. L'API renvoie une URL de transfert à usage
+      // unique (60 s) que l'onglet cible échange contre une vraie session.
+      const { url } = await apiPost<{ url: string }>(`/api/marchands/${id}/impersonation`);
       if (onglet) {
-        onglet.location.href = '/marchand';
+        onglet.location.href = url;
       } else {
         setError("Le navigateur a bloqué l'ouverture du nouvel onglet. Autorisez les popups pour ce site puis réessayez.");
       }

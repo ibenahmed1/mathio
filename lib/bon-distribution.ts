@@ -243,6 +243,19 @@ export function estColisARecuperer(statut: StatutCommande): boolean {
   return statut !== 'livre' && statut !== 'retourne_au_hub';
 }
 
+// § Dérogation de réintégration directe (POST .../scan-retour) : un colis
+// encore "mise_en_distribution" au retour du camion est un colis que le
+// livreur n'a PAS qualifié sur son application (oubli, panne, batterie) alors
+// qu'il est physiquement au quai. Le scanner revient donc à trancher à sa
+// place — d'où une autorisation plus étroite que le simple "non livré", et
+// une trace d'audit distincte dans l'historique du colis. La liste est
+// identique à celle du module aujourd'hui, mais elle est vérifiée
+// explicitement au moment du scan plutôt que déduite du garde d'entrée de la
+// route : si le module venait à s'ouvrir à un rôle de plus (agent de quai,
+// superviseur...), ce rôle hériterait sinon de la dérogation sans que
+// personne ne l'ait décidé.
+export const ROLES_DEROGATION_REINTEGRATION: Role[] = ['admin', 'planner'];
+
 const colisTourneeSelect = {
   id: true,
   codeSuivi: true,
@@ -257,6 +270,12 @@ const colisTourneeSelect = {
   dateNouvelleLivraison: true,
   dateLivraison: true,
   marchand: { select: { nomBoutique: true } },
+  // Le libellé du statut "retourne_au_hub" porte la ville du hub où le colis
+  // est physiquement rentré — « Retourné au Hub (Casablanca) » et non un
+  // "Retourné au Hub" hors-sol (cf. STATUTS_SUFFIXES_HUB dans
+  // components/StatutBadge.tsx). Le scan de retour pose hubActuelId sur le hub
+  // de la tournée, c'est donc bien lui la source.
+  hubActuel: { select: { ville: true } },
 } satisfies Prisma.CommandeSelect;
 
 export type ColisTournee = Prisma.CommandeGetPayload<{ select: typeof colisTourneeSelect }>;

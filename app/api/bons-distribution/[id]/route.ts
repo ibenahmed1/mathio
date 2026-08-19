@@ -8,7 +8,12 @@ const bonDistributionInclude = {
   hub: { select: { nom: true, ville: true } },
   planner: { select: { nomComplet: true } },
   cloturePar: { select: { nomComplet: true } },
-  commandes: { include: { marchand: { select: { nomBoutique: true } } }, orderBy: { codeSuivi: 'asc' as const } },
+  commandes: {
+    // hubActuel : ville portée par le libellé du statut « Retourné au Hub
+    // (Casablanca) » une fois le colis rentré (cf. StatutBadge).
+    include: { marchand: { select: { nomBoutique: true } }, hubActuel: { select: { ville: true } } },
+    orderBy: { codeSuivi: 'asc' as const },
+  },
 };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -3,11 +3,15 @@ import { prisma } from '@/lib/prisma';
 import {
   signSession,
   verifySecret,
-  getSessionCookieName,
-  getSessionSpace,
+  getHomeSpace,
   normalizePhoneMaroc,
-  LEGACY_SESSION_COOKIE_NAME,
+  spaceForHost,
+  spaceOrigin,
+  LEGACY_SESSION_COOKIE_NAMES,
+  SESSION_COOKIE_NAMES,
   SESSION_MAX_AGE_SECONDS,
+  SPACE_HOSTS,
+  SPACE_LOGIN_ROLES,
 } from '@/lib/auth';
 import { jsonError } from '@/lib/api-utils';
 import { checkRateLimit, getClientIp, rateLimitedResponse } from '@/lib/rate-limit';
@@ -22,8 +26,22 @@ const LOGIN_RATE_LIMIT = { max: 5, windowMs: 60_000 };
 
 export async function POST(request: Request) {
   try {
+    // L'hôte détermine l'espace dans lequel cette connexion ouvre une session.
+    // Le proxy a déjà rejeté les hôtes inconnus ; on revérifie pour que la
+    // route reste sûre indépendamment de la config de routage.
+    const space = spaceForHost(request.headers.get('host'));
+    if (!space) {
+      return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
+    }
+
     const ip = getClientIp(request) ?? 'unknown';
-    const rateLimit = await checkRateLimit(`login:${ip}`, LOGIN_RATE_LIMIT.max, LOGIN_RATE_LIMIT.windowMs);
+    // Quota par espace ET par IP : un bruteforce sur le portail marchand ne
+    // doit pas consommer (ni masquer) le quota du back-office, et inversement.
+    const rateLimit = await checkRateLimit(
+      `login:${space}:${ip}`,
+      LOGIN_RATE_LIMIT.max,
+      LOGIN_RATE_LIMIT.windowMs
+    );
     if (!rateLimit.allowed) {
       return rateLimitedResponse(rateLimit.retryAfterSeconds);
     }
@@ -64,12 +82,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
     }
 
+    // Le rôle a-t-il le droit d'ouvrir une session PAR MOT DE PASSE sur cet
+    // hôte ? (cf. SPACE_LOGIN_ROLES). Deux cas distincts :
+    //
+    //  - le compte relève du back-office : on renvoie l'échec générique, sans
+    //    jamais confirmer depuis un hôte métier qu'un domaine ops existe, ni
+    //    que ces identifiants y sont valables ;
+    //  - le compte relève d'un autre espace métier : l'utilisateur est déjà
+    //    authentifié avec succès, l'orienter vers le bon sous-domaine ne lui
+    //    apprend donc rien qu'il ne sache — et sans ça il resterait bloqué.
+    if (!SPACE_LOGIN_ROLES[space].includes(user.role)) {
+      const home = getHomeSpace(user.role);
+      if (home === 'admin' || space === 'admin') {
+        return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
+      }
+      return NextResponse.json(
+        {
+          error: `Ce compte s'utilise sur ${SPACE_HOSTS[home]}`,
+          redirectTo: `${spaceOrigin(home)}/login`,
+        },
+        { status: 403 }
+      );
+    }
+
     await prisma.utilisateur.update({
       where: { id: user.id },
       data: { derniereConnexion: new Date() },
     });
 
-    const token = await signSession({ sub: user.id, role: user.role });
+    const token = await signSession({
+      sub: user.id,
+      role: user.role,
+      space,
+      impersonated: false,
+    });
 
     const response = NextResponse.json({
       id: user.id,
@@ -77,24 +123,26 @@ export async function POST(request: Request) {
       role: user.role,
     });
 
-    // Un cookie distinct par espace applicatif (admin/marchand/terrain) :
-    // deux sessions de rôles différents peuvent coexister dans le même
-    // navigateur (ex. deux onglets) sans que l'une n'écrase l'autre.
-    // L'espace back-office (admin/superviseur/moderateur/equipe_suivi/responsable) est le seul
-    // à justifier `sameSite: 'strict'` : il n'a jamais besoin d'être atteint
-    // depuis un lien externe (email/SMS), contrairement au marchand ou au
-    // terrain, donc on retire toute exposition CSRF résiduelle pour lui.
-    const space = getSessionSpace(user.role);
-    response.cookies.set(getSessionCookieName(user.role), token, {
+    // Un cookie par espace, et chaque espace ayant son propre hôte, le cookie
+    // est de fait lié à cet hôte (préfixe `__Host-` en production, cf.
+    // lib/auth.ts). Le back-office, seul sur son domaine racine, est le seul à
+    // justifier `sameSite: 'strict'` : il n'a jamais besoin d'être atteint
+    // depuis un lien externe (email/SMS), contrairement au marchand, au
+    // Planner ou au terrain — et comme le domaine métier lui est désormais
+    // cross-site, ce 'strict' est ce qui empêche structurellement une page du
+    // domaine métier d'émettre une requête authentifiée vers lui.
+    response.cookies.set(SESSION_COOKIE_NAMES[space], token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: space === 'admin' ? 'strict' : 'lax',
       path: '/',
       maxAge: SESSION_MAX_AGE_SECONDS,
     });
-    // Nettoyage de l'ancien cookie unique (avant l'isolation par espace) pour
-    // qu'il ne traîne pas indéfiniment chez les clients déjà connectés.
-    response.cookies.delete(LEGACY_SESSION_COOKIE_NAME);
+    // Nettoyage des cookies d'avant la séparation par domaines, pour qu'ils ne
+    // traînent pas indéfiniment chez les clients déjà connectés.
+    for (const nom of LEGACY_SESSION_COOKIE_NAMES) {
+      response.cookies.delete(nom);
+    }
     return response;
   } catch (error) {
     return jsonError(error);

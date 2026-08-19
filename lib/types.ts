@@ -309,6 +309,10 @@ export interface ColisTournee {
   dateNouvelleLivraison: string | null;
   dateLivraison: string | null;
   marchand?: { nomBoutique: string };
+  // Ville du hub où le colis se trouve physiquement — sert à afficher
+  // « Retourné au Hub (Casablanca) » plutôt qu'un « Retourné au Hub » sans
+  // lieu (cf. StatutBadge).
+  hubActuel?: { ville: string } | null;
 }
 
 export interface BilanTournee {

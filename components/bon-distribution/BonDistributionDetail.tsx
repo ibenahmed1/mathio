@@ -148,7 +148,7 @@ export function BonDistributionDetail({ basePath }: { basePath: string }) {
                 <td>{c.ville}</td>
                 <td className="whitespace-nowrap">{c.montantCod} MAD</td>
                 <td>
-                  <StatutBadge statut={c.statut} />
+                  <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
                 </td>
               </tr>
             ))}

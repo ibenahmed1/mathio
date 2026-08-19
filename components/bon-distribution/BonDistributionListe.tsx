@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Lock, Plus, Settings, Share2, Truck } from 'lucide-react';
-import { apiGet } from '@/lib/api-client';
+import { ExternalLink, Lock, Plus, Settings, Share2, Truck } from 'lucide-react';
+import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonDistribution } from '@/lib/types';
 import { LABELS_STATUT_BON_DISTRIBUTION, STYLE_STATUT_BON_DISTRIBUTION } from '@/lib/statuts';
 
@@ -26,6 +26,30 @@ export function BonDistributionListe({ basePath }: { basePath: string }) {
   const [role, setRole] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Ouvre la web app Planner (autre domaine racine) pour un admin. Le
+  // formulaire de connexion du Planner refuse volontairement le rôle `admin`
+  // — ses identifiants ne doivent jamais être saisis sur le domaine métier —
+  // donc l'accès passe par un jeton de transfert à usage unique.
+  //
+  // L'onglet est ouvert AVANT le await, dans le gestionnaire de clic : après
+  // un appel async les navigateurs ne rattachent plus l'ouverture au geste
+  // utilisateur et bloquent silencieusement le popup.
+  async function ouvrirWebAppPlanner() {
+    setError(null);
+    const onglet = window.open('', '_blank');
+    try {
+      const { url } = await apiPost<{ url: string }>('/api/session-handoff/planner');
+      if (onglet) {
+        onglet.location.href = url;
+      } else {
+        setError("Le navigateur a bloqué l'ouverture du nouvel onglet. Autorisez les popups puis réessayez.");
+      }
+    } catch (err) {
+      onglet?.close();
+      setError(err instanceof Error ? err.message : 'Erreur');
+    }
+  }
+
   useEffect(() => {
     apiGet<{ role: string }>('/api/auth/me')
       .then((u) => setRole(u.role))
@@ -47,13 +71,26 @@ export function BonDistributionListe({ basePath }: { basePath: string }) {
           Bons de distribution
         </h1>
         <div className="flex items-center gap-2">
-          {/* Le référentiel des hubs reste une page admin : un planner y serait
-              redirigé par le proxy, autant ne pas lui proposer le lien. */}
-          {role === 'admin' && (
-            <Link href="/admin/hubs" className="btn-outline flex items-center gap-1.5">
-              <Settings className="h-4 w-4" />
-              Gérer les hubs
-            </Link>
+          {/* Le référentiel des hubs reste une page du back-office, servie sur
+              un autre domaine racine : depuis la web app Planner le lien
+              donnerait un 404 (le proxy refuse /admin/** sur cet hôte), y
+              compris pour un admin arrivé par transfert de session. On le
+              réserve donc à l'instance servie dans le back-office. */}
+          {role === 'admin' && basePath.startsWith('/admin') && (
+            <>
+              <Link href="/admin/hubs" className="btn-outline flex items-center gap-1.5">
+                <Settings className="h-4 w-4" />
+                Gérer les hubs
+              </Link>
+              <button
+                type="button"
+                onClick={ouvrirWebAppPlanner}
+                className="btn-outline flex items-center gap-1.5"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Web app Planner
+              </button>
+            </>
           )}
           <Link href={`${basePath}/creer`} className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" />
