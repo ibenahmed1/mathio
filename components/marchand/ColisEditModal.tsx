@@ -52,8 +52,6 @@ export function ColisEditModal({
       .catch(() => {});
   }, []);
 
-  const marchandiseSelectionnee = marchandises.find((m) => m.id === form.marchandiseId);
-
   async function handleSave() {
     setBusy(true);
     setError(null);

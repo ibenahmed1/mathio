@@ -30,7 +30,7 @@ export default function InventairePage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   const filtres = useMemo(() => {

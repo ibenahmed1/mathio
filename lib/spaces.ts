@@ -57,6 +57,22 @@ export const SPACE_HOSTS: Record<SessionSpace, string> = {
   terrain: SPACE_HOSTS_ENV.terrain ?? SPACE_HOSTS_DEV.terrain,
 };
 
+// Hôtes ACCEPTÉS pour chaque espace — la table ci-dessus n'en donne que le
+// représentant CANONIQUE. En production il n'y en a qu'un, celui configuré.
+// Hors production, l'hôte `.localhost` reste accepté en plus de la surcharge
+// d'environnement : sans ça, brancher un espace sur un tunnel pour le tester
+// au téléphone le rendrait injoignable depuis le PC, et il faudrait rebasculer
+// la configuration (donc rebuilder) à chaque aller-retour. Les quatre espaces
+// restent ainsi testables en local en permanence, tunnel branché ou non.
+const SPACE_HOSTS_ACCEPTES: Record<SessionSpace, string[]> = Object.fromEntries(
+  SESSION_SPACES.map((s) => [
+    s,
+    process.env.NODE_ENV === 'production'
+      ? [SPACE_HOSTS[s]]
+      : [...new Set([SPACE_HOSTS[s], SPACE_HOSTS_DEV[s]])],
+  ])
+) as Record<SessionSpace, string[]>;
+
 // En production, un hôte non configuré ferait tomber tous les espaces sur les
 // valeurs `.localhost` : plus aucune requête réelle ne matcherait et l'app
 // répondrait 404 partout. On échoue explicitement au premier passage dans le
@@ -81,15 +97,51 @@ export function assertSpaceHostsConfigured(): void {
 export function spaceForHost(host: string | null | undefined): SessionSpace | null {
   if (!host) return null;
   const normalise = host.trim().toLowerCase();
-  return SESSION_SPACES.find((s) => SPACE_HOSTS[s].toLowerCase() === normalise) ?? null;
+  return (
+    SESSION_SPACES.find((s) =>
+      SPACE_HOSTS_ACCEPTES[s].some((h) => h.toLowerCase() === normalise)
+    ) ?? null
+  );
+}
+
+// Hôtes joignables en clair. Hors production, tout ce qui n'est pas la boucle
+// locale ou une IP privée est joint en `https` : cas typique, un tunnel (ngrok)
+// pointé sur le dev server pour tester depuis un vrai téléphone, la caméra
+// exigeant un contexte sécurisé. Sans cette distinction, spaceOrigin annoncerait
+// `http://` là où le navigateur pose `https://`, et le contrôle d'`Origin`
+// (proxy.ts §2) refuserait tout POST — login compris.
+function estHoteEnClair(host: string): boolean {
+  const nom = host.split(':')[0].toLowerCase();
+  if (nom === 'localhost' || nom.endsWith('.localhost')) return true;
+  if (nom.startsWith('127.') || nom.startsWith('10.') || nom.startsWith('192.168.')) return true;
+  const [a, b] = nom.split('.').map(Number);
+  return a === 172 && b >= 16 && b <= 31;
 }
 
 // Origine complète d'un espace : sert à la fois au contrôle d'`Origin`
 // anti-CSRF (proxy.ts) et à la construction des rares liens inter-espaces,
 // qui doivent désormais être absolus puisqu'ils changent de domaine.
+function protocolePour(host: string): 'http' | 'https' {
+  return process.env.NODE_ENV === 'production' || !estHoteEnClair(host) ? 'https' : 'http';
+}
+
+// Origine CANONIQUE d'un espace : réservée aux liens INTER-espaces (retour
+// back-office depuis le portail marchand, transfert de session, redirection
+// d'un compte saisi sur le mauvais domaine). Pour rester sur l'hôte que le
+// visiteur a réellement tapé, utiliser originForHost ci-dessous.
 export function spaceOrigin(space: SessionSpace): string {
-  const protocole = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-  return `${protocole}://${SPACE_HOSTS[space]}`;
+  const host = SPACE_HOSTS[space];
+  return `${protocolePour(host)}://${host}`;
+}
+
+// Origine de l'hôte effectivement servi. Toute redirection INTERNE à un espace
+// doit être bâtie dessus : depuis que plusieurs hôtes mènent au même espace en
+// développement, viser l'hôte canonique enverrait le téléphone connecté par le
+// tunnel vers un `.localhost` qu'il ne sait pas résoudre. À n'appeler qu'avec
+// un hôte déjà validé par spaceForHost.
+export function originForHost(host: string): string {
+  const nom = host.trim().toLowerCase();
+  return `${protocolePour(nom)}://${nom}`;
 }
 
 // Préfixe `__Host-` en production : le navigateur REFUSE un cookie ainsi

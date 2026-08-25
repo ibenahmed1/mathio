@@ -41,7 +41,7 @@ export default function AdminStockInventairePage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   const filtres = useMemo(() => {

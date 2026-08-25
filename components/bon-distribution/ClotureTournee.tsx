@@ -142,16 +142,18 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
   }, [params.id]);
 
   useEffect(() => {
-    rafraichir();
+    Promise.resolve().then(() => rafraichir());
   }, [rafraichir]);
 
   // Pré-remplit le champ caisse avec le montant attendu : le Planner corrige
   // s'il compte autre chose, mais le cas nominal (montant exact) reste un
   // simple clic.
   useEffect(() => {
-    if (bilan && montantRemis === '') {
-      setMontantRemis(bilan.montantCrbtAttendu.toFixed(2));
-    }
+    queueMicrotask(() => {
+      if (bilan && montantRemis === '') {
+        setMontantRemis(bilan.montantCrbtAttendu.toFixed(2));
+      }
+    });
   }, [bilan, montantRemis]);
 
   async function scannerRetour(raw: string) {

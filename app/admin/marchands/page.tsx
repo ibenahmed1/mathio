@@ -23,7 +23,7 @@ export default function AdminMarchandsPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function changerStatut(id: string, statut: string) {

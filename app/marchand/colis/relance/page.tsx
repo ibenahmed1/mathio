@@ -31,7 +31,7 @@ export default function ColisARelancerPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function relancer(id: string) {

@@ -11,8 +11,8 @@ import {
   USER_ROLE_HEADER,
   assertSpaceHostsConfigured,
   roleMatches,
+  originForHost,
   spaceForHost,
-  spaceOrigin,
   verifySpaceCookie,
   type SessionPayload,
   type SessionSpace,
@@ -119,10 +119,18 @@ export async function proxy(request: NextRequest) {
   // Première décision de toute requête, avant même de regarder les cookies :
   // un hôte inconnu (accès direct par IP, ancien domaine encore pointé,
   // sondage automatisé sur un vhost non prévu) n'obtient rien du tout.
-  const space = spaceForHost(request.headers.get('host'));
+  const hote = request.headers.get('host');
+  const space = spaceForHost(hote);
   if (!space) {
     return new NextResponse(null, { status: 404 });
   }
+
+  // Origine de l'hôte servi, et non celle de l'hôte canonique de l'espace :
+  // en développement plusieurs hôtes mènent au même espace (le `.localhost`
+  // et, le cas échéant, un tunnel), et une redirection doit laisser le
+  // visiteur sur celui qu'il a réellement ouvert. En production, où chaque
+  // espace n'a qu'un hôte, les deux coïncident.
+  const origine = originForHost(hote as string);
 
   // --- 2. Contrôle d'origine (CSRF) ----------------------------------------
   // Les quatre espaces ne partagent plus d'origine, mais les trois
@@ -134,7 +142,7 @@ export async function proxy(request: NextRequest) {
   // donc une requête "simple" (sans préflight CORS) passerait autrement.
   if (!METHODES_SURES.has(request.method)) {
     const origin = request.headers.get('origin');
-    if (origin !== spaceOrigin(space)) {
+    if (origin !== origine) {
       return NextResponse.json({ error: 'Origine non autorisée' }, { status: 403 });
     }
   }
@@ -151,7 +159,12 @@ export async function proxy(request: NextRequest) {
 
     const session = await verifySpaceCookie(request.cookies, space);
     if (!session || !roleMatches(session, guard.allowedRoles)) {
-      return NextResponse.redirect(new URL('/login', request.url));
+      // `origine` et NON `request.url` comme base : dans Next.js, `request.url`
+      // porte l'adresse interne du serveur (localhost:PORT), pas le `Host` de la
+      // requête. Bâtir la redirection dessus renverrait l'utilisateur sur un
+      // hôte qui n'appartient à aucun espace — donc un 404 — au lieu du /login
+      // de son propre domaine.
+      return NextResponse.redirect(new URL('/login', origine));
     }
 
     // Confinement des rôles Kanban-only : même avec une session admin valide,
@@ -164,7 +177,7 @@ export async function proxy(request: NextRequest) {
       pathname !== PREFIXE_KANBAN &&
       !pathname.startsWith(`${PREFIXE_KANBAN}/`)
     ) {
-      return NextResponse.redirect(new URL(PREFIXE_KANBAN, request.url));
+      return NextResponse.redirect(new URL(PREFIXE_KANBAN, origine));
     }
     // Confinement de l'Agent Hub (§ /admin/scan/reception, /admin/bon-envoi
     // hors création) : même mécanique que le confinement Kanban ci-dessus,
@@ -175,7 +188,7 @@ export async function proxy(request: NextRequest) {
       !roleMatches(session, ROLES_BACKOFFICE) &&
       !estAccessibleAgentHub(pathname)
     ) {
-      return NextResponse.redirect(new URL(PREFIXE_SCAN_RECEPTION_HUB, request.url));
+      return NextResponse.redirect(new URL(PREFIXE_SCAN_RECEPTION_HUB, origine));
     }
 
     return withUserHeaders(request, session);

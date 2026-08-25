@@ -1,12 +1,7 @@
-import { MapPin } from 'lucide-react';
-import { ComingSoon } from '@/components/ComingSoon';
+import { BonPaiementBoard } from '@/components/BonPaiementBoard';
 
+// Entrée « par zone » : le hub est choisi d'abord et filtre la liste des
+// livreurs. Le bon produit reste nominatif — cf. BonPaiementBoard.
 export default function BonPaiementZonePage() {
-  return (
-    <ComingSoon
-      icon={MapPin}
-      title="Bon de paiement — Pour zone"
-      description="Le règlement par zone sera disponible prochainement."
-    />
-  );
+  return <BonPaiementBoard parZone />;
 }

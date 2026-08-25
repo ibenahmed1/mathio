@@ -48,8 +48,7 @@ function SuiviColisContent() {
   // recherche automatiquement.
   useEffect(() => {
     const codeUrl = searchParams.get('code');
-    if (codeUrl) rechercher(codeUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (codeUrl) Promise.resolve().then(() => rechercher(codeUrl));
   }, [searchParams]);
 
   function handleSearch(e: React.FormEvent) {

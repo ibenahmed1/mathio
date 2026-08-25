@@ -32,6 +32,10 @@ export function TaskCard({
   peutDeplacer?: boolean;
 }) {
   const echeance = tache.dateEcheance ? new Date(tache.dateEcheance) : null;
+  // `Date.now()` est lu pendant le rendu à dessein : le badge « en retard » doit
+  // refléter l'heure du rendu courant. Le déporter dans un effet retarderait son
+  // apparition d'un cycle de rendu.
+  // eslint-disable-next-line react-hooks/purity
   const enRetard = !!echeance && tache.statut !== 'termine' && echeance.getTime() < Date.now();
   const hasProgress = tache.progress > 0 && tache.statut !== 'termine';
 

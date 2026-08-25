@@ -33,7 +33,7 @@ export function TaskFormModal({
   const [membresEquipe, setMembresEquipe] = useState<MembreTache[]>(membres);
   useEffect(() => {
     if (!teamId) {
-      setMembresEquipe(membres);
+      queueMicrotask(() => setMembresEquipe(membres));
       return;
     }
     let annule = false;
@@ -51,7 +51,9 @@ export function TaskFormModal({
   }, [teamId]);
 
   useEffect(() => {
-    if (assigneeId && !membresEquipe.some((m) => m.id === assigneeId)) setAssigneeId('');
+    queueMicrotask(() => {
+      if (assigneeId && !membresEquipe.some((m) => m.id === assigneeId)) setAssigneeId('');
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [membresEquipe]);
 

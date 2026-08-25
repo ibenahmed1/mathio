@@ -111,32 +111,34 @@ export default function AdminImportColisPage() {
   }, []);
 
   useEffect(() => {
-    chargerMarchands().catch(() => {});
+    Promise.resolve().then(() => chargerMarchands()).catch(() => {});
   }, [chargerMarchands]);
 
   // Restauration de l'état sauvegardé (retour depuis /inscription via returnTo).
   useEffect(() => {
-    try {
-      const brut = sessionStorage.getItem(CLE_STOCKAGE);
-      if (brut) {
-        const sauvegarde = JSON.parse(brut) as {
-          type: TypeImport;
-          lignes: LigneAvecId[];
-          fileName: string;
-          corrections: Record<number, string>;
-        };
-        if (Array.isArray(sauvegarde.lignes) && sauvegarde.lignes.length > 0) {
-          setType(sauvegarde.type ?? 'normal');
-          setLignes(sauvegarde.lignes);
-          setFileName(sauvegarde.fileName ?? '');
-          setCorrections(sauvegarde.corrections ?? {});
+    queueMicrotask(() => {
+      try {
+        const brut = sessionStorage.getItem(CLE_STOCKAGE);
+        if (brut) {
+          const sauvegarde = JSON.parse(brut) as {
+            type: TypeImport;
+            lignes: LigneAvecId[];
+            fileName: string;
+            corrections: Record<number, string>;
+          };
+          if (Array.isArray(sauvegarde.lignes) && sauvegarde.lignes.length > 0) {
+            setType(sauvegarde.type ?? 'normal');
+            setLignes(sauvegarde.lignes);
+            setFileName(sauvegarde.fileName ?? '');
+            setCorrections(sauvegarde.corrections ?? {});
+          }
         }
+      } catch {
+        // ignore un état corrompu
+      } finally {
+        setEtatRestaure(true);
       }
-    } catch {
-      // ignore un état corrompu
-    } finally {
-      setEtatRestaure(true);
-    }
+    });
   }, []);
 
   // Sauvegarde continue de l'état une fois la restauration initiale faite,
@@ -187,22 +189,24 @@ export default function AdminImportColisPage() {
   }, [lignes, type, marchands]);
 
   useEffect(() => {
-    const manquants = marchandIdsStock.filter((id) => !(id in produitsParMarchand));
-    if (manquants.length === 0) return;
-    setChargementRefs(true);
-    Promise.all(
-      manquants.map((id) =>
-        apiGet<{ data: Produit[] }>(`/api/produits?marchandId=${id}`)
-          .then((res) => [id, res.data] as const)
-          .catch(() => [id, [] as Produit[]] as const)
-      )
-    ).then((paires) => {
-      setProduitsParMarchand((prev) => {
-        const next = { ...prev };
-        for (const [id, produits] of paires) next[id] = produits;
-        return next;
+    queueMicrotask(() => {
+      const manquants = marchandIdsStock.filter((id) => !(id in produitsParMarchand));
+      if (manquants.length === 0) return;
+      setChargementRefs(true);
+      Promise.all(
+        manquants.map((id) =>
+          apiGet<{ data: Produit[] }>(`/api/produits?marchandId=${id}`)
+            .then((res) => [id, res.data] as const)
+            .catch(() => [id, [] as Produit[]] as const)
+        )
+      ).then((paires) => {
+        setProduitsParMarchand((prev) => {
+          const next = { ...prev };
+          for (const [id, produits] of paires) next[id] = produits;
+          return next;
+        });
+        setChargementRefs(false);
       });
-      setChargementRefs(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marchandIdsStock]);
@@ -240,6 +244,7 @@ export default function AdminImportColisPage() {
 
       return { ligne, index, marchandId, refEffective, refInvalide, erreurs };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resoudreMarchandId ne lit que indexMarchands, déjà listé
   }, [lignes, corrections, type, produitsParMarchand, indexMarchands]);
 
   const nbErreurs = etats.filter((e) => e.erreurs.length > 0).length;

@@ -185,6 +185,10 @@ export interface Marchand {
   ramassageRecurrentActif: boolean;
   ramassageJours: string | null;
   ramassageCreneauHoraire: string | null;
+  // § Facturation marchand : frais appliqués à toute ville sans ligne dans
+  // TarifMarchandVille. `null` = aucun frais par défaut, distinct de "0".
+  fraisLivraison?: string | null;
+  fraisRetour?: string | null;
   dateCreation: string;
   utilisateur?: {
     id?: string;
@@ -534,4 +538,397 @@ export interface Reclamation {
   marchand?: { nomBoutique: string };
   commande?: { id: string; codeSuivi: string } | null;
   utilisateur?: { nomComplet: string };
+}
+
+// ============================================================
+// Facturation marchand (§ /admin/factures)
+// ============================================================
+
+// Les montants transitent en string : ce sont des Decimal côté Prisma,
+// sérialisés tels quels par NextResponse.json — même convention que le bloc
+// de reddition de BonDistribution ci-dessus.
+export interface LigneFacture {
+  id: string;
+  commandeId: string;
+  livre: boolean;
+  montantCod: string;
+  frais: string;
+  commande?: {
+    id: string;
+    codeSuivi: string;
+    clientNom: string;
+    clientTelephone?: string;
+    ville: string;
+    statut: StatutCommande;
+    dateLivraison: string | null;
+  };
+}
+
+// Frais annexe saisi à la main sur une facture en brouillon (emballage,
+// réexpédition…). Le montant est toujours positif et se RETRANCHE du net.
+export interface FraisFacture {
+  id: string;
+  libelle: string;
+  montant: string;
+  dateCreation: string;
+  creePar?: { nomComplet: string };
+}
+
+export type ModeReglementMarchand = 'virement' | 'especes' | 'cheque';
+
+export interface Facture {
+  id: string;
+  numero: string;
+  marchandId: string;
+  statut: 'brouillon' | 'emise' | 'payee' | 'annulee';
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  totalCod: string;
+  totalFraisLivraison: string;
+  totalFraisRetour: string;
+  totalAutresFrais: string;
+  netAPayer: string;
+  // dateEmission = création du document (brouillon compris) ;
+  // dateValidation = passage brouillon → émise, quand les montants ont été figés.
+  dateEmission: string;
+  dateValidation: string | null;
+  datePaiement: string | null;
+  dateAnnulation: string | null;
+  motifAnnulation: string | null;
+  modeReglement: ModeReglementMarchand | null;
+  referenceReglement: string | null;
+  marchand?: {
+    id: string;
+    nomBoutique: string;
+    raisonSociale?: string | null;
+    iceRc?: string | null;
+    ville?: string | null;
+    adresse?: string | null;
+    rib?: string | null;
+    utilisateur?: { nomComplet: string; telephone: string | null; email: string | null };
+  };
+  emisePar?: { nomComplet: string };
+  validePar?: { nomComplet: string } | null;
+  transaction?: { id: string; dateEffet: string; montant: string } | null;
+  lignes?: LigneFacture[];
+  fraisAnnexes?: FraisFacture[];
+}
+
+// § /admin/factures/nouvelle, étape 1 « Clients à facturer » : un marchand
+// ayant de la matière, avec de quoi décider s'il passe en premier.
+export interface MarchandAFacturer {
+  marchandId: string;
+  nomBoutique: string;
+  raisonSociale: string | null;
+  ville: string | null;
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  totalCod: number;
+  attenteDepuis: string | null;
+}
+
+// Une ligne de frais annexe telle que saisie à l'écran, avant enregistrement.
+export interface FraisAnnexeSaisi {
+  libelle: string;
+  montant: number;
+}
+
+// Prévisualisation avant création — mêmes chiffres que ceux qui seront figés.
+export interface PrevisualisationFacture {
+  marchand: { id: string; nomBoutique: string; raisonSociale: string | null; ville: string | null };
+  colis: Commande[];
+  total: {
+    lignes: { commandeId: string; livre: boolean; montantCod: number; frais: number }[];
+    nbColisLivres: number;
+    nbColisRetournes: number;
+    totalCod: number;
+    totalFraisLivraison: number;
+    totalFraisRetour: number;
+    totalAutresFrais: number;
+    netAPayer: number;
+  };
+}
+
+export interface TarifMarchandVille {
+  id: string;
+  marchandId: string;
+  villeId: string;
+  fraisLivraison: string;
+  fraisRetour: string;
+  ville?: { id: string; nom: string };
+}
+
+// ============================================================
+// Bon de paiement livreur (§ /admin/bon-paiement)
+// ============================================================
+
+export interface LivreurARegler {
+  id: string;
+  nomComplet: string;
+  telephone: string | null;
+  hubId: string | null;
+  hubNom: string | null;
+  nbTournees: number;
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  montantDu: number;
+}
+
+export interface TourneeARegler {
+  id: string;
+  numero: string;
+  dateGeneration: string;
+  dateCloture: string | null;
+  nbColisLivres: number | null;
+  nbColisRetournes: number | null;
+  gainLivreur: string | null;
+  hub?: { id: string; nom: string } | null;
+}
+
+// Cycle de vie de la paie : brouillon (ajustable) -> valide (montant figé)
+// -> paye (argent sorti). `annule` libère les tournées pour un nouveau bon.
+export type StatutBonPaiement = 'brouillon' | 'valide' | 'paye' | 'annule';
+
+export type ModeReglementLivreur = 'virement' | 'especes' | 'cheque';
+
+export type TypeAjustementPaiement = 'prime' | 'penalite';
+
+// Prime ou pénalité saisie à la main sur un bon en brouillon. `montant` est
+// toujours positif — c'est `type` qui porte le signe.
+export interface AjustementBonPaiement {
+  id: string;
+  type: TypeAjustementPaiement;
+  libelle: string;
+  montant: string;
+  dateCreation: string;
+  creePar?: { nomComplet: string };
+}
+
+export interface BonPaiement {
+  id: string;
+  numero: string;
+  livreurId: string;
+  hubId: string | null;
+  statut: StatutBonPaiement;
+  periodeDebut: string;
+  periodeFin: string;
+  nbTournees: number;
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  montantCommissions: string;
+  totalAjustements: string;
+  montantTotal: string;
+  dateGeneration: string;
+  dateValidation: string | null;
+  dateReglement: string | null;
+  dateAnnulation: string | null;
+  motifAnnulation: string | null;
+  modeReglement: ModeReglementLivreur | null;
+  referenceReglement: string | null;
+  livreur?: {
+    id: string;
+    nomComplet: string;
+    telephone?: string | null;
+    cin?: string | null;
+    nomBanque?: string | null;
+    numeroCompte?: string | null;
+  };
+  hub?: { nom: string; ville?: string } | null;
+  emisPar?: { nomComplet: string };
+  validePar?: { nomComplet: string } | null;
+  transaction?: { id: string; dateEffet: string } | null;
+  ajustements?: AjustementBonPaiement[];
+  tournees?: TourneeARegler[];
+  colis?: ColisPaye[];
+}
+
+// Une ligne de la fiche de paie : un colis, sa rémunération figée à la
+// clôture de tournée, et sa nature (livré ou retourné) figée au même instant.
+// `fraisLivreur` est nul pour les tournées clôturées avant l'introduction du
+// détail au colis — affiché « — » plutôt que recalculé.
+export interface ColisPaye {
+  id: string;
+  codeSuivi: string;
+  clientNom: string;
+  ville: string;
+  montantCod: string;
+  dateLivraison: string | null;
+  fraisLivreur: string | null;
+  fraisLivreurLivre: boolean | null;
+  marchand?: { nomBoutique: string };
+  bonDistribution?: { numero: string; dateCloture: string | null } | null;
+}
+
+// § Ma paie (/livreur/bons-paiement) — la réponse de
+// GET /api/livreur/bons-paiement. Le livreur voit ses bons AVEC le détail de
+// leurs ajustements : un net inférieur à ses commissions doit être motivé.
+export interface BonPaiementLivreur {
+  id: string;
+  numero: string;
+  statut: StatutBonPaiement;
+  periodeDebut: string;
+  periodeFin: string;
+  nbTournees: number;
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  montantCommissions: string;
+  totalAjustements: string;
+  montantTotal: string;
+  dateGeneration: string;
+  dateValidation: string | null;
+  dateReglement: string | null;
+  dateAnnulation: string | null;
+  motifAnnulation: string | null;
+  modeReglement: ModeReglementLivreur | null;
+  referenceReglement: string | null;
+  hub: { nom: string } | null;
+  ajustements: { id: string; type: TypeAjustementPaiement; libelle: string; montant: string }[];
+}
+
+// Mois dont les tournées sont clôturées mais qu'aucun bon n'a encore pris.
+export interface PeriodeNonGeneree {
+  annee: number;
+  mois: number;
+  nbTournees: number;
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  montant: number;
+}
+
+export interface PaieLivreur {
+  totalDu: number;
+  totalArrete: number;
+  totalNonGenere: number;
+  bons: BonPaiementLivreur[];
+  periodesNonGenerees: PeriodeNonGeneree[];
+}
+
+// § Tableau de bord mensuel de la paie (/admin/bon-paiement) — la réponse de
+// GET /api/bons-paiement/tableau-de-bord.
+export type StatutPaieLivreur = 'paye' | 'en_attente' | 'non_genere' | 'sans_activite';
+
+export interface LignePaieMensuelle {
+  livreurId: string;
+  nomComplet: string;
+  telephone: string | null;
+  hubNom: string | null;
+  statutPaie: StatutPaieLivreur;
+  nbTournees: number;
+  nbColisLivres: number;
+  nbColisRetournes: number;
+  montantEnAttenteGeneration: number;
+  bon: {
+    id: string;
+    numero: string;
+    statut: StatutBonPaiement;
+    montantTotal: number;
+    dateReglement: string | null;
+    modeReglement: ModeReglementLivreur | null;
+  } | null;
+}
+
+export interface TableauDeBordPaie {
+  annee: number;
+  mois: number;
+  periode: { debut: string; fin: string };
+  kpis: {
+    masseTotale: number;
+    totalPaye: number;
+    totalResteAPayer: number;
+    totalNonGenere: number;
+    nbLivreursPayes: number;
+    nbLivreursEnAttente: number;
+    nbLivreursNonGeneres: number;
+  };
+  lignes: LignePaieMensuelle[];
+}
+
+// ============================================================
+// Bon de retour marchand (§ /admin/bon-retour, /planner, /ramasseur)
+// ============================================================
+
+export interface BonRetourColis {
+  id: string;
+  codeSuivi: string;
+  clientNom: string;
+  clientTelephone: string;
+  ville: string;
+  montantCod: string;
+  statut: StatutCommande;
+  motifRetour: string | null;
+}
+
+export interface BilanBonRetour {
+  nbColis: number;
+  colisRemis: BonRetourColis[];
+  colisRestants: BonRetourColis[];
+  pretASigner: boolean;
+}
+
+export interface BonRetour {
+  id: string;
+  numero: string;
+  marchandId: string;
+  hubId: string | null;
+  statut: 'nouveau' | 'en_cours' | 'remis';
+  nbColis: number;
+  montantTotalCod: string;
+  dateGeneration: string;
+  dateAffectation: string | null;
+  dateRemise: string | null;
+  nomSignataire: string | null;
+  signatureUrl: string | null;
+  photoDechargeUrl: string | null;
+  ramasseurId: string | null;
+  marchand?: {
+    id: string;
+    nomBoutique: string;
+    ville?: string | null;
+    adresse?: string | null;
+    utilisateur?: { telephone: string | null };
+  };
+  hub?: { nom: string; ville?: string } | null;
+  creePar?: { nomComplet: string };
+  ramasseur?: { id: string; nomComplet: string; telephone?: string | null } | null;
+  commandes?: BonRetourColis[];
+  bilan?: BilanBonRetour;
+}
+
+// § Écran de composition : les marchands ayant des colis à restituer dans ce
+// hub, pour que le Planner ouvre directement le bon lot.
+export interface MarchandARestituer {
+  marchandId: string;
+  nomBoutique: string;
+  nbColis: number;
+  montantTotalCod: number;
+}
+
+// Étape 1 du wizard de composition d'un bon de retour (§ /api/bons-retour/zones)
+// — pendant de HubDistribution, compté sur la matière du retour.
+export interface HubRetour {
+  id: string;
+  nom: string;
+  nbColisRestituables: number;
+  nbRamasseursActifs: number;
+}
+
+export interface RamasseurDisponible {
+  id: string;
+  nomComplet: string;
+  telephone: string | null;
+  bonsEnCours: number;
+}
+
+// ============================================================
+// Paramètres de la société (§ /admin/parametres)
+// ============================================================
+
+// Identité imprimée en en-tête de tous les documents sortants.
+export interface ParametresSociete {
+  raisonSociale: string;
+  adresse: string | null;
+  telephone: string | null;
+  email: string | null;
+  siteWeb: string | null;
+  logoUrl: string | null;
 }

@@ -27,7 +27,7 @@ export default function MarchandisesPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function handleCreate(e: React.FormEvent) {

@@ -24,6 +24,7 @@ export {
   assertSpaceHostsConfigured,
   spaceForHost,
   spaceOrigin,
+  originForHost,
 } from '@/lib/spaces';
 export type { SessionSpace } from '@/lib/spaces';
 
@@ -400,14 +401,34 @@ export async function getPageSession(
 
 export const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+// Invitation d'un nouveau membre (§ /admin/tasks, « Inviter un membre ») : même
+// jeton que la réinitialisation, mais avec une durée de vie très supérieure.
+// Un reset est demandé par quelqu'un qui est devant son écran ; une invitation
+// part vers une personne qui n'attend rien, peut être en congé, et doit
+// parfois d'abord obtenir un accès réseau au domaine ops (filtré IP/VPN).
+// 30 minutes garantiraient un lien mort à l'ouverture de l'email.
+export const INVITATION_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+
 // Le token brut part dans l'email/URL et n'est jamais stocké tel quel ; seul
 // son hash SHA-256 est écrit en base (comme un token de session classique),
 // pour qu'une fuite de la base ne permette pas de rejouer un lien de reset.
-export function generateResetToken(): { token: string; tokenHash: string; expiresAt: Date } {
+export function generateResetToken(ttlMs: number = RESET_TOKEN_TTL_MS): {
+  token: string;
+  tokenHash: string;
+  expiresAt: Date;
+} {
   const token = randomBytes(32).toString('hex');
   const tokenHash = createHash('sha256').update(token).digest('hex');
-  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+  const expiresAt = new Date(Date.now() + ttlMs);
   return { token, tokenHash, expiresAt };
+}
+
+// Hash d'un secret aléatoire jamais communiqué à personne : occupe le champ
+// `motDePasseHash` (non nullable) d'un compte invité tant qu'il n'a pas choisi
+// son mot de passe. Aucune saisie ne peut correspondre, donc le compte n'est
+// ouvrable que par le lien d'invitation.
+export async function hashSecretImpossible(): Promise<string> {
+  return hashSecret(randomBytes(48).toString('hex'));
 }
 
 export function hashResetToken(token: string): string {

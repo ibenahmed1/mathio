@@ -76,10 +76,13 @@ export default function AdminTasksPage() {
         setUserId(me.id);
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const peutGererEquipes = role !== null && !ROLES_SANS_GESTION.includes(role);
+  // Créer / renommer / supprimer un pôle reste réservé à l'admin (cf.
+  // app/api/taches/equipes/[id]/route.ts) : le reste du back-office ne pilote
+  // que la composition des pôles existants.
+  const peutGererPoles = role === 'admin';
 
   // Rôles Kanban-only : ne peuvent déplacer/modifier que leurs propres cartes
   // (créées ou attribuées) — cf. lib/taches-scope.ts (peutModifierTache) côté API.
@@ -106,7 +109,7 @@ export default function AdminTasksPage() {
   }, [filtreEquipe]);
 
   useEffect(() => {
-    loadTaches();
+    Promise.resolve().then(() => loadTaches());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtreEquipe, filtreAssigne]);
 
@@ -173,10 +176,10 @@ export default function AdminTasksPage() {
         </div>
         <div className="kdc-topbar__actions">
           <div className="kdc-viewswitch">
-            <button aria-selected={vue === 'board'} onClick={() => setVue('board')}>
+            <button aria-pressed={vue === 'board'} onClick={() => setVue('board')}>
               Board
             </button>
-            <button aria-selected={vue === 'equipes'} onClick={() => setVue('equipes')}>
+            <button aria-pressed={vue === 'equipes'} onClick={() => setVue('equipes')}>
               Équipes
             </button>
           </div>
@@ -389,6 +392,7 @@ export default function AdminTasksPage() {
         <TeamManagerModal
           equipes={equipes}
           personnelInterne={membres}
+          peutGererPoles={peutGererPoles}
           onClose={() => setGestionEquipeOuverte(false)}
           onChanged={async () => {
             await loadEquipes();
@@ -397,6 +401,10 @@ export default function AdminTasksPage() {
             const qs = filtreEquipe ? `?equipeId=${filtreEquipe}` : '';
             const res = await apiGet<{ data: MembreTache[] }>(`/api/taches/membres${qs}`);
             setMembresAssignables(res.data);
+            // Les tâches aussi : supprimer un pôle peut les avoir transférées
+            // vers un autre (§ DELETE ?transfererVers), et le filtre équipe
+            // courant peut porter sur un pôle qui n'existe plus.
+            await loadTaches();
           }}
         />
       )}

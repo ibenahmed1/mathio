@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Share2, Wallet } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { LABELS_STATUT_BON_DISTRIBUTION, STYLE_STATUT_BON_DISTRIBUTION } from '@/lib/statuts';
@@ -51,18 +52,27 @@ export default function TourneesLivreurPage() {
             <Share2 className="h-6 w-6 text-brand-ink dark:text-brand" />
             Mes tournées
           </h1>
-          <div className="card-tint-strong flex flex-col gap-0.5 px-4 py-2">
+          {/* Renvoie vers « Ma paie » plutôt que de rester un chiffre isolé :
+              le détail — bons du mois, primes, pénalités, versements — vit
+              là-bas, et un solde sans explication est précisément ce qui
+              faisait douter les livreurs. */}
+          <Link
+            href="/livreur/bons-paiement"
+            className="card-tint-strong flex flex-col gap-0.5 px-4 py-2 transition-opacity hover:opacity-80"
+          >
             <span className="flex items-center gap-1.5 text-xs font-semibold opacity-60">
               <Wallet className="h-3.5 w-3.5" />
-              Solde à payer
+              À percevoir
             </span>
             <span className="text-xl font-bold">{dh(soldeAPayer)}</span>
-          </div>
+            <span className="text-xs opacity-60">Voir ma paie →</span>
+          </Link>
         </div>
 
         <p className="text-xs opacity-60">
-          Vos gains de tournée sont crédités à votre solde à la clôture au dépôt, et réglés séparément du cash que vous
-          remettez au Planner.
+          Vos gains sont figés à la clôture au dépôt, puis regroupés dans un bon de paiement mensuel — réglé
+          séparément du cash que vous remettez au Planner. La colonne « Gain » ci-dessous est la commission brute
+          de la tournée, avant primes et pénalités éventuelles.
         </p>
 
         {erreur && <p className="text-sm font-medium text-red-600">{erreur}</p>}

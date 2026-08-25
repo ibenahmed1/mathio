@@ -64,11 +64,11 @@ export function QrScanner({
     setTorchOn(false);
   }, []);
 
-  const tick = useCallback(() => {
+  const tick = useCallback(function boucle() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < video.HAVE_ENOUGH_DATA) {
-      rafRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(boucle);
       return;
     }
 
@@ -82,7 +82,7 @@ export function QrScanner({
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) {
-      rafRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(boucle);
       return;
     }
     ctx.drawImage(video, 0, 0, width, height);
@@ -100,7 +100,7 @@ export function QrScanner({
       }
     }
 
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(boucle);
   }, []);
 
   const startCamera = useCallback(async () => {
@@ -141,10 +141,12 @@ export function QrScanner({
 
   useEffect(() => {
     if (active) {
-      startCamera();
+      queueMicrotask(() => startCamera());
     } else {
-      stopCamera();
-      setStatus('idle');
+      queueMicrotask(() => {
+        stopCamera();
+        setStatus('idle');
+      });
     }
     return stopCamera;
     // eslint-disable-next-line react-hooks/exhaustive-deps

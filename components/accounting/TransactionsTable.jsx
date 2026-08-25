@@ -42,7 +42,7 @@ export default function TransactionsTable({ onMutate } = {}) {
   }
 
   useEffect(() => {
-    charger();
+    Promise.resolve().then(() => charger());
   }, []);
 
   const rows = useMemo(() => {
@@ -111,7 +111,7 @@ export default function TransactionsTable({ onMutate } = {}) {
       <div className={a.tableHead}>
         <div>
           <h2 className={a.cardTitle}>Transactions</h2>
-          <p className={a.cardSub}>Recettes et dépenses de l'entreprise.</p>
+          <p className={a.cardSub}>Recettes et dépenses de l&apos;entreprise.</p>
         </div>
         <div className={a.tableSearch}>
           <span className={a.searchIcon}>⌕</span>
@@ -235,7 +235,7 @@ export default function TransactionsTable({ onMutate } = {}) {
                 </select>
               </div>
               <div className={a.formRow}>
-                <label className={a.formLabel}>Date d'effet</label>
+                <label className={a.formLabel}>Date d&apos;effet</label>
                 <input
                   className={a.formInput}
                   type="date"

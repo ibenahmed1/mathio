@@ -90,14 +90,16 @@ export default function AdminNouveauColisPage() {
   // Même règle de prix auto que /marchand/colis/nouveau : prix unitaire ×
   // quantité, recalculé à chaque changement, mais toujours modifiable ensuite.
   useEffect(() => {
-    if (!marchandiseSelectionnee) {
-      setPrixAuto(false);
-      return;
-    }
-    const qte = Number(form.quantite) || 1;
-    const total = Number(marchandiseSelectionnee.prix) * qte;
-    setForm((f) => ({ ...f, montantCod: total.toFixed(2) }));
-    setPrixAuto(true);
+    queueMicrotask(() => {
+      if (!marchandiseSelectionnee) {
+        setPrixAuto(false);
+        return;
+      }
+      const qte = Number(form.quantite) || 1;
+      const total = Number(marchandiseSelectionnee.prix) * qte;
+      setForm((f) => ({ ...f, montantCod: total.toFixed(2) }));
+      setPrixAuto(true);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.marchandiseId, form.quantite]);
 

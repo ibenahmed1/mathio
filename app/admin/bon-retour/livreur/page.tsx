@@ -1,12 +1,8 @@
-import { Truck } from 'lucide-react';
-import { ComingSoon } from '@/components/ComingSoon';
+import { BonRetourCreer } from '@/components/bon-retour/BonRetourCreer';
 
+// Entrée « par livreur » : les puces de filtre de l'étape 3 trient les colis
+// restituables par le livreur qui les a rapportés — l'angle qui sert quand on
+// vide un véhicule. Le bon produit reste groupé par marchand.
 export default function BonRetourLivreurPage() {
-  return (
-    <ComingSoon
-      icon={Truck}
-      title="Bon de retour — Pour livreur"
-      description="La gestion des retours par livreur sera disponible prochainement."
-    />
-  );
+  return <BonRetourCreer axe="livreur" />;
 }

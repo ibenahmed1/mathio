@@ -83,6 +83,25 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
 
 export const STATUTS_TERMINAUX: StatutCommande[] = ['livre', 'retourne', 'annule', 'annule_par_vendeur'];
 
+// § Bon de retour (/admin/bon-retour) : colis dont la livraison a
+// définitivement échoué et qui sont PHYSIQUEMENT au hub, donc restituables au
+// marchand. `retourne_au_hub` est le cas dominant — c'est le statut qu'un
+// colis reçoit quand le Planner le scanne au retour d'une tournée. Les autres
+// couvrent les colis fermés avant même d'être sortis en tournée.
+//
+// `retourne` n'y figure pas : c'est justement l'état d'ARRIVÉE du bon de
+// retour (colis remis au marchand), pas un état d'entrée. Les motifs de
+// relance en cours (injoignable, boîte vocale, deuxième appel…) n'y figurent
+// pas non plus : le marchand peut encore les faire retenter, les basculer en
+// retour reviendrait à trancher à sa place.
+export const STATUTS_ELIGIBLES_RETOUR: StatutCommande[] = [
+  'retourne_au_hub',
+  'refuse',
+  'hors_zone',
+  'annule',
+  'annule_par_vendeur',
+];
+
 // Sous-ensemble utilisé par l'action rapide admin "Colis non livré".
 export const STATUTS_NON_LIVRAISON: StatutCommande[] = [
   'numero_errone',

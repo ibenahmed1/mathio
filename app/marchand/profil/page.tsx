@@ -36,7 +36,7 @@ export default function MarchandProfilPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function handleSave(e: React.FormEvent) {

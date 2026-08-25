@@ -1,12 +1,7 @@
-import { MapPin } from 'lucide-react';
-import { ComingSoon } from '@/components/ComingSoon';
+import { BonRetourCreer } from '@/components/bon-retour/BonRetourCreer';
 
+// Entrée « par zone » : tout ce qui est restituable dans un hub donné, trié
+// par boutique destinataire.
 export default function BonRetourZonePage() {
-  return (
-    <ComingSoon
-      icon={MapPin}
-      title="Bon de retour — Pour zone"
-      description="La gestion des retours par zone sera disponible prochainement."
-    />
-  );
+  return <BonRetourCreer />;
 }

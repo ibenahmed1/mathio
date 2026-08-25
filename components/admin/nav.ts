@@ -6,12 +6,8 @@ import {
   MapPinned,
   CheckCircle2,
   FileSpreadsheet,
-  BarChart3,
-  Users,
   Truck,
   MapPin,
-  Building2,
-  ArrowLeftRight,
   Boxes,
   PackageSearch,
   FileText,
@@ -23,12 +19,8 @@ import {
   Receipt,
   FilePlus2,
   MessageSquareWarning,
-  SquarePen,
-  UsersRound,
-  UserPlus,
   ClipboardList,
   UserCog,
-  Banknote,
   Settings,
   Store,
   Columns3,
@@ -114,31 +106,41 @@ export const NAV_ADMIN: NavItem[] = [
   // § Planner : seul item ouvert au rôle planner (cf. ROLES_PLANNER_UNIQUEMENT
   // ci-dessous et le confinement correspondant dans proxy.ts).
   { label: 'Bon de distribution', href: '/admin/bon-distribution', icon: Share2, roles: PLANIFICATION_TOURNEES },
+  // § Règlement du livreur : même périmètre que la comptabilité — émettre et
+  // régler un bon sort de l'argent et génère une écriture (cf. ROLES_PAIEMENT
+  // dans app/api/bons-paiement/route.ts).
   {
     label: 'Bon de paiement',
     icon: Wallet,
     children: [
-      { label: 'Pour livreur', href: '/admin/bon-paiement/livreur', icon: Truck },
-      { label: 'Pour zone', href: '/admin/bon-paiement/zone', icon: MapPin },
+      { label: 'Pour livreur', href: '/admin/bon-paiement/livreur', icon: Truck, roles: COMPTABILITE },
+      { label: 'Pour zone', href: '/admin/bon-paiement/zone', icon: MapPin, roles: COMPTABILITE },
     ],
   },
+  // § Bon de retour : composition réservée à admin (+ planner, qui passe par
+  // sa propre web app et n'apparaît donc pas dans cette navigation, cf.
+  // ROLES_COMPOSITION dans app/api/bons-retour/route.ts).
   {
     label: 'Bon de retour',
     icon: Undo2,
     children: [
-      { label: 'Pour livreur', href: '/admin/bon-retour/livreur', icon: Truck },
-      { label: 'Pour zone', href: '/admin/bon-retour/zone', icon: MapPin },
-      { label: 'Pour client', href: '/admin/bon-retour/client', icon: User },
+      { label: 'Pour livreur', href: '/admin/bon-retour/livreur', icon: Truck, roles: ADMIN_SEUL },
+      { label: 'Pour zone', href: '/admin/bon-retour/zone', icon: MapPin, roles: ADMIN_SEUL },
+      { label: 'Pour client', href: '/admin/bon-retour/client', icon: User, roles: ADMIN_SEUL },
     ],
   },
-  // {
-  //   label: 'Facture',
-  //   icon: Receipt,
-  //   children: [
-  //     { label: 'Nouvelle facture', href: '/admin/factures/nouvelle', icon: FilePlus2 },
-  //     { label: 'Toutes les factures', href: '/admin/factures/toutes', icon: Receipt },
-  //   ],
-  // },
+  // § Facturation marchand : réactivée avec le module (les pages étaient des
+  // écrans "à venir" jusqu'ici). Même périmètre que la comptabilité — une
+  // facture est une écriture financière engageante, cf. ROLES_FACTURATION
+  // dans app/api/factures/route.ts.
+  {
+    label: 'Facture',
+    icon: Receipt,
+    children: [
+      { label: 'Nouvelle facture', href: '/admin/factures/nouvelle', icon: FilePlus2, roles: COMPTABILITE },
+      { label: 'Toutes les factures', href: '/admin/factures/toutes', icon: Receipt, roles: COMPTABILITE },
+    ],
+  },
   { label: 'Comptabilité', href: '/admin/comptabilite', icon: Calculator, roles: COMPTABILITE },
   { label: 'Réclamations', href: '/admin/reclamations', icon: MessageSquareWarning, roles: RECLAMATIONS },
   // { label: 'Modification des colis', href: '/admin/colis/modification', icon: SquarePen },

@@ -80,7 +80,7 @@ export default function FeuilleDeRouteLivreurPage() {
   }, []);
 
   useEffect(() => {
-    rafraichir();
+    Promise.resolve().then(() => rafraichir());
   }, [rafraichir]);
 
   const aTenter = feuille?.colis.filter((c) => c.statut === 'mise_en_distribution') ?? [];

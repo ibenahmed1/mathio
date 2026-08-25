@@ -34,7 +34,7 @@ export default function AdminHubsPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   const totaux = useMemo(() => {

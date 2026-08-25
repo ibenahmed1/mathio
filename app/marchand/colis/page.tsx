@@ -34,7 +34,9 @@ function ColisListContent() {
   // Resynchronise le filtre quand on navigue vers un onglet différent
   // (ex. clic sur "En attente" depuis une autre page Colis déjà montée).
   useEffect(() => {
-    setStatutFiltre(searchParams.get('statut') ?? '');
+    queueMicrotask(() => {
+      setStatutFiltre(searchParams.get('statut') ?? '');
+    });
   }, [searchParams]);
 
   // Centralise la construction des query params de filtre, partagée entre le
@@ -142,7 +144,7 @@ function ColisListContent() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statutFiltre, etatPaiementFiltre]);
 

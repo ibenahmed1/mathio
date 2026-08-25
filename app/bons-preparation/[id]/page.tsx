@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { getPageSession, roleMatches } from '@/lib/auth';
 import { buildParcelLabels, type ParcelLabel } from '@/lib/parcel-label';
 import type { Prisma } from '@/app/generated/prisma/client';
+import { getParametresSociete, type ParametresSociete } from '@/lib/societe';
 import { AutoPrint } from '@/components/AutoPrint';
 
 type BonAvecDetails = Prisma.BonDePreparationGetPayload<{
@@ -43,6 +44,8 @@ export default async function BonDePreparationDetailPage({
     redirect('/login');
   }
 
+  const societe = await getParametresSociete();
+
   const bon = await prisma.bonDePreparation.findUnique({
     where: { id },
     include: {
@@ -58,12 +61,12 @@ export default async function BonDePreparationDetailPage({
     notFound();
   }
 
-  if (format === 'etiquettes') return <VueEtiquettes bon={bon} />;
+  if (format === 'etiquettes') return <VueEtiquettes bon={bon} societe={societe} />;
   if (format === 'e-tickets') return <VueETickets bon={bon} />;
-  return <VueFichePreparation bon={bon} />;
+  return <VueFichePreparation bon={bon} societe={societe} />;
 }
 
-function VueFichePreparation({ bon }: { bon: BonAvecDetails }) {
+function VueFichePreparation({ bon, societe }: { bon: BonAvecDetails; societe: ParametresSociete }) {
   const totalQuantite = bon.commandes.reduce((sum, c) => sum + c.quantite, 0);
 
   return (
@@ -78,13 +81,13 @@ function VueFichePreparation({ bon }: { bon: BonAvecDetails }) {
         <div className="flex items-center gap-3">
           <Image
             src="/mathio.jpg"
-            alt="Mathio Delivery"
+            alt={societe.raisonSociale}
             width={56}
             height={56}
             className="h-14 w-14 rounded-lg object-cover"
           />
           <div>
-            <p className="text-xs font-bold tracking-[0.2em] opacity-70">MATHIO DELIVERY</p>
+            <p className="text-xs font-bold tracking-[0.2em] opacity-70">{societe.raisonSociale.toUpperCase()}</p>
             <p className="text-2xl font-black leading-tight">Fiche de Préparation</p>
           </div>
         </div>
@@ -214,7 +217,7 @@ function VueETickets({ bon }: { bon: BonAvecDetails }) {
   );
 }
 
-async function VueEtiquettes({ bon }: { bon: BonAvecDetails }) {
+async function VueEtiquettes({ bon, societe }: { bon: BonAvecDetails; societe: ParametresSociete }) {
   const labels = await buildParcelLabels(bon.commandes);
 
   return (
@@ -226,7 +229,14 @@ async function VueEtiquettes({ bon }: { bon: BonAvecDetails }) {
       <AutoPrint />
 
       {bon.commandes.map((c, i) => (
-        <Etiquette key={c.id} bon={bon} commande={c} index={i} label={labels.get(c.codeSuivi)} />
+        <Etiquette
+          key={c.id}
+          bon={bon}
+          commande={c}
+          index={i}
+          label={labels.get(c.codeSuivi)}
+          nomSociete={societe.raisonSociale}
+        />
       ))}
     </div>
   );
@@ -237,11 +247,13 @@ function Etiquette({
   commande: c,
   index,
   label,
+  nomSociete,
 }: {
   bon: BonAvecDetails;
   commande: Commande;
   index: number;
   label?: ParcelLabel;
+  nomSociete: string;
 }) {
   const flags = [
     c.ouvrir && 'Ouvrir avant paiement',
@@ -253,7 +265,7 @@ function Etiquette({
     <div className="etiquette mx-auto flex h-[140mm] w-[90mm] flex-col overflow-hidden rounded-md border-2 border-black bg-white text-black">
       {/* Bandeau transporteur */}
       <div className="flex items-center justify-between bg-black px-3.5 py-2 text-white">
-        <span className="text-[11px] font-black tracking-[0.15em]">MATHIO DELIVERY</span>
+        <span className="text-[11px] font-black tracking-[0.15em]">{nomSociete.toUpperCase()}</span>
         <span className="text-[10px] font-semibold opacity-80">
           Colis {index + 1}/{bon.commandes.length}
         </span>

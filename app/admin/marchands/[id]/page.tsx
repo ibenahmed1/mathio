@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { apiGet, apiPatch, apiDelete, apiPost } from '@/lib/api-client';
 import type { Marchand } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { TarifsMarchandModal } from '@/components/admin/TarifsMarchandModal';
 import { LABELS_TYPE_COMPTE } from '@/lib/marchand-form-options';
 
 function Champ({ label, value }: { label: string; value: React.ReactNode }) {
@@ -22,18 +23,36 @@ export default function AdminMarchandDetailPage() {
   const router = useRouter();
   const [marchand, setMarchand] = useState<Marchand | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tarifsOuverts, setTarifsOuverts] = useState(false);
+  const [fraisLivraison, setFraisLivraison] = useState('');
+  const [fraisRetour, setFraisRetour] = useState('');
 
   async function load() {
     try {
       const m = await apiGet<Marchand>(`/api/marchands/${id}`);
       setMarchand(m);
+      // Les champs de saisie reflètent l'état serveur à chaque rechargement :
+      // vide signifie "aucun frais par défaut", et non zéro.
+      setFraisLivraison(m.fraisLivraison ?? '');
+      setFraisRetour(m.fraisRetour ?? '');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    }
+  }
+
+  async function enregistrerTarifs(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await apiPatch(`/api/marchands/${id}`, { fraisLivraison, fraisRetour });
+      load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     }
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -158,6 +177,51 @@ export default function AdminMarchandDetailPage() {
           <Champ label="Marchandises au catalogue" value={marchand._count?.marchandises} />
         </div>
 
+        {/* § Facturation marchand : ces deux montants s'appliquent partout où
+            aucune ligne de la grille par ville n'existe. Tant qu'ils sont
+            vides, une facture ne déduit aucun frais et verse au marchand
+            l'intégralité du COD — d'où l'avertissement explicite. */}
+        <div className="dashboard-card flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-black uppercase tracking-wide opacity-60">Tarifs facturés</h2>
+            <button type="button" className="btn-outline text-xs" onClick={() => setTarifsOuverts(true)}>
+              Grille par ville
+            </button>
+          </div>
+          <form onSubmit={enregistrerTarifs} className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-0.5 text-xs">
+              Frais de livraison (DH)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-basic w-28 py-1"
+                value={fraisLivraison}
+                onChange={(e) => setFraisLivraison(e.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-0.5 text-xs">
+              Frais de retour (DH)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-basic w-28 py-1"
+                value={fraisRetour}
+                onChange={(e) => setFraisRetour(e.target.value)}
+              />
+            </label>
+            <button type="submit" className="btn-primary px-3 py-1.5 text-xs">
+              Enregistrer
+            </button>
+          </form>
+          {!marchand.fraisLivraison && !marchand.fraisRetour && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Aucun frais par défaut : les factures de ce marchand lui reverseront la totalité du COD.
+            </p>
+          )}
+        </div>
+
         <div className="dashboard-card flex flex-col gap-3 lg:col-span-2">
           <h2 className="text-sm font-black uppercase tracking-wide opacity-60">Identité & légal</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -231,6 +295,14 @@ export default function AdminMarchandDetailPage() {
           </ul>
         </div>
       </div>
+
+      {tarifsOuverts && (
+        <TarifsMarchandModal
+          marchandId={marchand.id}
+          nomBoutique={marchand.nomBoutique}
+          onClose={() => setTarifsOuverts(false)}
+        />
+      )}
     </div>
   );
 }

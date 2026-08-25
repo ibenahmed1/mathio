@@ -26,7 +26,7 @@ export default function MarchandRamassagesPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function handleCreate(e: React.FormEvent) {

@@ -6,6 +6,7 @@ import {
   hashHandoffToken,
   signSession,
   spaceAllowsRole,
+  originForHost,
   spaceForHost,
   type SessionSpace,
 } from '@/lib/auth';
@@ -23,12 +24,18 @@ const ATTERRISSAGE: Partial<Record<SessionSpace, string>> = {
 };
 
 export async function GET(request: NextRequest) {
-  const space = spaceForHost(request.headers.get('host'));
+  const hote = request.headers.get('host');
+  const space = spaceForHost(hote);
   if (!space || !ATTERRISSAGE[space]) {
     return new NextResponse(null, { status: 404 });
   }
 
-  const echec = NextResponse.redirect(new URL('/login?transfert=expire', request.url));
+  // Base des redirections : l'hôte appelé, pas `request.url`. Dans Next.js,
+  // `request.url` porte l'adresse interne du serveur (localhost:PORT) et non le
+  // `Host` appelé — une redirection bâtie dessus quitterait l'hôte cible, et le
+  // cookie qu'on vient d'y poser ne serait jamais renvoyé.
+  const origine = originForHost(hote as string);
+  const echec = NextResponse.redirect(new URL('/login?transfert=expire', origine));
 
   const token = request.nextUrl.searchParams.get('t');
   if (!token) return echec;
@@ -67,7 +74,7 @@ export async function GET(request: NextRequest) {
     impersonated: handoff.impersonation,
   });
 
-  const response = NextResponse.redirect(new URL(ATTERRISSAGE[space]!, request.url));
+  const response = NextResponse.redirect(new URL(ATTERRISSAGE[space]!, origine));
   response.cookies.set(SESSION_COOKIE_NAMES[space], jwt, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

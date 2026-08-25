@@ -96,25 +96,29 @@ export function BonDistributionCreer({ basePath }: { basePath: string }) {
   }, []);
 
   useEffect(() => {
-    if (!hubId) {
-      setLivreurs([]);
-      return;
-    }
-    apiGet<{ data: LivreurEligible[] }>(`/api/bons-distribution/livreurs?hubId=${encodeURIComponent(hubId)}`)
-      .then((res) => setLivreurs(res.data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    queueMicrotask(() => {
+      if (!hubId) {
+        setLivreurs([]);
+        return;
+      }
+      apiGet<{ data: LivreurEligible[] }>(`/api/bons-distribution/livreurs?hubId=${encodeURIComponent(hubId)}`)
+        .then((res) => setLivreurs(res.data))
+        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    });
   }, [hubId]);
 
   useEffect(() => {
-    if (!hubId || !livreurId) {
-      setEligibles([]);
-      return;
-    }
-    apiGet<{ data: Commande[] }>(
-      `/api/bons-distribution/colis-eligibles?hubId=${encodeURIComponent(hubId)}&livreurId=${encodeURIComponent(livreurId)}`
-    )
-      .then((res) => setEligibles(res.data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    queueMicrotask(() => {
+      if (!hubId || !livreurId) {
+        setEligibles([]);
+        return;
+      }
+      apiGet<{ data: Commande[] }>(
+        `/api/bons-distribution/colis-eligibles?hubId=${encodeURIComponent(hubId)}&livreurId=${encodeURIComponent(livreurId)}`
+      )
+        .then((res) => setEligibles(res.data))
+        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    });
   }, [hubId, livreurId]);
 
   const hubSelectionne = hubs.find((h) => h.id === hubId) ?? null;
@@ -282,7 +286,9 @@ export function BonDistributionCreer({ basePath }: { basePath: string }) {
   // le hub, le livreur et le panier courants), jamais celle capturée au
   // montage de la caméra.
   const scannerCodeRef = useRef(scannerCode);
-  scannerCodeRef.current = scannerCode;
+  useEffect(() => {
+    scannerCodeRef.current = scannerCode;
+  });
 
   function handleReset() {
     setHubId('');
