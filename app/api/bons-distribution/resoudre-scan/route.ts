@@ -5,7 +5,7 @@ import { validateQrPayload } from '@/lib/parcel-serial';
 import { resolveUserHub } from '@/lib/hub-envoi';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 
-// § /planner/scan — résolution d'un code scanné, SANS AUCUNE MUTATION.
+// § /admin/scan/tournee — résolution d'un code scanné, SANS AUCUNE MUTATION.
 //
 // Le Planner fait deux gestes de scan au quai, et un seul code-barres : lui
 // demander de choisir le bon mode avant de scanner revient à lui faire

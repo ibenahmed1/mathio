@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Lock, Plus, Settings, Share2, Truck } from 'lucide-react';
-import { apiGet, apiPost } from '@/lib/api-client';
+import { Lock, Plus, Settings, Share2, Truck } from 'lucide-react';
+import { apiGet } from '@/lib/api-client';
 import type { BonDistribution } from '@/lib/types';
 import { LABELS_STATUT_BON_DISTRIBUTION, STYLE_STATUT_BON_DISTRIBUTION } from '@/lib/statuts';
 
@@ -15,40 +15,15 @@ const FILTRES: { cle: FiltreStatut; label: string }[] = [
   { cle: 'toutes', label: 'Toutes' },
 ];
 
-// § Module Bon de Distribution — liste des tournées. Rendu à l'identique dans
-// les deux espaces qui exposent le module (back-office admin sous
-// /admin/bon-distribution, web app Planner sous /planner/bons-distribution) :
-// `basePath` est le seul point de variation, il préfixe tous les liens
-// internes pour que la navigation reste dans l'espace courant.
-export function BonDistributionListe({ basePath }: { basePath: string }) {
+// § Module Bon de Distribution — liste des tournées. Servi dans le seul
+// back-office (§ /admin/bon-distribution) depuis que le Planner y travaille
+// lui aussi : les liens internes sont donc écrits en dur, là où un `basePath`
+// paramétrait auparavant l'espace de rendu.
+export function BonDistributionListe() {
   const [bons, setBons] = useState<BonDistribution[]>([]);
   const [filtre, setFiltre] = useState<FiltreStatut>('en_cours');
   const [role, setRole] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Ouvre la web app Planner (autre domaine racine) pour un admin. Le
-  // formulaire de connexion du Planner refuse volontairement le rôle `admin`
-  // — ses identifiants ne doivent jamais être saisis sur le domaine métier —
-  // donc l'accès passe par un jeton de transfert à usage unique.
-  //
-  // L'onglet est ouvert AVANT le await, dans le gestionnaire de clic : après
-  // un appel async les navigateurs ne rattachent plus l'ouverture au geste
-  // utilisateur et bloquent silencieusement le popup.
-  async function ouvrirWebAppPlanner() {
-    setError(null);
-    const onglet = window.open('', '_blank');
-    try {
-      const { url } = await apiPost<{ url: string }>('/api/session-handoff/planner');
-      if (onglet) {
-        onglet.location.href = url;
-      } else {
-        setError("Le navigateur a bloqué l'ouverture du nouvel onglet. Autorisez les popups puis réessayez.");
-      }
-    } catch (err) {
-      onglet?.close();
-      setError(err instanceof Error ? err.message : 'Erreur');
-    }
-  }
 
   useEffect(() => {
     apiGet<{ role: string }>('/api/auth/me')
@@ -71,28 +46,16 @@ export function BonDistributionListe({ basePath }: { basePath: string }) {
           Bons de distribution
         </h1>
         <div className="flex items-center gap-2">
-          {/* Le référentiel des hubs reste une page du back-office, servie sur
-              un autre domaine racine : depuis la web app Planner le lien
-              donnerait un 404 (le proxy refuse /admin/** sur cet hôte), y
-              compris pour un admin arrivé par transfert de session. On le
-              réserve donc à l'instance servie dans le back-office. */}
-          {role === 'admin' && basePath.startsWith('/admin') && (
-            <>
-              <Link href="/admin/hubs" className="btn-outline flex items-center gap-1.5">
-                <Settings className="h-4 w-4" />
-                Gérer les hubs
-              </Link>
-              <button
-                type="button"
-                onClick={ouvrirWebAppPlanner}
-                className="btn-outline flex items-center gap-1.5"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Web app Planner
-              </button>
-            </>
+          {/* Le référentiel des hubs n'est ouvert qu'à l'admin (§ /admin/hubs,
+              roles ADMIN_SEUL dans la nav) : le planner travaille sur SON hub,
+              il ne le choisit pas. */}
+          {role === 'admin' && (
+            <Link href="/admin/hubs" className="btn-outline flex items-center gap-1.5">
+              <Settings className="h-4 w-4" />
+              Gérer les hubs
+            </Link>
           )}
-          <Link href={`${basePath}/creer`} className="btn-primary flex items-center gap-1.5">
+          <Link href="/admin/bon-distribution/creer" className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" />
             Nouveau Bon de Distribution
           </Link>
@@ -136,7 +99,7 @@ export function BonDistributionListe({ basePath }: { basePath: string }) {
             {bons.map((b) => (
               <tr key={b.id}>
                 <td className="font-mono">
-                  <Link href={`${basePath}/${b.id}`} className="hover:underline">
+                  <Link href={`/admin/bon-distribution/${b.id}`} className="hover:underline">
                     {b.numero}
                   </Link>
                 </td>
@@ -162,7 +125,7 @@ export function BonDistributionListe({ basePath }: { basePath: string }) {
                 </td>
                 <td>
                   <Link
-                    href={`${basePath}/${b.id}/cloture`}
+                    href={`/admin/bon-distribution/${b.id}/cloture`}
                     className="flex items-center gap-1 text-xs font-semibold hover:underline"
                   >
                     {b.statut === 'cloture' ? <Lock className="h-3.5 w-3.5" /> : <Truck className="h-3.5 w-3.5" />}

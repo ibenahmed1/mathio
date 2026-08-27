@@ -38,10 +38,16 @@ export interface PeriodePaie {
 // poste au Maroc — le même mois donnerait deux clés, et le verrou d'unicité
 // laisserait passer un doublon au premier changement d'environnement.
 //
-// Contrepartie assumée : une tournée clôturée entre 23h et minuit le dernier
-// jour du mois (heure marocaine) bascule sur la paie du mois suivant. Un
-// arrondi d'une heure, mais stable — ce qui vaut mieux qu'un arrondi juste
+// Contrepartie assumée, et elle joue dans ce sens-ci : le Maroc étant à UTC+1,
+// une tournée clôturée le PREMIER jour du mois entre minuit et 1h (heure
+// locale) porte un instant UTC encore situé le dernier jour du mois précédent
+// — elle alimente donc la paie du mois PRÉCÉDENT. Une clôture le dernier jour
+// à 23h, elle, ne bascule pas : 23h locale = 22h UTC, toujours dans le mois.
+// Un arrondi d'une heure, mais stable — ce qui vaut mieux qu'un arrondi juste
 // dans un environnement et faux dans l'autre.
+//
+// Le Maroc repasse à UTC+0 pendant le Ramadan : sur cette période, heure locale
+// et heure UTC coïncident et l'écart disparaît entièrement.
 export function periodeMensuelle(annee: number, mois: number): PeriodePaie {
   if (!Number.isInteger(annee) || annee < 2020 || annee > 2100) {
     throw new ApiError(400, 'Année de période invalide');

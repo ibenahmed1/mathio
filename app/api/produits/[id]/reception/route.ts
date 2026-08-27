@@ -9,7 +9,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 // /api/produits/variantes/[id]/reception).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const { id } = await params;
     const body = await request.json();
     const quantite = Math.trunc(Number(body.quantite));
@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     await prisma.historiqueProduit.create({
-      data: { produitId: id, texte: `${quantite}, ${produit.nom} a été reçu` },
+      data: { produitId: id, texte: `${quantite}, ${produit.nom} a été reçu`, utilisateurId: session.sub },
     });
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });

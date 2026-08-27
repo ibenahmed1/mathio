@@ -5,7 +5,7 @@ import { codeSuiviDepuisScan, resolveColisPourRetour } from '@/lib/bon-retour';
 
 const ROLES_COMPOSITION = ['admin', 'planner'] as const;
 
-// Scan pendant la COMPOSITION du bon (§ /planner/bons-retour/creer) : le
+// Scan pendant la COMPOSITION du bon (§ /admin/bon-retour/**) : le
 // Planner passe les colis un par un devant la caméra, et le marchand du bon
 // se fixe au premier scan.
 //

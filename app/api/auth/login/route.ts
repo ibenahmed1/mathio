@@ -86,10 +86,11 @@ export async function POST(request: Request) {
     // hôte ? (cf. SPACE_LOGIN_ROLES). Deux cas distincts :
     //
     //  - le compte relève du back-office : on renvoie l'échec générique, sans
-    //    jamais confirmer depuis un hôte métier qu'un domaine ops existe, ni
-    //    que ces identifiants y sont valables ;
-    //  - le compte relève d'un autre espace métier : l'utilisateur est déjà
-    //    authentifié avec succès, l'orienter vers le bon sous-domaine ne lui
+    //    jamais confirmer depuis un domaine public qu'un domaine ops existe,
+    //    ni que ces identifiants y sont valables. Les trois racines n'ayant
+    //    aucun parent commun, ce domaine ne se devine pas non plus ;
+    //  - le compte relève de l'autre espace public : l'utilisateur est déjà
+    //    authentifié avec succès, l'orienter vers le bon domaine ne lui
     //    apprend donc rien qu'il ne sache — et sans ça il resterait bloqué.
     if (!SPACE_LOGIN_ROLES[space].includes(user.role)) {
       const home = getHomeSpace(user.role);
@@ -123,14 +124,18 @@ export async function POST(request: Request) {
       role: user.role,
     });
 
-    // Un cookie par espace, et chaque espace ayant son propre hôte, le cookie
-    // est de fait lié à cet hôte (préfixe `__Host-` en production, cf.
-    // lib/auth.ts). Le back-office, seul sur son domaine racine, est le seul à
-    // justifier `sameSite: 'strict'` : il n'a jamais besoin d'être atteint
-    // depuis un lien externe (email/SMS), contrairement au marchand, au
-    // Planner ou au terrain — et comme le domaine métier lui est désormais
-    // cross-site, ce 'strict' est ce qui empêche structurellement une page du
-    // domaine métier d'émettre une requête authentifiée vers lui.
+    // Un cookie par espace, et chaque espace ayant son propre domaine racine,
+    // le cookie est de fait lié à cet hôte (préfixe `__Host-` en production,
+    // cf. lib/auth.ts).
+    //
+    // Le back-office est le seul à justifier `sameSite: 'strict'` : il n'a
+    // jamais besoin d'être atteint depuis un lien externe. Le marchand et le
+    // terrain restent en 'lax' parce qu'ils SONT atteints ainsi — lien de
+    // réinitialisation de mot de passe, invitation, notification — et que
+    // 'strict' ferait arriver ces visiteurs déconnectés. Les trois domaines
+    // étant cross-site deux à deux, 'lax' suffit déjà à bloquer toute requête
+    // d'ÉCRITURE authentifiée venue d'un autre espace ; 'strict' n'ajoute pour
+    // le back-office que le refus des navigations entrantes.
     response.cookies.set(SESSION_COOKIE_NAMES[space], token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

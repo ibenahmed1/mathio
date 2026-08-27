@@ -45,13 +45,16 @@ enum Role {
   // design/gestionnaire_hub ci-dessus. Doit obligatoirement être rattaché à
   // un Hub (Utilisateur.hubId, validé côté API).
   agent_hub
-  // Planificateur de tournées du hub (§ /admin/bon-distribution) : compose les
-  // Bons de Distribution de SON hub, puis au retour du livreur scanne les
-  // colis non livrés et clôture la tournée (reddition de caisse). Cantonné à
-  // ce module (ROLES_PLANNER_UNIQUEMENT, lib/auth.ts + proxy.ts), même
-  // mécanisme de confinement que agent_hub ci-dessus. Doit obligatoirement
-  // être rattaché à un Hub (Utilisateur.hubId, validé côté API) : c'est ce
-  // hub — et lui seul — dont il planifie les tournées.
+  // Planificateur de tournées du hub (§ /admin/planification,
+  // /admin/bon-distribution, /admin/scan/tournee) : compose les Bons de
+  // Distribution de SON hub, puis au retour du livreur scanne les colis non
+  // livrés et clôture la tournée (reddition de caisse). Contrairement à
+  // agent_hub ci-dessus, il n'est PAS cantonné à un sous-chemin du
+  // back-office : c'est un rôle interne à part entière (ROLES_BACKOFFICE,
+  // lib/auth.ts). Doit obligatoirement être rattaché à un Hub
+  // (Utilisateur.hubId, validé côté API) : c'est ce hub — et lui seul — dont
+  // il planifie les tournées, et c'est là que se joue son cantonnement, dans
+  // les données plutôt que dans le routage.
   planner
 }
 
@@ -287,6 +290,7 @@ model Utilisateur {
   marchandMembre MarchandMembre?
 
   historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
+  historiqueProduits HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
   commandesRamassees Commande[]                 @relation("CommandeRamasseur")
   commandesLivrees   Commande[]                 @relation("CommandeLivreur")
   ramassagesRealises Ramassage[]                @relation("RamassageRamasseur")
@@ -350,19 +354,19 @@ model Utilisateur {
 }
 
 // § Séparation par domaines : jeton de transfert de session entre le domaine
-// du back-office et le domaine métier.
+// du back-office et celui des marchands.
 //
 // Depuis que chaque espace a son propre hôte et que les cookies portent le
 // préfixe `__Host-` (liés à l'hôte exact qui les pose), le back-office ne peut
-// PLUS écrire un cookie sur le domaine métier — c'est exactement l'isolation
-// recherchée. Les deux passerelles légitimes qui en dépendaient passent donc
-// par un jeton à usage unique, échangé contre une vraie session sur l'hôte
-// cible (POST /api/session-handoff puis GET /api/session-handoff/consume) :
+// PLUS écrire un cookie sur un autre domaine — c'est exactement l'isolation
+// recherchée. La passerelle légitime qui en dépend passe donc par un jeton à
+// usage unique, échangé contre une vraie session sur l'hôte cible (POST
+// /api/session-handoff puis GET /api/session-handoff/consume) :
+// l'impersonation d'un marchand par un admin (support, dépannage).
 //
-//   1. impersonation d'un marchand par un admin (support, dépannage) ;
-//   2. accès de l'admin à la web app Planner, dont le formulaire de connexion
-//      refuse son rôle pour que son mot de passe ne soit jamais saisi sur le
-//      domaine exposé à Internet.
+// Un second usage a existé — l'accès de l'admin à la web app Planner — et a
+// disparu avec l'espace `planner` lui-même : le module de planification est
+// servi dans le back-office, sur le domaine où l'admin a déjà sa session.
 //
 // Le jeton brut ne transite que dans l'URL de redirection et n'est jamais
 // stocké : seul son hash SHA-256 est écrit ici, comme pour les tokens de
@@ -372,7 +376,7 @@ model Utilisateur {
 model SessionHandoff {
   id            String    @id @default(uuid())
   tokenHash     String    @unique @map("token_hash")
-  // Espace cible ('marchand' | 'planner') — stocké en String plutôt qu'en
+  // Espace cible ('marchand' à ce jour) — stocké en String plutôt qu'en
   // enum : SessionSpace est une notion applicative (lib/auth.ts) qui n'a pas
   // d'équivalent en base et n'a pas vocation à contraindre le schéma.
   espace        String
@@ -613,7 +617,24 @@ model HistoriqueProduit {
   texte        String
   dateCreation DateTime @default(now()) @map("date_creation")
 
+  // Agent qui a réalisé le mouvement — sans lui, un écart de comptage en
+  // entrepôt n'est imputable à personne (§ validation de réception et retrait,
+  // /api/produits/**). Même rôle que HistoriqueStatutCommande.utilisateurId
+  // sur le pipeline colis.
+  //
+  // NULLABLE à dessein, et ce n'est pas une facilité : les lignes écrites
+  // avant la migration 20260826110000 n'ont pas d'auteur connu. Les rattacher
+  // au compte admin d'amorçage pour satisfaire un NOT NULL fabriquerait une
+  // preuve — exactement l'inverse de ce que cette colonne existe pour offrir.
+  // L'écran affiche « — » sur ces lignes, ce qui est la vérité.
+  //
+  // onDelete SetNull plutôt que Cascade : supprimer un compte ne doit jamais
+  // effacer l'historique de l'entrepôt.
+  utilisateurId String?      @map("utilisateur_id")
+  utilisateur   Utilisateur? @relation("HistoriqueProduitAuteur", fields: [utilisateurId], references: [id], onDelete: SetNull)
+
   @@index([produitId])
+  @@index([utilisateurId])
   @@map("historique_produits")
 }
 
@@ -1716,7 +1737,7 @@ model AjustementBonPaiement {
 }
 
 // ============================================================
-// Bon de retour marchand (§ /admin/bon-retour, § /planner, § /ramasseur)
+// Bon de retour marchand (§ /admin/bon-retour, § /ramasseur)
 // ============================================================
 
 // Circuit en trois temps, calqué sur le terrain :

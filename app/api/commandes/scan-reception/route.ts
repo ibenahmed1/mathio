@@ -14,7 +14,7 @@ import { resolveUserHub } from '@/lib/hub-envoi';
 // et ne recrée pas d'entrée d'historique.
 export async function POST(request: Request) {
   try {
-    // § /planner/scan : le Planner scanne lui aussi au quai de son hub. C'est
+    // § /admin/scan/tournee : le Planner scanne lui aussi au quai de son hub. C'est
     // le même geste que l'Agent Hub (et la même transition), avec le même
     // cantonnement — son hub de rattachement, jamais celui du body — mais
     // depuis sa propre web app : sans ça, il ne pourrait pas alimenter le

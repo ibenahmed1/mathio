@@ -9,7 +9,7 @@ import { nextBonRetourNumero } from '@/lib/codes';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutBonRetour } from '@/app/generated/prisma/enums';
 
-// § Bon de retour marchand (/admin/bon-retour, /planner/bons-retour).
+// § Bon de retour marchand (/admin/bon-retour/**).
 //
 // Composition réservée à admin + planner, comme le bon de distribution : les
 // deux se font au hub, sur le quai, par la même personne et avec le même

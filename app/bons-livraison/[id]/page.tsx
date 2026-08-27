@@ -25,7 +25,7 @@ export default async function BonDeLivraisonDetailPage({
   const { format } = await searchParams;
 
   // Vue d'impression partagée : servie à l'identique sur le domaine du
-  // back-office et sur le sous-domaine marchand. L'espace n'est pas choisi
+  // back-office et sur celui des marchands. L'espace n'est pas choisi
   // ici, il découle de l'hôte servi — cette liste dit seulement sur quels
   // hôtes la page a un sens.
   const session = await getPageSession(['admin', 'marchand']);

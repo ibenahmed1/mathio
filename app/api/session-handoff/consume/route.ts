@@ -14,13 +14,15 @@ import {
 // Échange un jeton de transfert émis par le back-office contre une vraie
 // session sur l'hôte courant (cf. lib/auth.ts, § Transfert de session entre
 // domaines). Appelé sans session existante — d'où sa présence dans
-// PUBLIC_API_PATHS (proxy.ts), restreinte aux deux seuls espaces cibles.
+// PUBLIC_API_PATHS (proxy.ts), restreinte au seul espace cible.
 //
 // Page d'atterrissage par espace : le jeton ne sert qu'à ouvrir la session,
-// la navigation reprend ensuite normalement.
+// la navigation reprend ensuite normalement. Un seul espace cible depuis le
+// passage à trois domaines — l'impersonation d'un marchand ; la table reste
+// indexée par espace pour que rouvrir un second transfert n'y coûte qu'une
+// ligne.
 const ATTERRISSAGE: Partial<Record<SessionSpace, string>> = {
   marchand: '/marchand',
-  planner: '/planner',
 };
 
 export async function GET(request: NextRequest) {
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
   if (!handoff) return echec;
 
   // Le jeton dit pour quel espace il a été émis : un jeton "marchand" présenté
-  // sur l'hôte du Planner est refusé, même valide et non consommé.
+  // sur un autre hôte est refusé, même valide et non consommé.
   if (handoff.espace !== space) return echec;
 
   // État du compte relu MAINTENANT, pas à l'émission : un compte désactivé

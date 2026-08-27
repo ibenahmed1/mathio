@@ -2,15 +2,15 @@ import 'dotenv/config';
 import assert from 'node:assert/strict';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
-// lib/spaces (et non lib/auth) : module pur, importable hors contexte Next.
-import { spaceOrigin, type SessionSpace } from '../lib/spaces';
+import { creerClient as creerClientHttp } from './audit-http';
+import type { SessionSpace } from '../lib/spaces';
 
 // Audit local du circuit "tournée" (§ /admin/bon-distribution + /livreur/colis),
 // exécutable via `npx tsx scripts/test-tournee-cloture-audit.ts` avec le
 // serveur de dev démarré. Chaque espace ayant son propre hôte depuis la
-// séparation par domaines, les appels partent vers `spaceOrigin(space)` (cf.
-// SPACE_HOSTS dans lib/auth.ts) et non vers une base unique — c'est ce qui
-// fait que le proxy résout le bon espace.
+// séparation par domaines, chaque acteur a son client, qui annonce le `Host`
+// de son espace (cf. scripts/audit-http.ts) — c'est ce qui fait que le proxy
+// résout le bon espace.
 //
 // Il rejoue le scénario métier complet de bout en bout, en HTTP réel (donc à
 // travers le proxy, les gardes de rôle et les transactions) :
@@ -28,37 +28,18 @@ const MDP = 'Test1234!';
 // l'isolation par domaine (le proxy déduit l'espace du `Host`, plus d'un
 // header d'indice envoyé par le client).
 function creerClient(space: SessionSpace) {
-  const origine = spaceOrigin(space);
-  const cookies = new Map<string, string>();
+  // Transport mutualisé avec les autres scripts d'audit (scripts/audit-http.ts) :
+  // il forge `Host` et `Origin` et se connecte à 127.0.0.1, ce que `fetch` ne
+  // permet pas — et ce sans quoi les sous-domaines `.localhost` des espaces
+  // planner et terrain échouent en ENOTFOUND sous Windows.
+  const client = creerClientHttp(space);
 
   async function appel<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const headers: Record<string, string> = {};
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-    // Le proxy exige un `Origin` correspondant à l'hôte appelé sur toute
-    // méthode mutante (protection CSRF) : un client non navigateur doit donc
-    // le poser explicitement.
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) headers.Origin = origine;
-    if (cookies.size > 0) {
-      headers.Cookie = [...cookies].map(([k, v]) => `${k}=${v}`).join('; ');
-    }
-
-    const res = await fetch(`${origine}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      redirect: 'manual',
-    });
-
-    for (const raw of res.headers.getSetCookie?.() ?? []) {
-      const [pair] = raw.split(';');
-      const index = pair.indexOf('=');
-      cookies.set(pair.slice(0, index), pair.slice(index + 1));
-    }
-
-    const text = await res.text();
-    const data = text ? JSON.parse(text) : null;
-    if (!res.ok) {
-      const message = data && typeof data.error === 'string' ? data.error : `HTTP ${res.status}`;
+    const res = await client.api(method, path, body);
+    const data = res.json as (T & { error?: string }) | null;
+    if (res.status < 200 || res.status >= 300) {
+      const message =
+        data && typeof data.error === 'string' ? data.error : `HTTP ${res.status}`;
       throw Object.assign(new Error(message), { status: res.status });
     }
     return data as T;
@@ -83,6 +64,56 @@ async function attendreErreur(fn: () => Promise<unknown>, extrait: string) {
     return message;
   }
   throw new Error(`Aucune erreur levée, alors qu'on attendait "${extrait}"`);
+}
+
+// Supprime les colis du jeu d'audit ET tout ce qui les référence.
+//
+// Quatre modèles pointent vers Commande (LigneFacture, CommentaireCommande,
+// Reclamation, HistoriqueStatutCommande) : n'en purger qu'un suffit à faire
+// échouer le deleteMany sur une contrainte de clé étrangère. C'est ce qui est
+// arrivé le 24/08/2026, quand une facture émise pendant un test manuel du
+// module de facturation a rendu ce script inexécutable — il l'est resté
+// jusqu'à ce que quelqu'un s'en aperçoive.
+//
+// La règle : une facture qui porte sur les colis de « Boutique Audit Tournée »
+// est de la donnée de test par construction, ce marchand n'existant que pour
+// ce script. On la supprime donc entièrement, écriture comptable comprise —
+// et on le DIT à l'écran, parce qu'effacer une facture en silence est
+// exactement le genre de chose qu'on ne veut pas découvrir plus tard.
+//
+// Les réclamations, elles, sont seulement détachées : leur `commandeId` est
+// nullable précisément pour ça, et une réclamation reste lisible sans son
+// colis.
+async function purgerColisAudit(marchandId: string) {
+  const factures = await prisma.facture.findMany({
+    where: { lignes: { some: { commande: { marchandId } } } },
+    select: { id: true, numero: true, statut: true, netAPayer: true, transactionId: true },
+  });
+
+  if (factures.length > 0) {
+    const resume = factures.map((f) => `${f.numero} (${f.statut}, ${f.netAPayer} DH)`).join(', ');
+    console.log(`  ⚠  Purge de ${factures.length} facture(s) portant sur les colis d'audit : ${resume}`);
+
+    const ids = factures.map((f) => f.id);
+    await prisma.ligneFacture.deleteMany({ where: { factureId: { in: ids } } });
+    await prisma.fraisFacture.deleteMany({ where: { factureId: { in: ids } } });
+    await prisma.facture.deleteMany({ where: { id: { in: ids } } });
+
+    // Les écritures comptables partent APRÈS les factures : c'est la facture
+    // qui porte la clé étrangère vers la transaction, pas l'inverse.
+    const transactionIds = factures.map((f) => f.transactionId).filter((id): id is string => id !== null);
+    if (transactionIds.length > 0) {
+      await prisma.transaction.deleteMany({ where: { id: { in: transactionIds } } });
+    }
+  }
+
+  await prisma.reclamation.updateMany({
+    where: { commande: { marchandId } },
+    data: { commandeId: null },
+  });
+  await prisma.commentaireCommande.deleteMany({ where: { commande: { marchandId } } });
+  await prisma.historiqueStatutCommande.deleteMany({ where: { commande: { marchandId } } });
+  await prisma.commande.deleteMany({ where: { marchandId } });
 }
 
 async function seed() {
@@ -156,8 +187,7 @@ async function seed() {
   // Base propre à chaque exécution : on supprime les colis de l'audit, mais
   // on garde les tournées précédentes — les effacer creuserait un trou dans
   // la numérotation du jour, ce qui n'arrive jamais via l'application.
-  await prisma.historiqueStatutCommande.deleteMany({ where: { commande: { marchandId: marchand.id } } });
-  await prisma.commande.deleteMany({ where: { marchandId: marchand.id } });
+  await purgerColisAudit(marchand.id);
 
   // Le 6e colis (900) n'est JAMAIS qualifié par le livreur : il sert à
   // éprouver la dérogation de réintégration directe (§ 6 ci-dessous).
@@ -188,7 +218,10 @@ async function seed() {
 async function main() {
   const { hub, autreHub, planner, livreur, colis } = await seed();
 
-  const clientPlanner = creerClient('planner');
+  // Le Planner travaille désormais dans le back-office (§ lib/spaces.ts,
+  // trois espaces) : sa session s'ouvre sur l'hôte admin, comme celle de
+  // n'importe quel rôle interne.
+  const clientPlanner = creerClient('admin');
   const clientLivreur = creerClient('terrain');
 
   await clientPlanner.post('/api/auth/login', { telephone: planner.email, secret: MDP });

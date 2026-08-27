@@ -112,10 +112,8 @@ function CellulePreuve({ bonId, commandeId }: { bonId: string; commandeId: strin
 //      un processus comptable distinct — jamais soustraits de la caisse.
 // Le scan des retours doit être terminé (aucun colis "dehors") avant que le
 // bouton de clôture ne s'active.
-//
-// Partagé entre l'espace admin et la web app Planner : `basePath` préfixe les
-// liens et la redirection post-clôture (cf. BonDistributionListe).
-export function ClotureTournee({ basePath }: { basePath: string }) {
+
+export function ClotureTournee() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -193,7 +191,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
     setToast(null);
     try {
       await apiPost(`/api/bons-distribution/${params.id}/cloturer`, { montantRemis: Number(montantRemis) });
-      router.push(`${basePath}/${params.id}`);
+      router.push(`/admin/bon-distribution/${params.id}`);
     } catch (err) {
       setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur' });
       setCloture(false);
@@ -205,7 +203,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
   if (erreur || !bilan) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href={basePath} className="flex items-center gap-1.5 text-sm font-semibold opacity-70 hover:opacity-100">
+        <Link href="/admin/bon-distribution" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 hover:opacity-100">
           <ChevronLeft className="h-4 w-4" />
           Retour aux Bons de Distribution
         </Link>
@@ -223,7 +221,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href={`${basePath}/${bilan.bonId}`}
+          href={`/admin/bon-distribution/${bilan.bonId}`}
           className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100"
         >
           <ChevronLeft className="h-4 w-4" />

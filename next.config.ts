@@ -11,14 +11,13 @@ const nextConfig: NextConfig = {
   // Domaines wildcard pour les tunnels ngrok (URL différente à chaque
   // relance en compte gratuit) : nécessaire en plus de l'IP locale pour
   // tester la caméra (getUserMedia exige un contexte sécurisé HTTPS).
-  // Hôtes de développement des quatre espaces applicatifs (cf. SPACE_HOSTS_DEV
-  // dans lib/auth.ts) : les noms en `.localhost` résolvent vers la boucle
+  // Hôtes de développement des trois espaces applicatifs (cf. SPACE_HOSTS_DEV
+  // dans lib/spaces.ts) : les noms en `.localhost` résolvent vers la boucle
   // locale sans toucher au fichier hosts, et sont traités comme des origines
   // sûres par les navigateurs. Sans eux, `npm run dev` sert bien le HTML mais
   // bloque les chunks JS dès que l'hôte n'est pas littéralement "localhost".
   allowedDevOrigins: [
     "admin.localhost",
-    "planner.localhost",
     "marchand.localhost",
     "app.localhost",
     "192.168.1.201",

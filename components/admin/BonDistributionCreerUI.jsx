@@ -175,7 +175,7 @@ const S = {
 // doit réagir à la largeur d'écran. Les grilles ne peuvent pas rester en style
 // inline — une media query ne peut pas battre un attribut `style`, et l'écran
 // est utilisé aussi bien sur poste fixe au bureau que sur tablette/téléphone
-// au quai (web app Planner, § /planner/bons-distribution/creer).
+// au quai (§ /admin/bon-distribution/creer).
 const css = `
 @keyframes bdFade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes bdIn { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }

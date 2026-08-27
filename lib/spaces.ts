@@ -13,27 +13,55 @@
 // navigateur pose lui-même à partir de l'origine visitée : c'est devenu une
 // frontière d'autorisation, plus un simple aiguillage.
 //
-// Deux domaines RACINES distincts :
-//   - domaine "ops"    → espace `admin` (back-office). Jamais exposé aux
-//                        marchands ni au terrain, filtrable par IP/VPN.
-//   - domaine "métier" → trois sous-domaines : `planner`, `marchand`,
-//                        `terrain`.
+// TROIS espaces, sur TROIS domaines RACINES totalement distincts — pas un
+// domaine unique découpé en sous-domaines :
+//   - domaine "ops"      → espace `admin` : tout le personnel interne, du
+//                          back-office au planificateur de hub. Jamais exposé
+//                          aux marchands ni au terrain, filtrable par IP/VPN.
+//   - domaine "marchand" → les boutiques clientes.
+//   - domaine "terrain"  → livreurs et ramasseurs.
 //
-// Le back-office étant sur un domaine racine séparé (et non un quatrième
-// sous-domaine du domaine métier), toute requête entre lui et le domaine
-// métier est *cross-site* : `sameSite: 'strict'` sur son cookie devient une
-// barrière CSRF structurelle, et aucun sous-domaine métier compromis ne peut
-// écrire un cookie visible par le back-office.
-export type SessionSpace = 'admin' | 'planner' | 'marchand' | 'terrain';
+// Le découpage suit l'AUDIENCE, pas le module : personnel interne / clients /
+// terrain. C'est ce qui rend la frontière tenable dans le temps — un nouveau
+// module interne (le Planner en a été le cas d'école) n'ouvre pas un espace de
+// plus, il rejoint l'espace admin et n'y coûte qu'une entrée de navigation.
+//
+// Ce que TROIS RACINES distinctes changent, par rapport à un domaine commun
+// découpé en sous-domaines — ce sont des propriétés du navigateur, pas des
+// conventions internes :
+//
+//   1. Toute paire d'espaces est *cross-site*, et plus seulement la paire
+//      ops/reste. `sameSite` devient donc une barrière effective ENTRE TOUS
+//      les espaces : une page marchand compromise ne peut plus émettre de
+//      requête authentifiée vers l'app terrain, ce qu'un simple sous-domaine
+//      frère ne permettait pas d'empêcher (proxy.ts §2 fermait ce résidu, et
+//      continue de le faire en défense indépendante).
+//   2. Aucun espace n'a de domaine parent commun avec un autre : le "cookie
+//      tossing" par un frère compromis (poser un cookie sur le parent pour
+//      qu'il remonte chez le voisin) n'a plus de support. Le préfixe
+//      `__Host-` ci-dessous reste, mais comme seconde ligne — il couvre
+//      désormais un sous-domaine qui serait ajouté SOUS l'une des racines.
+//   3. Aucune corrélation d'enregistrement : connaître le domaine marchand
+//      n'apprend rien du domaine ops, qu'on ne veut pas voir deviner.
+//
+// En contrepartie, tout lien inter-espaces doit être ABSOLU (cf. spaceOrigin),
+// et chaque racine a besoin de son propre certificat.
+export type SessionSpace = 'admin' | 'marchand' | 'terrain';
 
-export const SESSION_SPACES: SessionSpace[] = ['admin', 'planner', 'marchand', 'terrain'];
+export const SESSION_SPACES: SessionSpace[] = ['admin', 'marchand', 'terrain'];
 
 // Hôtes de développement : les noms en `.localhost` résolvent vers la boucle
 // locale et sont traités comme "potentially trustworthy" par les navigateurs,
 // donc compatibles avec les cookies `Secure` sans certificat local.
+//
+// SEULE entorse au modèle : ces trois-là sont frères sous `.localhost`, là où
+// la production a trois racines sans parent commun. L'isolation y tient donc
+// au contrôle d'`Origin` (proxy.ts §2) et au fait qu'aucun cookie ne porte
+// d'attribut `Domain`, pas à la frontière *cross-site*. Un test qui vise
+// spécifiquement cette frontière n'a de valeur qu'en pré-production, sur les
+// vrais domaines.
 const SPACE_HOSTS_DEV: Record<SessionSpace, string> = {
   admin: 'admin.localhost:3000',
-  planner: 'planner.localhost:3000',
   marchand: 'marchand.localhost:3000',
   terrain: 'app.localhost:3000',
 };
@@ -45,14 +73,12 @@ const SPACE_HOSTS_DEV: Record<SessionSpace, string> = {
 // serveur.
 const SPACE_HOSTS_ENV: Record<SessionSpace, string | undefined> = {
   admin: process.env.NEXT_PUBLIC_HOST_ADMIN,
-  planner: process.env.NEXT_PUBLIC_HOST_PLANNER,
   marchand: process.env.NEXT_PUBLIC_HOST_MARCHAND,
   terrain: process.env.NEXT_PUBLIC_HOST_TERRAIN,
 };
 
 export const SPACE_HOSTS: Record<SessionSpace, string> = {
   admin: SPACE_HOSTS_ENV.admin ?? SPACE_HOSTS_DEV.admin,
-  planner: SPACE_HOSTS_ENV.planner ?? SPACE_HOSTS_DEV.planner,
   marchand: SPACE_HOSTS_ENV.marchand ?? SPACE_HOSTS_DEV.marchand,
   terrain: SPACE_HOSTS_ENV.terrain ?? SPACE_HOSTS_DEV.terrain,
 };
@@ -62,7 +88,7 @@ export const SPACE_HOSTS: Record<SessionSpace, string> = {
 // Hors production, l'hôte `.localhost` reste accepté en plus de la surcharge
 // d'environnement : sans ça, brancher un espace sur un tunnel pour le tester
 // au téléphone le rendrait injoignable depuis le PC, et il faudrait rebasculer
-// la configuration (donc rebuilder) à chaque aller-retour. Les quatre espaces
+// la configuration (donc rebuilder) à chaque aller-retour. Les trois espaces
 // restent ainsi testables en local en permanence, tunnel branché ou non.
 const SPACE_HOSTS_ACCEPTES: Record<SessionSpace, string[]> = Object.fromEntries(
   SESSION_SPACES.map((s) => [
@@ -73,12 +99,66 @@ const SPACE_HOSTS_ACCEPTES: Record<SessionSpace, string[]> = Object.fromEntries(
   ])
 ) as Record<SessionSpace, string[]>;
 
-// En production, un hôte non configuré ferait tomber tous les espaces sur les
-// valeurs `.localhost` : plus aucune requête réelle ne matcherait et l'app
-// répondrait 404 partout. On échoue explicitement au premier passage dans le
-// proxy plutôt que de laisser diagnostiquer ça en aveugle.
+// Nom de domaine ENREGISTRABLE d'un hôte — la partie qu'on achète, et celle
+// qui décide si deux hôtes sont *same-site* pour le navigateur.
+//
+// Approximation assumée de la Public Suffix List : on prend les deux dernières
+// étiquettes, trois quand l'avant-dernière est un suffixe de second niveau
+// courant (`exemple.co.ma` et non `co.ma`). La vraie PSL est une liste de
+// plusieurs milliers d'entrées mise à jour en continu ; l'embarquer pour un
+// contrôle de démarrage serait disproportionné. Conséquence à connaître : sur
+// un suffixe exotique absent de la liste ci-dessous, la fonction renvoie une
+// racine trop courte, donc le contrôle est trop STRICT (faux positif possible,
+// jamais de faux négatif) — il refuse de démarrer et affiche les deux hôtes,
+// ce qui se diagnostique en un coup d'œil.
+const SUFFIXES_SECOND_NIVEAU = new Set(['co', 'com', 'net', 'org', 'gov', 'edu', 'ac', 'or', 'ne']);
+
+export function racineEnregistrable(host: string): string {
+  const nom = host.split(':')[0].trim().toLowerCase();
+  const etiquettes = nom.split('.').filter(Boolean);
+  if (etiquettes.length <= 2) return etiquettes.join('.');
+  const avantDernier = etiquettes[etiquettes.length - 2];
+  const taille = SUFFIXES_SECOND_NIVEAU.has(avantDernier) ? 3 : 2;
+  return etiquettes.slice(-taille).join('.');
+}
+
+// Les noms en `.localhost` sont exemptés du contrôle de racines distinctes
+// ci-dessous : les trois hôtes de développement SONT frères sous `.localhost`
+// (cf. SPACE_HOSTS_DEV), et un build de production lancé en local ne doit pas
+// buter dessus.
+//
+// L'exemption est explicite bien qu'aujourd'hui redondante : `localhost` n'est
+// pas un suffixe reconnu par racineEnregistrable, qui voit donc dans
+// `admin.localhost` et `marchand.localhost` deux racines distinctes. Elle dit
+// l'intention plutôt qu'elle ne fait le travail — et garantit que le jour où
+// ce calcul évoluera, il ne fera pas échouer le démarrage en local.
+function estHoteLocal(host: string): boolean {
+  const nom = host.split(':')[0].toLowerCase();
+  return nom === 'localhost' || nom.endsWith('.localhost');
+}
+
+// Vérifié une fois, pas à chaque requête : `assertSpaceHostsConfigured` est
+// appelé en tête du proxy, donc sur tout le trafic.
+let hotesVerifies = false;
+
+// Deux garde-fous de démarrage, en production uniquement.
+//
+//   1. Un hôte non configuré ferait tomber tous les espaces sur les valeurs
+//      `.localhost` : plus aucune requête réelle ne matcherait et l'app
+//      répondrait 404 partout.
+//   2. Deux espaces qui partagent un domaine ENREGISTRABLE seraient
+//      *same-site* l'un pour l'autre, et toute la séparation documentée en
+//      tête de ce fichier s'effondrerait en silence — le routage continuerait
+//      de fonctionner, seules les propriétés de sécurité disparaîtraient.
+//      C'est exactement le genre de régression qu'une relecture ne voit pas :
+//      elle ne tient qu'à trois chaînes de caractères dans un fichier
+//      d'environnement.
+//
+// On échoue explicitement au premier passage dans le proxy plutôt que de
+// laisser diagnostiquer ça en aveugle.
 export function assertSpaceHostsConfigured(): void {
-  if (process.env.NODE_ENV !== 'production') return;
+  if (process.env.NODE_ENV !== 'production' || hotesVerifies) return;
+
   const manquants = SESSION_SPACES.filter((s) => !SPACE_HOSTS_ENV[s]);
   if (manquants.length > 0) {
     throw new Error(
@@ -87,6 +167,27 @@ export function assertSpaceHostsConfigured(): void {
         .join(', ')}`
     );
   }
+
+  const parRacine = new Map<string, SessionSpace[]>();
+  for (const s of SESSION_SPACES) {
+    if (estHoteLocal(SPACE_HOSTS[s])) continue;
+    const racine = racineEnregistrable(SPACE_HOSTS[s]);
+    parRacine.set(racine, [...(parRacine.get(racine) ?? []), s]);
+  }
+
+  const partagees = [...parRacine].filter(([, espaces]) => espaces.length > 1);
+  if (partagees.length > 0) {
+    const detail = partagees
+      .map(([racine, espaces]) => `${espaces.map((s) => SPACE_HOSTS[s]).join(' et ')} partagent « ${racine} »`)
+      .join(' ; ');
+    throw new Error(
+      `Espaces sur un domaine racine commun : ${detail}. ` +
+        'Chaque espace doit avoir son propre domaine enregistrable, sans quoi ils sont same-site ' +
+        "et l'isolation décrite dans lib/spaces.ts ne tient plus."
+    );
+  }
+
+  hotesVerifies = true;
 }
 
 // Source de vérité de l'espace d'une requête. Le `Host` est posé par le
@@ -146,25 +247,40 @@ export function originForHost(host: string): string {
 
 // Préfixe `__Host-` en production : le navigateur REFUSE un cookie ainsi
 // nommé s'il porte un attribut `Domain` ou un `Path` autre que `/`, et exige
-// `Secure`. Le cookie est donc strictement lié à l'hôte exact qui l'a posé —
-// un sous-domaine du domaine métier compromis (ou pris par un tiers) ne peut
-// ni le lire ni l'écraser ("cookie tossing"). Désactivé hors production, où
-// `Secure` n'est pas garanti selon la façon dont on sert l'app en local.
+// `Secure`. Le cookie est donc strictement lié à l'hôte exact qui l'a posé.
+//
+// Les trois espaces vivant sur trois racines distinctes, aucun n'a de frère à
+// craindre : ce préfixe ne défend plus contre un sous-domaine voisin
+// compromis, il défend contre un sous-domaine que l'on ajouterait plus tard
+// SOUS l'une des racines (un `cdn.` ou un `status.` suffirait à rendre le
+// "cookie tossing" possible s'il portait un `Domain`). C'est précisément le
+// genre de garde-fou qu'on garde en place justement parce qu'il ne coûte rien
+// tant qu'il ne sert pas. Désactivé hors production, où `Secure` n'est pas
+// garanti selon la façon dont on sert l'app en local.
 const COOKIE_PREFIX = process.env.NODE_ENV === 'production' ? '__Host-' : '';
 
 export const SESSION_COOKIE_NAMES: Record<SessionSpace, string> = {
   admin: `${COOKIE_PREFIX}pd_session_admin`,
-  planner: `${COOKIE_PREFIX}pd_session_planner`,
   marchand: `${COOKIE_PREFIX}pd_session_marchand`,
   terrain: `${COOKIE_PREFIX}pd_session_terrain`,
 };
 
-// Noms utilisés avant la séparation par domaines (cookie unique `pd_session`,
-// puis un cookie par espace sans préfixe `__Host-`) : conservés uniquement
-// pour les supprimer proprement chez les clients qui les ont encore. Filtrés
-// des noms courants, car hors production le préfixe est vide et les deux
-// listes se recouvrent.
-const LEGACY_NAMES = ['pd_session', 'pd_session_admin', 'pd_session_marchand', 'pd_session_terrain'];
+// Noms posés par les découpages PRÉCÉDENTS : cookie unique `pd_session`, puis
+// un cookie par espace sans préfixe `__Host-`, puis le cookie propre à
+// l'espace `planner` du temps où le planificateur avait son sous-domaine.
+// Conservés uniquement pour les supprimer proprement chez les clients qui les
+// ont encore — celui du Planner en particulier, sans quoi un planificateur
+// déjà connecté garderait indéfiniment un cookie sur un domaine qui ne répond
+// plus. Filtrés des noms courants, car hors production le préfixe est vide et
+// les deux listes se recouvrent.
+const LEGACY_NAMES = [
+  'pd_session',
+  'pd_session_admin',
+  'pd_session_marchand',
+  'pd_session_terrain',
+  'pd_session_planner',
+  '__Host-pd_session_planner',
+];
 
 export const LEGACY_SESSION_COOKIE_NAMES = LEGACY_NAMES.filter(
   (nom) => !SESSION_SPACES.some((s) => SESSION_COOKIE_NAMES[s] === nom)

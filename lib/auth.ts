@@ -34,7 +34,21 @@ export type { SessionSpace } from '@/lib/spaces';
 // app/admin/layout.tsx, cf. leurs commentaires respectifs) partagent la même
 // liste plutôt que de la dupliquer en dur à chaque endroit et risquer qu'elle
 // diverge.
-export const ROLES_BACKOFFICE: Role[] = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable'];
+//
+// `planner` y figure depuis le passage à TROIS domaines (§ lib/spaces.ts) :
+// le planificateur de hub n'est plus cantonné à une web app de quai, c'est un
+// membre du personnel interne qui fait l'essentiel du travail de back-office.
+// Cette liste ne décide QUE de l'accès aux pages /admin/** ; ce qu'il peut
+// réellement faire reste gouverné route par route (`requireUser([...])`) et
+// item par item dans la navigation (components/admin/nav.ts).
+export const ROLES_BACKOFFICE: Role[] = [
+  'admin',
+  'superviseur',
+  'moderateur',
+  'equipe_suivi',
+  'responsable',
+  'planner',
+];
 
 // Rôles cantonnés à l'outil Kanban (/admin/tasks) uniquement : ils partagent
 // le cookie/espace admin (pour atteindre /admin/tasks) mais PAS ROLES_BACKOFFICE
@@ -51,51 +65,43 @@ export const ROLES_KANBAN_UNIQUEMENT: Role[] = ['design', 'gestionnaire_hub'];
 // API (POST/PATCH /api/utilisateurs).
 export const ROLES_HUB_UNIQUEMENT: Role[] = ['agent_hub'];
 
-// Rôle cantonné à sa propre web app (§ /planner : accueil, bons de
-// distribution — composition, clôture de tournée — et poste de scan), servie
-// sur son propre sous-domaine du domaine métier. Contrairement aux
-// confinements ROLES_KANBAN_UNIQUEMENT / ROLES_HUB_UNIQUEMENT ci-dessus, qui
-// restent des REDIRECTIONS appliquées dans proxy.ts à l'intérieur de l'espace
-// admin, celui du Planner est désormais STRUCTUREL : `planner` n'est pas dans
-// SPACE_ROLES.admin, donc il ne peut pas détenir de session sur le domaine
-// ops, et son cookie n'y est de toute façon jamais envoyé. Doit
-// obligatoirement être rattaché à un Hub (Utilisateur.hubId, validé côté
-// API) : toutes les routes /api/bons-distribution/** forcent son périmètre sur
-// ce hub, jamais sur un hubId fourni dans la requête.
-export const ROLES_PLANNER_UNIQUEMENT: Role[] = ['planner'];
-
-// Rôles ayant accès à la web app Planner (/planner/**) : le Planner lui-même,
-// et l'admin — qui planifie tous les hubs et doit pouvoir dépanner depuis
-// l'écran terrain. Exactement la liste que les routes
-// /api/bons-distribution/** autorisent déjà (`requireUser(['admin',
-// 'planner'])`), exposée ici pour que le proxy et app/planner/layout.tsx
-// partagent la même définition plutôt que de la redupliquer.
-export const ROLES_PLANIFICATION: Role[] = ['admin', ...ROLES_PLANNER_UNIQUEMENT];
+// Rôles habilités à la planification des tournées (§ /admin/planification,
+// /admin/bon-distribution, /admin/scan/tournee, composition des bons de
+// retour) : le Planner, et l'admin — qui planifie tous les hubs. Exactement la
+// liste que les routes /api/bons-distribution/** autorisent déjà
+// (`requireUser(['admin', 'planner'])`), exposée ici pour que les pages du
+// module et la navigation partagent la même définition plutôt que de la
+// redupliquer.
+//
+// Le Planner doit obligatoirement être rattaché à un Hub (Utilisateur.hubId,
+// validé côté API) : toutes les routes /api/bons-distribution/** forcent son
+// périmètre sur ce hub, jamais sur un hubId fourni dans la requête. C'est ce
+// cantonnement PAR LES DONNÉES qui le distingue de l'admin, et non plus un
+// cantonnement par domaine — depuis le passage à trois espaces, il travaille
+// dans le back-office comme les autres rôles internes.
+export const ROLES_PLANIFICATION: Role[] = ['admin', 'planner'];
 
 // Rôles autorisés à DÉTENIR une session dans chaque espace. Remplace
-// l'ancienne table `ROLE_SPACES` (un rôle → un espace) : depuis que le Planner
-// a son propre hôte, l'admin doit pouvoir détenir une session dans deux
-// espaces (le back-office, et la web app Planner qu'il utilise pour planifier
-// tous les hubs et dépanner depuis l'écran terrain). Un rôle peut donc figurer
+// l'ancienne table `ROLE_SPACES` (un rôle → un espace) : un rôle peut figurer
 // dans plusieurs espaces, mais chaque session reste liée à un seul, scellé
-// dans le claim `aud` du JWT (cf. signSession).
+// dans le claim `aud` du JWT (cf. signSession). Aujourd'hui les trois listes
+// sont disjointes — un compte relève d'une seule audience (personnel interne,
+// boutique cliente, terrain) — mais la table reste un Record pour que rouvrir
+// un accès inter-espaces ne demande pas d'en changer la forme.
 export const SPACE_ROLES: Record<SessionSpace, Role[]> = {
   admin: [...ROLES_BACKOFFICE, ...ROLES_KANBAN_UNIQUEMENT, ...ROLES_HUB_UNIQUEMENT],
-  planner: ROLES_PLANIFICATION,
   marchand: ['marchand'],
   terrain: ['livreur', 'ramasseur'],
 };
 
 // Rôles autorisés à ouvrir une session PAR MOT DE PASSE sur l'hôte d'un
-// espace — sous-ensemble strict de SPACE_ROLES. L'admin en est délibérément
-// exclu côté Planner : ses identifiants ne doivent jamais être saisis sur le
-// domaine métier, exposé à Internet, alors que le back-office peut être
-// filtré par IP/VPN. Il accède au Planner par transfert de session à usage
-// unique depuis le back-office (cf. POST /api/session-handoff), ce qui lui
-// conserve l'accès sans déplacer la surface d'attaque de son mot de passe.
+// espace — sous-ensemble (aujourd'hui égal) de SPACE_ROLES. La distinction
+// existe pour les accès ouverts par TRANSFERT de session et non par
+// identifiants : c'est le cas de l'impersonation d'un marchand par un admin,
+// dont le mot de passe ne doit jamais être saisi sur un domaine public, exposé
+// à Internet, alors que le back-office peut être filtré par IP/VPN.
 export const SPACE_LOGIN_ROLES: Record<SessionSpace, Role[]> = {
   admin: SPACE_ROLES.admin,
-  planner: ROLES_PLANNER_UNIQUEMENT,
   marchand: ['marchand'],
   terrain: ['livreur', 'ramasseur'],
 };
@@ -107,8 +113,8 @@ export function spaceAllowsRole(space: SessionSpace, role: Role): boolean {
 // Espace "d'origine" d'un rôle : celui où il atterrit après connexion, et
 // celui qui fait référence pour interdire qu'un rôle supplémentaire franchisse
 // une frontière d'espace (cf. PATCH /api/utilisateurs/[id]). Distinct de
-// SPACE_ROLES : l'admin peut détenir une session Planner, mais son espace
-// d'origine reste le back-office.
+// SPACE_ROLES, qui dit où un rôle PEUT détenir une session : un même rôle
+// pourrait en couvrir plusieurs, il n'a jamais qu'un seul espace d'origine.
 const HOME_SPACES: Record<Role, SessionSpace> = {
   admin: 'admin',
   superviseur: 'admin',
@@ -118,7 +124,7 @@ const HOME_SPACES: Record<Role, SessionSpace> = {
   design: 'admin',
   gestionnaire_hub: 'admin',
   agent_hub: 'admin',
-  planner: 'planner',
+  planner: 'admin',
   marchand: 'marchand',
   livreur: 'terrain',
   ramasseur: 'terrain',
@@ -369,7 +375,7 @@ export async function verifySpaceCookie(
 }
 
 // Espace de la requête en cours, déduit du `Host`. `null` si l'hôte n'est pas
-// un des quatre configurés — cas traité en 404 par le proxy.
+// un des trois configurés — cas traité en 404 par le proxy.
 export async function getCurrentSpace(): Promise<SessionSpace | null> {
   const h = await headers();
   return spaceForHost(h.get('host'));
@@ -438,15 +444,15 @@ export function hashResetToken(token: string): string {
 // --- Transfert de session entre domaines ------------------------------------
 //
 // Les cookies étant liés à l'hôte exact qui les pose (`__Host-`), le
-// back-office ne peut PLUS écrire directement une session sur le domaine
-// métier — c'est précisément ce qu'on recherche. Les deux passerelles
-// légitimes qui en avaient besoin passent donc par un jeton à usage unique et
-// à durée très courte, échangé contre une vraie session sur l'hôte cible :
+// back-office ne peut PLUS écrire directement une session sur les deux autres
+// domaines — c'est précisément ce qu'on recherche. La passerelle légitime qui
+// en a besoin passe donc par un jeton à usage unique et à durée très courte,
+// échangé contre une vraie session sur l'hôte cible : l'impersonation d'un
+// marchand par un admin (support, dépannage).
 //
-//   1. impersonation d'un marchand par un admin (support, dépannage) ;
-//   2. accès de l'admin à la web app Planner, dont le formulaire de connexion
-//      refuse son rôle (cf. SPACE_LOGIN_ROLES) pour que son mot de passe ne
-//      soit jamais saisi sur le domaine exposé à Internet.
+// Le second usage historique — l'accès de l'admin à la web app Planner — a
+// disparu avec l'espace `planner` lui-même : le module de planification est
+// servi dans le back-office, sur le domaine où l'admin a déjà sa session.
 //
 // 60 secondes : le jeton ne vit que le temps d'une redirection navigateur.
 // Il transite dans une URL (donc potentiellement journalisée par un proxy),

@@ -20,15 +20,15 @@ function destinationForRole(role: string) {
   if (role === 'ramasseur') return '/ramasseur';
   if (role === 'livreur') return '/livreur';
   if (role === 'design' || role === 'gestionnaire_hub') return '/admin/tasks';
-  if (role === 'planner') return '/planner';
+  if (role === 'planner') return '/admin/planification';
   if (role === 'agent_hub') return '/admin/scan/reception';
   return '/admin/commandes';
 }
 
 // L'API renvoie une URL absolue quand des identifiants valides sont saisis sur
-// le mauvais sous-domaine MÉTIER (ex. un livreur sur le portail marchand) —
-// jamais vers le back-office, dont l'existence n'est pas divulguée depuis le
-// domaine métier. Voir POST /api/auth/login.
+// le mauvais domaine PUBLIC (ex. un livreur sur le portail marchand) — jamais
+// vers le back-office, dont l'existence n'est divulguée depuis aucun des deux
+// autres domaines. Voir POST /api/auth/login.
 function redirectionEspace(err: unknown): string | null {
   if (!(err instanceof ApiRequestError)) return null;
   const details = err.details as { redirectTo?: unknown } | null;

@@ -46,7 +46,12 @@ function heureCourante() {
   return new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// § /planner/scan — poste de scan du Planner.
+// § /admin/scan/tournee — poste de scan du Planner sur le quai.
+//
+// À ne pas confondre avec § /admin/scan/reception, le poste de l'Agent Hub :
+// celui-ci couvre les DEUX gestes du quai dans un seul écran (réception d'un
+// dépôt ET retour de tournée), parce que le Planner a les deux dans les mains
+// au même moment.
 //
 // UN SEUL GESTE. Le Planner scanne, le serveur décide quoi faire du colis à
 // partir de son état réel (POST /api/bons-distribution/resoudre-scan), puis la
@@ -60,7 +65,7 @@ function heureCourante() {
 // "Réception au hub" était actif renvoyait « seul un colis ramasse ou
 // en_transit peut être réceptionné au hub », sans indiquer le bon geste. Les
 // deux cas étant disjoints par construction, c'est au serveur de trancher.
-export default function PlannerScanPage() {
+export default function ScanTourneePage() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [journal, setJournal] = useState<EntreeJournal[]>([]);
   const [enCours, setEnCours] = useState(false);
@@ -167,7 +172,7 @@ export default function PlannerScanPage() {
             {hubLibelle ? `Hub ${hubLibelle}` : 'Hub à sélectionner'}
           </p>
         </div>
-        <Link href="/planner/bons-distribution" className="btn-outline flex items-center gap-1.5">
+        <Link href="/admin/bon-distribution" className="btn-outline flex items-center gap-1.5">
           <Share2 className="h-4 w-4" />
           Bons de distribution
         </Link>

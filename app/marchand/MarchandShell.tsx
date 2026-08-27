@@ -16,8 +16,8 @@ export function MarchandShell({
   // (claim `imp` du JWT, cf. /api/session-handoff/consume) — affiche le
   // bandeau et le raccourci de retour.
   impersonation?: boolean;
-  // URL ABSOLUE vers le back-office : il vit sur un autre domaine racine, un
-  // chemin relatif resterait sur le domaine métier.
+  // URL ABSOLUE vers le back-office : il vit sur son propre domaine racine, un
+  // chemin relatif resterait sur le domaine marchand.
   retourBackOffice: string;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);

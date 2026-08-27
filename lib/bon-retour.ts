@@ -4,7 +4,7 @@ import { validateQrPayload } from '@/lib/parcel-serial';
 import { STATUTS_ELIGIBLES_RETOUR } from '@/lib/statuts';
 import type { Prisma } from '@/app/generated/prisma/client';
 
-// § Bon de retour marchand (/admin/bon-retour, /planner/bons-retour,
+// § Bon de retour marchand (/admin/bon-retour/**,
 // /ramasseur).
 //
 // Trois temps, trois acteurs :
@@ -55,7 +55,7 @@ export interface HubRetour {
   nbRamasseursActifs: number;
 }
 
-// § Étape 1 du wizard de composition (§ /admin/bon-retour/**, § /planner) :
+// § Étape 1 du wizard de composition (§ /admin/bon-retour/**) :
 // pendant exact de getHubsDistribution (lib/bon-distribution.ts), mais compté
 // sur la matière du retour — les colis en échec définitif présents au hub et
 // pas encore réservés.

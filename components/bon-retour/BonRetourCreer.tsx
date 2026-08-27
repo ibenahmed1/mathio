@@ -8,7 +8,7 @@ import type { BonRetour, Commande, HubRetour, RamasseurDisponible } from '@/lib/
 import { QrScanner } from '@/components/QrScanner';
 import BonDistributionCreerUI from '@/components/admin/BonDistributionCreerUI';
 
-// § Composition d'un Bon de Retour (§ /admin/bon-retour/**, § /planner/bons-retour).
+// § Composition d'un Bon de Retour (§ /admin/bon-retour/**).
 //
 // Même wizard que le Bon de Distribution — c'est le même geste sur le quai,
 // mené par la même personne : on choisit une zone, un acteur, puis on remplit

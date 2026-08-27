@@ -5,7 +5,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 // Équivalent de /api/produits/[id]/retrait mais au niveau d'une variante.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const { id } = await params;
     const body = await request.json();
     const quantite = Math.trunc(Number(body.quantite));
@@ -29,7 +29,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     await prisma.historiqueProduit.create({
-      data: { produitId: variante.produitId, texte: `${quantite}, ${variante.nom} a été retiré` },
+      data: {
+        produitId: variante.produitId,
+        texte: `${quantite}, ${variante.nom} a été retiré`,
+        utilisateurId: session.sub,
+      },
     });
 
     const varianteMiseAJour = await prisma.produitVariante.findUnique({ where: { id } });

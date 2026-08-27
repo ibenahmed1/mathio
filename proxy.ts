@@ -5,7 +5,6 @@ import {
   ROLES_BACKOFFICE,
   ROLES_HUB_UNIQUEMENT,
   ROLES_KANBAN_UNIQUEMENT,
-  ROLES_PLANIFICATION,
   SESSION_SPACE_HEADER,
   USER_ID_HEADER,
   USER_ROLE_HEADER,
@@ -26,14 +25,15 @@ import type { Role } from '@/app/generated/prisma/enums';
 // depuis l'app terrain — la restreindre ici réduit d'autant la surface
 // publique de chaque hôte.
 const PUBLIC_API_PATHS: Record<string, SessionSpace[]> = {
-  '/api/auth/login': ['admin', 'planner', 'marchand', 'terrain'],
-  '/api/auth/mot-de-passe-oublie': ['admin', 'planner', 'marchand', 'terrain'],
-  '/api/auth/reinitialiser-mot-de-passe': ['admin', 'planner', 'marchand', 'terrain'],
+  '/api/auth/login': ['admin', 'marchand', 'terrain'],
+  '/api/auth/mot-de-passe-oublie': ['admin', 'marchand', 'terrain'],
+  '/api/auth/reinitialiser-mot-de-passe': ['admin', 'marchand', 'terrain'],
   '/api/marchands/inscription': ['marchand'],
   // Échange d'un jeton de transfert contre une session : par construction
   // appelé sans session sur l'hôte cible (cf. lib/auth.ts, § Transfert de
-  // session entre domaines).
-  '/api/session-handoff/consume': ['marchand', 'planner'],
+  // session entre domaines). Seule l'impersonation d'un marchand par un admin
+  // en émet encore.
+  '/api/session-handoff/consume': ['marchand'],
 };
 
 interface PageGuard {
@@ -56,16 +56,16 @@ const PAGE_GUARDS: PageGuard[] = [
   // respectivement /admin/tasks et /admin/scan/reception, mais ne doivent voir
   // AUCUNE autre page /admin/** — le confinement à leur sous-chemin respectif
   // est appliqué juste après la vérification de session ci-dessous, pas ici.
+  //
+  // `planner` n'est PAS de ceux-là : il fait partie de ROLES_BACKOFFICE depuis
+  // le passage à trois domaines et circule dans tout /admin/**, sans
+  // confinement de chemin. Ce qu'il peut y faire est borné route par route
+  // (`requireUser([...])`) et par son hub de rattachement, pas par le proxy.
   {
     prefix: '/admin',
     space: 'admin',
     allowedRoles: [...ROLES_BACKOFFICE, ...ROLES_KANBAN_UNIQUEMENT, ...ROLES_HUB_UNIQUEMENT],
   },
-  // § Web app Planner : espace à part entière depuis la séparation par
-  // domaines (son propre sous-domaine, son propre cookie, son propre claim
-  // `aud`). Le rôle `planner` n'existe plus du tout dans l'espace admin, ce
-  // qui rend inutile l'ancienne redirection de confinement.
-  { prefix: '/planner', space: 'planner', allowedRoles: ROLES_PLANIFICATION },
   { prefix: '/marchand', space: 'marchand', allowedRoles: ['marchand'] },
   { prefix: '/ramasseur', space: 'terrain', allowedRoles: ['ramasseur'] },
   { prefix: '/livreur', space: 'terrain', allowedRoles: ['livreur'] },
@@ -133,13 +133,19 @@ export async function proxy(request: NextRequest) {
   const origine = originForHost(hote as string);
 
   // --- 2. Contrôle d'origine (CSRF) ----------------------------------------
-  // Les quatre espaces ne partagent plus d'origine, mais les trois
-  // sous-domaines du domaine métier restent *same-site* entre eux : un
-  // `sameSite: 'lax'`/'strict'` n'empêche donc pas une page marchand compromise
-  // d'émettre une requête authentifiée vers l'app terrain. Ce contrôle ferme
-  // ce résidu pour les 95 routes d'un coup — d'autant plus nécessaire que les
-  // handlers font `await request.json()` sans exiger un Content-Type JSON,
-  // donc une requête "simple" (sans préflight CORS) passerait autrement.
+  // Les trois espaces vivent sur trois domaines RACINES distincts : toute
+  // paire est *cross-site*, et `sameSite` bloque déjà à lui seul l'envoi du
+  // cookie sur une requête d'écriture venue d'un autre espace. Ce contrôle
+  // reste, en barrière INDÉPENDANTE, pour trois raisons concrètes :
+  //
+  //   - en développement les trois hôtes sont frères sous `.localhost` (cf.
+  //     SPACE_HOSTS_DEV) : c'est ici la SEULE barrière, et c'est aussi ce que
+  //     les scripts d'audit exercent ;
+  //   - il ne dépend d'aucune valeur par défaut du navigateur, alors que
+  //     `sameSite` en dépend entièrement ;
+  //   - les handlers font `await request.json()` sans exiger un Content-Type
+  //     JSON : une requête "simple", sans préflight CORS, atteindrait sinon
+  //     les 95 routes.
   if (!METHODES_SURES.has(request.method)) {
     const origin = request.headers.get('origin');
     if (origin !== origine) {

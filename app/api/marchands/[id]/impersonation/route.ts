@@ -9,8 +9,8 @@ import { getClientIp } from '@/lib/rate-limit';
 //
 // Depuis la séparation par domaines, cette route ne pose PLUS de cookie
 // elle-même : elle tourne sur le domaine du back-office, et le cookie de
-// session marchand est lié à l'hôte du domaine métier (préfixe `__Host-`, cf.
-// lib/auth.ts) — un domaine ne peut pas écrire de cookie pour un autre, et
+// session marchand est lié à l'hôte du domaine marchand (préfixe `__Host-`,
+// cf. lib/auth.ts) — un domaine ne peut pas écrire de cookie pour un autre, et
 // c'est précisément l'isolation recherchée. Elle émet donc un jeton de
 // transfert à usage unique (60 s) que le navigateur échange contre une vraie
 // session sur l'hôte marchand (GET /api/session-handoff/consume).

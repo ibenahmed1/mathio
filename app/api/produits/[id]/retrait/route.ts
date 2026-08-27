@@ -8,7 +8,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 // pour le suivi par variante).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const { id } = await params;
     const body = await request.json();
     const quantite = Math.trunc(Number(body.quantite));
@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     await prisma.historiqueProduit.create({
-      data: { produitId: id, texte: `${quantite}, ${produit.nom} a été retiré` },
+      data: { produitId: id, texte: `${quantite}, ${produit.nom} a été retiré`, utilisateurId: session.sub },
     });
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });

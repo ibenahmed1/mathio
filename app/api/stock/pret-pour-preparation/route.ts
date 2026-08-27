@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
           data: Array.from(besoinsParProduit.entries()).map(([produitId, quantite]) => ({
             produitId,
             texte: `${quantite} retiré(s) — passage en préparation`,
+            utilisateurId: session.sub,
           })),
         });
       }

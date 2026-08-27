@@ -6,8 +6,12 @@ import {
   MapPinned,
   CheckCircle2,
   FileSpreadsheet,
+  BarChart3,
+  Users,
   Truck,
   MapPin,
+  Building2,
+  ArrowLeftRight,
   Boxes,
   PackageSearch,
   FileText,
@@ -57,10 +61,19 @@ const RECLAMATIONS: Role[] = ['admin', 'superviseur', 'moderateur'];
 // § Comptabilité (RBAC) : réservé à admin + responsable (responsables
 // comptables), cf. ROLES_COMPTABILITE dans app/api/finance/route.ts.
 const COMPTABILITE: Role[] = ['admin', 'responsable'];
-// § Bon de distribution (/admin/bon-distribution) : l'admin voit tous les
-// hubs, le planner uniquement le sien (périmètre forcé côté API, cf.
-// resolveHubPlanification dans lib/bon-distribution.ts).
+// § Planification des tournées (/admin/planification, /admin/bon-distribution,
+// /admin/scan/tournee) : mêmes rôles que ROLES_PLANIFICATION (lib/auth.ts),
+// redéclarés ici parce que ce module est chargé côté client — importer
+// lib/auth y ferait entrer Prisma et next/headers.
 const PLANIFICATION_TOURNEES: Role[] = ['admin', 'planner'];
+// § Bon de retour (/admin/bon-retour/**) : même liste que ROLES_COMPOSITION
+// dans app/api/bons-retour/route.ts — le planner compose les retours de son
+// hub, comme il compose ses tournées.
+const COMPOSITION_RETOURS: Role[] = ['admin', 'planner'];
+// § Statistiques (/admin/statistique/**) : les pages affichent le COD encaissé
+// et la performance nominative des livreurs. Même liste que la comptabilité,
+// élargie au superviseur, dont c'est le métier de piloter l'exploitation.
+const STATISTIQUES: Role[] = ['admin', 'responsable', 'superviseur'];
 
 export const NAV_ADMIN: NavItem[] = [
   { label: 'Accueil', href: '/admin', icon: LayoutDashboard },
@@ -75,18 +88,22 @@ export const NAV_ADMIN: NavItem[] = [
       { label: 'Confirmation', href: '/admin/colis/confirmation', icon: CheckCircle2, roles: CONFIRMATION_COLIS },
     ],
   },
-  // {
-  //   label: 'Statistique',
-  //   icon: BarChart3,
-  //   children: [
-  //     { label: 'Tout', href: '/admin/statistique/tout', icon: BarChart3 },
-  //     { label: 'Client', href: '/admin/statistique/client', icon: Users },
-  //     { label: 'Livreur', href: '/admin/statistique/livreur', icon: Truck },
-  //     { label: 'Zone', href: '/admin/statistique/zone', icon: MapPin },
-  //     { label: 'Ville', href: '/admin/statistique/ville', icon: Building2 },
-  //     { label: 'Comparer', href: '/admin/statistique/comparer', icon: ArrowLeftRight },
-  //   ],
-  // },
+  // § Statistiques : réactivé avec le module (les six pages étaient des écrans
+  // "à venir" jusqu'ici). Même périmètre que la comptabilité — un taux de
+  // livraison par livreur est une donnée de pilotage, et le COD encaissé qui
+  // s'y affiche est un chiffre financier.
+  {
+    label: 'Statistique',
+    icon: BarChart3,
+    children: [
+      { label: 'Tout', href: '/admin/statistique/tout', icon: BarChart3, roles: STATISTIQUES },
+      { label: 'Client', href: '/admin/statistique/client', icon: Users, roles: STATISTIQUES },
+      { label: 'Livreur', href: '/admin/statistique/livreur', icon: Truck, roles: STATISTIQUES },
+      { label: 'Zone', href: '/admin/statistique/zone', icon: MapPin, roles: STATISTIQUES },
+      { label: 'Ville', href: '/admin/statistique/ville', icon: Building2, roles: STATISTIQUES },
+      { label: 'Comparer', href: '/admin/statistique/comparer', icon: ArrowLeftRight, roles: STATISTIQUES },
+    ],
+  },
   {
     label: 'Gestion de stock',
     icon: Boxes,
@@ -103,9 +120,16 @@ export const NAV_ADMIN: NavItem[] = [
   // ROLES_HUB_UNIQUEMENT (confinement à /admin/scan/reception + /admin/bon-envoi
   // hors création, cf. proxy.ts), qui ne consulte jamais `roles`.
   { label: "Bon d'envoi", href: '/admin/bon-envoi', icon: Send, roles: ADMIN_SEUL },
-  // § Planner : seul item ouvert au rôle planner (cf. ROLES_PLANNER_UNIQUEMENT
-  // ci-dessous et le confinement correspondant dans proxy.ts).
+  // § Planification des tournées — les trois écrans du Planner, rapatriés dans
+  // le back-office par le passage à trois domaines (cf. lib/spaces.ts) : son
+  // tableau de bord, la composition/clôture des tournées, et le poste de scan
+  // du quai (à distinguer de « Scan Réception Hub », celui de l'Agent Hub).
+  // Même périmètre pour les trois, cf. ROLES_PLANIFICATION dans lib/auth.ts —
+  // l'admin voit tous les hubs, le planner uniquement le sien (périmètre forcé
+  // côté API, cf. resolveHubPlanification dans lib/bon-distribution.ts).
+  { label: 'Planification', href: '/admin/planification', icon: LayoutDashboard, roles: PLANIFICATION_TOURNEES },
   { label: 'Bon de distribution', href: '/admin/bon-distribution', icon: Share2, roles: PLANIFICATION_TOURNEES },
+  { label: 'Scan Tournée', href: '/admin/scan/tournee', icon: ScanLine, roles: PLANIFICATION_TOURNEES },
   // § Règlement du livreur : même périmètre que la comptabilité — émettre et
   // régler un bon sort de l'argent et génère une écriture (cf. ROLES_PAIEMENT
   // dans app/api/bons-paiement/route.ts).
@@ -117,16 +141,17 @@ export const NAV_ADMIN: NavItem[] = [
       { label: 'Pour zone', href: '/admin/bon-paiement/zone', icon: MapPin, roles: COMPTABILITE },
     ],
   },
-  // § Bon de retour : composition réservée à admin (+ planner, qui passe par
-  // sa propre web app et n'apparaît donc pas dans cette navigation, cf.
-  // ROLES_COMPOSITION dans app/api/bons-retour/route.ts).
+  // § Bon de retour : composition ouverte à admin et planner (cf.
+  // ROLES_COMPOSITION dans app/api/bons-retour/route.ts). Le planner y accédait
+  // auparavant par sa propre web app, d'où l'absence de ces entrées dans cette
+  // navigation ; elles lui sont désormais montrées ici, à la place.
   {
     label: 'Bon de retour',
     icon: Undo2,
     children: [
-      { label: 'Pour livreur', href: '/admin/bon-retour/livreur', icon: Truck, roles: ADMIN_SEUL },
-      { label: 'Pour zone', href: '/admin/bon-retour/zone', icon: MapPin, roles: ADMIN_SEUL },
-      { label: 'Pour client', href: '/admin/bon-retour/client', icon: User, roles: ADMIN_SEUL },
+      { label: 'Pour livreur', href: '/admin/bon-retour/livreur', icon: Truck, roles: COMPOSITION_RETOURS },
+      { label: 'Pour zone', href: '/admin/bon-retour/zone', icon: MapPin, roles: COMPOSITION_RETOURS },
+      { label: 'Pour client', href: '/admin/bon-retour/client', icon: User, roles: COMPOSITION_RETOURS },
     ],
   },
   // § Facturation marchand : réactivée avec le module (les pages étaient des
@@ -174,15 +199,12 @@ const ROLES_KANBAN_UNIQUEMENT: Role[] = ['design', 'gestionnaire_hub'];
 // nav ne doit lui montrer que "Scan Réception Hub".
 const ROLES_HUB_UNIQUEMENT: Role[] = ['agent_hub'];
 
-// § Planner : depuis l'ouverture de sa web app dédiée, proxy.ts le renvoie
-// hors de TOUT /admin/** vers /planner — cette sidebar ne lui est donc en
-// principe jamais rendue. La branche est conservée par sécurité (si le
-// confinement venait à être assoupli, la nav ne doit toujours lui montrer que
-// son module) — même principe que les deux listes ci-dessus.
-const ROLES_PLANNER_UNIQUEMENT: Role[] = ['planner'];
-
 // Filtre récursif : un groupe ne survit que s'il lui reste au moins un enfant
 // visible pour `role` (évite d'afficher un intitulé de section vide).
+//
+// Le rôle `planner` n'a PAS de branche de confinement ici : depuis le passage
+// à trois domaines il fait partie de ROLES_BACKOFFICE et voit la navigation
+// ordinaire, filtrée item par item comme pour les autres rôles internes.
 export function filterNavByRole(nav: NavItem[], role: Role): NavItem[] {
   if (ROLES_KANBAN_UNIQUEMENT.includes(role)) {
     return nav.filter((item) => 'href' in item && item.href === '/admin/tasks');
@@ -191,9 +213,6 @@ export function filterNavByRole(nav: NavItem[], role: Role): NavItem[] {
     return nav.filter(
       (item) => 'href' in item && (item.href === '/admin/scan/reception' || item.href === '/admin/bon-envoi')
     );
-  }
-  if (ROLES_PLANNER_UNIQUEMENT.includes(role)) {
-    return nav.filter((item) => 'href' in item && item.href === '/admin/bon-distribution');
   }
   return nav.reduce<NavItem[]>((acc, item) => {
     if (item.roles && !item.roles.includes(role)) return acc;

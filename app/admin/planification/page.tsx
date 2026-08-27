@@ -36,13 +36,19 @@ function Kpi({
   );
 }
 
-// § Accueil de la web app Planner : la journée type du Planner tient en deux
-// mouvements — composer les tournées le matin (colis prêts au hub), les
-// décharger le soir (tournées encore ouvertes). Cet écran ne fait que les
-// rendre visibles d'un coup d'œil, sans nouvel endpoint : il agrège les
-// mêmes routes que les autres écrans du module, déjà cantonnées au hub du
-// Planner côté serveur.
-export default function PlannerAccueilPage() {
+// § /admin/planification — écran d'accueil du planificateur de tournées, et
+// page d'atterrissage du rôle `planner` après connexion (cf. app/login).
+//
+// La journée type du Planner tient en deux mouvements — composer les tournées
+// le matin (colis prêts au hub), les décharger le soir (tournées encore
+// ouvertes). Cet écran ne fait que les rendre visibles d'un coup d'œil, sans
+// nouvel endpoint : il agrège les mêmes routes que les autres écrans du
+// module, déjà cantonnées au hub du Planner côté serveur.
+//
+// Anciennement l'accueil de la web app Planner (§ /planner), servie sur son
+// propre domaine ; le passage à trois domaines (cf. lib/spaces.ts) l'a ramené
+// dans le back-office, où il ne coûte plus qu'une entrée de navigation.
+export default function PlanificationPage() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [hubs, setHubs] = useState<HubDistribution[]>([]);
   const [ouvertes, setOuvertes] = useState<BonDistribution[]>([]);
@@ -79,11 +85,11 @@ export default function PlannerAccueilPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link href="/planner/scan" className="btn-outline flex items-center gap-1.5">
+          <Link href="/admin/scan/tournee" className="btn-outline flex items-center gap-1.5">
             <ScanLine className="h-4 w-4" />
             Scanner
           </Link>
-          <Link href="/planner/bons-distribution/creer" className="btn-primary flex items-center gap-1.5">
+          <Link href="/admin/bon-distribution/creer" className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" />
             Nouveau Bon de Distribution
           </Link>
@@ -105,7 +111,7 @@ export default function PlannerAccueilPage() {
             <Share2 className="h-4 w-4" />
             Tournées à clôturer
           </h2>
-          <Link href="/planner/bons-distribution" className="text-xs font-semibold hover:underline">
+          <Link href="/admin/bon-distribution" className="text-xs font-semibold hover:underline">
             Voir tous les bons de distribution
           </Link>
         </div>
@@ -127,7 +133,7 @@ export default function PlannerAccueilPage() {
               {ouvertes.map((b) => (
                 <tr key={b.id}>
                   <td className="font-mono">
-                    <Link href={`/planner/bons-distribution/${b.id}`} className="hover:underline">
+                    <Link href={`/admin/bon-distribution/${b.id}`} className="hover:underline">
                       {b.numero}
                     </Link>
                   </td>
@@ -142,7 +148,7 @@ export default function PlannerAccueilPage() {
                   <td>{new Date(b.dateGeneration).toLocaleDateString('fr-FR')}</td>
                   <td>
                     <Link
-                      href={`/planner/bons-distribution/${b.id}/cloture`}
+                      href={`/admin/bon-distribution/${b.id}/cloture`}
                       className="flex items-center gap-1 text-xs font-semibold hover:underline"
                     >
                       <Undo2 className="h-3.5 w-3.5" />

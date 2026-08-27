@@ -12,9 +12,8 @@ import { EnteteSociete } from '@/components/EnteteSociete';
 // fait signer au marchand quand la signature à l'écran n'est pas possible, et
 // la pièce justificative qu'on ressort en cas de litige sur un colis rendu.
 //
-// Servie sur le back-office, la web app Planner et l'espace marchand : les
-// trois ont une raison légitime de la sortir. Le ramasseur, lui, signe dans
-// son application.
+// Servie sur le back-office et l'espace marchand : les deux ont une raison
+// légitime de la sortir. Le ramasseur, lui, signe dans son application.
 //
 // Les signatures sont stockées en data URL (cf. BonRetour.signatureUrl) :
 // `next/image` refuserait ce format, d'où le <img> et la désactivation ciblée
@@ -22,7 +21,7 @@ import { EnteteSociete } from '@/components/EnteteSociete';
 export default async function BonRetourPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const session = await getPageSession(['admin', 'planner', 'marchand']);
+  const session = await getPageSession(['admin', 'marchand']);
   if (!session) {
     redirect('/login');
   }

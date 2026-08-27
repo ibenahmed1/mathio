@@ -116,6 +116,10 @@ export interface HistoriqueProduit {
   produitId: string;
   texte: string;
   dateCreation: string;
+  // Auteur du mouvement. Null sur les lignes antérieures à la traçabilité
+  // (migration 20260826110000) : l'écran affiche « — » plutôt que d'inventer
+  // un nom. Optionnel car toutes les routes ne le sélectionnent pas.
+  utilisateur?: { nomComplet: string } | null;
 }
 
 export interface Produit {
@@ -844,7 +848,7 @@ export interface TableauDeBordPaie {
 }
 
 // ============================================================
-// Bon de retour marchand (§ /admin/bon-retour, /planner, /ramasseur)
+// Bon de retour marchand (§ /admin/bon-retour, /ramasseur)
 // ============================================================
 
 export interface BonRetourColis {
