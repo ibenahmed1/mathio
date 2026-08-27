@@ -18,7 +18,12 @@ export function MarchandShell({
   impersonation?: boolean;
   // URL ABSOLUE vers le back-office : il vit sur son propre domaine racine, un
   // chemin relatif resterait sur le domaine marchand.
-  retourBackOffice: string;
+  //
+  // OPTIONNELLE, et fournie uniquement quand `impersonation` est vrai : cette
+  // prop traverse la frontière serveur/client, donc tout ce qu'elle contient
+  // est lisible par le marchand. Le domaine du back-office n'a rien à faire
+  // dans la page d'un marchand ordinaire (cf. app/marchand/layout.tsx).
+  retourBackOffice?: string;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -34,7 +39,12 @@ export function MarchandShell({
     try {
       await apiPost('/api/auth/logout');
     } finally {
-      window.location.href = retourBackOffice;
+      // Repli sur le /login du domaine courant : ce bouton n'est rendu que
+      // sous impersonation, donc l'URL est en principe toujours fournie. S'y
+      // fier sans repli enverrait vers « undefined » le jour où les deux props
+      // se désaccorderaient — et la session vient d'être fermée, mieux vaut
+      // atterrir quelque part de valide.
+      window.location.href = retourBackOffice ?? '/login';
     }
   }
 
