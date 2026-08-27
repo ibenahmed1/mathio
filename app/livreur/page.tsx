@@ -41,10 +41,12 @@ export default function LivreurDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setError(null);
-    apiGet<DashboardLivreurStats>(`/api/livreur/dashboard?from=${range.from}&to=${range.to}`)
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    queueMicrotask(() => {
+      setError(null);
+      apiGet<DashboardLivreurStats>(`/api/livreur/dashboard?from=${range.from}&to=${range.to}`)
+        .then(setData)
+        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    });
   }, [range]);
 
   const bd = data?.bonsDistribution;

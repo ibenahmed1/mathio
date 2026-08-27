@@ -183,6 +183,7 @@ export function ColisInfoModal({
             </div>
             <div className="mtTRow">
               <div className={photoUrl ? 'mtPhoto mtPhoto--img' : 'mtPhoto mtPhoto--empty'}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage externe, non déclarée dans next.config */}
                 {photoUrl && <img src={photoUrl} alt={produitNom} />}
               </div>
               <div>

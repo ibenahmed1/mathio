@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getPageSession } from '@/lib/auth';
+import { getParametresSociete } from '@/lib/societe';
 import { AutoPrint } from '@/components/AutoPrint';
 
 // § "Voir en PDF" d'un Bon d'Envoi (menu Actions, cf. BonEnvoiActionsMenu) :
@@ -16,6 +17,8 @@ export default async function BonEnvoiDetailPrintPage({ params }: { params: Prom
   if (!session) {
     redirect('/login');
   }
+
+  const societe = await getParametresSociete();
 
   const bon = await prisma.bonEnvoi.findUnique({
     where: { id },
@@ -52,13 +55,13 @@ export default async function BonEnvoiDetailPrintPage({ params }: { params: Prom
         <div className="flex items-center gap-3">
           <Image
             src="/mathio.jpg"
-            alt="Mathio Delivery"
+            alt={societe.raisonSociale}
             width={56}
             height={56}
             className="h-14 w-14 rounded-lg object-cover"
           />
           <div>
-            <p className="text-xs font-bold tracking-[0.2em] opacity-70">MATHIO DELIVERY</p>
+            <p className="text-xs font-bold tracking-[0.2em] opacity-70">{societe.raisonSociale.toUpperCase()}</p>
             <p className="text-2xl font-black leading-tight">Bon d&apos;Envoi</p>
           </div>
         </div>

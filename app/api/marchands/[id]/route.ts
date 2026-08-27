@@ -33,6 +33,54 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 // RF-22 : suppression définitive d'un compte marchand par l'admin (ex. compte
 // créé par erreur ou refusé). Supprime aussi l'utilisateur lié.
+// § Facturation marchand : frais PAR DÉFAUT appliqués à toute ville sans
+// ligne dans TarifMarchandVille.
+//
+// Volontairement limité à ces deux champs : les données KYC/bancaires saisies
+// à l'inscription ne s'éditent pas par cette route, pour qu'un formulaire de
+// tarification ne puisse jamais réécrire un RIB par effet de bord.
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireUser(['admin']);
+    const { id } = await params;
+    const body = await request.json();
+
+    const data: Prisma.MarchandUpdateInput = {};
+
+    for (const champ of ['fraisLivraison', 'fraisRetour'] as const) {
+      if (body[champ] === undefined) continue;
+      // Chaîne vide = "revenir à aucun frais par défaut" (null), distinct de 0
+      // qui est un tarif gratuit assumé.
+      if (body[champ] === null || body[champ] === '') {
+        data[champ] = null;
+        continue;
+      }
+      const valeur = Number(body[champ]);
+      if (!Number.isFinite(valeur) || valeur < 0) {
+        throw new ApiError(400, 'Les frais doivent être des montants positifs');
+      }
+      data[champ] = valeur;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new ApiError(400, 'Aucune modification fournie');
+    }
+
+    const marchand = await prisma.marchand.findUnique({ where: { id }, select: { id: true } });
+    if (!marchand) throw new ApiError(404, 'Marchand introuvable');
+
+    const updated = await prisma.marchand.update({
+      where: { id },
+      data,
+      select: { id: true, fraisLivraison: true, fraisRetour: true },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireUser(['admin']);

@@ -21,7 +21,7 @@ export default function AdminRamassagesPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // /api/utilisateurs est réservé à "admin" : on l'isole dans son propre
     // effet (comme /admin/commandes pour les livreurs) pour qu'un 403 ici
     // n'empêche pas les autres rôles back-office de voir la liste des

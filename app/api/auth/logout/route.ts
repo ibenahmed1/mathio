@@ -1,24 +1,24 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { LEGACY_SESSION_COOKIE_NAME, SESSION_COOKIE_NAMES, SPACE_HINT_HEADER, type SessionSpace } from '@/lib/auth';
+import { LEGACY_SESSION_COOKIE_NAMES, SESSION_COOKIE_NAMES, spaceForHost } from '@/lib/auth';
 
-const VALID_SPACES: SessionSpace[] = ['admin', 'marchand', 'terrain'];
-
-// Ne déconnecte que l'espace applicatif d'où vient la requête (indiqué par
-// `x-pd-space`, posé automatiquement par lib/api-client.ts) : si un admin et
-// un marchand sont connectés en même temps dans deux onglets, se déconnecter
-// depuis l'espace marchand ne doit pas couper la session admin. Sans indice
-// exploitable, on efface les trois par prudence.
+// Ne déconnecte que l'espace de l'hôte appelé. C'est désormais mécanique
+// plutôt que déclaratif : chaque espace ayant son propre domaine, cette route
+// ne peut de toute façon supprimer que les cookies de l'hôte qui la sert — un
+// logout côté marchand est structurellement incapable de couper la session du
+// back-office, même par erreur de code.
 export async function POST(request: NextRequest) {
-  const response = NextResponse.json({ ok: true });
-
-  const hint = request.headers.get(SPACE_HINT_HEADER);
-  const space = VALID_SPACES.find((s) => s === hint);
-  const spacesToClear = space ? [space] : VALID_SPACES;
-
-  for (const s of spacesToClear) {
-    response.cookies.delete(SESSION_COOKIE_NAMES[s]);
+  const space = spaceForHost(request.headers.get('host'));
+  if (!space) {
+    return new NextResponse(null, { status: 404 });
   }
-  response.cookies.delete(LEGACY_SESSION_COOKIE_NAME);
+
+  const response = NextResponse.json({ ok: true });
+  response.cookies.delete(SESSION_COOKIE_NAMES[space]);
+  // Reliquats d'avant la séparation par domaines (cookie unique `pd_session`,
+  // puis un cookie par espace sans préfixe `__Host-`).
+  for (const nom of LEGACY_SESSION_COOKIE_NAMES) {
+    response.cookies.delete(nom);
+  }
 
   return response;
 }

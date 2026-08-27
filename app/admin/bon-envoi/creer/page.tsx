@@ -47,17 +47,19 @@ export default function CreerBonEnvoiPage() {
   }, []);
 
   useEffect(() => {
-    setSelectionnes(new Map());
-    setToast(null);
-    if (!hubDestinationId) {
-      setEligibles([]);
-      return;
-    }
-    setLoadingEligibles(true);
-    apiGet<{ data: Commande[] }>(`/api/bons-envoi/colis-eligibles?hubDestinationId=${encodeURIComponent(hubDestinationId)}`)
-      .then((res) => setEligibles(res.data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'))
-      .finally(() => setLoadingEligibles(false));
+    queueMicrotask(() => {
+      setSelectionnes(new Map());
+      setToast(null);
+      if (!hubDestinationId) {
+        setEligibles([]);
+        return;
+      }
+      setLoadingEligibles(true);
+      apiGet<{ data: Commande[] }>(`/api/bons-envoi/colis-eligibles?hubDestinationId=${encodeURIComponent(hubDestinationId)}`)
+        .then((res) => setEligibles(res.data))
+        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'))
+        .finally(() => setLoadingEligibles(false));
+    });
   }, [hubDestinationId]);
 
   const destination = useMemo(() => destinations.find((d) => d.id === hubDestinationId) ?? null, [destinations, hubDestinationId]);

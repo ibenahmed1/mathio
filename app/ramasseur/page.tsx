@@ -7,7 +7,8 @@ import type { Commande } from '@/lib/types';
 import { Logo } from '@/components/Logo';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
-import { ChevronLeft, List, LogOut, PackageCheck, ScanLine, Truck } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, List, LogOut, PackageCheck, ScanLine, Truck, Undo2 } from 'lucide-react';
 
 interface RamasseurUser {
   id: string;
@@ -34,6 +35,15 @@ export default function RamasseurPage() {
   const [loadingScannees, setLoadingScannees] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
+  const [bonsRetour, setBonsRetour] = useState(0);
+
+  // Nombre de bons de retour encore à remettre, pour n'afficher l'entrée
+  // correspondante que quand elle a un sens (cf. l'écran d'accueil).
+  useEffect(() => {
+    apiGet<{ total: number }>('/api/bons-retour?statut=en_cours&pageSize=1')
+      .then((res) => setBonsRetour(res.total))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     apiGet<RamasseurUser>('/api/auth/me').then(setUser).catch(() => {});
@@ -129,6 +139,20 @@ export default function RamasseurPage() {
               <List className="h-4 w-4" />
               Voir les colis scannés ({scannees.length})
             </button>
+          )}
+
+          {/* § Bon de retour : le ramasseur ne fait pas que collecter, il
+              rapporte aussi les colis en échec à leur marchand. L'entrée
+              n'apparaît que s'il a effectivement un bon en main — un écran
+              vide de plus sur un téléphone n'aide personne. */}
+          {bonsRetour > 0 && (
+            <Link
+              href="/ramasseur/bons-retour"
+              className="flex items-center justify-center gap-2 rounded-xl border border-black/10 py-3 text-sm font-semibold opacity-80 transition hover:opacity-100 dark:border-white/10"
+            >
+              <Undo2 className="h-4 w-4" />
+              Bons de retour à remettre ({bonsRetour})
+            </Link>
           )}
 
           <p className="text-center text-xs opacity-60">

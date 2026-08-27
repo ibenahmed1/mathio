@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ImagePlus } from 'lucide-react';
-import { apiGet, apiPatch } from '@/lib/api-client';
+import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
+import { quantiteRecueTotale, reliquatReception } from '@/lib/stock-quantites';
 import type { Produit } from '@/lib/types';
 import { LigneStockRow, type LigneStock } from './LigneStockRow';
 
@@ -19,6 +20,7 @@ export default function ModifierProduitPage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [enregistrement, setEnregistrement] = useState(false);
   const [changementStatut, setChangementStatut] = useState(false);
+  const [cloture, setCloture] = useState(false);
 
   async function load() {
     try {
@@ -35,7 +37,7 @@ export default function ModifierProduitPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
@@ -60,14 +62,72 @@ export default function ModifierProduitPage() {
     }
   }
 
+  // Mêmes fonctions que côté API (lib/stock-quantites.ts) : l'écran et le
+  // serveur ne peuvent plus diverger sur ce que « déjà validé » et « reliquat »
+  // veulent dire.
+  const quantiteDejaValidee = produit ? quantiteRecueTotale(produit) : 0;
+  const reliquat = produit ? reliquatReception(produit) : 0;
+
+  // § Clôture de réception : solde le reliquat et ouvre une réclamation contre
+  // le marchand. Irréversible — d'où la confirmation, qui annonce les DEUX
+  // effets. Une confirmation qui ne mentionne que la remise à zéro ferait
+  // découvrir la réclamation après coup.
+  async function cloturerReception() {
+    if (!produit) return;
+    const ok = window.confirm(
+      `Clôturer la réception de « ${produit.nom} » ?
+
+` +
+        `${reliquat} unité(s) déclarée(s) par le marchand n'ont jamais été reçues. ` +
+        `Elles seront ramenées à 0 et une réclamation sera ouverte automatiquement ` +
+        `contre le marchand.
+
+Cette action est irréversible.`
+    );
+    if (!ok) return;
+
+    const motif = window.prompt('Motif (facultatif) — il sera repris dans la réclamation :') ?? '';
+
+    setError(null);
+    setCloture(true);
+    try {
+      await apiPost(`/api/produits/${params.id}/cloturer-reception`, { motif: motif.trim() || undefined });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    } finally {
+      setCloture(false);
+    }
+  }
+
   // Le statut est un verrou : passer sur "Reçu" déverrouille la saisie des
   // quantités dans le tableau ci-dessous (voir LigneStockRow), pas l'inverse —
   // ce n'est jamais déduit des quantités elles-mêmes.
   async function changerStatutReception(statutReception: Produit['statutReception']) {
     setError(null);
+
+    // § Retour arrière. L'API refuse ce mouvement (409) tant que la
+    // confirmation ne l'accompagne pas explicitement — le `confirm` n'est donc
+    // pas la sécurité, seulement l'endroit où l'admin apprend ce qu'il est en
+    // train de faire. Le verrou reste côté serveur.
+    let confirmerRetourArriere = false;
+    if (statutReception === 'pas_encore_recu' && quantiteDejaValidee > 0) {
+      const ok = window.confirm(
+        `${quantiteDejaValidee} unité(s) ont déjà été validées en entrepôt.
+
+` +
+          `Repasser ce produit sur « Pas encore reçu » le retirera des écrans de préparation ` +
+          `alors qu'il est physiquement en stock.
+
+Continuer ?`
+      );
+      if (!ok) return;
+      confirmerRetourArriere = true;
+    }
+
     setChangementStatut(true);
     try {
-      await apiPatch(`/api/produits/${params.id}`, { statutReception });
+      await apiPatch(`/api/produits/${params.id}`, { statutReception, confirmerRetourArriere });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
@@ -180,6 +240,25 @@ export default function ModifierProduitPage() {
         </div>
       </div>
 
+      {reliquat > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          <p className="text-sm">
+            <span className="font-semibold">{reliquat} unité(s) en attente de réception.</span>{' '}
+            <span className="opacity-70">
+              Déclarées par le marchand mais jamais validées en entrepôt.
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={cloturerReception}
+            disabled={cloture}
+            className="btn-outline shrink-0"
+          >
+            {cloture ? 'Clôture…' : 'Clôturer la réception'}
+          </button>
+        </div>
+      )}
+
       <div className="table-card">
         <div className="overflow-x-auto">
           <table className="table-basic min-w-[760px]">
@@ -216,6 +295,7 @@ export default function ModifierProduitPage() {
             <thead>
               <tr>
                 <th>Historique</th>
+                <th>Par</th>
                 <th>Date</th>
               </tr>
             </thead>
@@ -223,12 +303,16 @@ export default function ModifierProduitPage() {
               {(produit.historique ?? []).map((h) => (
                 <tr key={h.id}>
                   <td>{h.texte}</td>
+                  {/* « — » sur les mouvements antérieurs à la traçabilité : leur
+                      auteur n'a jamais été enregistré, l'afficher comme inconnu
+                      est la seule réponse honnête. */}
+                  <td className="text-xs opacity-60">{h.utilisateur?.nomComplet ?? '—'}</td>
                   <td className="text-xs opacity-60">{new Date(h.dateCreation).toLocaleString('fr-FR')}</td>
                 </tr>
               ))}
               {(produit.historique ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={2} className="py-4 text-center text-sm opacity-50">
+                  <td colSpan={3} className="py-4 text-center text-sm opacity-50">
                     Aucun historique
                   </td>
                 </tr>

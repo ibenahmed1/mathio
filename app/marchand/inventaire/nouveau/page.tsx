@@ -62,7 +62,9 @@ export default function NouveauProduitPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setReference(genererReferenceProduit());
+    queueMicrotask(() => {
+      setReference(genererReferenceProduit());
+    });
   }, []);
 
   // Validation dynamique de l'unicité (debounce 500ms) — isolée par marchand
@@ -70,10 +72,10 @@ export default function NouveauProduitPage() {
   useEffect(() => {
     const valeur = reference.trim();
     if (!valeur) {
-      setStatutReference('idle');
+      queueMicrotask(() => setStatutReference('idle'));
       return;
     }
-    setStatutReference('verification');
+    queueMicrotask(() => setStatutReference('verification'));
     const timer = setTimeout(async () => {
       try {
         const res = await apiGet<{ disponible: boolean }>(

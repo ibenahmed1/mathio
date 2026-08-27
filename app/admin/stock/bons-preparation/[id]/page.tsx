@@ -30,7 +30,7 @@ export default function BonPreparationDetailPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 

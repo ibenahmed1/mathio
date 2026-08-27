@@ -3,9 +3,15 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import type { SessionPayload } from '@/lib/auth';
+import { quantiteRecueTotale } from '@/lib/stock-quantites';
 import type { StatutReceptionProduit } from '@/app/generated/prisma/enums';
 
 const STATUTS_RECEPTION_VALIDES: StatutReceptionProduit[] = ['pas_encore_recu', 'recu'];
+
+const LIBELLES_RECEPTION: Record<StatutReceptionProduit, string> = {
+  pas_encore_recu: 'Pas encore reçu',
+  recu: 'Reçu',
+};
 
 async function findOwnProduit(id: string, utilisateurId: string) {
   const marchand = await resolveMarchandForUser(utilisateurId);
@@ -37,7 +43,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       where: { id },
       include: {
         variantes: true,
-        historique: { orderBy: { dateCreation: 'desc' } },
+        historique: {
+          orderBy: { dateCreation: 'desc' },
+          include: { utilisateur: { select: { nomComplet: true } } },
+        },
         marchand: { select: { nomBoutique: true } },
       },
     });
@@ -52,9 +61,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 // individuellement (sinon voir PATCH /api/produits/variantes/[id]).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const { id } = await params;
-    const produit = await prisma.produit.findUnique({ where: { id } });
+    const produit = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });
     if (!produit) throw new ApiError(404, 'Produit introuvable');
 
     const body = await request.json();
@@ -79,6 +88,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!STATUTS_RECEPTION_VALIDES.includes(body.statutReception)) {
         throw new ApiError(400, `statutReception invalide. Valeurs possibles : ${STATUTS_RECEPTION_VALIDES.join(', ')}`);
       }
+      // § Retour arrière du statut de réception (décision produit du 26/08/2026).
+      //
+      // Repasser un produit sur "pas encore reçu" alors que des quantités ont
+      // déjà été validées le fait disparaître des écrans de préparation, alors
+      // qu'il est physiquement sur l'étagère. On ne l'INTERDIT pas — corriger
+      // une erreur de saisie doit rester possible — mais l'appelant doit le
+      // demander explicitement, et le mouvement laisse une trace nominative
+      // dans l'historique du produit (ci-dessous).
+      //
+      // 409 et non 400 : la requête est bien formée, c'est l'état actuel du
+      // produit qui s'y oppose. L'écran distingue les deux.
+      const dejaValide = quantiteRecueTotale(produit);
+      if (
+        body.statutReception === 'pas_encore_recu' &&
+        produit.statutReception !== 'pas_encore_recu' &&
+        dejaValide > 0 &&
+        body.confirmerRetourArriere !== true
+      ) {
+        throw new ApiError(
+          409,
+          `${dejaValide} unité(s) ont déjà été validées en entrepôt pour ce produit. Confirmez explicitement le retour arrière pour continuer.`
+        );
+      }
       data.statutReception = body.statutReception;
     }
 
@@ -87,6 +119,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const updated = await prisma.produit.update({ where: { id }, data, include: { variantes: true } });
+
+    // Le statut de réception est le VERROU qui ouvre et ferme la saisie des
+    // quantités : c'est le mouvement le plus structurant de la fiche produit,
+    // et le seul champ de cette route dont l'historique doit garder trace.
+    // Les deux sens sont tracés, pas seulement le retour arrière — un
+    // historique qui ne raconte que les anomalies ne se relit pas.
+    if (data.statutReception && data.statutReception !== produit.statutReception) {
+      const motif = typeof body.motif === 'string' && body.motif.trim() ? ` — ${body.motif.trim()}` : '';
+      const dejaValide = quantiteRecueTotale(produit);
+      const rappel =
+        data.statutReception === 'pas_encore_recu' && dejaValide > 0
+          ? ` (${dejaValide} unité(s) déjà validée(s) en entrepôt)`
+          : '';
+      await prisma.historiqueProduit.create({
+        data: {
+          produitId: id,
+          texte: `Statut de réception : ${LIBELLES_RECEPTION[produit.statutReception]} → ${LIBELLES_RECEPTION[data.statutReception]}${rappel}${motif}`,
+          utilisateurId: session.sub,
+        },
+      });
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     return jsonError(error);

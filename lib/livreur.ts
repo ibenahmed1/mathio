@@ -5,6 +5,7 @@ import type { StatutCommande } from '@/app/generated/prisma/enums';
 
 const commandeListeInclude = {
   marchand: { select: { nomBoutique: true } },
+  hubActuel: { select: { ville: true } },
 } satisfies Prisma.CommandeInclude;
 
 export type CommandeListeLivreur = Prisma.CommandeGetPayload<{ include: typeof commandeListeInclude }>;
@@ -45,13 +46,24 @@ export interface FiltresColisLivreur {
   reporteAujourdhui?: boolean;
 }
 
-// § /livreur/colis : liste complète des colis assignés au livreur connecté,
-// pas seulement la tournée du jour (cf. spec module livreur) — l'ancien
-// périmètre "tournée = colis du Bon de Distribution généré aujourd'hui" reste
-// disponible via le filtre Date, mais la page couvre tout l'historique du
-// livreur par défaut.
+// § /livreur/colis : colis assignés au livreur connecté, pas seulement la
+// tournée du jour (cf. spec module livreur) — le filtre Date permet de revenir
+// au périmètre "tournée d'un jour donné".
+//
+// § Clôture de tournée : les colis d'une tournée CLÔTURÉE en sont exclus.
+// Une fois le circuit déchargé et fermé par le Planner, il disparaît de
+// l'application du livreur — colis compris — et son interface se remet à zéro
+// pour la tournée suivante. Rien n'est supprimé pour autant : le détail de la
+// tournée close et les gains associés restent consultables sur
+// /livreur/bons-distribution, qui est justement l'écran d'historique et de
+// solde à payer.
 export async function getColisLivreur(livreurId: string, filtres: FiltresColisLivreur = {}): Promise<CommandeListeLivreur[]> {
-  const where: Prisma.CommandeWhereInput = { livreurId };
+  const where: Prisma.CommandeWhereInput = {
+    livreurId,
+    // Un colis sans Bon de Distribution n'appartient à aucun circuit : il n'a
+    // rien à voir avec une clôture et reste visible.
+    OR: [{ bonDistributionId: null }, { bonDistribution: { statut: { not: 'cloture' } } }],
+  };
 
   if (filtres.etat === 'facture') {
     where.etatPaiement = 'facture';
@@ -99,10 +111,12 @@ export async function getStatsColisLivreur(livreurId: string, dateDebut: Date, d
 }
 
 // § /livreur (Accueil), Bloc 2 : Bons de Distribution du livreur générés dans
-// la plage de dates — le statut Prisma ('nouveau' | 'en_cours') n'a pas de
-// valeur "clôturé", donc du point de vue du livreur tout bon qui lui est
-// assigné est simplement « Enregistré » : le détail nouveau/en_cours ne sert
-// qu'à la répartition du donut, pas au compteur global.
+// la plage de dates. C'est une STATISTIQUE d'activité sur une période, pas la
+// feuille de route : les tournées clôturées y restent comptées, sinon
+// l'historique de performance du livreur se viderait à chaque clôture. Elles
+// sont simplement isolées dans leur propre compteur — sans quoi
+// nouveau + enCours ne totalise plus `total` dès la première clôture, et le
+// donut de l'accueil sous-compte silencieusement.
 export async function getStatsBonsDistributionLivreur(livreurId: string, hubId: string, dateDebut: Date, dateFin: Date) {
   const bons = await prisma.bonDistribution.findMany({
     where: { livreurId, hubId, dateGeneration: { gte: debutJour(dateDebut), lte: finJour(dateFin) } },
@@ -112,21 +126,30 @@ export async function getStatsBonsDistributionLivreur(livreurId: string, hubId: 
   const total = bons.length;
   const nouveau = bons.filter((b) => b.statut === 'nouveau').length;
   const enCours = bons.filter((b) => b.statut === 'en_cours').length;
+  const cloture = bons.filter((b) => b.statut === 'cloture').length;
   const nbColisTotal = bons.reduce((somme, b) => somme + b.nbColis, 0);
 
-  return { total, nouveau, enCours, nbColisTotal };
+  return { total, nouveau, enCours, cloture, nbColisTotal };
 }
 
-// § /livreur/bons-paiement : colis livrés aujourd'hui par ce livreur — le
-// CRBT encaissé se déduit de la somme de leur montantCod (pas de modèle
-// "Caisse" dédié, cf. Transaction pour la comptabilité interne qui vit à un
-// tout autre niveau — celui-ci est propre au livreur et calculé à la volée).
+// § /livreur/bons-paiement : cash que le livreur a ENCORE EN MAIN — colis
+// livrés aujourd'hui dont la tournée n'a pas encore été déchargée. Le CRBT se
+// déduit de la somme de leur montantCod (pas de modèle "Caisse" dédié, cf.
+// Transaction pour la comptabilité interne qui vit à un tout autre niveau —
+// celui-ci est propre au livreur et calculé à la volée).
+//
+// Les colis d'une tournée clôturée en sont exclus : à la clôture, le livreur a
+// remis 100 % de ce cash au Planner (§ POST .../cloturer, qui écrit la
+// Transaction d'entrée de caisse). Les laisser ici afficherait comme "en
+// caisse" un argent déjà rendu — et ferait double compte si le livreur
+// repart en tournée dans la même journée.
 export async function getCaisseJour(livreurId: string, jour: Date = new Date()) {
   const commandes = await prisma.commande.findMany({
     where: {
       livreurId,
       statut: 'livre',
       dateLivraison: { gte: debutJour(jour), lte: finJour(jour) },
+      OR: [{ bonDistributionId: null }, { bonDistribution: { statut: { not: 'cloture' } } }],
     },
     include: { marchand: { select: { nomBoutique: true } } },
     orderBy: { dateLivraison: 'desc' },
@@ -148,6 +171,10 @@ export async function getCaisseJour(livreurId: string, jour: Date = new Date()) 
 const commandeTourneeInclude = {
   marchand: { select: { nomBoutique: true } },
   bonDistribution: { select: { id: true, numero: true, dateGeneration: true, hub: { select: { nom: true } } } },
+  // Ville du hub où le colis se trouve physiquement : c'est elle qui complète
+  // le libellé « Retourné au Hub (Casablanca) » (cf. StatutBadge) — le nom du
+  // hub de la tournée ne convient pas, ce n'est pas la même donnée.
+  hubActuel: { select: { ville: true } },
 } satisfies Prisma.CommandeInclude;
 
 export type CommandeTourneeLivreur = Prisma.CommandeGetPayload<{ include: typeof commandeTourneeInclude }>;

@@ -78,7 +78,9 @@ export function TaskDetailModal({
   // l'API à chaque pixel de déplacement du curseur.
   const [progressDraft, setProgressDraft] = useState(0);
   useEffect(() => {
-    if (tache) setProgressDraft(tache.progress);
+    queueMicrotask(() => {
+      if (tache) setProgressDraft(tache.progress);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tache?.id, tache?.progress]);
 
@@ -115,7 +117,7 @@ export function TaskDetailModal({
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tacheId]);
 

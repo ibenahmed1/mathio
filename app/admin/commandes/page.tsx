@@ -102,7 +102,7 @@ export default function AdminCommandesPage() {
   }, []);
 
   useEffect(() => {
-    load(1);
+    Promise.resolve().then(() => load(1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statutFiltre, etatPaiementFiltre, livreurFiltre, dateFrom, dateTo]);
 

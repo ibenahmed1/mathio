@@ -48,10 +48,6 @@ function heureCourante() {
 // fourni est alimentée par les Hub existants (§ /admin/hubs) — pas de
 // référentiel géographique parallèle.
 //
-// Partagé entre l'espace admin (/admin/bon-distribution/creer) et la web app
-// Planner (/planner/bons-distribution/creer) : `basePath` préfixe les
-// redirections pour rester dans l'espace d'où part la composition.
-//
 // § Scan caméra : le champ texte "CLIC ICI AVANT LE SCAN" du wizard reste la
 // saisie douchette/clavier ; le panneau caméra ci-dessous (<QrScanner />, même
 // composant que le scan de réception au quai et le scan des retours) donne au
@@ -59,7 +55,7 @@ function heureCourante() {
 // chargement du camion. Les deux chemins passent par la même fonction
 // `scannerCode`, donc par le même endpoint POST /api/bons-distribution/scan
 // qui revalide l'éligibilité du couple hub/livreur côté serveur.
-export function BonDistributionCreer({ basePath }: { basePath: string }) {
+export function BonDistributionCreer() {
   const router = useRouter();
 
   const [etape, setEtape] = useState<'zone' | 'tournee'>('zone');
@@ -96,25 +92,29 @@ export function BonDistributionCreer({ basePath }: { basePath: string }) {
   }, []);
 
   useEffect(() => {
-    if (!hubId) {
-      setLivreurs([]);
-      return;
-    }
-    apiGet<{ data: LivreurEligible[] }>(`/api/bons-distribution/livreurs?hubId=${encodeURIComponent(hubId)}`)
-      .then((res) => setLivreurs(res.data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    queueMicrotask(() => {
+      if (!hubId) {
+        setLivreurs([]);
+        return;
+      }
+      apiGet<{ data: LivreurEligible[] }>(`/api/bons-distribution/livreurs?hubId=${encodeURIComponent(hubId)}`)
+        .then((res) => setLivreurs(res.data))
+        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    });
   }, [hubId]);
 
   useEffect(() => {
-    if (!hubId || !livreurId) {
-      setEligibles([]);
-      return;
-    }
-    apiGet<{ data: Commande[] }>(
-      `/api/bons-distribution/colis-eligibles?hubId=${encodeURIComponent(hubId)}&livreurId=${encodeURIComponent(livreurId)}`
-    )
-      .then((res) => setEligibles(res.data))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    queueMicrotask(() => {
+      if (!hubId || !livreurId) {
+        setEligibles([]);
+        return;
+      }
+      apiGet<{ data: Commande[] }>(
+        `/api/bons-distribution/colis-eligibles?hubId=${encodeURIComponent(hubId)}&livreurId=${encodeURIComponent(livreurId)}`
+      )
+        .then((res) => setEligibles(res.data))
+        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+    });
   }, [hubId, livreurId]);
 
   const hubSelectionne = hubs.find((h) => h.id === hubId) ?? null;
@@ -282,7 +282,9 @@ export function BonDistributionCreer({ basePath }: { basePath: string }) {
   // le hub, le livreur et le panier courants), jamais celle capturée au
   // montage de la caméra.
   const scannerCodeRef = useRef(scannerCode);
-  scannerCodeRef.current = scannerCode;
+  useEffect(() => {
+    scannerCodeRef.current = scannerCode;
+  });
 
   function handleReset() {
     setHubId('');
@@ -312,7 +314,7 @@ export function BonDistributionCreer({ basePath }: { basePath: string }) {
       setStatutLabel('En cours');
       setConfirmationOuverte(false);
       setCameraActive(false);
-      router.push(`${basePath}/${created.id}`);
+      router.push(`/admin/bon-distribution/${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
       setConfirmationOuverte(false);

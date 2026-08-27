@@ -34,7 +34,7 @@ export default function AdminStockNouveauxPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   const tousSelectionnes = colis.length > 0 && colis.every((c) => selected.has(c.id));

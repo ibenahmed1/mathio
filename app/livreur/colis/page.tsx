@@ -34,6 +34,7 @@ interface ColisFeuilleDeRoute {
   dateNouvelleLivraison: string | null;
   marchand?: { nomBoutique: string };
   bonDistribution?: { id: string; numero: string; hub?: { nom: string } } | null;
+  hubActuel?: { ville: string } | null;
 }
 
 interface FeuilleDeRoute {
@@ -79,7 +80,7 @@ export default function FeuilleDeRouteLivreurPage() {
   }, []);
 
   useEffect(() => {
-    rafraichir();
+    Promise.resolve().then(() => rafraichir());
   }, [rafraichir]);
 
   const aTenter = feuille?.colis.filter((c) => c.statut === 'mise_en_distribution') ?? [];
@@ -187,7 +188,10 @@ export default function FeuilleDeRouteLivreurPage() {
                         <span className="block text-xs opacity-60">{c.ville}</span>
                       </td>
                       <td>
-                        <StatutBadge statut={c.statut} hubVille={c.bonDistribution?.hub?.nom} />
+                        {/* La ville du hub où le colis se trouve, pas le nom du
+                            hub de la tournée : le libellé attendu est
+                            « Retourné au Hub (Casablanca) ». */}
+                        <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
                         {c.motifRetour && <span className="block text-xs opacity-60">{c.motifRetour}</span>}
                       </td>
                       <td className="text-right font-semibold">{Number(c.montantCod).toFixed(2)} DH</td>

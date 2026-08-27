@@ -3,7 +3,7 @@ import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { Role } from '@/app/generated/prisma/enums';
-import { getSessionSpace, normalizePhoneMaroc } from '@/lib/auth';
+import { getHomeSpace, normalizePhoneMaroc } from '@/lib/auth';
 
 // Mêmes jeux de rôles que POST /api/utilisateurs (voir ce fichier pour le
 // détail) : seuls les comptes équipe se modifient/suppriment depuis cet
@@ -84,7 +84,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!Array.isArray(body.rolesSupplementaires)) {
         throw new ApiError(400, 'rolesSupplementaires doit être un tableau');
       }
-      const espaceCible = getSessionSpace(role);
+      const espaceCible = getHomeSpace(role);
       const rolesSupplementaires = Array.from(new Set(body.rolesSupplementaires)) as unknown[];
       for (const r of rolesSupplementaires) {
         if (typeof r !== 'string' || !ROLES_EQUIPE.includes(r as Role)) {
@@ -93,7 +93,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         if (r === role) {
           throw new ApiError(400, `"${r}" est déjà le rôle principal de cet utilisateur`);
         }
-        if (getSessionSpace(r as Role) !== espaceCible) {
+        if (getHomeSpace(r as Role) !== espaceCible) {
           throw new ApiError(400, `Le rôle supplémentaire "${r}" n'appartient pas au même espace applicatif que cet utilisateur`);
         }
       }

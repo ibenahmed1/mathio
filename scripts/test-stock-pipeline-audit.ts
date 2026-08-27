@@ -53,7 +53,16 @@ async function verifie(label: string, fn: () => Promise<void>) {
   }
 }
 
-const SESSION_ADMIN: SessionPayload = { sub: `${PREFIXE}-admin`, role: 'admin', extraRoles: [] };
+// Session synthétique passée directement aux fonctions de lib/** (ce script
+// n'appelle pas l'API en HTTP) : `space` reflète l'espace back-office, seul
+// depuis lequel ces opérations de stock sont exposées.
+const SESSION_ADMIN: SessionPayload = {
+  sub: `${PREFIXE}-admin`,
+  role: 'admin',
+  extraRoles: [],
+  space: 'admin',
+  impersonated: false,
+};
 
 async function creerMarchand(suffixe: string) {
   const utilisateur = await prisma.utilisateur.create({

@@ -33,7 +33,7 @@ export function ProduitSelect({
 
   useEffect(() => {
     if (disabled) {
-      setProduits([]);
+      queueMicrotask(() => setProduits([]));
       return;
     }
     const path = marchandId !== undefined ? `/api/produits?marchandId=${marchandId}` : '/api/produits';

@@ -74,14 +74,16 @@ export default function NouveauColisPage() {
   // de quantité (prix unitaire × quantité). Le champ reste un input normal,
   // toujours modifiable manuellement par la suite.
   useEffect(() => {
-    if (!marchandiseSelectionnee) {
-      setPrixAuto(false);
-      return;
-    }
-    const qte = Number(form.quantite) || 1;
-    const total = Number(marchandiseSelectionnee.prix) * qte;
-    setForm((f) => ({ ...f, montantCod: total.toFixed(2) }));
-    setPrixAuto(true);
+    queueMicrotask(() => {
+      if (!marchandiseSelectionnee) {
+        setPrixAuto(false);
+        return;
+      }
+      const qte = Number(form.quantite) || 1;
+      const total = Number(marchandiseSelectionnee.prix) * qte;
+      setForm((f) => ({ ...f, montantCod: total.toFixed(2) }));
+      setPrixAuto(true);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.marchandiseId, form.quantite]);
 

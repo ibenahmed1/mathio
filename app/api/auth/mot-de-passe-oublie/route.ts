@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError } from '@/lib/api-utils';
-import { generateResetToken } from '@/lib/auth';
+import { generateResetToken, originForHost, spaceForHost } from '@/lib/auth';
 import { sendPasswordResetEmail } from '@/lib/mailer';
 import { checkRateLimit, getClientIp, rateLimitedResponse } from '@/lib/rate-limit';
 
@@ -38,8 +38,17 @@ export async function POST(request: NextRequest) {
         data: { resetTokenHash: tokenHash, resetTokenExpire: expiresAt },
       });
 
-      const origin = request.nextUrl.origin;
-      const resetUrl = `${origin}/reinitialiser-mot-de-passe?token=${token}`;
+      // L'hôte de la requête et non `request.nextUrl.origin` : ce dernier porte
+      // l'adresse interne du serveur (localhost:PORT, ou l'hôte vu par le
+      // process derrière un reverse proxy), pas le domaine que l'utilisateur a
+      // réellement visité. Le lien reçu par email doit ramener exactement là,
+      // seul hôte où son cookie de session pourra être posé — d'où originForHost
+      // plutôt que l'hôte canonique de l'espace, qui peut différer en dev.
+      const hote = request.headers.get('host');
+      if (!spaceForHost(hote)) {
+        return NextResponse.json({ message: GENERIC_MESSAGE });
+      }
+      const resetUrl = `${originForHost(hote as string)}/reinitialiser-mot-de-passe?token=${token}`;
       await sendPasswordResetEmail(email, resetUrl);
     }
 

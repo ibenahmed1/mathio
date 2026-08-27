@@ -18,7 +18,7 @@ export default function AdminConfirmationColisPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function changerStatut(id: string, statut: string) {

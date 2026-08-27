@@ -25,7 +25,7 @@ export function EquipeSection() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function handleInvite(e: React.FormEvent) {

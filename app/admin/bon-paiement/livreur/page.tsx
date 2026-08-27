@@ -1,12 +1,7 @@
-import { Truck } from 'lucide-react';
-import { ComingSoon } from '@/components/ComingSoon';
+import { BonPaiementBoard } from '@/components/BonPaiementBoard';
 
+// Entrée « par livreur » : tous les livreurs ayant un solde, tous hubs
+// confondus. Cf. BonPaiementBoard pour la logique partagée avec /zone.
 export default function BonPaiementLivreurPage() {
-  return (
-    <ComingSoon
-      icon={Truck}
-      title="Bon de paiement — Pour livreur"
-      description="Le règlement des livreurs sera disponible prochainement."
-    />
-  );
+  return <BonPaiementBoard parZone={false} />;
 }

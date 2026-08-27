@@ -1,23 +1,30 @@
 import { redirect } from 'next/navigation';
-import { getPageSession, roleMatches } from '@/lib/auth';
+import { getPageSession, roleMatches, spaceOrigin } from '@/lib/auth';
 import { MarchandShell } from './MarchandShell';
 
-// Le proxy (proxy.ts) protège déjà /marchand/:path*, mais on revérifie ici
-// indépendamment : défense en profondeur, cohérent avec app/admin/layout.tsx
-// et nécessaire pour les Server Actions qui ne passent pas par le proxy.
+// Le proxy (proxy.ts) protège déjà /marchand/:path* et refuse ces pages sur
+// tout autre hôte, mais on revérifie ici indépendamment : défense en
+// profondeur, cohérent avec app/admin/layout.tsx et nécessaire pour les
+// Server Actions qui ne passent pas par le proxy.
 export default async function MarchandLayout({ children }: { children: React.ReactNode }) {
   const session = await getPageSession('marchand');
   if (!session || !roleMatches(session, ['marchand'])) {
     redirect('/login');
   }
 
-  // Un cookie admin valide dans le même navigateur signale probablement un
-  // admin qui a ouvert cet espace via "Accéder à l'espace" (voir
-  // /api/marchands/[id]/impersonation) — on affiche un raccourci de retour.
-  // Ce n'est qu'un confort d'UI : le cookie pd_session_admin n'est jamais
-  // modifié par l'impersonation, donc ce lien ramène toujours vers une vraie
-  // session admin déjà valide.
-  const adminSession = await getPageSession('admin');
-
-  return <MarchandShell adminAccessible={Boolean(adminSession)}>{children}</MarchandShell>;
+  // Session ouverte par un admin via "Accéder à l'espace" — l'information ne
+  // vient plus de la détection d'un cookie admin dans le même navigateur
+  // (impossible depuis que les deux espaces sont sur des domaines distincts),
+  // mais du claim `imp` scellé dans le JWT au moment du transfert (voir
+  // /api/session-handoff/consume). C'est à la fois plus fiable et plus
+  // honnête : le bandeau reflète la nature de LA session en cours, pas la
+  // présence fortuite d'une autre session à côté.
+  return (
+    <MarchandShell
+      impersonation={session.impersonated}
+      retourBackOffice={`${spaceOrigin('admin')}/admin/marchands`}
+    >
+      {children}
+    </MarchandShell>
+  );
 }

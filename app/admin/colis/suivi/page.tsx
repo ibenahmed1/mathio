@@ -67,8 +67,7 @@ function AdminSuiviColisContent() {
   }
 
   useEffect(() => {
-    if (idInitial) loadById(idInitial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (idInitial) Promise.resolve().then(() => loadById(idInitial));
   }, [idInitial]);
 
   async function handleSearch(e: React.FormEvent) {

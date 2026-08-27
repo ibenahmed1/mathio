@@ -65,13 +65,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       throw new ApiError(404, 'Commande introuvable');
     }
 
-    let marchandId: string | null = null;
     if (session.role === 'marchand') {
       const marchand = await resolveMarchandForUser(session.sub);
       if (!marchand || commande.marchandId !== marchand.id) {
         throw new ApiError(403, 'Accès refusé à cette commande');
       }
-      marchandId = marchand.id;
     }
 
     let nouveauLivreurNom: string | null = null;

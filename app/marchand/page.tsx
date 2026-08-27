@@ -43,7 +43,7 @@ const PERIODES = [
 // la couleur ne vit plus que dans la pastille d'icône, ce qui laisse les
 // chiffres porter la hiérarchie. Les teintes elles-mêmes sont des classes
 // `.kpi-*` (globals.css) pour avoir une contrepartie sombre.
-const TEINTES_KPI = ['ambre', 'indigo', 'ardoise', 'rouge'] as const;
+type TeinteKpi = 'ambre' | 'indigo' | 'ardoise' | 'rouge';
 
 // Couleurs de données (graphique + répartition CRBT). L'ambre marque toujours
 // ce qui est acquis (livré, remboursé), l'ardoise ce qui ne l'est pas encore.
@@ -62,7 +62,7 @@ function KpiTile({
   icon: React.ComponentType<{ className?: string }>;
   value: number;
   label: string;
-  teinte: (typeof TEINTES_KPI)[number];
+  teinte: TeinteKpi;
 }) {
   return (
     <div className={`${CARTE} kpi-${teinte} flex flex-col gap-6 p-[18px]`}>

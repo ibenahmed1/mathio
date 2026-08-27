@@ -1,7 +1,13 @@
 "use client";
 
 /**
- * BON DE DISTRIBUTION — CRÉER · UI SEULE (présentational)
+ * WIZARD DE COMPOSITION D'UN BON — UI SEULE (présentational)
+ * ------------------------------------------------------------------
+ * Sert DEUX documents, parce que c'est le même geste sur le quai :
+ *   - Bon de Distribution : zone -> livreur   -> colis à livrer
+ *   - Bon de Retour       : zone -> ramasseur -> colis à restituer
+ * Tous les textes passent par la prop `libelles` (défauts = distribution),
+ * aucun n'est déduit du document : le composant ne sait pas lequel il rend.
  * ------------------------------------------------------------------
  * Aucune logique métier ici : pas de filtrage, pas de calcul de statut,
  * pas d'appel API. Le composant ne fait que RENDRE ce qu'on lui passe
@@ -35,6 +41,13 @@
  *   message             string | null     — bandeau d'info sous le scan
  *   journal             [{ id, heure, texte }]
  *   confirmation        { ouverte, titre, sousTitre, totaux[], texte } | null
+ *   libelles            { kicker, etape1, etape1Aide, zoneSousLigne, zoneMetrique,
+ *                         etape2, etape2Placeholder, etape2Vide, acteurMetrique,
+ *                         choisirActeur, choisirActeurAide, etape3,
+ *                         etape3Placeholder, colisVide, bonPrefixe, bonVideTitre,
+ *                         bonVideAide, validation }  — tout est optionnel
+ *   bonSousTitre        string | null     — encart sous le titre du panneau BON
+ *                                           (ex. « Destinataire : Boutique X »)
  *
  * Callbacks : onZonePick(id) onZoneChange() onLivreurPick(id)
  *   onRechercheLivreur(v) onRechercheColis(v) onFiltrePick(id)
@@ -162,7 +175,7 @@ const S = {
 // doit réagir à la largeur d'écran. Les grilles ne peuvent pas rester en style
 // inline — une media query ne peut pas battre un attribut `style`, et l'écran
 // est utilisé aussi bien sur poste fixe au bureau que sur tablette/téléphone
-// au quai (web app Planner, § /planner/bons-distribution/creer).
+// au quai (§ /admin/bon-distribution/creer).
 const css = `
 @keyframes bdFade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes bdIn { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
@@ -291,6 +304,8 @@ export default function BonDistributionCreerUI({
   message = null,
   journal = [],
   confirmation = null,
+  libelles = {},
+  bonSousTitre = null,
   onZonePick,
   onZoneChange,
   onLivreurPick,
@@ -310,6 +325,34 @@ export default function BonDistributionCreerUI({
   onConfirmer,
   onAnnuler,
 }) {
+  // Tous les textes du wizard passent par cette table : le composant sert
+  // aussi bien au Bon de Distribution (zone -> livreur -> colis à livrer)
+  // qu'au Bon de Retour (zone -> ramasseur -> colis à restituer), qui est le
+  // même geste sur le quai avec d'autres acteurs. Les valeurs par défaut sont
+  // celles de la distribution, pour que l'appelant historique n'ait rien à
+  // passer.
+  const L = {
+    kicker: "BONS DE DISTRIBUTION · CRÉER",
+    etape1: "ÉTAPE 1 · ZONE DE DISTRIBUTION",
+    etape1Aide: "Choisissez la zone : la suite s'y limite.",
+    zoneSousLigne: "livreurs actifs",
+    zoneMetrique: "AU HUB",
+    etape2: "ÉTAPE 2 · LIVREUR",
+    etape2Placeholder: "Nom, téléphone…",
+    etape2Vide: "Aucun livreur à afficher.",
+    acteurMetrique: "ÉLIGIBLES",
+    choisirActeur: "Choisissez un livreur de",
+    choisirActeurAide: "La liste des colis proposés s'affichera ici.",
+    etape3: "ÉTAPE 3 · COLIS ÉLIGIBLES",
+    etape3Placeholder: "Code, client, quartier…",
+    colisVide: "Aucun colis à afficher.",
+    bonPrefixe: "BON ·",
+    bonVideTitre: "Glissez ou scannez ici",
+    bonVideAide: "L'ordre de la liste devient l'ordre de la tournée.",
+    validation: "VALIDATION DU BON",
+    ...libelles,
+  };
+
   // état PUREMENT visuel (survol / cible de drop) — aucune règle métier
   const [dropActif, setDropActif] = useState(false);
   const [indexCible, setIndexCible] = useState(null);
@@ -333,7 +376,7 @@ export default function BonDistributionCreerUI({
       {/* EN-TÊTE : kicker + code + statut + actions (pas de titre, pas de stepper) */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
-          <div style={S.kicker}>BONS DE DISTRIBUTION · CRÉER</div>
+          <div style={S.kicker}>{L.kicker}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 11, marginTop: 8, flexWrap: "wrap" }}>
             <span style={S.chip}>{codeBD || "Code attribué à l'impression"}</span>
             <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, borderRadius: 20, padding: "5px 12px", ...tone }}>
@@ -353,8 +396,8 @@ export default function BonDistributionCreerUI({
       {etape === "zone" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: "bdFade .22s ease both" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <span style={S.label}>ÉTAPE 1 · ZONE DE DISTRIBUTION</span>
-            <span style={{ fontSize: 11.5, color: C.muted2 }}>Choisissez la zone : la suite s'y limite.</span>
+            <span style={S.label}>{L.etape1}</span>
+            <span style={{ fontSize: 11.5, color: C.muted2 }}>{L.etape1Aide}</span>
           </div>
           <div className="bd-zones">
             {zones.map((z) => (
@@ -387,12 +430,12 @@ export default function BonDistributionCreerUI({
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 800, letterSpacing: -0.2 }}>{z.nom}</div>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.muted2 }}>
-                      {z.nbLivreurs} livreurs actifs
+                      {z.sousLigne ?? `${z.nbLivreurs} ${L.zoneSousLigne}`}
                     </div>
                   </div>
                   <div style={{ marginLeft: "auto", textAlign: "right", flex: "none" }}>
                     <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.5, ...S.num }}>{z.nbColis}</div>
-                    <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.7, color: C.muted3 }}>AU HUB</div>
+                    <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.7, color: C.muted3 }}>{L.zoneMetrique}</div>
                   </div>
                 </div>
                 <div style={{ height: 6, borderRadius: 6, background: "rgba(32,32,32,.07)", overflow: "hidden" }}>
@@ -425,7 +468,7 @@ export default function BonDistributionCreerUI({
             <section style={S.card}>
               <div style={{ padding: "13px 14px 11px", display: "flex", flexDirection: "column", gap: 10, borderBottom: `1px solid ${C.ligne2}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={S.label}>ÉTAPE 2 · LIVREUR</span>
+                  <span style={S.label}>{L.etape2}</span>
                   <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: C.encre2 }}>{livreurCompteur}</span>
                 </div>
                 <div style={S.search}>
@@ -433,7 +476,7 @@ export default function BonDistributionCreerUI({
                   <input
                     value={rechercheLivreur}
                     onChange={(e) => onRechercheLivreur && onRechercheLivreur(e.target.value)}
-                    placeholder="Nom, téléphone…"
+                    placeholder={L.etape2Placeholder}
                     style={S.input}
                   />
                 </div>
@@ -464,13 +507,13 @@ export default function BonDistributionCreerUI({
                       </div>
                       <div style={{ marginLeft: "auto", textAlign: "right", flex: "none" }}>
                         <div style={{ fontSize: 13, fontWeight: 800, ...S.num }}>{l.compteur}</div>
-                        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: C.muted3 }}>ÉLIGIBLES</div>
+                        <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, color: C.muted3 }}>{l.compteurLabel ?? L.acteurMetrique}</div>
                       </div>
                     </div>
                   </button>
                 ))}
                 {livreurs.length === 0 && (
-                  <div style={{ padding: "30px 14px", textAlign: "center", fontSize: 11.5, color: C.muted2 }}>Aucun livreur à afficher.</div>
+                  <div style={{ padding: "30px 14px", textAlign: "center", fontSize: 11.5, color: C.muted2 }}>{L.etape2Vide}</div>
                 )}
               </div>
             </section>
@@ -479,9 +522,9 @@ export default function BonDistributionCreerUI({
             {!livreurNom ? (
               <div style={{ background: "rgba(255,255,255,.72)", border: "1.5px dashed #DAD8CC", borderRadius: 20, padding: "56px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 9 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,209,0,.14)", display: "grid", placeItems: "center", fontSize: 19 }}>🧭</div>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: C.encre2 }}>Choisissez un livreur de {zone?.nom}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: C.encre2 }}>{L.choisirActeur} {zone?.nom}</div>
                 <div style={{ fontSize: 11.5, color: C.muted2, maxWidth: 380, textWrap: "pretty" }}>
-                  La liste des colis proposés s'affichera ici.
+                  {L.choisirActeurAide}
                 </div>
               </div>
             ) : (
@@ -490,7 +533,7 @@ export default function BonDistributionCreerUI({
                 <section style={S.card}>
                   <div style={{ padding: "13px 15px 11px", display: "flex", flexDirection: "column", gap: 10, borderBottom: `1px solid ${C.ligne2}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={S.label}>ÉTAPE 3 · COLIS ÉLIGIBLES</span>
+                      <span style={S.label}>{L.etape3}</span>
                       <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 800, color: C.encre2 }}>{colisCompteur}</span>
                     </div>
                     <div style={S.search}>
@@ -498,7 +541,7 @@ export default function BonDistributionCreerUI({
                       <input
                         value={rechercheColis}
                         onChange={(e) => onRechercheColis && onRechercheColis(e.target.value)}
-                        placeholder="Code, client, quartier…"
+                        placeholder={L.etape3Placeholder}
                         style={S.input}
                       />
                     </div>
@@ -571,7 +614,7 @@ export default function BonDistributionCreerUI({
                       </button>
                     )}
                     {colis.length === 0 && (
-                      <div style={{ padding: "34px 18px", textAlign: "center", fontSize: 11.5, color: C.muted2 }}>Aucun colis à afficher.</div>
+                      <div style={{ padding: "34px 18px", textAlign: "center", fontSize: 11.5, color: C.muted2 }}>{L.colisVide}</div>
                     )}
                   </div>
 
@@ -594,8 +637,8 @@ export default function BonDistributionCreerUI({
                   onDrop={(e) => {
                     e.preventDefault();
                     const id = e.dataTransfer.getData("text/plain");
-                    if (source === "bon") { onReorder && onReorder(id, indexCible ?? bon.length); }
-                    else { onDropColis && onDropColis(id, indexCible); }
+                    if (source === "bon") { onReorder?.(id, indexCible ?? bon.length); }
+                    else { onDropColis?.(id, indexCible); }
                     finDrag();
                   }}
                   style={{
@@ -609,9 +652,15 @@ export default function BonDistributionCreerUI({
                 >
                   <div style={{ padding: "13px 15px 11px", borderBottom: `1px solid ${C.ligne2}`, display: "flex", flexDirection: "column", gap: 10 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-                      <span style={S.label}>BON · {livreurNom}</span>
+                      <span style={S.label}>{L.bonPrefixe} {livreurNom}</span>
                       <span style={{ marginLeft: "auto", fontSize: 11.5, fontWeight: 800, color: C.encre2 }}>{bon.length} colis</span>
                     </div>
+
+                    {bonSousTitre && (
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: C.encre2, background: "rgba(32,32,32,.05)", border: `1px solid ${C.ligne}`, borderRadius: 10, padding: "7px 11px" }}>
+                        {bonSousTitre}
+                      </div>
+                    )}
 
                     {scanVisible && (
                       <div style={{ display: "flex", alignItems: "center", gap: 9, background: C.encre, borderRadius: 13, padding: "9px 11px", animation: "bdPulse 2.4s ease-in-out infinite" }}>
@@ -619,7 +668,7 @@ export default function BonDistributionCreerUI({
                         <input
                           value={scanValue}
                           onChange={(e) => onScanChange && onScanChange(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") onScanSubmit && onScanSubmit(); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") onScanSubmit?.(); }}
                           placeholder="CLIC ICI AVANT LE SCAN"
                           style={{ ...S.input, flex: 1, fontWeight: 800, letterSpacing: 0.5, color: C.jaune }}
                         />
@@ -644,8 +693,8 @@ export default function BonDistributionCreerUI({
                     {bon.length === 0 && (
                       <div style={{ margin: "auto", padding: "26px 16px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                         <div style={{ width: 46, height: 46, borderRadius: 15, border: "2px dashed rgba(255,209,0,.7)", background: "rgba(255,209,0,.10)", display: "grid", placeItems: "center", fontSize: 18 }}>⚟</div>
-                        <div style={{ fontSize: 12.5, fontWeight: 800, color: C.encre2 }}>Glissez ou scannez ici</div>
-                        <div style={{ fontSize: 11, color: C.muted2, maxWidth: 240, textWrap: "pretty" }}>L'ordre de la liste devient l'ordre de la tournée.</div>
+                        <div style={{ fontSize: 12.5, fontWeight: 800, color: C.encre2 }}>{L.bonVideTitre}</div>
+                        <div style={{ fontSize: 11, color: C.muted2, maxWidth: 240, textWrap: "pretty" }}>{L.bonVideAide}</div>
                       </div>
                     )}
 
@@ -730,7 +779,7 @@ export default function BonDistributionCreerUI({
             <div style={{ padding: "20px 22px 6px", display: "flex", alignItems: "flex-start", gap: 13 }}>
               <div style={{ ...S.avatar, width: 42, height: 42, borderRadius: 14, fontSize: 17, boxShadow: "0 8px 18px rgba(255,209,0,.36)" }}>🖨</div>
               <div>
-                <div style={S.kicker}>VALIDATION DU BON</div>
+                <div style={S.kicker}>{L.validation}</div>
                 <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: -0.4, marginTop: 4 }}>{confirmation.titre}</div>
                 <div style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2, marginTop: 3 }}>{confirmation.sousTitre}</div>
               </div>

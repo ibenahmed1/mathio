@@ -209,6 +209,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
       {modal === 'cin' && (
         <Modal title="Téléverser la CIN" onClose={closeAll}>
           <input type="file" accept="image/*" onChange={handleFileChange} className="input-basic" />
+          {/* eslint-disable-next-line @next/next/no-img-element -- aperçu local en data URL, non optimisable par next/image */}
           {cinFile && <img src={cinFile} alt="Aperçu CIN" className="max-h-64 rounded-md border border-black/10 object-contain dark:border-white/10" />}
           {commande.cinUrl && !cinFile && (
             <p className="text-xs opacity-60">Une CIN est déjà enregistrée pour ce colis.</p>

@@ -63,6 +63,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         throw new ApiError(409, `${encoreDehors} colis sont revenus dans la tournée entre-temps — rafraîchissez le bilan.`);
       }
 
+      // Gel de la rémunération COLIS PAR COLIS (§ Commande.fraisLivreur) : le
+      // tarif vient d'être résolu pour chacun, c'est le seul instant où il est
+      // certain. Une grille modifiée demain ne doit rien réécrire de ce qui a
+      // été gagné aujourd'hui — même garantie que gainLivreur, mais au niveau
+      // de détail qu'exige une fiche de paie.
+      //
+      // Groupé par (montant, nature) plutôt qu'un UPDATE par colis : une
+      // tournée porte des dizaines de colis pour deux ou trois tarifs
+      // distincts, ce qui ramène la boucle à deux ou trois requêtes.
+      const groupes = new Map<string, { frais: number; livre: boolean; ids: string[] }>();
+      for (const ligne of bilan.fraisParColis) {
+        const cle = `${ligne.frais}|${ligne.livre}`;
+        const groupe = groupes.get(cle) ?? { frais: ligne.frais, livre: ligne.livre, ids: [] };
+        groupe.ids.push(ligne.colisId);
+        groupes.set(cle, groupe);
+      }
+      for (const groupe of groupes.values()) {
+        await tx.commande.updateMany({
+          where: { id: { in: groupe.ids } },
+          data: { fraisLivreur: groupe.frais, fraisLivreurLivre: groupe.livre },
+        });
+      }
+
       // Écriture comptable d'entrée de caisse (§ /admin/comptabilite) : le
       // montant physiquement reçu, pas le théorique — l'écart éventuel reste
       // lisible sur la tournée.

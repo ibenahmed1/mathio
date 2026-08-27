@@ -37,16 +37,18 @@ export function CommandMenu() {
   }, []);
 
   useEffect(() => {
-    if (!open) {
-      setQuery('');
-      setResultats([]);
-    }
+    queueMicrotask(() => {
+      if (!open) {
+        setQuery('');
+        setResultats([]);
+      }
+    });
   }, [open]);
 
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
-      setResultats([]);
+      queueMicrotask(() => setResultats([]));
       return;
     }
     const timer = setTimeout(() => {

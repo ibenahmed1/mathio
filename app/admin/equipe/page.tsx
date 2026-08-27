@@ -42,7 +42,7 @@ export default function AdminEquipePage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   const visibles = useMemo(() => {

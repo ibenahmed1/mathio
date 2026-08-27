@@ -47,8 +47,16 @@ function LigneColis({
         <span className="block text-xs opacity-60">{colis.ville}</span>
       </td>
       <td>
-        <StatutBadge statut={colis.statut} />
+        <StatutBadge statut={colis.statut} hubVille={colis.hubActuel?.ville} />
         {montrerMotif && colis.motifRetour && <span className="block text-xs opacity-60">{colis.motifRetour}</span>}
+        {/* Colis jamais qualifié par le livreur : le scanner ne consigne pas
+            une tentative de livraison, il tranche à sa place — le Planner doit
+            le voir avant de scanner, pas seulement après. */}
+        {montrerMotif && colis.statut === 'mise_en_distribution' && (
+          <span className="block text-xs font-semibold text-orange-600">
+            Non qualifié par le livreur — le scan vaudra réintégration par dérogation
+          </span>
+        )}
       </td>
       <td className="text-right font-semibold">{dh(colis.montantCod)}</td>
       {preuve !== undefined && <td>{preuve}</td>}
@@ -104,10 +112,8 @@ function CellulePreuve({ bonId, commandeId }: { bonId: string; commandeId: strin
 //      un processus comptable distinct — jamais soustraits de la caisse.
 // Le scan des retours doit être terminé (aucun colis "dehors") avant que le
 // bouton de clôture ne s'active.
-//
-// Partagé entre l'espace admin et la web app Planner : `basePath` préfixe les
-// liens et la redirection post-clôture (cf. BonDistributionListe).
-export function ClotureTournee({ basePath }: { basePath: string }) {
+
+export function ClotureTournee() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -134,16 +140,18 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
   }, [params.id]);
 
   useEffect(() => {
-    rafraichir();
+    Promise.resolve().then(() => rafraichir());
   }, [rafraichir]);
 
   // Pré-remplit le champ caisse avec le montant attendu : le Planner corrige
   // s'il compte autre chose, mais le cas nominal (montant exact) reste un
   // simple clic.
   useEffect(() => {
-    if (bilan && montantRemis === '') {
-      setMontantRemis(bilan.montantCrbtAttendu.toFixed(2));
-    }
+    queueMicrotask(() => {
+      if (bilan && montantRemis === '') {
+        setMontantRemis(bilan.montantCrbtAttendu.toFixed(2));
+      }
+    });
   }, [bilan, montantRemis]);
 
   async function scannerRetour(raw: string) {
@@ -152,15 +160,21 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
     setToast(null);
     try {
       const body = raw.includes('.') ? { qrPayload: raw } : { codeSuivi: raw };
-      const res = await apiPost<{ commande: { codeSuivi: string; clientNom: string }; dejaScanne: boolean }>(
-        `/api/bons-distribution/${params.id}/scan-retour`,
-        body
-      );
+      const res = await apiPost<{
+        commande: { codeSuivi: string; clientNom: string };
+        dejaScanne: boolean;
+        parDerogation: boolean;
+      }>(`/api/bons-distribution/${params.id}/scan-retour`, body);
+      // La dérogation est annoncée telle quelle : le Planner doit savoir qu'il
+      // vient de trancher à la place du livreur, pas croire à un retour
+      // qualifié sur le terrain.
       setToast({
         type: 'success',
         text: res.dejaScanne
           ? `Colis ${res.commande.codeSuivi} déjà enregistré au retour.`
-          : `Colis ${res.commande.codeSuivi} — ${res.commande.clientNom} rentré au dépôt.`,
+          : res.parDerogation
+            ? `Colis ${res.commande.codeSuivi} — ${res.commande.clientNom} réintégré par dérogation : le livreur ne l'avait pas qualifié.`
+            : `Colis ${res.commande.codeSuivi} — ${res.commande.clientNom} rentré au dépôt.`,
       });
       setSaisieCode('');
       await rafraichir();
@@ -177,7 +191,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
     setToast(null);
     try {
       await apiPost(`/api/bons-distribution/${params.id}/cloturer`, { montantRemis: Number(montantRemis) });
-      router.push(`${basePath}/${params.id}`);
+      router.push(`/admin/bon-distribution/${params.id}`);
     } catch (err) {
       setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur' });
       setCloture(false);
@@ -189,7 +203,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
   if (erreur || !bilan) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href={basePath} className="flex items-center gap-1.5 text-sm font-semibold opacity-70 hover:opacity-100">
+        <Link href="/admin/bon-distribution" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 hover:opacity-100">
           <ChevronLeft className="h-4 w-4" />
           Retour aux Bons de Distribution
         </Link>
@@ -207,7 +221,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
-          href={`${basePath}/${bilan.bonId}`}
+          href={`/admin/bon-distribution/${bilan.bonId}`}
           className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -221,7 +235,7 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
           Clôture de tournée {bilan.numero}
         </h1>
         <p className="text-sm opacity-70">
-          {bilan.livreur.nomComplet} — Hub {bilan.hub.nom} — {bilan.nbColis} colis sortis
+          {bilan.livreur.nomComplet} — Hub {bilan.hub.ville} — {bilan.nbColis} colis sortis
         </p>
       </div>
 
@@ -282,7 +296,10 @@ export function ClotureTournee({ basePath }: { basePath: string }) {
           </h2>
           <p className="text-xs opacity-60">
             Scannez un par un les colis non livrés ramenés par le livreur. Le scan fait passer le colis de son état
-            terrain à « Retourné au Hub {bilan.hub.nom} » — le motif du livreur reste conservé dans l&apos;historique.
+            terrain à « Retourné au Hub ({bilan.hub.ville}) » — le motif du livreur est conservé dans
+            l&apos;historique. Un colis livré ne peut jamais être scanné ici ; un colis que le livreur n&apos;a pas
+            qualifié (« Mise en distribution ») peut l&apos;être par dérogation Planner/Admin, et la réintégration est
+            alors tracée comme telle.
           </p>
 
           <div className="flex flex-wrap items-end gap-2">

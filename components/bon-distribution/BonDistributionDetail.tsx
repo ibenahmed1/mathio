@@ -9,9 +9,8 @@ import type { BonDistribution } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { LABELS_STATUT_BON_DISTRIBUTION, STYLE_STATUT_BON_DISTRIBUTION } from '@/lib/statuts';
 
-// § Module Bon de Distribution — détail d'une tournée. Partagé entre l'espace
-// admin et la web app Planner (cf. BonDistributionListe pour `basePath`).
-export function BonDistributionDetail({ basePath }: { basePath: string }) {
+// § Module Bon de Distribution — détail d'une tournée.
+export function BonDistributionDetail() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [bon, setBon] = useState<BonDistribution | null>(null);
@@ -42,14 +41,14 @@ export function BonDistributionDetail({ basePath }: { basePath: string }) {
   return (
     <div className="flex flex-col gap-4 print:gap-2">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href={basePath} className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100">
+        <Link href="/admin/bon-distribution" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100">
           <ChevronLeft className="h-4 w-4" />
           Retour aux Bons de Distribution
         </Link>
         <div className="flex items-center gap-2">
           {/* § Clôture de tournée : accessible tant que le bon n'est pas
               clôturé (déchargement + reddition), en lecture seule ensuite. */}
-          <Link href={`${basePath}/${bon.id}/cloture`} className="btn-outline flex items-center gap-1.5">
+          <Link href={`/admin/bon-distribution/${bon.id}/cloture`} className="btn-outline flex items-center gap-1.5">
             <Truck className="h-4 w-4" />
             {bon.statut === 'cloture' ? 'Voir la reddition' : 'Clôturer la tournée'}
           </Link>
@@ -148,7 +147,7 @@ export function BonDistributionDetail({ basePath }: { basePath: string }) {
                 <td>{c.ville}</td>
                 <td className="whitespace-nowrap">{c.montantCod} MAD</td>
                 <td>
-                  <StatutBadge statut={c.statut} />
+                  <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
                 </td>
               </tr>
             ))}

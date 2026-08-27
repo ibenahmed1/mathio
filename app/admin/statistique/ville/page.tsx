@@ -1,12 +1,23 @@
-import { Building2 } from 'lucide-react';
-import { ComingSoon } from '@/components/ComingSoon';
+import { VueVentilation } from '@/components/admin/statistiques/VueVentilation';
+import { filtrePeriode, getVentilationVille, resoudrePeriode } from '@/lib/statistiques';
 
-export default function StatistiqueVillePage() {
+export default async function StatistiqueVillePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periode?: string }>;
+}) {
+  const { periode: brut } = await searchParams;
+  const periode = resoudrePeriode(brut);
+  const lignes = await getVentilationVille(filtrePeriode(periode));
+
   return (
-    <ComingSoon
-      icon={Building2}
-      title="Statistiques par ville"
-      description="Analyse des volumes par ville : bientôt disponible."
+    <VueVentilation
+      periode={periode}
+      lignes={lignes}
+      libelleColonne="Ville"
+      libelleEntite="Villes desservies"
+      messageVide="Aucun colis sur cette période."
+      note="Les villes hors référentiel sont regroupées sur le texte saisi — les rattacher au référentiel fiabilise ce classement."
     />
   );
 }

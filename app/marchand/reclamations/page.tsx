@@ -29,7 +29,7 @@ export default function ReclamationsPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
   }, []);
 
   async function handleCreate(e: React.FormEvent) {

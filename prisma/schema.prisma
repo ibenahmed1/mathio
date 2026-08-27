@@ -45,13 +45,16 @@ enum Role {
   // design/gestionnaire_hub ci-dessus. Doit obligatoirement être rattaché à
   // un Hub (Utilisateur.hubId, validé côté API).
   agent_hub
-  // Planificateur de tournées du hub (§ /admin/bon-distribution) : compose les
-  // Bons de Distribution de SON hub, puis au retour du livreur scanne les
-  // colis non livrés et clôture la tournée (reddition de caisse). Cantonné à
-  // ce module (ROLES_PLANNER_UNIQUEMENT, lib/auth.ts + proxy.ts), même
-  // mécanisme de confinement que agent_hub ci-dessus. Doit obligatoirement
-  // être rattaché à un Hub (Utilisateur.hubId, validé côté API) : c'est ce
-  // hub — et lui seul — dont il planifie les tournées.
+  // Planificateur de tournées du hub (§ /admin/planification,
+  // /admin/bon-distribution, /admin/scan/tournee) : compose les Bons de
+  // Distribution de SON hub, puis au retour du livreur scanne les colis non
+  // livrés et clôture la tournée (reddition de caisse). Contrairement à
+  // agent_hub ci-dessus, il n'est PAS cantonné à un sous-chemin du
+  // back-office : c'est un rôle interne à part entière (ROLES_BACKOFFICE,
+  // lib/auth.ts). Doit obligatoirement être rattaché à un Hub
+  // (Utilisateur.hubId, validé côté API) : c'est ce hub — et lui seul — dont
+  // il planifie les tournées, et c'est là que se joue son cantonnement, dans
+  // les données plutôt que dans le routage.
   planner
 }
 
@@ -287,6 +290,7 @@ model Utilisateur {
   marchandMembre MarchandMembre?
 
   historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
+  historiqueProduits HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
   commandesRamassees Commande[]                 @relation("CommandeRamasseur")
   commandesLivrees   Commande[]                 @relation("CommandeLivreur")
   ramassagesRealises Ramassage[]                @relation("RamassageRamasseur")
@@ -323,7 +327,75 @@ model Utilisateur {
   // en tant qu'admin — voir AuditLog.
   auditLogs AuditLog[] @relation("AuditLogAuteur")
 
+  // § Séparation par domaines : transferts de session dont il est la cible
+  // (session ouverte pour son compte sur le domaine métier) et ceux qu'il a
+  // émis depuis le back-office. Voir SessionHandoff.
+  handoffsRecus SessionHandoff[] @relation("SessionHandoffCible")
+  handoffsEmis  SessionHandoff[] @relation("SessionHandoffEmetteur")
+
+  // § Règlements (/admin/bon-paiement, /admin/factures) : bons de paiement
+  // dont il est le BÉNÉFICIAIRE (livreur), et ceux qu'il a émis en tant
+  // qu'admin/responsable — deux relations distinctes vers le même modèle,
+  // même schéma que planner/clôtureur sur BonDistribution.
+  bonsPaiementRecus   BonPaiement[]           @relation("BonPaiementLivreur")
+  bonsPaiementEmis    BonPaiement[]           @relation("BonPaiementEmetteur")
+  bonsPaiementValides BonPaiement[]           @relation("BonPaiementValidateur")
+  ajustementsPaiement AjustementBonPaiement[] @relation("AjustementPaiementAuteur")
+  facturesEmises      Facture[]               @relation("FactureEmetteur")
+  facturesValidees    Facture[]               @relation("FactureValidateur")
+  fraisFacture        FraisFacture[]          @relation("FraisFactureAuteur")
+
+  // § Bon de retour (/admin/bon-retour) : bons qu'il a composés au hub, et
+  // bons qu'il est chargé de rapporter au marchand (ramasseur).
+  bonsRetourCrees    BonRetour[] @relation("BonRetourCreateur")
+  bonsRetourAffectes BonRetour[] @relation("BonRetourRamasseur")
+
   @@map("utilisateurs")
+}
+
+// § Séparation par domaines : jeton de transfert de session entre le domaine
+// du back-office et celui des marchands.
+//
+// Depuis que chaque espace a son propre hôte et que les cookies portent le
+// préfixe `__Host-` (liés à l'hôte exact qui les pose), le back-office ne peut
+// PLUS écrire un cookie sur un autre domaine — c'est exactement l'isolation
+// recherchée. La passerelle légitime qui en dépend passe donc par un jeton à
+// usage unique, échangé contre une vraie session sur l'hôte cible (POST
+// /api/session-handoff puis GET /api/session-handoff/consume) :
+// l'impersonation d'un marchand par un admin (support, dépannage).
+//
+// Un second usage a existé — l'accès de l'admin à la web app Planner — et a
+// disparu avec l'espace `planner` lui-même : le module de planification est
+// servi dans le back-office, sur le domaine où l'admin a déjà sa session.
+//
+// Le jeton brut ne transite que dans l'URL de redirection et n'est jamais
+// stocké : seul son hash SHA-256 est écrit ici, comme pour les tokens de
+// réinitialisation de mot de passe. Durée de vie 60 s (le temps d'une
+// redirection navigateur) et consommation unique (`consommeLe`), parce qu'une
+// URL peut se retrouver dans les journaux d'un proxy ou l'historique.
+model SessionHandoff {
+  id            String    @id @default(uuid())
+  tokenHash     String    @unique @map("token_hash")
+  // Espace cible ('marchand' à ce jour) — stocké en String plutôt qu'en
+  // enum : SessionSpace est une notion applicative (lib/auth.ts) qui n'a pas
+  // d'équivalent en base et n'a pas vocation à contraindre le schéma.
+  espace        String
+  impersonation Boolean   @default(false)
+  expireLe      DateTime  @map("expire_le")
+  consommeLe    DateTime? @map("consomme_le")
+  creeLe        DateTime  @default(now()) @map("cree_le")
+
+  // Compte pour lequel la session sera ouverte sur l'hôte cible.
+  utilisateurId String      @map("utilisateur_id")
+  utilisateur   Utilisateur @relation("SessionHandoffCible", fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  // Admin à l'origine du transfert : l'AuditLog garde la trace de l'action,
+  // ce lien garde celle du jeton lui-même.
+  emisParId String      @map("emis_par_id")
+  emisPar   Utilisateur @relation("SessionHandoffEmetteur", fields: [emisParId], references: [id], onDelete: Cascade)
+
+  @@index([expireLe])
+  @@map("session_handoffs")
 }
 
 // Compteur de rate limiting par clé (ex. "login:<ip>") à fenêtre glissante
@@ -394,6 +466,13 @@ model Marchand {
 
   dateCreation DateTime @default(now()) @map("date_creation")
 
+  // § Facturation marchand (/admin/factures) : tarif appliqué à toute ville
+  // sans ligne dédiée dans TarifMarchandVille. Distinct des frais du livreur
+  // (Utilisateur.fraisLivraison / fraisRefus) — ceux-ci sont ce que la
+  // plateforme PAIE, ceux-là ce qu'elle FACTURE.
+  fraisLivraison Decimal? @map("frais_livraison") @db.Decimal(10, 2)
+  fraisRetour    Decimal? @map("frais_retour") @db.Decimal(10, 2)
+
   adresses        AdresseMarchand[]
   commandes       Commande[]
   ramassages      Ramassage[]
@@ -403,6 +482,9 @@ model Marchand {
   membres         MarchandMembre[]
   reclamations    Reclamation[]
   produits        Produit[]
+  tarifsVilles    TarifMarchandVille[]
+  factures        Facture[]
+  bonsRetour      BonRetour[]
 
   @@map("marchands")
 }
@@ -535,7 +617,24 @@ model HistoriqueProduit {
   texte        String
   dateCreation DateTime @default(now()) @map("date_creation")
 
+  // Agent qui a réalisé le mouvement — sans lui, un écart de comptage en
+  // entrepôt n'est imputable à personne (§ validation de réception et retrait,
+  // /api/produits/**). Même rôle que HistoriqueStatutCommande.utilisateurId
+  // sur le pipeline colis.
+  //
+  // NULLABLE à dessein, et ce n'est pas une facilité : les lignes écrites
+  // avant la migration 20260826110000 n'ont pas d'auteur connu. Les rattacher
+  // au compte admin d'amorçage pour satisfaire un NOT NULL fabriquerait une
+  // preuve — exactement l'inverse de ce que cette colonne existe pour offrir.
+  // L'écran affiche « — » sur ces lignes, ce qui est la vérité.
+  //
+  // onDelete SetNull plutôt que Cascade : supprimer un compte ne doit jamais
+  // effacer l'historique de l'entrepôt.
+  utilisateurId String?      @map("utilisateur_id")
+  utilisateur   Utilisateur? @relation("HistoriqueProduitAuteur", fields: [utilisateurId], references: [id], onDelete: SetNull)
+
   @@index([produitId])
+  @@index([utilisateurId])
   @@map("historique_produits")
 }
 
@@ -626,6 +725,31 @@ model Commande {
   bonDistributionId String?          @map("bon_distribution_id")
   bonDistribution   BonDistribution? @relation(fields: [bonDistributionId], references: [id])
 
+  // Rémunération du LIVREUR pour CE colis, figée à la clôture de la tournée
+  // (§ /admin/bon-paiement). Le tarif était déjà résolu colis par colis à la
+  // clôture (tarifPourColis, lib/bon-distribution.ts) mais seule la somme
+  // était conservée dans BonDistribution.gainLivreur : impossible d'éditer
+  // une fiche de paie détaillée au colis, ni de justifier un montant à un
+  // livreur qui conteste une ligne.
+  //
+  // `fraisLivreurLivre` fige la NATURE du frais (livraison ou refus) au même
+  // instant, pour la même raison que LigneFacture.livre côté marchand : le
+  // statut du colis continue d'évoluer après la paie — un `retourne_au_hub`
+  // devient `retourne` à la remise au marchand — et le déduire du statut
+  // courant ferait bouger un document déjà signé.
+  //
+  // Les deux restent nuls pour les tournées clôturées AVANT l'introduction de
+  // ces colonnes lorsque la reconstitution n'a pas pu être vérifiée
+  // (cf. la migration ajout_frais_livreur_colis).
+  fraisLivreur      Decimal? @map("frais_livreur") @db.Decimal(10, 2)
+  fraisLivreurLivre Boolean? @map("frais_livreur_livre")
+
+  // Bon de Retour (§ /admin/bon-retour) — regroupe des colis en échec de
+  // livraison à rendre à leur marchand ; reste renseigné après la remise
+  // (lien historique), cf. bonLivraisonId ci-dessus.
+  bonRetourId String?    @map("bon_retour_id")
+  bonRetour   BonRetour? @relation(fields: [bonRetourId], references: [id])
+
   // Résolution best-effort (normalisation, cf. lib/hub-stock.ts
   // normaliserVille) du champ ville (texte libre) vers une Ville connue du
   // référentiel — nullable et non bloquant : ville reste la source de
@@ -669,6 +793,11 @@ model Commande {
   commentaires CommentaireCommande[]
   reclamations Reclamation[]
 
+  // § Facturation marchand : au plus une ligne de facture par colis (unicité
+  // portée par LigneFacture.commandeId) — c'est la garantie
+  // anti-double-facturation.
+  ligneFacture LigneFacture?
+
   // Garde-fou anti-doublon import (bug rapporté : réimporter le même fichier
   // ne remonte aucune erreur et duplique les colis) — un même marchand ne
   // peut pas avoir deux commandes avec la même référence partenaire. NULL
@@ -687,6 +816,7 @@ model Commande {
   @@index([hubActuelId])
   @@index([bonEnvoiId])
   @@index([bonDistributionId])
+  @@index([bonRetourId])
   @@index([villeId])
   @@map("commandes")
 }
@@ -831,13 +961,13 @@ model BonDistribution {
   // --- Clôture / déchargement au retour au dépôt -------------------------
   // Tout ce bloc est null tant que statut != cloture ; il est écrit d'un seul
   // coup, en transaction, par POST /api/bons-distribution/[id]/cloturer.
-  dateCloture   DateTime?    @map("date_cloture")
-  clotureParId  String?      @map("cloture_par_id")
-  cloturePar    Utilisateur? @relation("BonDistributionCloturePar", fields: [clotureParId], references: [id])
-  nbColisLivres Int?         @map("nb_colis_livres")
+  dateCloture      DateTime?    @map("date_cloture")
+  clotureParId     String?      @map("cloture_par_id")
+  cloturePar       Utilisateur? @relation("BonDistributionCloturePar", fields: [clotureParId], references: [id])
+  nbColisLivres    Int?         @map("nb_colis_livres")
   // Colis non livrés effectivement scannés au retour au hub (= le nombre de
   // colis physiquement récupérés par le Planner).
-  nbColisRetournes Int? @map("nb_colis_retournes")
+  nbColisRetournes Int?         @map("nb_colis_retournes")
 
   // Volet caisse — le livreur ne déduit RIEN de ce qu'il a collecté : il
   // remet le brut. montantCrbtAttendu = somme des montantCod des colis livrés
@@ -854,8 +984,16 @@ model BonDistribution {
   // résolus par ville (TarifLivreurVille) avec repli sur
   // Utilisateur.fraisLivraison/fraisRefus. Constitue le solde à payer au
   // livreur, réglé séparément (§ Bon de paiement livreur).
-  gainLivreur    Decimal?  @map("gain_livreur") @db.Decimal(10, 2)
-  gainRegleLe    DateTime? @map("gain_regle_le")
+  gainLivreur Decimal?  @map("gain_livreur") @db.Decimal(10, 2)
+  gainRegleLe DateTime? @map("gain_regle_le")
+
+  // Bon de Paiement qui a réglé ce gain (§ /admin/bon-paiement). Renseigné en
+  // même temps que gainRegleLe, dans la même transaction : ce lien porte le
+  // "par quel document", gainRegleLe le "quand". Une tournée dont le gain
+  // n'est pas encore réglé a les deux à null — c'est le critère d'éligibilité
+  // à un nouveau bon.
+  bonPaiementId String?      @map("bon_paiement_id")
+  bonPaiement   BonPaiement? @relation(fields: [bonPaiementId], references: [id])
 
   // Écriture comptable d'entrée de caisse générée à la clôture (§
   // /admin/comptabilite) — 1-1, jamais recréée si la tournée est rouverte.
@@ -867,6 +1005,7 @@ model BonDistribution {
   @@index([livreurId])
   @@index([hubId])
   @@index([statut])
+  @@index([bonPaiementId])
   @@map("bons_distribution")
 }
 
@@ -1015,6 +1154,11 @@ model Hub {
   // § /admin/bon-distribution : Bons de Distribution locaux à ce hub (le hub
   // lui-même sert de "zone" à l'étape 1 du wizard, cf. BonDistribution).
   bonsDistribution     BonDistribution[]          @relation("BonDistributionHub")
+  // § Règlements et retours : le hub sert de "zone" au filtrage des bons de
+  // paiement livreur et des bons de retour (§ /admin/bon-paiement/zone,
+  // § /admin/bon-retour/zone).
+  bonsPaiement         BonPaiement[]              @relation("BonPaiementHub")
+  bonsRetour           BonRetour[]                @relation("BonRetourHub")
 
   @@map("hubs")
 }
@@ -1025,8 +1169,9 @@ model Ville {
   hubId String @map("hub_id")
   hub   Hub    @relation(fields: [hubId], references: [id])
 
-  tarifsLivreurs TarifLivreurVille[]
-  commandes      Commande[]
+  tarifsLivreurs  TarifLivreurVille[]
+  tarifsMarchands TarifMarchandVille[]
+  commandes       Commande[]
 
   @@index([hubId])
   @@map("villes")
@@ -1208,6 +1353,13 @@ model Transaction {
   // au Bon de Distribution qui l'a produite.
   bonDistribution BonDistribution? @relation("TransactionRemiseTournee")
 
+  // Sorties de caisse générées automatiquement par les deux circuits de
+  // règlement (§ /admin/factures, § /admin/bon-paiement) — même principe que
+  // la remise de tournée ci-dessus : le journal comptable reste la source de
+  // vérité, ces liens permettent de remonter au document qui l'a produit.
+  factureReglee Facture?     @relation("TransactionReglementMarchand")
+  bonPaiement   BonPaiement? @relation("TransactionReglementLivreur")
+
   dateCreation DateTime @default(now()) @map("date_creation")
 
   @@index([type])
@@ -1250,4 +1402,436 @@ model CommandeStockHub {
 
   @@index([statut])
   @@map("commandes_stock_hub")
+}
+
+// ============================================================
+// Facturation marchand (§ /admin/factures)
+// ============================================================
+
+// Grille tarifaire FACTURÉE AU MARCHAND — pendant exact de TarifLivreurVille
+// (§ Zonage logistique), mais de l'autre côté du bilan : celle-ci dit ce que
+// le marchand nous doit, celle-là ce que nous devons au livreur. Les deux
+// coexistent volontairement et ne sont jamais dérivées l'une de l'autre — la
+// marge de la plateforme sur une ville EST la différence entre les deux, et
+// la rendre implicite la rendrait impossible à piloter.
+//
+// Repli quand aucune ligne n'existe pour la ville livrée :
+// Marchand.fraisLivraison / Marchand.fraisRetour, eux-mêmes à 0 s'ils n'ont
+// jamais été renseignés (même convention que le livreur, cf. getTarifsLivreur
+// dans lib/bon-distribution.ts).
+model TarifMarchandVille {
+  id             String   @id @default(uuid())
+  marchandId     String   @map("marchand_id")
+  marchand       Marchand @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+  villeId        String   @map("ville_id")
+  ville          Ville    @relation(fields: [villeId], references: [id])
+  fraisLivraison Decimal  @map("frais_livraison") @db.Decimal(10, 2)
+  fraisRetour    Decimal  @map("frais_retour") @db.Decimal(10, 2)
+
+  @@unique([marchandId, villeId])
+  @@index([villeId])
+  @@map("tarifs_marchand_ville")
+}
+
+// Machine à états de la facture marchand — quatre temps, strictement calqués
+// sur ceux de la paie livreur (cf. StatutBonPaiement) parce que c'est le même
+// circuit comptable vu de l'autre côté du bilan :
+//   brouillon — la sélection de colis est faite et les colis sont RÉSERVÉS,
+//               mais tout reste modifiable : on peut retirer un colis,
+//               ajouter des frais annexes, changer d'avis. Rien n'a encore
+//               été annoncé au marchand.
+//   emise     — arrêtée : les montants sont figés, le document devient
+//               visible dans l'espace marchand et vaut créance.
+//   payee     — l'argent est sorti (virement/espèces/chèque). C'est CE
+//               statut, et lui seul, qui répond à « ce marchand a-t-il été
+//               reversé ? ».
+//   annulee   — erreur d'émission ou contestation : les lignes sont
+//               supprimées et les colis redeviennent facturables. On
+//               n'efface jamais la facture elle-même, on la neutralise —
+//               même principe que Transaction.estAnnulee.
+enum StatutFacture {
+  brouillon
+  emise
+  payee
+  annulee
+}
+
+// Moyen effectif du reversement, saisi au passage `payee` — avec sa référence
+// (n° de virement, n° de chèque). Sans ces deux champs, « payée » est une
+// affirmation invérifiable le jour d'une contestation.
+//
+// Énumération distincte de ModeReglementLivreur bien que les trois valeurs
+// coïncident aujourd'hui : les deux flux sont indépendants (l'un facture des
+// frais, l'autre verse un salaire) et rien ne garantit qu'ils évolueront
+// ensemble — les fusionner créerait un couplage que le modèle refuse déjà
+// entre les deux grilles tarifaires.
+enum ModeReglementMarchand {
+  virement
+  especes
+  cheque
+}
+
+// Document de règlement du MARCHAND (§ /admin/factures) : ce que la
+// plateforme lui doit sur une sélection de colis clos. C'est le pendant du
+// Bon de Paiement (qui règle le livreur), et c'est lui qui fait avancer
+// Commande.etatPaiement — non_paye → facture à l'émission, → paye au
+// règlement (cf. l'enum EtatPaiement, prévu dès l'origine pour ce circuit).
+//
+// Les totaux sont recalculés tant que la facture est BROUILLON, puis FIGÉS à
+// l'émission et plus jamais retouchés : la grille tarifaire peut changer le
+// lendemain, une facture déjà émise ne doit pas bouger. Le détail ligne à
+// ligne vit dans LigneFacture pour que la vue d'impression soit reproductible
+// à l'identique des années plus tard.
+model Facture {
+  id         String        @id @default(uuid())
+  numero     String        @unique
+  marchandId String        @map("marchand_id")
+  marchand   Marchand      @relation(fields: [marchandId], references: [id])
+  statut     StatutFacture @default(brouillon)
+
+  nbColisLivres       Int     @map("nb_colis_livres")
+  nbColisRetournes    Int     @map("nb_colis_retournes")
+  // Somme des COD des colis LIVRÉS uniquement : un colis retourné n'a rien
+  // encaissé, il ne pèse sur la facture que par ses frais de retour.
+  totalCod            Decimal @map("total_cod") @db.Decimal(12, 2)
+  totalFraisLivraison Decimal @map("total_frais_livraison") @db.Decimal(12, 2)
+  totalFraisRetour    Decimal @map("total_frais_retour") @db.Decimal(12, 2)
+  // Somme des frais annexes saisis à la main (emballage, réexpédition,
+  // service dédié…), toujours POSITIVE : ils se retranchent du net comme les
+  // frais de livraison. Recalculée à chaque ajout/retrait de ligne tant que
+  // la facture est `brouillon`. Pendant de BonPaiement.totalAjustements, à
+  // ceci près qu'un frais ne peut pas être une prime — il n'y a pas de
+  // contrepartie positive à reverser au marchand hors du COD.
+  totalAutresFrais    Decimal @default(0) @map("total_autres_frais") @db.Decimal(12, 2)
+  // totalCod - totalFraisLivraison - totalFraisRetour - totalAutresFrais.
+  // Peut être négatif (beaucoup de retours, peu de livraisons) : c'est alors
+  // le marchand qui doit à la plateforme, et le signe doit rester lisible
+  // tel quel.
+  netAPayer           Decimal @map("net_a_payer") @db.Decimal(12, 2)
+
+  // Quatre dates distinctes plutôt qu'une : elles mesurent le délai de
+  // reversement aux marchands, qui est l'engagement commercial le plus scruté
+  // d'une plateforme COD.
+  //
+  // `dateEmission` est la date de CRÉATION du document, brouillon compris —
+  // conservée sous ce nom parce que les factures antérieures au brouillon
+  // l'utilisent déjà comme telle ; `dateValidation` marque le passage
+  // brouillon → emise, c'est-à-dire l'instant où les montants ont été figés.
+  dateEmission   DateTime  @default(now()) @map("date_emission")
+  dateValidation DateTime? @map("date_validation")
+  datePaiement   DateTime? @map("date_paiement")
+  dateAnnulation DateTime? @map("date_annulation")
+
+  // Pourquoi la facture a été retirée : « colis livré par erreur », « accord
+  // commercial »… Une facture annulée sans motif est un trou dans la piste
+  // d'audit qu'on ne peut plus combler après coup.
+  motifAnnulation String? @map("motif_annulation")
+
+  modeReglement      ModeReglementMarchand? @map("mode_reglement")
+  referenceReglement String?                @map("reference_reglement")
+
+  emiseParId String      @map("emise_par_id")
+  emisePar   Utilisateur @relation("FactureEmetteur", fields: [emiseParId], references: [id])
+
+  valideParId String?      @map("valide_par_id")
+  validePar   Utilisateur? @relation("FactureValidateur", fields: [valideParId], references: [id])
+
+  // Écriture comptable de sortie de caisse générée au règlement (§
+  // /admin/comptabilite) — 1-1, comme la remise de caisse d'une tournée.
+  transactionId String?      @unique @map("transaction_id")
+  transaction   Transaction? @relation("TransactionReglementMarchand", fields: [transactionId], references: [id])
+
+  lignes       LigneFacture[]
+  fraisAnnexes FraisFacture[]
+
+  @@index([marchandId])
+  @@index([statut])
+  @@map("factures")
+}
+
+// Frais annexe saisi à la main sur une facture en BROUILLON (§ /admin/factures) :
+// emballage, réexpédition, service dédié. Une ligne plutôt qu'un simple champ
+// « autres frais » sur la facture : le marchand qui conteste son net doit
+// pouvoir lire POURQUOI il diffère de la somme de ses colis, et le comptable
+// doit pouvoir en retirer un seul.
+//
+// Pendant d'AjustementBonPaiement, sans le champ `type` : un frais est
+// toujours à la charge du marchand, il n'existe pas de contrepartie positive.
+model FraisFacture {
+  id        String  @id @default(uuid())
+  factureId String  @map("facture_id")
+  facture   Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  libelle   String
+  montant   Decimal @db.Decimal(10, 2)
+
+  creeParId String      @map("cree_par_id")
+  creePar   Utilisateur @relation("FraisFactureAuteur", fields: [creeParId], references: [id])
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@index([factureId])
+  @@map("frais_facture")
+}
+
+// Une ligne = un colis facturé, avec le tarif RÉELLEMENT appliqué au moment
+// de l'émission. `commandeId` est unique : un colis ne peut appartenir qu'à
+// une seule facture, garanti par la base et non par la seule discipline des
+// routes — c'est la protection anti-double-facturation.
+model LigneFacture {
+  id         String   @id @default(uuid())
+  factureId  String   @map("facture_id")
+  facture    Facture  @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  commandeId String   @unique @map("commande_id")
+  commande   Commande @relation(fields: [commandeId], references: [id])
+  // Vrai pour un colis livré (COD encaissé, frais de livraison), faux pour un
+  // colis retourné (aucun COD, frais de retour). Stocké plutôt que redéduit
+  // du statut du colis : celui-ci peut encore évoluer après facturation.
+  livre      Boolean
+  montantCod Decimal  @map("montant_cod") @db.Decimal(10, 2)
+  frais      Decimal  @db.Decimal(10, 2)
+
+  @@index([factureId])
+  @@map("lignes_facture")
+}
+
+// ============================================================
+// Bon de paiement livreur (§ /admin/bon-paiement)
+// ============================================================
+
+// Machine à états de la paie livreur — quatre temps, calqués sur le circuit
+// RH/comptabilité réel :
+//   brouillon — le bon vient d'être généré pour le mois écoulé. Le décompte
+//               des commissions est déjà figé, mais le comptable peut encore
+//               y ajouter des ajustements (prime, pénalité pour perte).
+//   valide    — arrêté par le responsable : plus aucun ajustement possible,
+//               le montant est prêt à être décaissé.
+//   paye      — l'argent est sorti (virement/espèces/chèque). C'est CE
+//               statut, et lui seul, qui répond à « ce livreur est-il payé
+//               pour août ? ».
+//   annule    — erreur de saisie ou contestation : les tournées rattachées
+//               sont libérées et redeviennent éligibles à un nouveau bon.
+//               Un bon déjà `paye` ne s'annule PAS ici (cf. POST
+//               /api/bons-paiement/[id]/annuler) — même règle que la facture
+//               marchand : on neutralise par une écriture de compensation,
+//               on n'efface pas un mouvement d'argent.
+enum StatutBonPaiement {
+  brouillon
+  valide
+  paye
+  annule
+}
+
+// Moyen effectif du décaissement, saisi au passage `paye` — avec sa
+// référence (n° de virement, n° de chèque). Sans ces deux champs, « payé »
+// est une affirmation invérifiable le jour d'une contestation.
+enum ModeReglementLivreur {
+  virement
+  especes
+  cheque
+}
+
+enum TypeAjustementPaiement {
+  prime
+  penalite
+}
+
+// Règlement du LIVREUR (§ /admin/bon-paiement/livreur et /zone) : regroupe
+// ses tournées clôturées d'une PÉRIODE DE PAIE mensuelle dont le gain n'a pas
+// encore été payé (BonDistribution.gainLivreur non nul, bonPaiementId nul).
+//
+// Le montant des commissions n'est JAMAIS recalculé ici : il est la somme des
+// gainLivreur figés à la clôture de chaque tournée (cf. le volet B du
+// commentaire de POST /api/bons-distribution/[id]/cloturer). Une grille
+// tarifaire modifiée après coup ne doit pas changer ce qui a déjà été gagné.
+// Les ajustements (primes, pénalités) sont la SEULE façon de faire bouger le
+// montant après génération, et ils restent tracés ligne à ligne.
+//
+// Les deux pages de la navigation ne sont que deux entrées de SÉLECTION vers
+// le même document : "pour livreur" part d'un livreur, "pour zone" liste
+// d'abord les livreurs d'un hub. Un bon reste toujours nominatif — on paie
+// une personne, pas une zone.
+model BonPaiement {
+  id        String            @id @default(uuid())
+  numero    String            @unique
+  livreurId String            @map("livreur_id")
+  livreur   Utilisateur       @relation("BonPaiementLivreur", fields: [livreurId], references: [id])
+  // Hub de rattachement du livreur au moment de l'émission — figé ici pour
+  // que le filtre "par zone" reste juste même si le livreur change de hub.
+  hubId     String?           @map("hub_id")
+  hub       Hub?              @relation("BonPaiementHub", fields: [hubId], references: [id])
+  statut    StatutBonPaiement @default(brouillon)
+
+  // Période de paie couverte, bornes incluses (1er → dernier jour du mois).
+  // Stockée plutôt que déduite de dateGeneration : un bon généré en retard le
+  // 12 septembre couvre toujours août, et c'est la période — pas la date de
+  // génération — qui répond à « ce livreur est-il payé pour août ? ».
+  periodeDebut DateTime @map("periode_debut")
+  periodeFin   DateTime @map("periode_fin")
+
+  nbTournees         Int     @map("nb_tournees")
+  nbColisLivres      Int     @map("nb_colis_livres")
+  nbColisRetournes   Int     @map("nb_colis_retournes")
+  // Somme des gains de tournée, figée à la génération.
+  montantCommissions Decimal @map("montant_commissions") @db.Decimal(12, 2)
+  // Somme signée des ajustements (+ primes, − pénalités), recalculée à chaque
+  // ajout/retrait de ligne tant que le bon est `brouillon`.
+  totalAjustements   Decimal @default(0) @map("total_ajustements") @db.Decimal(12, 2)
+  // montantCommissions + totalAjustements — le net réellement versé, et le
+  // seul montant que reprend l'écriture comptable.
+  montantTotal       Decimal @map("montant_total") @db.Decimal(12, 2)
+
+  // Quatre dates distinctes plutôt qu'une : elles mesurent le délai de
+  // paiement des livreurs, qui est un sujet social autant que comptable.
+  dateGeneration DateTime  @default(now()) @map("date_generation")
+  dateValidation DateTime? @map("date_validation")
+  dateReglement  DateTime? @map("date_reglement")
+  dateAnnulation DateTime? @map("date_annulation")
+
+  motifAnnulation String? @map("motif_annulation")
+
+  modeReglement      ModeReglementLivreur? @map("mode_reglement")
+  referenceReglement String?               @map("reference_reglement")
+
+  emisParId String      @map("emis_par_id")
+  emisPar   Utilisateur @relation("BonPaiementEmetteur", fields: [emisParId], references: [id])
+
+  valideParId String?      @map("valide_par_id")
+  validePar   Utilisateur? @relation("BonPaiementValidateur", fields: [valideParId], references: [id])
+
+  transactionId String?      @unique @map("transaction_id")
+  transaction   Transaction? @relation("TransactionReglementLivreur", fields: [transactionId], references: [id])
+
+  tournees    BonDistribution[]
+  ajustements AjustementBonPaiement[]
+
+  @@index([livreurId])
+  @@index([hubId])
+  @@index([statut])
+  @@index([periodeDebut])
+  @@map("bons_paiement")
+}
+
+// Prime ou pénalité ajoutée à la main sur un bon en BROUILLON (§ /admin/
+// bon-paiement). Une ligne plutôt qu'un simple champ « ajustement » sur le
+// bon : le livreur qui signe doit pouvoir lire POURQUOI son net diffère de la
+// somme de ses tournées, et le comptable doit pouvoir en retirer une seule.
+//
+// `montant` est toujours POSITIF ; c'est `type` qui porte le signe. Stocker
+// un montant signé rendrait un « −150 » de type prime silencieusement
+// possible, et la fiche de paie illisible.
+model AjustementBonPaiement {
+  id            String                 @id @default(uuid())
+  bonPaiementId String                 @map("bon_paiement_id")
+  bonPaiement   BonPaiement            @relation(fields: [bonPaiementId], references: [id], onDelete: Cascade)
+  type          TypeAjustementPaiement
+  libelle       String
+  montant       Decimal                @db.Decimal(10, 2)
+
+  creeParId String      @map("cree_par_id")
+  creePar   Utilisateur @relation("AjustementPaiementAuteur", fields: [creeParId], references: [id])
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@index([bonPaiementId])
+  @@map("ajustements_bon_paiement")
+}
+
+// ============================================================
+// Bon de retour marchand (§ /admin/bon-retour, § /ramasseur)
+// ============================================================
+
+// Circuit en trois temps, calqué sur le terrain :
+//   nouveau  — le Planner compose le bon au hub (scan du QR ou ajout manuel).
+//              Les colis y sont réservés mais restent physiquement au hub.
+//   en_cours — un ramasseur est affecté et part rendre les colis au marchand.
+//   remis    — le marchand a signé la décharge ; le bon est clos.
+enum StatutBonRetour {
+  nouveau
+  en_cours
+  remis
+}
+
+// Restitution physique des colis non livrés à leur marchand. Un bon = UN
+// marchand : le marchand n'est jamais choisi dans un menu, il se déduit du
+// premier colis scanné et les colis d'un autre marchand sont refusés à
+// l'ajout — c'est ce qui rend la composition possible au scan, sans saisie.
+// Même règle de groupement que BonDePreparation (§ Gestion de stock).
+//
+// La progression colis par colis ne se stocke pas ici : un colis du bon
+// encore différent de `retourne` est un colis que le ramasseur n'a pas
+// encore remis. Même mécanique que la clôture de tournée, qui déduit les
+// colis restants de leur statut plutôt que d'un compteur parallèle.
+model BonRetour {
+  id         String          @id @default(uuid())
+  numero     String          @unique
+  marchandId String          @map("marchand_id")
+  marchand   Marchand        @relation(fields: [marchandId], references: [id])
+  // Hub d'où partent les colis — sert de filtre "pour zone" et cadre le
+  // périmètre du Planner, qui ne compose que pour son propre hub.
+  hubId      String?         @map("hub_id")
+  hub        Hub?            @relation("BonRetourHub", fields: [hubId], references: [id])
+  statut     StatutBonRetour @default(nouveau)
+
+  nbColis         Int     @map("nb_colis")
+  montantTotalCod Decimal @map("montant_total_cod") @db.Decimal(12, 2)
+
+  dateGeneration DateTime    @default(now()) @map("date_generation")
+  creeParId      String      @map("cree_par_id")
+  creePar        Utilisateur @relation("BonRetourCreateur", fields: [creeParId], references: [id])
+
+  // Ramasseur chargé de rapporter les colis au marchand. Nullable tant que le
+  // bon n'est pas affecté (statut `nouveau`).
+  ramasseurId     String?      @map("ramasseur_id")
+  ramasseur       Utilisateur? @relation("BonRetourRamasseur", fields: [ramasseurId], references: [id])
+  dateAffectation DateTime?    @map("date_affectation")
+
+  // --- Décharge -----------------------------------------------------------
+  // Écrit d'un seul coup à la signature. `signatureUrl` porte la signature
+  // tracée à l'écran, `photoDechargeUrl` la photo du bon papier signé : les
+  // deux sont acceptés (le terrain n'a pas toujours le choix), au moins un
+  // des deux est exigé côté API. Même convention de stockage que les preuves
+  // de livraison (Commande.signatureUrl / photoPreuveUrl) : une data URL, pas
+  // d'infrastructure de stockage objet dans ce projet.
+  dateRemise       DateTime? @map("date_remise")
+  nomSignataire    String?   @map("nom_signataire")
+  signatureUrl     String?   @map("signature_url")
+  photoDechargeUrl String?   @map("photo_decharge_url")
+
+  commandes Commande[]
+
+  @@index([marchandId])
+  @@index([ramasseurId])
+  @@index([hubId])
+  @@index([statut])
+  @@map("bons_retour")
+}
+
+// ============================================================
+// Paramètres de la société (§ /admin/parametres)
+// ============================================================
+
+// Identité de l'entreprise imprimée sur TOUS les documents sortants : fiche
+// de paie livreur, facture marchand, bon de retour, bon de livraison, bon de
+// préparation, bon d'envoi. Elle était jusqu'ici écrite en dur dans six
+// fichiers — changer un numéro de téléphone imposait six modifications, et
+// une seule oubliée suffisait à faire circuler deux versions de l'adresse.
+//
+// Table à ligne unique (`id` fixé à "societe") plutôt qu'un fichier de
+// configuration : ces informations se modifient depuis l'interface, pas par
+// un redéploiement.
+model ParametresSociete {
+  id            String  @id @default("societe")
+  raisonSociale String  @default("Mathio Delivery") @map("raison_sociale")
+  adresse       String?
+  telephone     String?
+  email         String?
+  siteWeb       String? @map("site_web")
+  // Logo en data URL, même convention de stockage que les signatures et les
+  // preuves de livraison : ce projet n'a pas d'infrastructure de stockage
+  // objet.
+  logoUrl       String? @map("logo_url")
+
+  dateMaj DateTime @updatedAt @map("date_maj")
+
+  @@map("parametres_societe")
 }

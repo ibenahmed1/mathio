@@ -6,7 +6,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 // (couleur/taille…), pour les produits où variantesActivees est vrai.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const { id } = await params;
     const body = await request.json();
     const quantite = Math.trunc(Number(body.quantite));
@@ -30,7 +30,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     await prisma.historiqueProduit.create({
-      data: { produitId: variante.produitId, texte: `${quantite}, ${variante.nom} a été reçu` },
+      data: {
+        produitId: variante.produitId,
+        texte: `${quantite}, ${variante.nom} a été reçu`,
+        utilisateurId: session.sub,
+      },
     });
 
     const varianteMiseAJour = await prisma.produitVariante.findUnique({ where: { id } });

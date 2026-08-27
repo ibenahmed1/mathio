@@ -25,7 +25,7 @@ export default function AdminReclamationsPage() {
   }
 
   useEffect(() => {
-    load();
+    Promise.resolve().then(() => load());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statutFiltre]);
 

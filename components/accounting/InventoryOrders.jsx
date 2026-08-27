@@ -40,7 +40,7 @@ export default function InventoryOrders() {
   }
 
   useEffect(() => {
-    charger();
+    Promise.resolve().then(() => charger());
   }, []);
 
   async function soumettre(e) {
@@ -85,7 +85,7 @@ export default function InventoryOrders() {
     <section className={a.card}>
       <div className={a.cardHead}>
         <div>
-          <h2 className={a.cardTitle}>Commandes d'inventaire</h2>
+          <h2 className={a.cardTitle}>Commandes d&apos;inventaire</h2>
           <p className={a.cardSub}>Approvisionnement des hubs</p>
         </div>
         <button className={a.selectBtn} onClick={() => setModalOuverte(true)}>
@@ -97,7 +97,7 @@ export default function InventoryOrders() {
 
       <div className={a.orderList}>
         {!chargement && commandes.length === 0 && (
-          <p className={a.cardSub} style={{ padding: "16px 6px" }}>Aucune commande d'inventaire.</p>
+          <p className={a.cardSub} style={{ padding: "16px 6px" }}>Aucune commande d&apos;inventaire.</p>
         )}
 
         {commandes.map((c) => (
@@ -153,7 +153,7 @@ export default function InventoryOrders() {
             onClick={(e) => e.stopPropagation()}
             onSubmit={soumettre}
           >
-            <h2 className="text-lg font-bold">Nouvelle commande d'inventaire</h2>
+            <h2 className="text-lg font-bold">Nouvelle commande d&apos;inventaire</h2>
 
             <div className={a.formRow}>
               <label className={a.formLabel}>Titre</label>

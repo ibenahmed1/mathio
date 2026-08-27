@@ -39,7 +39,7 @@ export default function AdminStockBonsPreparationPage() {
   }
 
   useEffect(() => {
-    load(1);
+    Promise.resolve().then(() => load(1));
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / TAILLE_PAGE));
