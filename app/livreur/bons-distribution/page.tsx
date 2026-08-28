@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Share2, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { LABELS_STATUT_BON_DISTRIBUTION, STYLE_STATUT_BON_DISTRIBUTION } from '@/lib/statuts';
 import { LivreurShell } from '@/components/livreur/LivreurShell';
@@ -48,10 +48,7 @@ export default function TourneesLivreurPage() {
     <LivreurShell>
       <div className="flex flex-col gap-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="page-title flex items-center gap-2">
-            <Share2 className="h-6 w-6 text-brand-ink dark:text-brand" />
-            Mes tournées
-          </h1>
+          <h1 className="page-title">Mes tournées</h1>
           {/* Renvoie vers « Ma paie » plutôt que de rester un chiffre isolé :
               le détail — bons du mois, primes, pénalités, versements — vit
               là-bas, et un solde sans explication est précisément ce qui

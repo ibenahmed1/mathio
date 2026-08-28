@@ -6,6 +6,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Hub, Ville } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { IconButton } from '@/components/admin/IconButton';
+import { Field } from '@/components/form/Field';
 
 type ModalState =
   | { kind: 'hub'; mode: 'create' }
@@ -250,54 +251,72 @@ export default function AdminHubsPage() {
 
       {modal?.kind === 'hub' && (
         <Modal title={modal.mode === 'create' ? 'Nouveau hub' : 'Modifier le hub'} onClose={() => setModal(null)}>
-          <form onSubmit={handleHubSubmit} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Nom du hub
+          <form onSubmit={handleHubSubmit} className="flex flex-col gap-4">
+            <Field label="Nom du hub" required>
               <input name="nom" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.hub.nom : ''} required />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Ville
+            </Field>
+            <Field label="Ville" required>
               <input name="ville" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.hub.ville : ''} required />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Adresse
-              <input name="adresse" className="input-basic" defaultValue={modal.mode === 'edit' ? (modal.hub.adresse ?? '') : ''} />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Téléphone
-              <input name="telephone" className="input-basic" defaultValue={modal.mode === 'edit' ? (modal.hub.telephone ?? '') : ''} />
-            </label>
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" name="isCentral" defaultChecked={modal.mode === 'edit' ? modal.hub.isCentral : false} />
+            </Field>
+            <div className="form-grid">
+              <Field label="Adresse" optional>
+                <input
+                  name="adresse"
+                  className="input-basic"
+                  defaultValue={modal.mode === 'edit' ? (modal.hub.adresse ?? '') : ''}
+                />
+              </Field>
+              <Field label="Téléphone" optional>
+                <input
+                  name="telephone"
+                  className="input-basic"
+                  defaultValue={modal.mode === 'edit' ? (modal.hub.telephone ?? '') : ''}
+                />
+              </Field>
+            </div>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                name="isCentral"
+                className="check-basic"
+                defaultChecked={modal.mode === 'edit' ? modal.hub.isCentral : false}
+              />
               Hub central (entrepôt principal de préparation)
             </label>
-            <button type="submit" className="btn-primary">
-              Enregistrer
-            </button>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                Enregistrer
+              </button>
+            </div>
           </form>
         </Modal>
       )}
 
       {modal?.kind === 'ville' && (
         <Modal title={modal.mode === 'create' ? 'Nouvelle ville' : 'Modifier la ville'} onClose={() => setModal(null)}>
-          <form onSubmit={handleVilleSubmit} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Nom de la ville
+          <form onSubmit={handleVilleSubmit} className="flex flex-col gap-4">
+            <Field label="Nom de la ville" required>
               <input name="nom" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.ville.nom : ''} required />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Hub
-              <select name="hubId" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.ville.hubId : modal.hubId} required>
+            </Field>
+            <Field label="Hub" required>
+              <select
+                name="hubId"
+                className="input-basic"
+                defaultValue={modal.mode === 'edit' ? modal.ville.hubId : modal.hubId}
+                required
+              >
                 {hubs.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.nom}
                   </option>
                 ))}
               </select>
-            </label>
-            <button type="submit" className="btn-primary">
-              Enregistrer
-            </button>
+            </Field>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                Enregistrer
+              </button>
+            </div>
           </form>
         </Modal>
       )}

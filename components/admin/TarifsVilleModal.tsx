@@ -5,6 +5,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Hub, TarifLivreurVille } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
+import { Field } from '@/components/form/Field';
 
 // Surcharge des frais de livraison/refus d'un livreur pour des villes
 // spécifiques (maquette "Ajouter Utilisateur" : Frais de livraison (Agadir),
@@ -105,8 +106,7 @@ export function TarifsVilleModal({
             {editId === tarif.id ? (
               <form onSubmit={(e) => enregistrerModif(tarif, e)} className="flex flex-wrap items-end gap-2">
                 <span className="text-sm font-semibold">{tarif.ville?.nom}</span>
-                <label className="flex flex-col gap-0.5 text-xs">
-                  Frais livraison
+                <Field label="Frais livraison">
                   <input
                     name="fraisLivraison"
                     type="number"
@@ -114,9 +114,8 @@ export function TarifsVilleModal({
                     className="input-basic w-24 py-1"
                     defaultValue={tarif.fraisLivraison}
                   />
-                </label>
-                <label className="flex flex-col gap-0.5 text-xs">
-                  Frais refus
+                </Field>
+                <Field label="Frais refus">
                   <input
                     name="fraisRefus"
                     type="number"
@@ -124,7 +123,7 @@ export function TarifsVilleModal({
                     className="input-basic w-24 py-1"
                     defaultValue={tarif.fraisRefus}
                   />
-                </label>
+                </Field>
                 <button type="submit" className="btn-primary px-2 py-1 text-xs">
                   Enregistrer
                 </button>
@@ -167,8 +166,7 @@ export function TarifsVilleModal({
 
       {villesDisponibles.length > 0 && (
         <form onSubmit={ajouter} className="flex flex-wrap items-end gap-2 border-t border-black/10 pt-3 dark:border-white/10">
-          <label className="flex flex-col gap-0.5 text-xs">
-            Ville
+          <Field label="Ville" required>
             <select
               className="input-basic py-1"
               value={form.villeId}
@@ -182,9 +180,8 @@ export function TarifsVilleModal({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex flex-col gap-0.5 text-xs">
-            Frais livraison
+          </Field>
+          <Field label="Frais livraison" required>
             <input
               type="number"
               step="0.01"
@@ -193,9 +190,8 @@ export function TarifsVilleModal({
               onChange={(e) => setForm({ ...form, fraisLivraison: e.target.value })}
               required
             />
-          </label>
-          <label className="flex flex-col gap-0.5 text-xs">
-            Frais refus
+          </Field>
+          <Field label="Frais refus" required>
             <input
               type="number"
               step="0.01"
@@ -204,7 +200,7 @@ export function TarifsVilleModal({
               onChange={(e) => setForm({ ...form, fraisRefus: e.target.value })}
               required
             />
-          </label>
+          </Field>
           <button type="submit" className="btn-primary flex items-center gap-1 px-2 py-1 text-xs">
             <Plus className="h-3.5 w-3.5" /> Ajouter
           </button>

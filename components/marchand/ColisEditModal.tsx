@@ -5,6 +5,7 @@ import { Sparkles } from 'lucide-react';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import type { Commande, Marchandise } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
+import { Affix, Field } from '@/components/form/Field';
 import { ProduitSelect } from '@/components/ProduitSelect';
 
 // Toute donnée saisie manuellement à la création reste modifiable ici — même
@@ -100,7 +101,7 @@ export function ColisEditModal({
 
   return (
     <Modal title={`Modifier le colis — ${commande.codeSuivi}`} onClose={onClose}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="form-grid">
         {champsRestreints && (
           <p className="sm:col-span-2 -mt-1 text-xs opacity-60">
             Ce colis est en attente de relance : seuls le téléphone et l&apos;adresse sont modifiables.
@@ -150,8 +151,7 @@ export function ColisEditModal({
 
         {!champsRestreints && (
           <>
-            <label className="flex flex-col gap-1 text-sm">
-              Marchandise
+            <Field label="Marchandise">
               <select
                 className="input-basic"
                 value={form.marchandiseId}
@@ -167,9 +167,8 @@ export function ColisEditModal({
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Quantité
+            </Field>
+            <Field label="Quantité">
               <input
                 className="input-basic"
                 type="number"
@@ -180,15 +179,15 @@ export function ColisEditModal({
                   if (form.marchandiseId) recalculerPrix(form.marchandiseId, e.target.value);
                 }}
               />
-            </label>
+            </Field>
 
-            <label className="flex flex-col gap-1 text-sm">
-              Prix (DH)
-              <div className="relative">
+            <Field label="Prix" hint={prixAuto ? 'Calculé (prix × quantité) — modifiable' : undefined}>
+              <Affix suffix="DH">
                 <input
-                  className="input-basic w-full pr-8"
+                  className="input-bare"
                   type="number"
                   step="0.01"
+                  placeholder="0,00"
                   value={form.montantCod}
                   onChange={(e) => {
                     setForm({ ...form, montantCod: e.target.value });
@@ -196,37 +195,37 @@ export function ColisEditModal({
                   }}
                 />
                 {prixAuto && (
-                  <Sparkles className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-brand" />
+                  <Sparkles
+                    className="pointer-events-none my-auto mr-1 h-4 w-4 shrink-0 text-brand"
+                    aria-label="Calculé automatiquement"
+                  />
                 )}
-              </div>
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Colis à remplacer
+              </Affix>
+            </Field>
+            <Field label="Colis à remplacer">
               <input
                 className="input-basic"
                 placeholder="Code de suivi"
                 value={form.colisARemplacerCode}
                 onChange={(e) => setForm({ ...form, colisARemplacerCode: e.target.value })}
               />
-            </label>
-            <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
-              Description produit
+            </Field>
+            <Field label="Description produit" className="sm:col-span-2">
               <input
                 className="input-basic"
                 value={form.produitDescription}
                 onChange={(e) => setForm({ ...form, produitDescription: e.target.value })}
               />
-            </label>
+            </Field>
 
-            <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
-              Commentaire
+            <Field label="Commentaire" className="sm:col-span-2">
               <textarea
                 className="input-basic"
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
-            </label>
+            </Field>
 
             <div className="sm:col-span-2 flex flex-wrap gap-4 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
               <label className="flex items-center gap-2 text-sm font-medium">
@@ -269,8 +268,7 @@ export function ColisEditModal({
               </label>
             </div>
             {form.enStock && (
-              <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
-                Produit du stock
+              <Field label="Produit du stock" className="sm:col-span-2">
                 <ProduitSelect
                   value={form.produitId}
                   onSelect={(produit) =>
@@ -282,7 +280,7 @@ export function ColisEditModal({
                   }
                 />
                 <span className="text-xs opacity-50">Recherche par nom ou référence — pré-remplit la description</span>
-              </label>
+              </Field>
             )}
             <p className="sm:col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
           </>

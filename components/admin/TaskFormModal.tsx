@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { Tache, EquipeTache, MembreTache } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
+import { Field } from '@/components/form/Field';
 import { PRIORITES_TACHE, LABELS_PRIORITE_TACHE } from '@/lib/statuts';
 
 export function TaskFormModal({
@@ -84,23 +85,20 @@ export function TaskFormModal({
 
   return (
     <Modal title="Nouvelle tâche" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Titre *
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Field label="Titre" required>
           <input className="input-basic" value={titre} onChange={(e) => setTitre(e.target.value)} required />
-        </label>
-        <label className="flex flex-col gap-1 text-sm font-medium">
-          Description
+        </Field>
+        <Field label="Description">
           <textarea
             className="input-basic"
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-        </label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Équipe *
+        </Field>
+        <div className="form-grid">
+          <Field label="Équipe" required>
             <select className="input-basic" value={teamId} onChange={(e) => setTeamId(e.target.value)} required>
               {equipes.map((eq) => (
                 <option key={eq.id} value={eq.id}>
@@ -108,10 +106,9 @@ export function TaskFormModal({
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
           {peutAssigner && (
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Assigné
+            <Field label="Assigné">
               <select className="input-basic" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
                 <option value="">Non assigné</option>
                 {membresEquipe.map((m) => (
@@ -120,10 +117,9 @@ export function TaskFormModal({
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
           )}
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Priorité
+          <Field label="Priorité">
             <select
               className="input-basic"
               value={priorite}
@@ -135,16 +131,15 @@ export function TaskFormModal({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Échéance
+          </Field>
+          <Field label="Échéance">
             <input
               type="date"
               className="input-basic"
               value={dateEcheance}
               onChange={(e) => setDateEcheance(e.target.value)}
             />
-          </label>
+          </Field>
         </div>
 
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}

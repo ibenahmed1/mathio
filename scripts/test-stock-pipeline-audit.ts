@@ -6,6 +6,7 @@ import { buildCommandesWhere } from '../lib/commandes-filters';
 import { getVillesHubCentral, statutApresPreparation } from '../lib/hub-stock';
 import { nextCodeSuivi, nextBonPreparationNumero } from '../lib/codes';
 import type { SessionPayload } from '../lib/auth';
+import { ALL_PERMISSIONS } from '../lib/permissions';
 
 // Script d'audit local du circuit "colis stock / fulfillment" (enStock=true),
 // exécutable via `npx tsx scripts/test-stock-pipeline-audit.ts`.
@@ -60,6 +61,8 @@ const SESSION_ADMIN: SessionPayload = {
   sub: `${PREFIXE}-admin`,
   role: 'admin',
   extraRoles: [],
+  // Catalogue entier, comme le résout effectivePermissions() pour un admin.
+  permissions: [...ALL_PERMISSIONS],
   space: 'admin',
   impersonated: false,
 };

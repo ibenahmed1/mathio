@@ -24,23 +24,9 @@ export default async function ComptabiliteAdminPage() {
         <div className={a.pageRoot}>
           {/* ---------- En-tête ---------- */}
           <header className={a.pageHead}>
-            <div className={a.crumbRow}>
+            <div className={a.titleRow}>
               <SidebarToggleButtons className={a.sidebarToggle} />
-              <div>
-                <div className={a.crumb}>
-                  Mathio <span className={a.crumbSep}>/</span>{" "}
-                  <span className={a.crumbCurrent}>Comptabilité</span>
-                </div>
-                <h1 className={a.pageTitle}>Comptabilité &amp; paie</h1>
-              </div>
-            </div>
-
-            <div className={a.headActions}>
-              <div className={a.segmented}>
-                <button className={a.segItem}>Board</button>
-                <button className={`${a.segItem} ${a.segItemActive}`}>Comptabilité</button>
-                <button className={a.segItem}>Équipes</button>
-              </div>
+              <h1 className="page-title">Comptabilité &amp; paie</h1>
             </div>
           </header>
 

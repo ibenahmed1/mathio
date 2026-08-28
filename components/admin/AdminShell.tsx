@@ -5,23 +5,47 @@ import { usePathname } from 'next/navigation';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { SidebarContext } from '@/components/admin/SidebarContext';
 import { SidebarToggleButtons } from '@/components/admin/SidebarToggleButtons';
-import { NAV_ADMIN, filterNavByRole } from '@/components/admin/nav';
+import { NAV_ADMIN, filterNavByPermissions } from '@/components/admin/nav';
 import type { Role } from '@/app/generated/prisma/enums';
 
-// Le board Kanban (§ /admin/tasks) et la page Comptabilité (§ /admin/comptabilite)
-// portent chacun leur propre en-tête (fil d'ariane + titre + actions) avec leur
-// propre SidebarToggleButtons : la barre minimale ci-dessous ferait doublon sur
-// ces pages, donc on la masque là uniquement.
-function hideMinimalBarFor(pathname: string | null) {
+// Le repli de la barre latérale se commande désormais DEPUIS la barre
+// elle-même (cf. AdminSidebar) : plus rien ne flotte dans le contenu des
+// pages, et toutes les interfaces retrouvent la même gouttière à gauche.
+//
+// Ne subsiste dans le contenu que l'ouverture en MOBILE, où la barre est
+// hors-écran et son bouton donc inatteignable. La page Comptabilité porte le
+// sien dans son propre en-tête (§ SidebarToggleButtons) : on ne le doublonne
+// pas ici.
+function hideMobileBarFor(pathname: string | null) {
+  return !!pathname && pathname.startsWith('/admin/comptabilite');
+}
+
+// Les pages qui gèrent elles-mêmes leur pleine largeur (Kanban, Comptabilité)
+// ne veulent pas de la marge de la coquille.
+function isFullBleed(pathname: string | null) {
   return !!pathname && (pathname.startsWith('/admin/tasks') || pathname.startsWith('/admin/comptabilite'));
 }
 
-export function AdminShell({ adminName, role, children }: { adminName: string; role: Role; children: React.ReactNode }) {
+export function AdminShell({
+  adminName,
+  role,
+  permissions,
+  children,
+}: {
+  adminName: string;
+  role: Role;
+  // Permissions effectives du compte (§ lib/permissions.ts), résolues côté
+  // serveur par le layout : la barre latérale n'affiche que les modules
+  // réellement ouverts. Purement cosmétique — le refus, lui, est prononcé par
+  // le proxy, qui ne fait confiance à rien de ce qui vient du client.
+  permissions: string[];
+  children: React.ReactNode;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
-  const showMinimalBar = !hideMinimalBarFor(pathname);
-  const nav = filterNavByRole(NAV_ADMIN, role);
+  const fullBleed = isFullBleed(pathname);
+  const nav = filterNavByPermissions(NAV_ADMIN, role, permissions);
 
   return (
     <SidebarContext.Provider
@@ -35,18 +59,15 @@ export function AdminShell({ adminName, role, children }: { adminName: string; r
           collapsed={collapsed}
           mobileOpen={mobileOpen}
           onCloseMobile={() => setMobileOpen(false)}
+          onToggleCollapse={() => setCollapsed((v) => !v)}
         />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          <main className={showMinimalBar ? 'flex-1 p-4 sm:p-6' : 'flex-1'}>
-            {showMinimalBar ? (
-              <div className="flex items-start gap-3">
-                <SidebarToggleButtons className="mt-1 flex shrink-0 items-center gap-2" />
-                <div className="min-w-0 flex-1">{children}</div>
-              </div>
-            ) : (
-              children
-            )}
-          </main>
+          {!hideMobileBarFor(pathname) && (
+            <div className="px-4 pt-4 lg:hidden">
+              <SidebarToggleButtons />
+            </div>
+          )}
+          <main className={fullBleed ? 'min-w-0 flex-1' : 'min-w-0 flex-1 p-4 sm:p-6'}>{children}</main>
         </div>
       </div>
     </SidebarContext.Provider>

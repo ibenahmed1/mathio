@@ -37,7 +37,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           l'espace admin, seul espace qui en a besoin pour l'instant. */}
       <Script type="module" src="https://unpkg.com/ionicons@7.2.2/dist/ionicons/ionicons.esm.js" strategy="afterInteractive" />
       <Script noModule src="https://unpkg.com/ionicons@7.2.2/dist/ionicons/ionicons.js" strategy="afterInteractive" />
-      <AdminShell adminName={utilisateur?.nomComplet ?? 'Administrateur'} role={session.role}>
+      <AdminShell
+        adminName={utilisateur?.nomComplet ?? 'Administrateur'}
+        role={session.role}
+        permissions={session.permissions}
+      >
         {children}
       </AdminShell>
     </>

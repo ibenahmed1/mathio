@@ -68,46 +68,58 @@ export default function MarchandisesPage() {
         prix pré-remplit automatiquement le prix du colis (prix × quantité), tout en restant modifiable.
       </p>
 
-      <form
-        onSubmit={handleCreate}
-        className="grid max-w-xl grid-cols-1 gap-3 rounded-xl border border-black/10 bg-black/[0.015] p-4 shadow-sm sm:grid-cols-3 dark:border-white/10 dark:bg-white/[0.02]"
-      >
-        <label className="sm:col-span-3 flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Nom de la marchandise</span>
-          <input
-            className="input-basic"
-            value={form.nom}
-            onChange={(e) => setForm({ ...form, nom: e.target.value })}
-            required
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Stock</span>
-          <input
-            className="input-basic"
-            type="number"
-            min="0"
-            value={form.qteStock}
-            onChange={(e) => setForm({ ...form, qteStock: e.target.value })}
-            required
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Prix (DH)</span>
-          <input
-            className="input-basic"
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.prix}
-            onChange={(e) => setForm({ ...form, prix: e.target.value })}
-            required
-          />
-        </label>
-        <button type="submit" disabled={envoiEnCours} className="btn-primary flex items-center justify-center gap-2 self-end">
-          <PackagePlus className="h-4 w-4" />
-          Ajouter
-        </button>
+      <form onSubmit={handleCreate} className="form-section max-w-xl">
+        <div className="form-grid sm:grid-cols-3">
+          <label className="form-field sm:col-span-3">
+            <span className="form-label">
+              Nom de la marchandise<span className="form-required">*</span>
+            </span>
+            <input
+              className="input-basic"
+              placeholder="Ex. Coffret 2 flacons 50 ml"
+              value={form.nom}
+              onChange={(e) => setForm({ ...form, nom: e.target.value })}
+              required
+            />
+          </label>
+          <label className="form-field">
+            <span className="form-label">
+              Stock<span className="form-required">*</span>
+            </span>
+            <input
+              className="input-basic"
+              type="number"
+              min="0"
+              value={form.qteStock}
+              onChange={(e) => setForm({ ...form, qteStock: e.target.value })}
+              required
+            />
+          </label>
+          <label className="form-field">
+            <span className="form-label">
+              Prix<span className="form-required">*</span>
+            </span>
+            <div className="form-affix">
+              <input
+                className="input-bare"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0,00"
+                value={form.prix}
+                onChange={(e) => setForm({ ...form, prix: e.target.value })}
+                required
+              />
+              <span className="form-affix-chip">DH</span>
+            </div>
+          </label>
+        </div>
+        <div className="form-actions">
+          <button type="submit" disabled={envoiEnCours} className="btn-primary flex items-center justify-center gap-2">
+            <PackagePlus className="h-4 w-4" />
+            Ajouter
+          </button>
+        </div>
       </form>
 
       {error && (

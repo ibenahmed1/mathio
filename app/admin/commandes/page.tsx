@@ -170,7 +170,7 @@ export default function AdminCommandesPage() {
           <button
             onClick={supprimerSelection}
             disabled={suppressionEnCours}
-            className="btn-primary flex items-center gap-1.5 bg-red-600 px-3 py-1.5 text-xs hover:bg-red-700 disabled:opacity-50"
+            className="btn-danger-solid btn-sm flex items-center gap-1.5"
           >
             <Trash2 className="h-3.5 w-3.5" />
             {suppressionEnCours ? 'Suppression…' : 'Supprimer la sélection'}

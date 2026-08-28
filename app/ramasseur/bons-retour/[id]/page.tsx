@@ -98,7 +98,8 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
   const peutSigner = bilan.pretASigner && nomSignataire.trim().length > 0 && (signature || photo);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 p-4">
+    <div className="shell-surface min-h-dvh">
+      <div className="mx-auto flex max-w-md flex-col gap-4 p-4">
       <button
         type="button"
         onClick={() => router.push('/ramasseur/bons-retour')}
@@ -232,6 +233,7 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
           {envoi ? 'Enregistrement…' : 'Clôturer le bon'}
         </button>
       </section>
+      </div>
     </div>
   );
 }

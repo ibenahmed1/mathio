@@ -7,6 +7,7 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
+import { Field } from '@/components/form/Field';
 
 interface MeResponse {
   id: string;
@@ -163,10 +164,7 @@ export default function ScanTourneePage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="page-title flex items-center gap-2">
-            <ScanLine className="h-6 w-6 text-brand-ink dark:text-brand" />
-            Poste de scan
-          </h1>
+          <h1 className="page-title">Poste de scan</h1>
           <p className="flex items-center gap-1.5 text-sm opacity-70">
             <Building2 className="h-3.5 w-3.5" />
             {hubLibelle ? `Hub ${hubLibelle}` : 'Hub à sélectionner'}
@@ -199,8 +197,7 @@ export default function ScanTourneePage() {
         </div>
 
         {besoinHubExplicite && (
-          <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-            Hub de travail
+          <Field label="Hub de travail">
             <select className="input-basic" value={hubChoisiId} onChange={(e) => setHubChoisiId(e.target.value)}>
               <option value="">Sélectionner un hub</option>
               {hubs.map((h) => (
@@ -209,7 +206,7 @@ export default function ScanTourneePage() {
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
         )}
 
         {bloquant ? (

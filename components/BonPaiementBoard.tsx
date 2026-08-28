@@ -207,10 +207,7 @@ export function BonPaiementBoard({ parZone }: { parZone: boolean }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title flex items-center gap-2">
-          <Wallet className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Paie livreurs — {parZone ? 'par zone' : 'par livreur'}
-        </h1>
+        <h1 className="page-title">Paie livreurs — {parZone ? 'par zone' : 'par livreur'}</h1>
 
         <div className="flex flex-wrap items-center gap-2">
           <select className="input-basic" value={mois} onChange={(e) => setMois(Number(e.target.value))}>

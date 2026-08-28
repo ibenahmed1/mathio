@@ -5,7 +5,8 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
-import { Building2, ChevronLeft, List, PackageCheck, RotateCcw, ScanLine } from 'lucide-react';
+import { ChevronLeft, List, PackageCheck, RotateCcw, ScanLine } from 'lucide-react';
+import { Field } from '@/components/form/Field';
 
 interface HubAgentUser {
   id: string;
@@ -164,10 +165,7 @@ export default function ScanReceptionHubPage() {
       {view === 'accueil' && (
         <div className="mx-auto flex max-w-xl flex-col gap-6 pt-4">
           <div className="text-center">
-            <h1 className="page-title flex items-center justify-center gap-2">
-              <Building2 className="h-6 w-6 text-brand-ink dark:text-brand" />
-              Réception au hub
-            </h1>
+            <h1 className="page-title">Réception au hub</h1>
             <p className="mt-1 text-sm opacity-70">
               {user ? `Bonjour ${user.nomComplet.split(' ')[0]}` : 'Bonjour'}
               {hubNom ? ` — ${hubNom}` : ''}
@@ -224,8 +222,7 @@ export default function ScanReceptionHubPage() {
           </div>
 
           {adminSansHub && (
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Hub de réception
+            <Field label="Hub de réception">
               <select
                 className="input-basic"
                 value={hubChoisiId}
@@ -238,7 +235,7 @@ export default function ScanReceptionHubPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
           )}
 
           {toast && (

@@ -1,6 +1,6 @@
 'use client';
 
-import { UserCog } from 'lucide-react';
+import { UserCog, Users } from 'lucide-react';
 import type { EquipeTache, Tache } from '@/lib/types';
 import { STATUTS_TACHE, LABELS_STATUT_TACHE, STATUT_TACHE_DOT, EQUIPE_COULEUR_LABEL } from '@/lib/statuts';
 import { initiales, avatarClassName } from '@/lib/avatar';
@@ -35,14 +35,17 @@ export function TeamsBoardView({
               <div className="kdc-panel__head">
                 <span
                   className="kdc-team-badge"
-                  style={{ background: `var(--label-${labelKey}-fg)` }}
-                />
+                  style={{ background: `var(--label-${labelKey}-grad)`, color: `var(--label-${labelKey}-on)` }}
+                  aria-hidden
+                >
+                  <Users className="h-4 w-4" />
+                </span>
                 <div className="min-w-0">
                   <p className="kdc-panel__title">{eq.nom}</p>
                   <p className="kdc-panel__sub">Code {eq.code}</p>
                 </div>
                 <div className="kdc-panel__actions">
-                  <span className="kdc-pill">
+                  <span className={`kdc-pill ${ouvertes > 0 ? 'kdc-pill--actif' : ''}`}>
                     {ouvertes} tâche{ouvertes > 1 ? 's' : ''} ouverte{ouvertes > 1 ? 's' : ''}
                   </span>
                   {peutGerer && (

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { RefreshCw, Trash2, Plus, ImagePlus, Check, X, Loader2, PackagePlus } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { genererReferenceProduit } from '@/lib/sku';
+import { Field, FormSection } from '@/components/form/Field';
 import { InventaireSubNav } from '../InventaireSubNav';
 
 interface VarianteForm {
@@ -23,30 +24,6 @@ function slugifyReference(nom: string): string {
 
 type StatutReference = 'idle' | 'verification' | 'disponible' | 'prise' | 'erreur';
 
-function Field({
-  label,
-  hint,
-  className,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  const requis = label.endsWith(' *');
-  const libelle = requis ? label.slice(0, -2) : label;
-  return (
-    <label className={`flex flex-col gap-1 ${className ?? ''}`}>
-      <span className="text-xs font-semibold uppercase tracking-wide opacity-60">
-        {libelle}
-        {requis && <span className="text-red-600"> *</span>}
-      </span>
-      {children}
-      {hint && <span className="text-xs opacity-50">{hint}</span>}
-    </label>
-  );
-}
 
 export default function NouveauProduitPage() {
   const router = useRouter();
@@ -172,84 +149,86 @@ export default function NouveauProduitPage() {
       <InventaireSubNav />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 gap-4 rounded-xl border border-black/10 bg-black/[0.015] p-5 shadow-sm sm:grid-cols-2 dark:border-white/10 dark:bg-white/[0.02]">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Photo de produit</span>
-            <label className="flex h-56 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-black/15 text-center transition hover:border-brand hover:bg-brand/5 dark:border-white/15">
-              {photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="Aperçu du produit" className="h-full w-full rounded-xl object-cover" />
-              ) : (
-                <>
-                  <ImagePlus className="h-8 w-8 opacity-40" />
-                  <span className="text-sm opacity-60">Déposer une image ou cliquer</span>
-                </>
-              )}
-              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-            </label>
-            {photoUrl && (
-              <button type="button" onClick={() => setPhotoUrl(null)} className="self-start text-xs font-semibold text-red-600 hover:opacity-70">
-                Retirer la photo
-              </button>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <Field label="Nom du produit *">
-              <input className="input-basic" value={nom} onChange={(e) => setNom(e.target.value)} required />
-            </Field>
-
-            <Field label="Réf. du produit *">
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <input
-                    className="input-basic w-full pr-8"
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value)}
-                    required
-                  />
-                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
-                    {statutReference === 'verification' && <Loader2 className="h-4 w-4 animate-spin opacity-50" />}
-                    {statutReference === 'disponible' && <Check className="h-4 w-4 text-green-600" />}
-                    {statutReference === 'prise' && <X className="h-4 w-4 text-red-600" />}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setReference(genererReferenceProduit())}
-                  className="btn-outline flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  Générer auto
+        <FormSection title="Fiche produit">
+          <div className="form-grid">
+            <div className="form-field">
+              <span className="form-label">Photo de produit</span>
+              <label className="flex h-56 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-black/15 text-center transition hover:border-brand hover:bg-brand/5 dark:border-white/15">
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photoUrl} alt="Aperçu du produit" className="h-full w-full rounded-xl object-cover" />
+                ) : (
+                  <>
+                    <ImagePlus className="h-8 w-8 opacity-40" />
+                    <span className="text-sm opacity-60">Déposer une image ou cliquer</span>
+                  </>
+                )}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              </label>
+              {photoUrl && (
+                <button type="button" onClick={() => setPhotoUrl(null)} className="self-start text-xs font-semibold text-red-600 hover:opacity-70">
+                  Retirer la photo
                 </button>
-              </div>
-              {statutReference === 'prise' && <span className="text-xs font-medium text-red-600">Référence déjà utilisée dans votre stock</span>}
-            </Field>
+              )}
+            </div>
 
-            <Field
-              label="Quantité *"
-              hint={
-                variantesActivees
-                  ? `Calculée automatiquement (${quantiteTotaleVariantes} via variantes)`
-                  : "Déclarée par vous — passe en « Reçu » une fois validée par l'admin"
-              }
-            >
-              <input
-                className="input-basic"
-                type="number"
-                min="0"
-                value={variantesActivees ? quantiteTotaleVariantes : quantite}
-                onChange={(e) => setQuantite(e.target.value)}
-                disabled={variantesActivees}
-                required
-              />
-            </Field>
+            <div className="flex flex-col gap-4">
+              <Field label="Nom du produit" required>
+                <input className="input-basic" value={nom} onChange={(e) => setNom(e.target.value)} required />
+              </Field>
 
-            <Field label="Note du produit">
-              <textarea className="input-basic" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-            </Field>
+              <Field label="Réf. du produit" required>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      className="input-basic w-full pr-8"
+                      value={reference}
+                      onChange={(e) => setReference(e.target.value)}
+                      required
+                    />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
+                      {statutReference === 'verification' && <Loader2 className="h-4 w-4 animate-spin opacity-50" />}
+                      {statutReference === 'disponible' && <Check className="h-4 w-4 text-green-600" />}
+                      {statutReference === 'prise' && <X className="h-4 w-4 text-red-600" />}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReference(genererReferenceProduit())}
+                    className="btn-outline flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Générer auto
+                  </button>
+                </div>
+                {statutReference === 'prise' && <span className="form-error">Référence déjà utilisée dans votre stock</span>}
+              </Field>
+
+              <Field
+                label="Quantité *"
+                hint={
+                  variantesActivees
+                    ? `Calculée automatiquement (${quantiteTotaleVariantes} via variantes)`
+                    : "Déclarée par vous — passe en « Reçu » une fois validée par l'admin"
+                }
+              >
+                <input
+                  className="input-basic"
+                  type="number"
+                  min="0"
+                  value={variantesActivees ? quantiteTotaleVariantes : quantite}
+                  onChange={(e) => setQuantite(e.target.value)}
+                  disabled={variantesActivees}
+                  required
+                />
+              </Field>
+
+              <Field label="Note du produit" optional>
+                <textarea className="input-basic" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+              </Field>
+            </div>
           </div>
-        </div>
+        </FormSection>
 
         <div className="flex items-center gap-3">
           <button
@@ -330,9 +309,11 @@ export default function NouveauProduitPage() {
           </div>
         )}
 
-        <p className="-mt-1 text-xs opacity-50">* Champs obligatoires</p>
+        <p className="form-hint">
+          <span className="form-required">*</span> Champs obligatoires
+        </p>
 
-        {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+        {error && <p className="form-error">{error}</p>}
 
         <button
           type="submit"

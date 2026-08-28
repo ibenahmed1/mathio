@@ -57,48 +57,75 @@ export default function MarchandRamassagesPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="grid max-w-xl grid-cols-1 gap-2 rounded-lg border border-black/10 p-4 sm:grid-cols-2 dark:border-white/10">
-          <select
-            className="input-basic sm:col-span-2"
-            value={form.adresseId}
-            onChange={(e) => setForm({ ...form, adresseId: e.target.value })}
-            required
-          >
-            <option value="">Choisir une adresse de collecte…</option>
-            {adresses.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.libelle} — {a.adresseComplete}
-              </option>
-            ))}
-          </select>
-          {adresses.length === 0 && (
-            <p className="sm:col-span-2 text-xs text-amber-700">
-              Aucune adresse enregistrée — ajoutez-en une dans votre Profil avant de demander un ramassage.
-            </p>
-          )}
-          <input
-            className="input-basic"
-            type="date"
-            value={form.datePrevue}
-            onChange={(e) => setForm({ ...form, datePrevue: e.target.value })}
-            required
-          />
-          <input
-            className="input-basic"
-            placeholder="Créneau (ex. 17:00-19:00)"
-            value={form.creneauHoraire}
-            onChange={(e) => setForm({ ...form, creneauHoraire: e.target.value })}
-          />
-          <input
-            className="input-basic sm:col-span-2"
-            type="number"
-            placeholder="Nombre de colis estimé"
-            value={form.nbColisEstimes}
-            onChange={(e) => setForm({ ...form, nbColisEstimes: e.target.value })}
-          />
-          <button type="submit" disabled={!adresses.length} className="btn-primary sm:col-span-2">
-            Envoyer la demande
-          </button>
+        <form onSubmit={handleCreate} className="form-section max-w-xl">
+          <label className="form-field">
+            <span className="form-label">
+              Adresse de collecte<span className="form-required">*</span>
+            </span>
+            <select
+              className="input-basic"
+              value={form.adresseId}
+              onChange={(e) => setForm({ ...form, adresseId: e.target.value })}
+              required
+            >
+              <option value="">Choisir une adresse de collecte…</option>
+              {adresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.libelle} — {a.adresseComplete}
+                </option>
+              ))}
+            </select>
+            {adresses.length === 0 && (
+              <span className="form-hint text-amber-700 dark:text-amber-500">
+                Aucune adresse enregistrée — ajoutez-en une dans votre Profil avant de demander un ramassage.
+              </span>
+            )}
+          </label>
+
+          <div className="form-grid">
+            <label className="form-field">
+              <span className="form-label">
+                Date prévue<span className="form-required">*</span>
+              </span>
+              <input
+                className="input-basic"
+                type="date"
+                value={form.datePrevue}
+                onChange={(e) => setForm({ ...form, datePrevue: e.target.value })}
+                required
+              />
+            </label>
+            <label className="form-field">
+              <span className="form-label">
+                Créneau horaire<span className="form-optional">Optionnel</span>
+              </span>
+              <input
+                className="input-basic"
+                placeholder="Ex. 17:00-19:00"
+                value={form.creneauHoraire}
+                onChange={(e) => setForm({ ...form, creneauHoraire: e.target.value })}
+              />
+            </label>
+            <label className="form-field sm:col-span-2">
+              <span className="form-label">
+                Nombre de colis estimé<span className="form-optional">Optionnel</span>
+              </span>
+              <input
+                className="input-basic"
+                type="number"
+                min="0"
+                placeholder="Ex. 12"
+                value={form.nbColisEstimes}
+                onChange={(e) => setForm({ ...form, nbColisEstimes: e.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" disabled={!adresses.length} className="btn-primary">
+              Envoyer la demande
+            </button>
+          </div>
         </form>
       )}
 

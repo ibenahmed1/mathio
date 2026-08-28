@@ -8,6 +8,7 @@ import type { Marchand } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { TarifsMarchandModal } from '@/components/admin/TarifsMarchandModal';
 import { LABELS_TYPE_COMPTE } from '@/lib/marchand-form-options';
+import { Affix, Field } from '@/components/form/Field';
 
 function Champ({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -188,30 +189,34 @@ export default function AdminMarchandDetailPage() {
               Grille par ville
             </button>
           </div>
-          <form onSubmit={enregistrerTarifs} className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-0.5 text-xs">
-              Frais de livraison (DH)
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="input-basic w-28 py-1"
-                value={fraisLivraison}
-                onChange={(e) => setFraisLivraison(e.target.value)}
-              />
-            </label>
-            <label className="flex flex-col gap-0.5 text-xs">
-              Frais de retour (DH)
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="input-basic w-28 py-1"
-                value={fraisRetour}
-                onChange={(e) => setFraisRetour(e.target.value)}
-              />
-            </label>
-            <button type="submit" className="btn-primary px-3 py-1.5 text-xs">
+          <form onSubmit={enregistrerTarifs} className="flex flex-wrap items-end gap-4">
+            <Field label="Frais de livraison" className="w-36">
+              <Affix suffix="DH">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0,00"
+                  className="input-bare"
+                  value={fraisLivraison}
+                  onChange={(e) => setFraisLivraison(e.target.value)}
+                />
+              </Affix>
+            </Field>
+            <Field label="Frais de retour" className="w-36">
+              <Affix suffix="DH">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0,00"
+                  className="input-bare"
+                  value={fraisRetour}
+                  onChange={(e) => setFraisRetour(e.target.value)}
+                />
+              </Affix>
+            </Field>
+            <button type="submit" className="btn-primary">
               Enregistrer
             </button>
           </form>

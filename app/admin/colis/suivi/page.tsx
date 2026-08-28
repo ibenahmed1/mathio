@@ -217,14 +217,18 @@ function AdminSuiviColisContent() {
 
       {modalCommentaire && (
         <Modal title="Laisser un commentaire" onClose={() => setModalCommentaire(false)}>
-          <textarea
-            className="input-basic"
-            rows={4}
-            placeholder="Écrire une note interne sur ce colis…"
-            value={texte}
-            onChange={(e) => setTexte(e.target.value)}
-          />
-          <div className="flex justify-end gap-2">
+          <label className="form-field">
+            <span className="form-label">Note interne</span>
+            <textarea
+              className="input-basic"
+              rows={4}
+              placeholder="Écrire une note interne sur ce colis…"
+              value={texte}
+              onChange={(e) => setTexte(e.target.value)}
+            />
+            <span className="form-hint">Visible par l&apos;équipe seulement — jamais par le marchand ni le client.</span>
+          </label>
+          <div className="form-actions">
             <button className="btn-outline" onClick={() => setModalCommentaire(false)} disabled={busy}>
               Annuler
             </button>

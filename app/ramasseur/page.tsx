@@ -8,7 +8,7 @@ import { Logo } from '@/components/Logo';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
 import Link from 'next/link';
-import { ChevronLeft, List, LogOut, PackageCheck, ScanLine, Truck, Undo2 } from 'lucide-react';
+import { ChevronLeft, List, LogOut, PackageCheck, ScanLine, Undo2 } from 'lucide-react';
 
 interface RamasseurUser {
   id: string;
@@ -109,10 +109,7 @@ export default function RamasseurPage() {
       {view === 'accueil' && (
         <main className="mx-auto flex max-w-xl flex-col gap-6 p-4 pt-10 sm:p-6 sm:pt-16">
           <div className="text-center">
-            <h1 className="page-title flex items-center justify-center gap-2">
-              <Truck className="h-6 w-6 text-brand-ink dark:text-brand" />
-              Ramassage des colis
-            </h1>
+            <h1 className="page-title">Ramassage des colis</h1>
             <p className="mt-1 text-sm opacity-70">
               {user ? `Bonjour ${user.nomComplet.split(' ')[0]}, prêt` : 'Prêt'} à récupérer les colis du jour ?
             </p>

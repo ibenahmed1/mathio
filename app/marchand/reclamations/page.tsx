@@ -71,21 +71,23 @@ export default function ReclamationsPage() {
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="grid max-w-xl grid-cols-1 gap-3 rounded-xl border border-black/10 bg-black/[0.015] p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.02]"
-        >
-          <label className="flex flex-col gap-1 text-sm">
-            Sujet
+        <form onSubmit={handleCreate} className="form-section max-w-xl">
+          <label className="form-field">
+            <span className="form-label">
+              Sujet<span className="form-required">*</span>
+            </span>
             <input
               className="input-basic"
+              placeholder="Ex. Colis livré endommagé"
               value={form.sujet}
               onChange={(e) => setForm({ ...form, sujet: e.target.value })}
               required
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Colis concerné (optionnel)
+          <label className="form-field">
+            <span className="form-label">
+              Colis concerné<span className="form-optional">Optionnel</span>
+            </span>
             <select
               className="input-basic"
               value={form.commandeId}
@@ -99,20 +101,25 @@ export default function ReclamationsPage() {
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Message
+          <label className="form-field">
+            <span className="form-label">
+              Message<span className="form-required">*</span>
+            </span>
             <textarea
               className="input-basic"
               rows={4}
+              placeholder="Décrivez le problème rencontré…"
               value={form.message}
               onChange={(e) => setForm({ ...form, message: e.target.value })}
               required
             />
           </label>
-          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-          <button type="submit" disabled={envoiEnCours} className="btn-primary w-fit">
-            {envoiEnCours ? 'Envoi…' : 'Envoyer'}
-          </button>
+          {error && <p className="form-error">{error}</p>}
+          <div className="form-actions">
+            <button type="submit" disabled={envoiEnCours} className="btn-primary">
+              {envoiEnCours ? 'Envoi…' : 'Envoyer'}
+            </button>
+          </div>
         </form>
       )}
 

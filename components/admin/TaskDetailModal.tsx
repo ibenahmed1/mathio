@@ -17,6 +17,7 @@ import {
 import { initiales, avatarClassName } from '@/lib/avatar';
 import { MentionTextarea } from '@/components/admin/MentionTextarea';
 import type { HistoriqueStatutTache } from '@/lib/types';
+import { Field } from '@/components/form/Field';
 
 // Temps passé dans chaque colonne (§ traçabilité /admin/tasks) : dérivé en
 // diffant les horodatages consécutifs de l'historique (ordonné ASC) plutôt
@@ -489,18 +490,17 @@ export function TaskDetailModal({
             </div>
             {peutModifier && (
               <form onSubmit={ajouterPieceJointe} className="kdc-attachment-form">
-                <input
-                  className="input-basic"
-                  value={pieceNom}
-                  onChange={(e) => setPieceNom(e.target.value)}
-                  placeholder="Nom du document"
-                />
-                <input
-                  className="input-basic"
-                  value={pieceUrl}
-                  onChange={(e) => setPieceUrl(e.target.value)}
-                  placeholder="https://…"
-                />
+                <Field label="Nom du document" className="flex-1">
+                  <input className="input-basic" value={pieceNom} onChange={(e) => setPieceNom(e.target.value)} />
+                </Field>
+                <Field label="Lien" className="flex-1">
+                  <input
+                    className="input-basic"
+                    value={pieceUrl}
+                    onChange={(e) => setPieceUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </Field>
                 <button
                   type="submit"
                   className="kdc-btn-outline"

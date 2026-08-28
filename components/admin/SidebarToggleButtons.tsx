@@ -1,31 +1,24 @@
 'use client';
 
-import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { useSidebarControls } from './SidebarContext';
 
-// Boutons de repli/ouverture de la sidebar pour les pages qui masquent
-// l'AppHeader générique (§ hideHeaderFor dans AdminShell) et portent leur
-// propre en-tête — même comportement que dans AppHeader (bouton "Menu" en
-// mobile, bouton "Panel" en desktop), juste rendu ailleurs dans l'arbre.
+// Ouverture de la barre latérale en MOBILE uniquement : là, la barre est
+// hors-écran et son propre bouton (repli/fermeture, cf. AdminSidebar) est
+// donc inatteignable.
+//
+// Le repli desktop n'est plus rendu ici : il vit dans la barre elle-même, où
+// il ne décale plus la mise en page des interfaces qui l'entouraient.
 export function SidebarToggleButtons({ className }: { className?: string }) {
-  const { collapsed, toggleCollapse, openMobile } = useSidebarControls();
+  const { openMobile } = useSidebarControls();
 
   return (
-    <div className={className}>
-      <button
-        onClick={openMobile}
-        className="shrink-0 rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
-        aria-label="Ouvrir le menu"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-      <button
-        onClick={toggleCollapse}
-        className="hidden shrink-0 rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:flex"
-        aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
-      >
-        {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-      </button>
-    </div>
+    <button
+      onClick={openMobile}
+      className={`inline-flex shrink-0 items-center justify-center rounded-lg border border-black/10 bg-white p-2 text-black/70 shadow-sm transition hover:border-brand hover:bg-brand/10 hover:text-black lg:hidden dark:border-white/15 dark:bg-white/5 dark:text-white/80 ${className ?? ''}`}
+      aria-label="Ouvrir le menu"
+    >
+      <Menu className="h-5 w-5" />
+    </button>
   );
 }

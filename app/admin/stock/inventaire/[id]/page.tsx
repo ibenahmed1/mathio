@@ -8,6 +8,7 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { quantiteRecueTotale, reliquatReception } from '@/lib/stock-quantites';
 import type { Produit } from '@/lib/types';
 import { LigneStockRow, type LigneStock } from './LigneStockRow';
+import { Field } from '@/components/form/Field';
 
 export default function ModifierProduitPage() {
   const params = useParams<{ id: string }>();
@@ -225,18 +226,18 @@ Continuer ?`
           )}
         </div>
 
-        <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Nom du produit</span>
+        <div className="flex flex-col gap-4">
+          <Field label="Nom du produit">
             <input className="input-basic" value={nom} onChange={(e) => setNom(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide opacity-60">Note du produit</span>
+          </Field>
+          <Field label="Note du produit" optional>
             <textarea className="input-basic" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
-          </label>
-          <button onClick={enregistrer} disabled={enregistrement} className="btn-primary self-start">
-            {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
+          </Field>
+          <div className="form-actions">
+            <button onClick={enregistrer} disabled={enregistrement} className="btn-primary">
+              {enregistrement ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
         </div>
       </div>
 

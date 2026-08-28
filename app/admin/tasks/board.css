@@ -7,41 +7,54 @@
    Les éléments qui n'existent pas dans ce projet (sidebar/topbar de la
    maquette, déjà fournis par AdminShell) ne sont pas repris ici. */
 
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+/* La police est chargée une seule fois, par next/font (app/layout.tsx). */
 
-/* ---------- glow de fond (thème clair uniquement, cf. reference-board-light.html) ----------
-   Plein cadre : couvre toute la zone de contenu (à droite de la sidebar),
-   sans marge ni coin arrondi — le padding visuel du contenu est porté par
-   .kdc-board-glow__inner, pas par cette boîte. */
-.kdc-board-glow {
-  min-height: 100%;
-  background-color: var(--bg-shell);
-  background-image:
-    radial-gradient(680px 420px at 12% -8%, rgba(255, 209, 0, 0.3), rgba(255, 209, 0, 0) 62%),
-    radial-gradient(560px 380px at 88% -4%, rgba(255, 238, 50, 0.26), rgba(255, 238, 50, 0) 60%),
-    radial-gradient(900px 520px at 60% 108%, rgba(255, 209, 0, 0.1), rgba(255, 209, 0, 0) 65%);
+/* ---------- fond de page ----------
+   Gris très clair, sans halo ni lavis : le Kanban ne peint rien d'autre
+   derrière ses colonnes. Le relief tient à trois plans très rapprochés —
+   page à peine grisée, colonne en voile marine 4 % avec la tête teintée à la
+   couleur du statut, carte en blanc franc posée dessus. */
+.kdc-board-glow { min-height: 100%; background-color: var(--bg-board); }
+.kdc-board-glow__inner { padding: 16px; }
+@media (min-width: 640px) {
+  .kdc-board-glow__inner { padding: 24px; }
 }
-@media (prefers-color-scheme: dark) {
-  .kdc-board-glow { background-image: none; }
-}
-.kdc-board-glow__inner { padding: 18px 20px 24px; }
 
 /* ---------- en-tête de page ---------- */
-.kdc-page-title { margin: 4px 0 0; font-size: 24px; font-weight: 700; letter-spacing: -0.6px; color: var(--text-1); }
 .kdc-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .kdc-topbar__actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
-.kdc-viewswitch { display: flex; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: var(--r-control); padding: 3px; }
-.kdc-viewswitch button { padding: 7px 14px; border: none; border-radius: 8px; background: transparent; color: var(--text-3); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
-.kdc-viewswitch button[aria-selected="true"] { background: var(--bg-subtle); color: var(--text-1); }
+/* Bascule Board / Équipes — l'onglet retenu se signalait par
+   `[aria-selected]`, que le composant ne pose jamais : il rend des boutons
+   `aria-pressed` (le bon rôle ARIA hors d'un vrai tablist). La règle ne
+   s'accrochait donc à rien et les deux onglets restaient identiques. */
+.kdc-viewswitch { display: flex; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-control); padding: 3px; }
+.kdc-viewswitch button { position: relative; padding: 7px 15px; border: none; border-radius: 8px; background: transparent; color: var(--text-3); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: background .15s, color .15s; }
+.kdc-viewswitch button:hover { color: var(--text-1); background: rgba(255, 255, 255, .55); }
+.kdc-viewswitch button[aria-pressed="true"] { background: var(--bg-panel-solid); color: var(--text-1); box-shadow: var(--sh-card); }
+/* Le trait bleu de la planche sous l'onglet actif : il dit « c'est ici »
+   sans ajouter une seconde couleur au bandeau, déjà tenu par le jaune du
+   bouton principal. */
+.kdc-viewswitch button[aria-pressed="true"]::after { content: ""; position: absolute; left: 15px; right: 15px; bottom: 4px; height: 2px; border-radius: 2px; background: var(--bar-todo); }
+.kdc-viewswitch button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--bg-subtle), 0 0 0 4px rgba(32, 158, 187, .45); }
 
-.kdc-btn-primary { display: flex; align-items: center; justify-content: center; gap: 7px; background: var(--accent); color: var(--on-accent); border: none; border-radius: var(--r-control); padding: 9px 14px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
-.kdc-btn-primary:hover { filter: brightness(0.96); }
+.kdc-btn-primary { display: flex; align-items: center; justify-content: center; gap: 7px; background: var(--gradient-cta); color: var(--on-accent); border: none; border-radius: var(--r-control); padding: 9px 14px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; box-shadow: 0 8px 18px -6px rgba(255, 209, 0, .55); }
+.kdc-btn-primary { transition: filter .15s, transform .15s; }
+.kdc-btn-primary:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.kdc-btn-primary:active { transform: translateY(0); filter: brightness(.95); }
+.kdc-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 209, 0, .5); }
 .kdc-btn-primary--block { flex: 1; border-radius: 8px; padding: 7px 0; font-size: 11px; }
 .kdc-btn-muted { flex: 1; background: var(--bg-subtle); color: var(--text-1); border: none; border-radius: 8px; padding: 7px 0; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
-.kdc-btn-accent { background: var(--accent); color: var(--on-accent); border: none; border-radius: var(--r-pill); padding: 6px 12px; font: inherit; font-size: 10.5px; font-weight: 800; cursor: pointer; }
-.kdc-btn-outline { display: flex; align-items: center; gap: 6px; background: transparent; color: var(--text-1); border: 1px solid var(--border-strong); border-radius: var(--r-pill); padding: 8px 14px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
-.kdc-btn-outline:hover { background: var(--bg-subtle); }
+.kdc-btn-accent { background: var(--bg-panel-solid); color: var(--text-1); border: 1px solid var(--border-strong); border-radius: var(--r-pill); padding: 6px 12px; font: inherit; font-size: 10.5px; font-weight: 800; cursor: pointer; }
+.kdc-btn-accent:hover { border-color: var(--pal-bleu); color: var(--pal-bleu); }
+/* Action secondaire (« Gérer les équipes ») : surface blanche cerclée plutôt
+   que transparente — posée sur le gris de la page, la version transparente
+   ne se lisait pas comme un bouton. Au survol, la bordure et le texte
+   passent au bleu de la planche : l'accent jaune reste au CTA principal. */
+.kdc-btn-outline { display: flex; align-items: center; gap: 6px; background: var(--bg-panel-solid); color: var(--text-1); border: 1px solid var(--border-strong); border-radius: var(--r-pill); padding: 8px 14px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; box-shadow: var(--sh-panel); transition: border-color .15s, color .15s, box-shadow .15s, transform .15s; }
+.kdc-btn-outline:hover { border-color: var(--pal-bleu); color: var(--pal-bleu); box-shadow: 0 6px 14px -6px rgba(32, 158, 187, .55); transform: translateY(-1px); }
+.kdc-btn-outline:active { transform: translateY(0); box-shadow: var(--sh-panel); }
+.kdc-btn-outline:focus-visible { outline: none; border-color: var(--pal-bleu); box-shadow: 0 0 0 3px rgba(32, 158, 187, .25); }
 
 /* ---------- contrôles ---------- */
 .kdc-input, .kdc-select, .kdc-textarea {
@@ -53,23 +66,64 @@
   outline: none;
 }
 .kdc-range { width: 100%; accent-color: var(--accent); }
-.kdc-search { display: flex; align-items: center; gap: 8px; background: var(--bg-panel-solid); border: 1px solid var(--border); border-radius: var(--r-control); padding: 7px 10px; }
+
+/* Liste « Équipe » de la barre de filtres : ramenée au gabarit des puces de
+   priorité (même hauteur, même pilule) au lieu des 176px fixes qui la
+   faisaient dépasser du rang. Le chevron natif est remplacé par un chevron
+   marine dessiné en fond — le seul moyen de tenir la même pilule sur tous
+   les navigateurs. */
+.kdc-select--equipe {
+  height: var(--ctl-h);
+  max-width: 168px;
+  padding: 0 30px 0 13px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-panel-solid);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23023047' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  appearance: none;
+  -webkit-appearance: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-1);
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.kdc-select--equipe:hover { border-color: var(--pal-bleu); }
+/* Une équipe choisie n'est plus un réglage neutre : la pilule se teinte du
+   bleu de la planche pour le dire sans ajouter de texte. */
+.kdc-select--equipe:focus { outline: none; border-color: var(--pal-bleu); box-shadow: 0 0 0 3px rgba(32, 158, 187, .22); }
+.kdc-select--equipe.kdc-select--on { border-color: transparent; background-color: rgba(142, 202, 230, .34); color: var(--pal-marine); }
+.kdc-search { flex: 1 1 200px; max-width: 320px; height: var(--ctl-h); display: flex; align-items: center; gap: 8px; background: var(--bg-panel-solid); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0 12px; }
 .kdc-search input { width: 100%; min-width: 0; border: none; background: transparent; outline: none; font: inherit; font-size: 12px; color: var(--text-1); }
 
 /* ---------- filters ---------- */
-.kdc-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; background: var(--bg-panel); backdrop-filter: blur(6px); border: 1px solid var(--border-glass); box-shadow: var(--sh-panel); border-radius: var(--r-card); }
-.kdc-filters__label { font-size: 11px; font-weight: 800; letter-spacing: 0.4px; color: var(--text-3); }
-.kdc-chip { font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--text-2); font-family: inherit; cursor: pointer; }
-.kdc-chip--active { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
-.kdc-assignees { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.kdc-assignees > span { font-size: 11px; color: var(--text-3); }
+.kdc-filters { --ctl-h: 32px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; background: var(--bg-panel); backdrop-filter: blur(6px); border: 1px solid var(--border-glass); box-shadow: var(--sh-panel); border-radius: var(--r-card); }
+/* Étiquettes de groupe (« Priorité », « Assigné à ») : capitales espacées,
+   elles nomment le groupe sans peser autant que les commandes qu'elles
+   annoncent. */
+.kdc-filters__label { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+/* Filet qui sépare la recherche des filtres : deux gestes différents. */
+.kdc-filters__sep { width: 1px; height: 20px; background: var(--border-strong); flex: none; }
+.kdc-chip { display: inline-flex; align-items: center; height: var(--ctl-h); font-size: 11px; font-weight: 700; padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--text-2); font-family: inherit; cursor: pointer; }
+.kdc-chip--active { border-color: transparent; background: var(--gradient-cta); color: var(--on-accent); box-shadow: 0 6px 14px -5px rgba(255, 209, 0, .6); }
+.kdc-assignees { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+/* Pile chevauchante : les visages se lisent comme un groupe, pas comme sept
+   boutons alignés — et la barre tient sur une ligne. */
+.kdc-assignees__stack { display: flex; align-items: center; }
+.kdc-assignees__stack > * + * { margin-left: -6px; }
 
 /* ---------- avatars ---------- */
-.kdc-avatar { width: 20px; height: 20px; border-radius: 33%; display: grid; place-items: center; flex: none; border: none; font-family: inherit; font-size: 8.5px; font-weight: 800; letter-spacing: 0.3px; box-shadow: var(--av-ring); }
+.kdc-avatar { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex: none; border: none; font-family: inherit; font-size: 8.5px; font-weight: 800; letter-spacing: 0.3px; box-shadow: var(--av-ring); }
 .kdc-avatar--filter { width: 26px; height: 26px; font-size: 9.5px; cursor: pointer; opacity: 0.55; transition: box-shadow 0.15s, transform 0.15s; }
 .kdc-filters--all .kdc-avatar--filter,
 .kdc-avatar--filter[aria-pressed="true"] { opacity: 1; }
-.kdc-avatar--filter[aria-pressed="true"] { transform: translateY(-1px); box-shadow: 0 0 0 2px var(--bg-shell), 0 0 0 4px var(--accent); }
+.kdc-assignees__stack .kdc-avatar--filter { box-shadow: 0 0 0 2px var(--bg-panel), var(--av-ring); }
+.kdc-avatar--filter[aria-pressed="true"] { transform: translateY(-1px); box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--accent); }
+/* Débordement de la pile : « +N » déplie le reste des membres. */
+.kdc-avatar--more { background: var(--av-all-bg); color: var(--av-all-fg); font-size: 9px; opacity: 1; }
 .kdc-avatar--card { width: 22px; height: 22px; }
 .kdc-avatar--member { width: 26px; height: 26px; font-size: 10px; }
 .kdc-avatar--all { background: var(--av-all-bg); color: var(--av-all-fg); font-size: 8px; }
@@ -82,7 +136,13 @@
 
 /* ---------- board ---------- */
 .kdc-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(228px, 1fr); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
-.kdc-column { background: var(--bg-panel); backdrop-filter: blur(6px); border: 1px solid var(--border-glass); box-shadow: var(--sh-panel); border-radius: var(--r-column); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 120px; }
+.kdc-column { background-color: var(--bg-column); background-image: var(--tint, none); backdrop-filter: blur(6px); border: 1px solid var(--border-glass); box-shadow: var(--sh-panel); border-radius: var(--r-column); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 120px; }
+/* Chaque colonne s'ouvre sur un souffle de sa propre couleur, qui s'éteint
+   au tiers de la hauteur : la distinction se lit d'un coup d'œil sans que le
+   fond entre en concurrence avec les cartes. */
+.kdc-column--todo { --tint: var(--tint-todo); }
+.kdc-column--doing { --tint: var(--tint-doing); }
+.kdc-column--done { --tint: var(--tint-done); }
 .kdc-column__head { display: flex; align-items: center; gap: 8px; padding: 2px 2px 0; }
 .kdc-column__title { font-size: 12.5px; font-weight: 800; white-space: nowrap; color: var(--text-1); }
 .kdc-column__count { font-size: 10.5px; font-weight: 700; color: var(--text-2); background: var(--bg-panel-solid); border-radius: var(--r-pill); padding: 2px 8px; }
@@ -103,15 +163,22 @@
 .kdc-composer__actions { display: flex; gap: 6px; margin-top: 10px; }
 
 /* ---------- card ---------- */
-.kdc-card { background: var(--bg-panel-solid); border: 1px solid var(--border); box-shadow: var(--sh-card); border-radius: var(--r-card); padding: 13px; cursor: grab; min-width: 0; }
+.kdc-card { position: relative; overflow: hidden; background: var(--bg-panel-solid); border: 1px solid var(--border); box-shadow: var(--sh-card); border-radius: var(--r-card); padding: 13px; cursor: grab; min-width: 0; }
+/* Filet de tête : la couleur de la priorité, en dégradé, sur toute la
+   largeur — c'est le repère qu'on lit avant même le texte en balayant une
+   colonne. Posé en ::before plutôt qu'en border-top : une bordure ne prend
+   pas de dégradé sans `border-image`, qui casse les coins arrondis. */
+.kdc-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--bar, var(--bar-todo)); }
+.kdc-card--todo { --bar: var(--bar-todo); }
+.kdc-card--doing { --bar: var(--bar-doing); }
+.kdc-card--done { --bar: var(--bar-done); }
 .kdc-card--dragging { opacity: 0.5; border-color: var(--accent); }
-.kdc-card__labels { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kdc-card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kdc-card__labels { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
 .kdc-card__title { font-size: 12.5px; font-weight: 700; line-height: 1.35; margin-top: 9px; color: var(--text-1); }
 .kdc-card__summary { font-size: 11px; color: var(--text-2); margin-top: 5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.kdc-card__foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 12px; gap: 8px; }
-.kdc-card__meta { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--text-2); }
-.kdc-card__right { display: flex; align-items: center; gap: 8px; }
-.kdc-card__key { font-weight: 700; color: var(--text-3); white-space: nowrap; }
+.kdc-card__foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--border); gap: 8px; }
+.kdc-card__key { font-size: 10.5px; font-weight: 800; letter-spacing: 0.3px; color: var(--text-3); white-space: nowrap; }
 .kdc-card__due { font-size: 10.5px; color: var(--text-3); white-space: nowrap; display: flex; align-items: center; gap: 4px; }
 .kdc-card__due--late { font-weight: 800; }
 .kdc-card__statut-select { margin-top: 8px; align-self: flex-start; border: none; border-radius: 6px; background: var(--bg-subtle); color: var(--text-1); font: inherit; font-size: 10.5px; font-weight: 500; padding: 4px 8px; opacity: 0; transition: opacity 0.15s; }
@@ -119,7 +186,7 @@
 .kdc-card__statut-select:hover, .kdc-card__statut-select:focus { opacity: 1; outline: none; }
 
 .kdc-progress { height: 4px; border-radius: 4px; background: var(--bg-subtle); overflow: hidden; margin-top: 10px; }
-.kdc-progress__fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.kdc-progress__fill { height: 100%; background: var(--gradient-ambre); border-radius: 4px; }
 .kdc-progress__label { font-size: 9.5px; color: var(--text-3); margin-top: 5px; }
 
 .kdc-label { font-size: 10.5px; font-weight: 700; border-radius: var(--r-chip); padding: 4px 9px; }
@@ -144,8 +211,13 @@
 .kdc-panel__title { font-size: 14px; font-weight: 800; color: var(--text-1); }
 .kdc-panel__sub { font-size: 11px; color: var(--text-2); }
 .kdc-panel__actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
-.kdc-team-badge { width: 34px; height: 34px; border-radius: 10px; flex: none; }
+/* Pastille de pôle : le dégradé de l'étiquette d'équipe porte l'icône, en
+   blanc — sans elle la tuile n'était qu'un carré de couleur muet. */
+.kdc-team-badge { width: 34px; height: 34px; border-radius: 10px; flex: none; display: grid; place-items: center; box-shadow: 0 4px 10px -4px rgba(2, 48, 71, .45); }
 .kdc-pill { font-size: 10.5px; font-weight: 700; color: var(--text-1); background: var(--bg-panel-solid); border: 1px solid var(--border-strong); border-radius: var(--r-pill); padding: 5px 10px; white-space: nowrap; }
+/* Un pôle qui a du travail ouvert le dit en ambre ; à zéro, la pastille
+   redevient neutre et cesse d'attirer l'œil. */
+.kdc-pill--actif { border-color: transparent; background: var(--prio-moyenne-bg); color: var(--prio-moyenne-fg); }
 
 .kdc-members { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .kdc-member { display: flex; align-items: center; gap: 8px; background: var(--bg-panel-solid); border: 1px solid var(--border); border-radius: var(--r-card); padding: 7px 11px 7px 7px; }
@@ -189,8 +261,10 @@
 .kdc-attachment__link:hover { text-decoration: underline; }
 .kdc-attachment__remove { flex: none; border: none; background: transparent; color: var(--text-3); cursor: pointer; padding: 2px; }
 .kdc-attachment__remove:hover { color: var(--danger-fg); }
-.kdc-attachment-form { display: flex; gap: 7px; margin-top: 8px; }
-.kdc-attachment-form input { flex: 1; min-width: 0; padding: 7px 10px; font-size: 12px; }
+/* Les champs suivent la convention .form-field / .input-basic ; il ne reste
+   ici que la mise en ligne, propre à ce pied de panneau. */
+.kdc-attachment-form { display: flex; align-items: flex-end; gap: 7px; margin-top: 8px; }
+.kdc-attachment-form input { min-width: 0; padding: 7px 10px; font-size: 12px; }
 
 /* ---------- traçabilité (extension app, hors maquette) ---------- */
 .kdc-traceability { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }

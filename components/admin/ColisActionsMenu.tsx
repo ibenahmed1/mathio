@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   MoreVertical,
   MapPinned,
@@ -24,6 +24,7 @@ import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
 import { ColisInfoModal } from '@/components/admin/ColisInfoModal';
 import { ProduitSelect } from '@/components/ProduitSelect';
+import { ActionsMenuPanel, actionsMenuItemClass, actionsMenuItemDangerClass } from '@/components/ActionsMenuPanel';
 
 type ActionKey =
   | 'suivi'
@@ -50,6 +51,7 @@ const ACTIONS: { key: ActionKey; label: string; icon: typeof Info }[] = [
 
 export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [modal, setModal] = useState<ActionKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,8 +130,10 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
   }
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="inline-block text-left">
       <button
+        type="button"
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         className="btn-outline flex items-center gap-1 px-2 py-1 text-xs"
         aria-haspopup="menu"
@@ -139,66 +143,61 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
         Actions
       </button>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-1 w-64 rounded-md border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-black">
+      <ActionsMenuPanel anchorRef={triggerRef} open={open} onClose={() => setOpen(false)} width={256}>
+        <button
+          onClick={() => {
+            setOpen(false);
+            setModal('suivi');
+          }}
+          className={actionsMenuItemClass}
+        >
+          <MapPinned className="h-4 w-4" /> Suivi du colis
+        </button>
+        {ACTIONS.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => {
+              setOpen(false);
+              setModal(a.key);
+            }}
+            className={actionsMenuItemClass}
+          >
+            <a.icon className="h-4 w-4" /> {a.label}
+          </button>
+        ))}
+        <button
+          onClick={() => {
+            setOpen(false);
+            window.open(`/admin/colis/${commande.id}/ticket`, '_blank');
+          }}
+          className={actionsMenuItemClass}
+        >
+          <Printer className="h-4 w-4" /> Imprimer Ticket
+        </button>
+        <button
+          onClick={() => {
+            setOpen(false);
+            window.open(`/admin/colis/${commande.id}/e-ticket`, '_blank');
+          }}
+          className={actionsMenuItemClass}
+        >
+          <FileText className="h-4 w-4" /> Imprimer E-Ticket
+        </button>
+        {commande.statut === 'nouveau_colis' && (
+          <>
+            <div className="my-1 border-t border-black/10 dark:border-white/10" />
             <button
               onClick={() => {
                 setOpen(false);
-                setModal('suivi');
+                setModal('supprimer');
               }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+              className={actionsMenuItemDangerClass}
             >
-              <MapPinned className="h-4 w-4" /> Suivi du colis
+              <Trash2 className="h-4 w-4" /> Supprimer le colis
             </button>
-            {ACTIONS.map((a) => (
-              <button
-                key={a.key}
-                onClick={() => {
-                  setOpen(false);
-                  setModal(a.key);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-              >
-                <a.icon className="h-4 w-4" /> {a.label}
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.open(`/admin/colis/${commande.id}/ticket`, '_blank');
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <Printer className="h-4 w-4" /> Imprimer Ticket
-            </button>
-            <button
-              onClick={() => {
-                setOpen(false);
-                window.open(`/admin/colis/${commande.id}/e-ticket`, '_blank');
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <FileText className="h-4 w-4" /> Imprimer E-Ticket
-            </button>
-            {commande.statut === 'nouveau_colis' && (
-              <>
-                <div className="my-1 border-t border-black/10 dark:border-white/10" />
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    setModal('supprimer');
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                >
-                  <Trash2 className="h-4 w-4" /> Supprimer le colis
-                </button>
-              </>
-            )}
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </ActionsMenuPanel>
 
       {modal === 'suivi' && <ColisTrackingModal commandeId={commande.id} onClose={closeAll} />}
 
@@ -532,7 +531,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               Annuler
             </button>
             <button
-              className="btn-primary bg-red-600 hover:bg-red-700"
+              className="btn-danger-solid"
               disabled={busy}
               onClick={() => run(() => apiDelete(`/api/commandes/${commande.id}`))}
             >

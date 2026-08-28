@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Plus, Save, Send, X } from 'lucide-react';
+import { ChevronLeft, Plus, Save, X } from 'lucide-react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api-client';
 import type { BonEnvoi, Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
@@ -135,10 +135,7 @@ export default function ModifierBonEnvoiPage() {
         Retour au bon {bon.numero}
       </Link>
 
-      <h1 className="page-title flex items-center gap-2">
-        <Send className="h-6 w-6 text-brand-ink dark:text-brand" />
-        Modifier {bon.numero}
-      </h1>
+      <h1 className="page-title">Modifier {bon.numero}</h1>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 

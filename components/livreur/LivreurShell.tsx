@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import { AppSidebar } from '@/components/AppSidebar';
 import { NAV_LIVREUR } from './nav';
@@ -30,34 +30,28 @@ export function LivreurShell({ children }: { children: React.ReactNode }) {
         collapsed={collapsed}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        onToggleCollapse={() => setCollapsed((v) => !v)}
       />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-2 border-b border-black/10 px-4 py-3 dark:border-white/10">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="shrink-0 rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
-              aria-label="Ouvrir le menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setCollapsed((v) => !v)}
-              className="hidden shrink-0 rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:flex"
-              aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
-            >
-              {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-            </button>
-          </div>
+        {/* Le repli desktop vit désormais dans la barre (cf. AppSidebar) : ne
+            reste ici que l'ouverture en mobile, où la barre est hors-écran. */}
+        <header className="flex items-center justify-between gap-2 border-b border-black/[0.06] px-4 py-3 dark:border-white/10">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-black/10 bg-white p-2 text-black/70 shadow-sm transition hover:border-brand hover:bg-brand/10 hover:text-black lg:hidden dark:border-white/15 dark:bg-white/5 dark:text-white/80"
+            aria-label="Ouvrir le menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100"
+            className="ml-auto flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100"
           >
             <LogOut className="h-4 w-4" />
             Déconnexion
           </button>
         </header>
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

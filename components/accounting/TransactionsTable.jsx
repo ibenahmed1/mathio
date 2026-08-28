@@ -127,7 +127,7 @@ export default function TransactionsTable({ onMutate } = {}) {
         </button>
       </div>
 
-      {error && <p className={a.formError}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       <div className={a.tableScroll}>
         <div className={a.tableInner}>
@@ -188,29 +188,33 @@ export default function TransactionsTable({ onMutate } = {}) {
           onClick={() => setModalOuverte(false)}
         >
           <form
-            className="flex w-full max-w-md flex-col gap-4 rounded-lg bg-white p-5 dark:bg-black"
+            className="form-section w-full max-w-md bg-white dark:bg-black"
             onClick={(e) => e.stopPropagation()}
             onSubmit={soumettre}
           >
             <h2 className="text-lg font-bold">Nouvelle transaction</h2>
 
-            <div className={a.formGrid}>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Montant (DH)</label>
-                <input
-                  className={a.formInput}
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.montant}
-                  onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
-                  required
-                />
+            <div className="form-grid">
+              <div className="form-field">
+                <label className="form-label">Montant</label>
+                <div className="form-affix">
+                  <input
+                    className="input-bare"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={form.montant}
+                    onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                    required
+                  />
+                  <span className="form-affix-chip">DH</span>
+                </div>
               </div>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Type</label>
+              <div className="form-field">
+                <label className="form-label">Type</label>
                 <select
-                  className={a.formSelect}
+                  className="input-basic"
                   value={form.type}
                   onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
                 >
@@ -221,11 +225,11 @@ export default function TransactionsTable({ onMutate } = {}) {
               </div>
             </div>
 
-            <div className={a.formGrid}>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Catégorie</label>
+            <div className="form-grid">
+              <div className="form-field">
+                <label className="form-label">Catégorie</label>
                 <select
-                  className={a.formSelect}
+                  className="input-basic"
                   value={form.categorie}
                   onChange={(e) => setForm((f) => ({ ...f, categorie: e.target.value }))}
                 >
@@ -234,10 +238,10 @@ export default function TransactionsTable({ onMutate } = {}) {
                   ))}
                 </select>
               </div>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Date d&apos;effet</label>
+              <div className="form-field">
+                <label className="form-label">Date d&apos;effet</label>
                 <input
-                  className={a.formInput}
+                  className="input-basic"
                   type="date"
                   value={form.dateEffet}
                   onChange={(e) => setForm((f) => ({ ...f, dateEffet: e.target.value }))}
@@ -246,19 +250,19 @@ export default function TransactionsTable({ onMutate } = {}) {
               </div>
             </div>
 
-            <div className={a.formRow}>
-              <label className={a.formLabel}>Description (optionnel)</label>
+            <div className="form-field">
+              <label className="form-label">Description<span className="form-optional">Optionnel</span></label>
               <textarea
-                className={a.formTextarea}
+                className="input-basic"
                 rows={2}
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               />
             </div>
 
-            {formError && <p className={a.formError}>{formError}</p>}
+            {formError && <p className="form-error">{formError}</p>}
 
-            <div className={a.formActions}>
+            <div className="form-actions">
               <button type="button" className={a.btnSecondary} onClick={() => setModalOuverte(false)}>
                 Annuler
               </button>

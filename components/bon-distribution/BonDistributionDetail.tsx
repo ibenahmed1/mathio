@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Printer, Share2, Truck } from 'lucide-react';
+import { ChevronLeft, Printer, Truck } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonDistribution } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
@@ -59,10 +59,7 @@ export function BonDistributionDetail() {
         </div>
       </div>
 
-      <h1 className="page-title flex items-center gap-2">
-        <Share2 className="h-6 w-6 text-brand-ink dark:text-brand" />
-        {bon.numero}
-      </h1>
+      <h1 className="page-title">{bon.numero}</h1>
 
       <div className="card-tint-strong grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
         <div>

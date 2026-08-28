@@ -2,18 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import {
-  Ban,
-  Banknote,
-  Check,
-  CreditCard,
-  FilePlus2,
-  FileText,
-  Pencil,
-  Printer,
-  Receipt,
-  Wallet,
-} from 'lucide-react';
+import { Ban, Banknote, Check, CreditCard, FilePlus2, FileText, Pencil, Printer, Wallet } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { Modal } from '@/components/admin/Modal';
 import type { Facture, ModeReglementMarchand } from '@/lib/types';
@@ -97,10 +86,7 @@ export default function ToutesFacturesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title flex items-center gap-2">
-          <Receipt className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Factures marchands
-        </h1>
+        <h1 className="page-title">Factures marchands</h1>
         <Link href="/admin/factures/nouvelle" className="btn-primary flex items-center gap-1.5">
           <FilePlus2 className="h-4 w-4" />
           Nouvelle facture

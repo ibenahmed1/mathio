@@ -20,6 +20,7 @@ import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } 
 import { LivreurShell } from '@/components/livreur/LivreurShell';
 import { SignaturePad } from '@/components/livreur/SignaturePad';
 import { StatutBadge } from '@/components/StatutBadge';
+import { Field } from '@/components/form/Field';
 
 interface ColisFeuilleDeRoute {
   id: string;
@@ -332,8 +333,7 @@ function ModaleAction({
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-              Motif
+            <Field label="Motif">
               <select className="input-basic" value={motif} onChange={(e) => setMotif(e.target.value)}>
                 <option value="">Choisir un motif…</option>
                 {motifs.map((m) => (
@@ -342,10 +342,9 @@ function ModaleAction({
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
             {action === 'reporte' && (
-              <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-                Nouvelle tentative prévue le
+              <Field label="Nouvelle tentative prévue le">
                 <input
                   type="date"
                   className="input-basic"
@@ -353,7 +352,7 @@ function ModaleAction({
                   min={isoAujourdhui()}
                   onChange={(e) => setDateNouvelleLivraison(e.target.value)}
                 />
-              </label>
+              </Field>
             )}
             <p className="text-xs opacity-60">
               Le colis reste sur votre feuille de route jusqu&apos;à votre retour au dépôt : le Planner le scannera

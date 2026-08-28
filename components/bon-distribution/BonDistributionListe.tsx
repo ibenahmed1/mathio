@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Lock, Plus, Settings, Share2, Truck } from 'lucide-react';
+import { Lock, Plus, Settings, Truck } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonDistribution } from '@/lib/types';
 import { LABELS_STATUT_BON_DISTRIBUTION, STYLE_STATUT_BON_DISTRIBUTION } from '@/lib/statuts';
@@ -41,10 +41,7 @@ export function BonDistributionListe() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title flex items-center gap-2">
-          <Share2 className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Bons de distribution
-        </h1>
+        <h1 className="page-title">Bons de distribution</h1>
         <div className="flex items-center gap-2">
           {/* Le référentiel des hubs n'est ouvert qu'à l'admin (§ /admin/hubs,
               roles ADMIN_SEUL dans la nav) : le planner travaille sur SON hub,

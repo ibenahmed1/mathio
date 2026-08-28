@@ -3,24 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import {
-  AlertTriangle,
-  Banknote,
-  CheckCircle2,
-  ChevronLeft,
-  Image as ImageIcon,
-  Lock,
-  PackageCheck,
-  ScanLine,
-  Truck,
-  Undo2,
-  Wallet,
-} from 'lucide-react';
+import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, Image as ImageIcon, Lock, PackageCheck, ScanLine, Undo2, Wallet } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { BilanTournee, ColisTournee } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
 import { PreuveLivraison } from '@/components/PreuveLivraison';
+import { Affix, Field } from '@/components/form/Field';
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
 
@@ -230,10 +219,7 @@ export function ClotureTournee() {
       </div>
 
       <div>
-        <h1 className="page-title flex items-center gap-2">
-          <Truck className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Clôture de tournée {bilan.numero}
-        </h1>
+        <h1 className="page-title">Clôture de tournée {bilan.numero}</h1>
         <p className="text-sm opacity-70">
           {bilan.livreur.nomComplet} — Hub {bilan.hub.ville} — {bilan.nbColis} colis sortis
         </p>
@@ -314,8 +300,7 @@ export function ClotureTournee() {
                 if (saisieCode.trim()) scannerRetour(saisieCode.trim());
               }}
             >
-              <label className="flex flex-1 flex-col gap-1 text-xs font-semibold opacity-70">
-                Saisie manuelle du code de suivi
+              <Field label="Saisie manuelle du code de suivi" className="flex-1">
                 <input
                   className="input-basic"
                   placeholder="PD-000123"
@@ -323,7 +308,7 @@ export function ClotureTournee() {
                   onChange={(e) => setSaisieCode(e.target.value)}
                   disabled={scanEnCours}
                 />
-              </label>
+              </Field>
               <button type="submit" className="btn-primary" disabled={scanEnCours || !saisieCode.trim()}>
                 Enregistrer le retour
               </button>
@@ -385,17 +370,19 @@ export function ClotureTournee() {
             <p className="text-sm opacity-70">Reddition enregistrée à la clôture de la tournée.</p>
           ) : (
             <>
-              <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-                Montant physique reçu par le Planner (DH)
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input-basic"
-                  value={montantRemis}
-                  onChange={(e) => setMontantRemis(e.target.value)}
-                />
-              </label>
+              <Field label="Montant physique reçu par le Planner">
+                <Affix suffix="DH">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    className="input-bare"
+                    value={montantRemis}
+                    onChange={(e) => setMontantRemis(e.target.value)}
+                  />
+                </Affix>
+              </Field>
               <p className={`text-sm font-semibold ${caisseOk ? 'text-green-700' : 'text-red-600'}`}>
                 {caisseOk
                   ? manquant < 0
