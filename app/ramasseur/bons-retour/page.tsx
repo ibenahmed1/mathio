@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonRetour } from '@/lib/types';
 
@@ -23,16 +23,14 @@ export default function MesBonsRetourPage() {
   const clos = bons.filter((b) => b.statut === 'remis');
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 p-4">
+    <div className="shell-surface min-h-dvh">
+      <div className="mx-auto flex max-w-md flex-col gap-4 p-4">
       <Link href="/ramasseur" className="flex w-fit items-center gap-1 text-sm opacity-70">
         <ChevronLeft className="h-4 w-4" />
         Accueil
       </Link>
 
-      <h1 className="flex items-center gap-2 text-xl font-black">
-        <Undo2 className="h-5 w-5 text-brand-ink dark:text-brand" />
-        Bons de retour
-      </h1>
+      <h1 className="page-title">Bons de retour</h1>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
@@ -76,6 +74,7 @@ export default function MesBonsRetourPage() {
           ))}
         </section>
       )}
+      </div>
     </div>
   );
 }

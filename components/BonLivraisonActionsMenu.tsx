@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MoreVertical, Info, PackageCheck, FileText, Tags, Ticket } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import type { BonDeLivraison } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { BonLivraisonDetailsModal } from '@/components/BonLivraisonDetailsModal';
+import { ActionsMenuPanel, actionsMenuItemClass } from '@/components/ActionsMenuPanel';
 
 type ModalKey = 'details' | 'bien-recu';
 
@@ -19,6 +20,7 @@ export function BonLivraisonActionsMenu({
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [modal, setModal] = useState<ModalKey | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +51,10 @@ export function BonLivraisonActionsMenu({
   }
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="inline-block text-left">
       <button
+        type="button"
+        ref={triggerRef}
         onClick={() => setOpen((v) => !v)}
         className="btn-outline flex items-center gap-1 px-2 py-1 text-xs"
         aria-haspopup="menu"
@@ -60,51 +64,46 @@ export function BonLivraisonActionsMenu({
         Actions
       </button>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-1 w-56 rounded-md border border-black/10 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-black">
-            <button
-              onClick={() => {
-                setOpen(false);
-                setModal('details');
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <Info className="h-4 w-4" /> Détails du bon
-            </button>
-            {role === 'admin' && (
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  setModal('bien-recu');
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-              >
-                <PackageCheck className="h-4 w-4" /> Bon bien reçu
-              </button>
-            )}
-            <button
-              onClick={() => ouvrirDocument('a4')}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <FileText className="h-4 w-4" /> Voir en PDF
-            </button>
-            <button
-              onClick={() => ouvrirDocument('etiquettes')}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <Tags className="h-4 w-4" /> Voir les étiquettes
-            </button>
-            <button
-              onClick={() => ouvrirDocument('e-tickets')}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            >
-              <Ticket className="h-4 w-4" /> e-Tickets
-            </button>
-          </div>
-        </>
-      )}
+      <ActionsMenuPanel anchorRef={triggerRef} open={open} onClose={() => setOpen(false)} width={224}>
+        <button
+          onClick={() => {
+            setOpen(false);
+            setModal('details');
+          }}
+          className={actionsMenuItemClass}
+        >
+          <Info className="h-4 w-4" /> Détails du bon
+        </button>
+        {role === 'admin' && (
+          <button
+            onClick={() => {
+              setOpen(false);
+              setModal('bien-recu');
+            }}
+            className={actionsMenuItemClass}
+          >
+            <PackageCheck className="h-4 w-4" /> Bon bien reçu
+          </button>
+        )}
+        <button
+          onClick={() => ouvrirDocument('a4')}
+          className={actionsMenuItemClass}
+        >
+          <FileText className="h-4 w-4" /> Voir en PDF
+        </button>
+        <button
+          onClick={() => ouvrirDocument('etiquettes')}
+          className={actionsMenuItemClass}
+        >
+          <Tags className="h-4 w-4" /> Voir les étiquettes
+        </button>
+        <button
+          onClick={() => ouvrirDocument('e-tickets')}
+          className={actionsMenuItemClass}
+        >
+          <Ticket className="h-4 w-4" /> e-Tickets
+        </button>
+      </ActionsMenuPanel>
 
       {modal === 'details' && <BonLivraisonDetailsModal bonId={bon.id} role={role} onClose={closeAll} />}
 

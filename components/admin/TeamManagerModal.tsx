@@ -6,6 +6,7 @@ import { apiDelete, apiPatch, apiPost, apiPut } from '@/lib/api-client';
 import type { EquipeTache, MembreTache } from '@/lib/types';
 import { EQUIPE_COULEUR_LABEL, labelClassName } from '@/lib/statuts';
 import { Modal } from '@/components/admin/Modal';
+import { Field } from '@/components/form/Field';
 
 const ROLE_LABELS_EQUIPE: Record<string, string> = {
   admin: 'Administrateur',
@@ -291,8 +292,7 @@ export function TeamManagerModal({
       <div className="flex flex-col gap-4">
         {mode === 'creation' || mode === 'edition' ? (
           <form onSubmit={mode === 'creation' ? creerPole : modifierPole} className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Nom du pôle
+            <Field label="Nom du pôle" required>
               <input
                 className="input-basic"
                 autoFocus
@@ -301,9 +301,8 @@ export function TeamManagerModal({
                 onChange={(e) => setPoleForm({ ...poleForm, nom: e.target.value })}
                 required
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Code
+            </Field>
+            <Field label="Code">
               <input
                 className="input-basic"
                 placeholder={mode === 'creation' ? 'déduit du nom si laissé vide' : ''}
@@ -312,7 +311,7 @@ export function TeamManagerModal({
                 required={mode === 'edition'}
               />
               <span className="text-xs opacity-50">Identifiant court et unique (minuscules, sans espaces).</span>
-            </label>
+            </Field>
             <div className="flex flex-col gap-1.5 text-sm font-medium">
               Couleur
               {/* Le rendu réel du chip d'équipe, pas une pastille abstraite :
@@ -353,8 +352,7 @@ export function TeamManagerModal({
               Supprimer le pôle <strong>{equipe?.nom}</strong> ? Les comptes de ses membres sont conservés ; seul
               leur rattachement à ce pôle disparaît.
             </p>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Transférer ses tâches vers
+            <Field label="Transférer ses tâches vers">
               <select className="input-basic" value={transfertVers} onChange={(e) => setTransfertVers(e.target.value)}>
                 <option value="">Aucun (échoue si le pôle porte des tâches)</option>
                 {autresPoles.map((eq) => (
@@ -363,7 +361,7 @@ export function TeamManagerModal({
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
 
             {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
@@ -373,7 +371,7 @@ export function TeamManagerModal({
               </button>
               <button
                 type="button"
-                className="btn-primary bg-red-600 hover:bg-red-700"
+                className="btn-danger-solid"
                 onClick={supprimerPole}
                 disabled={saving}
               >
@@ -384,8 +382,7 @@ export function TeamManagerModal({
         ) : (
           <>
             <div className="flex items-end gap-2">
-              <label className="flex flex-1 flex-col gap-1 text-sm font-medium">
-                Équipe
+              <Field label="Équipe" className="flex-1">
                 <select
                   className="input-basic"
                   value={equipeId}
@@ -399,7 +396,7 @@ export function TeamManagerModal({
                     </option>
                   ))}
                 </select>
-              </label>
+              </Field>
               {peutGererPoles && (
                 <div className="flex gap-1 pb-0.5">
                   <button type="button" onClick={ouvrirCreation} title="Créer un pôle" className="btn-outline px-2 py-2">

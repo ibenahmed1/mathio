@@ -104,7 +104,7 @@ export function LigneStockRow({
               type="button"
               onClick={valider}
               disabled={busy !== null || !deverouille || ligne.quantiteEnCours === 0}
-              className="rounded-md bg-green-600 p-1.5 text-white transition hover:brightness-95 disabled:opacity-40"
+              className="btn-icon bg-green-600 text-white shadow-sm hover:brightness-105"
               title="Ajouter au stock reçu"
               aria-label={`Valider la réception de ${ligne.nom}`}
             >
@@ -128,7 +128,7 @@ export function LigneStockRow({
               type="button"
               onClick={retirer}
               disabled={busy !== null || !deverouille || ligne.quantiteRecue === 0}
-              className="rounded-md bg-red-600 p-1.5 text-white transition hover:brightness-95 disabled:opacity-40"
+              className="btn-icon bg-red-600 text-white shadow-sm hover:brightness-105"
               title="Retirer du stock reçu"
               aria-label={`Retirer du stock de ${ligne.nom}`}
             >

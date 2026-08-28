@@ -3,7 +3,7 @@ import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { Role } from '@/app/generated/prisma/enums';
-import { getHomeSpace, normalizePhoneMaroc } from '@/lib/auth';
+import { getHomeSpace, normalizePhoneMaroc, sanitizePermissions } from '@/lib/auth';
 
 // Mêmes jeux de rôles que POST /api/utilisateurs (voir ce fichier pour le
 // détail) : seuls les comptes équipe se modifient/suppriment depuis cet
@@ -100,6 +100,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data.rolesSupplementaires = rolesSupplementaires as Role[];
     }
 
+    // Permissions du back-office (§ lib/permissions.ts) : la liste envoyée
+    // REMPLACE celle du compte — c'est ce qui permet à un décochage de retirer
+    // réellement un accès. Champ absent = pas de changement.
+    //
+    // Une liste vide est donc acceptée telle quelle : un compte peut n'avoir
+    // aucune permission (il conserve sa session, mais n'ouvre aucun module).
+    // Les clés inconnues sont ignorées (sanitizePermissions) plutôt que
+    // rejetées : un formulaire d'une version antérieure ne bloque pas
+    // l'enregistrement du reste.
+    //
+    // Aucun effet pour les comptes terrain, que le catalogue ne gouverne pas —
+    // on les remet à vide pour qu'un changement de fonction back-office →
+    // terrain ne laisse pas traîner des permissions inertes.
+    if (body.permissions !== undefined) {
+      if (!Array.isArray(body.permissions)) {
+        throw new ApiError(400, 'permissions doit être un tableau');
+      }
+      data.permissions = ROLES_TERRAIN.includes(role) ? [] : sanitizePermissions(body.permissions);
+    }
+
     if (typeof body.nomComplet === 'string' && body.nomComplet.trim()) {
       data.nomComplet = body.nomComplet.trim();
     }
@@ -182,6 +202,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         fraisLivraison: true,
         fraisRefus: true,
         rolesSupplementaires: true,
+        permissions: true,
         hubId: true,
         hub: { select: { id: true, nom: true } },
       },

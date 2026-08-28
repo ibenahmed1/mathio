@@ -5,6 +5,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Hub, TarifMarchandVille } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
+import { Field } from '@/components/form/Field';
 
 // § Facturation marchand — grille des frais FACTURÉS au marchand par ville.
 //
@@ -112,8 +113,7 @@ export function TarifsMarchandModal({
             {editId === tarif.id ? (
               <form onSubmit={(e) => enregistrerModif(tarif, e)} className="flex flex-wrap items-end gap-2">
                 <span className="text-sm font-semibold">{tarif.ville?.nom}</span>
-                <label className="flex flex-col gap-0.5 text-xs">
-                  Frais livraison
+                <Field label="Frais livraison">
                   <input
                     name="fraisLivraison"
                     type="number"
@@ -121,9 +121,8 @@ export function TarifsMarchandModal({
                     className="input-basic w-24 py-1"
                     defaultValue={tarif.fraisLivraison}
                   />
-                </label>
-                <label className="flex flex-col gap-0.5 text-xs">
-                  Frais retour
+                </Field>
+                <Field label="Frais retour">
                   <input
                     name="fraisRetour"
                     type="number"
@@ -131,7 +130,7 @@ export function TarifsMarchandModal({
                     className="input-basic w-24 py-1"
                     defaultValue={tarif.fraisRetour}
                   />
-                </label>
+                </Field>
                 <button type="submit" className="btn-primary px-2 py-1 text-xs">
                   Enregistrer
                 </button>
@@ -179,8 +178,7 @@ export function TarifsMarchandModal({
           onSubmit={ajouter}
           className="flex flex-wrap items-end gap-2 border-t border-black/10 pt-3 dark:border-white/10"
         >
-          <label className="flex flex-col gap-0.5 text-xs">
-            Ville
+          <Field label="Ville" required>
             <select
               className="input-basic py-1"
               value={form.villeId}
@@ -194,9 +192,8 @@ export function TarifsMarchandModal({
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex flex-col gap-0.5 text-xs">
-            Frais livraison
+          </Field>
+          <Field label="Frais livraison" required>
             <input
               type="number"
               step="0.01"
@@ -205,9 +202,8 @@ export function TarifsMarchandModal({
               onChange={(e) => setForm({ ...form, fraisLivraison: e.target.value })}
               required
             />
-          </label>
-          <label className="flex flex-col gap-0.5 text-xs">
-            Frais retour
+          </Field>
+          <Field label="Frais retour" required>
             <input
               type="number"
               step="0.01"
@@ -216,7 +212,7 @@ export function TarifsMarchandModal({
               onChange={(e) => setForm({ ...form, fraisRetour: e.target.value })}
               required
             />
-          </label>
+          </Field>
           <button type="submit" className="btn-primary flex items-center gap-1 px-2 py-1 text-xs">
             <Plus className="h-3.5 w-3.5" /> Ajouter
           </button>

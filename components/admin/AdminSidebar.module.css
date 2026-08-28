@@ -4,7 +4,7 @@
    pour l'espace /admin uniquement). Jetons de design partagés
    avec la page Comptabilité via les variables --mt-*.
    =========================================================== */
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+/* La police est désormais importée une seule fois, dans app/globals.css. */
 
 :global(:root) {
   --mt-yellow:        #FFD100;
@@ -43,7 +43,7 @@
   --mt-shadow-soft:  0 1px 2px rgba(32,32,32,.04);
   --mt-shadow-shell: 0 40px 90px rgba(32,32,32,.13);
 
-  --mt-font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --mt-font: var(--font-app, "Plus Jakarta Sans", system-ui, -apple-system, sans-serif);
 }
 
 .sidebar {
@@ -91,6 +91,33 @@
   letter-spacing: 3.6px;
   color: var(--mt-yellow-ink-2);
   margin-top: 4px;
+}
+
+/* Repli de la barre — rendu DANS la barre, calé à droite de la marque. */
+.collapseBtn {
+  margin-left: auto;
+  flex: none;
+  display: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--mt-line-2);
+  border-radius: 10px;
+  background: var(--mt-surface);
+  color: var(--mt-muted);
+  cursor: pointer;
+  box-shadow: var(--mt-shadow-soft);
+  transition: background .15s, color .15s, border-color .15s;
+}
+.collapseBtn:hover {
+  background: rgba(255, 209, 0, .16);
+  border-color: var(--mt-yellow);
+  color: var(--mt-ink);
+}
+.collapseBtn:focus-visible {
+  outline: none;
+  border-color: var(--mt-yellow);
+  box-shadow: 0 0 0 3px rgba(255, 209, 0, .28);
 }
 
 .closeBtn {
@@ -145,8 +172,19 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 2px;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  /* Ascenseur discret : la barre native de Windows (17px, avec ses deux
+     flèches) mangeait un tiers de la largeur une fois la barre repliée
+     (80px) et rognait les icônes. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(32,32,32,.18) transparent;
 }
+.nav::-webkit-scrollbar { width: 6px; }
+.nav::-webkit-scrollbar-track { background: transparent; }
+.nav::-webkit-scrollbar-thumb { background: rgba(32,32,32,.16); border-radius: 999px; }
+.nav::-webkit-scrollbar-thumb:hover { background: rgba(32,32,32,.30); }
+.nav::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
 .navList { display: flex; flex-direction: column; gap: 3px; list-style: none; margin: 0; padding: 0; }
 
 .navItem {
@@ -332,4 +370,30 @@
    dernier gagne dès 1024px). */
 @media (min-width: 1024px) {
   .collapseHide { display: none; }
+  /* Le repli n'a de sens que là où la barre est en flux (desktop) : en mobile
+     elle glisse par-dessus la page et se ferme par la croix. */
+  .collapseBtn { display: grid; }
+  /* Barre réduite (80px) : logo + bouton ne tiennent pas sur une ligne, le
+     bouton passe donc sous le logo, tous deux centrés. */
+  .brandCollapsed {
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 2px;
+  }
+  .brandCollapsed .collapseBtn { margin-left: 0; }
+  /* La croix ne ferme que le panneau mobile ; en desktop elle n'a rien à
+     fermer et venait s'empiler sous le bouton de repli. Même raison de
+     cascade que ci-dessus : `lg:hidden` (layer utilities) perdrait contre
+     `.closeBtn { display: grid }` de ce fichier non-layé. */
+  .closeBtn { display: none; }
+  /* Barre réduite : les libellés sont masqués, les icônes se centrent au
+     lieu de rester calées à gauche derrière une gouttière vide. */
+  .sidebarCollapsed .navItem,
+  .sidebarCollapsed .profile {
+    justify-content: center;
+    gap: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .sidebarCollapsed .nav { padding-right: 0; }
 }

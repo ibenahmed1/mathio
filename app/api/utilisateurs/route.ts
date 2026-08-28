@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { hashSecret, getPasswordPolicyError, normalizePhoneMaroc } from '@/lib/auth';
+import {
+  hashSecret,
+  getPasswordPolicyError,
+  normalizePhoneMaroc,
+  ROLE_PERMISSIONS,
+  sanitizePermissions,
+} from '@/lib/auth';
 import type { Role } from '@/app/generated/prisma/enums';
 
 // Rôles créables via cet endpoint : les comptes équipe internes (RF-22).
@@ -71,6 +77,7 @@ export async function GET(request: NextRequest) {
         cinVersoUrl: true,
         ribPhotoUrl: true,
         rolesSupplementaires: true,
+        permissions: true,
         hubId: true,
         hub: { select: { id: true, nom: true } },
       },
@@ -177,6 +184,16 @@ export async function POST(request: Request) {
       motDePasseHash,
       role,
       actif: true,
+      // Permissions du back-office (§ lib/permissions.ts). Le formulaire les
+      // envoie toujours pour un compte interne — pré-cochées sur le jeu par
+      // défaut du rôle, puis ajustées. À défaut (appel API direct, script), on
+      // retombe sur ce même jeu par défaut plutôt que sur un compte muet, qui
+      // n'ouvrirait aucun écran. Un compte terrain n'en reçoit aucune.
+      permissions: estTerrain
+        ? []
+        : body.permissions === undefined
+          ? (ROLE_PERMISSIONS[role] ?? [])
+          : sanitizePermissions(body.permissions),
     };
 
     if (email) {

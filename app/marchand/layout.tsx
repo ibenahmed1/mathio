@@ -19,10 +19,21 @@ export default async function MarchandLayout({ children }: { children: React.Rea
   // /api/session-handoff/consume). C'est à la fois plus fiable et plus
   // honnête : le bandeau reflète la nature de LA session en cours, pas la
   // présence fortuite d'une autre session à côté.
+  // L'URL du back-office n'est calculée QUE pour une session empruntée. Passée
+  // inconditionnellement, elle finissait sérialisée dans la charge utile de
+  // CHAQUE page marchand (MarchandShell est un composant client) : n'importe
+  // quel marchand y lisait le domaine du back-office dans ses outils de
+  // développement. Cela contredisait le reste du dispositif — POST
+  // /api/auth/login refuse justement de nommer ce domaine depuis un hôte
+  // public, et les trois espaces ont des racines sans parent commun pour qu'il
+  // ne se devine pas.
+  //
+  // Le seul usage de cette URL est le bouton « Retour à l'administration » du
+  // bandeau d'impersonation, qui n'existe pas hors de ce cas.
   return (
     <MarchandShell
       impersonation={session.impersonated}
-      retourBackOffice={`${spaceOrigin('admin')}/admin/marchands`}
+      retourBackOffice={session.impersonated ? `${spaceOrigin('admin')}/admin/marchands` : undefined}
     >
       {children}
     </MarchandShell>

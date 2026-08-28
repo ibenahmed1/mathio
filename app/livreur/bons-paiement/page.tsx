@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Hourglass, Printer, Wallet } from 'lucide-react';
+import { ChevronDown, ChevronRight, Hourglass, Printer } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { LivreurShell } from '@/components/livreur/LivreurShell';
 import type { BonPaiementLivreur, ModeReglementLivreur, PaieLivreur, StatutBonPaiement } from '@/lib/types';
@@ -206,10 +206,7 @@ export default function PaieLivreurPage() {
   return (
     <LivreurShell>
       <div className="flex flex-col gap-5">
-        <h1 className="page-title flex items-center gap-2">
-          <Wallet className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Ma paie
-        </h1>
+        <h1 className="page-title">Ma paie</h1>
 
         {erreur && <p className="text-sm font-medium text-red-600">{erreur}</p>}
 

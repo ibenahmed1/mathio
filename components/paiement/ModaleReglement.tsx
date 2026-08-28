@@ -46,8 +46,8 @@ export function ModaleReglement({
           <span className="font-medium">Salaire</span> sera générée.
         </p>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-bold uppercase tracking-wide opacity-60">Mode de règlement</span>
+        <label className="form-field">
+          <span className="form-label">Mode de règlement</span>
           <select
             className="input-basic"
             value={mode}
@@ -61,9 +61,10 @@ export function ModaleReglement({
           </select>
         </label>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-bold uppercase tracking-wide opacity-60">
-            Référence {referenceRequise ? '' : '(facultative)'}
+        <label className="form-field">
+          <span className="form-label">
+            Référence
+            {referenceRequise ? <span className="form-required">*</span> : <span className="form-optional">Optionnel</span>}
           </span>
           <input
             className="input-basic"
@@ -72,13 +73,13 @@ export function ModaleReglement({
             placeholder={mode === 'cheque' ? 'N° de chèque' : 'N° de virement / ordre'}
           />
           {referenceRequise && (
-            <span className="text-xs opacity-60">
+            <span className="form-hint">
               Obligatoire : c&apos;est la seule preuve opposable si le livreur conteste le versement.
             </span>
           )}
         </label>
 
-        <div className="flex justify-end gap-2">
+        <div className="form-actions">
           <button type="button" onClick={onClose} className="btn-outline">
             Annuler
           </button>

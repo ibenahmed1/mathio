@@ -363,6 +363,10 @@ export interface Utilisateur {
   cinVersoUrl?: string | null;
   ribPhotoUrl?: string | null;
   rolesSupplementaires?: string[];
+  // Permissions du back-office détenues par le compte (clés du catalogue de
+  // lib/permissions.ts). Absent pour les comptes marchand/terrain, que le
+  // catalogue ne gouverne pas.
+  permissions?: string[];
   // § /admin/scan/reception + /admin/bon-distribution : hub de rattachement,
   // obligatoire pour un agent_hub ou un livreur.
   hubId?: string | null;

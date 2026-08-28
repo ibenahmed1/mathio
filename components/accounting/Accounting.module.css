@@ -37,46 +37,12 @@
   flex-wrap: wrap;
 }
 
-.crumbRow { display: flex; align-items: center; gap: 6px; }
+.titleRow { display: flex; align-items: center; gap: 6px; }
 
-.sidebarToggle { display: flex; align-items: center; gap: 2px; }
-.crumb { font-size: 11.5px; color: var(--mt-muted); }
-.crumbSep { opacity: .6; }
-.crumbCurrent { color: var(--mt-ink); font-weight: 600; }
-.pageTitle {
-  margin: 4px 0 0;
-  font-size: 25px;
-  font-weight: 800;
-  letter-spacing: -.7px;
-  color: var(--mt-ink);
-}
-
-.headActions { display: flex; align-items: center; gap: 8px; }
-
-.segmented {
-  display: flex;
-  gap: 2px;
-  background: rgba(255,255,255,.72);
-  border: 1px solid var(--mt-line);
-  border-radius: var(--mt-r-md);
-  padding: 3px;
-  box-shadow: var(--mt-shadow-soft);
-}
-.segItem {
-  padding: 7px 14px;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--mt-muted);
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background .15s, color .15s;
-}
-.segItem:hover { color: var(--mt-ink); }
-.segItemActive { background: var(--mt-ink); color: var(--mt-yellow); }
-.segItemActive:hover { color: var(--mt-yellow); }
-
+/* Le bouton d'ouverture mobile porte lui-même son affichage (mobile only) :
+   ce module n'est rattaché à aucun @layer et gagnerait donc toujours contre
+   l'utilitaire `lg:hidden` de Tailwind — d'où l'absence de `display` ici. */
+.sidebarToggle { align-items: center; margin-right: 2px; }
 .btnPrimary {
   display: flex;
   align-items: center;
@@ -197,7 +163,12 @@
 /* ---------- Graphique ---------- */
 .chartWrap { margin-top: 14px; position: relative; }
 .chart { width: 100%; height: 96px; display: block; }
-.months { display: flex; justify-content: space-between; margin-top: 8px; }
+/* Une colonne par mois, libellé centré dessus : en « space-between », les
+   libellés se plaçaient aux bornes (0 %, 20 %… 100 %) alors que chaque mois
+   occupe un SIXIÈME de la largeur — le nom tombait donc à cheval sur deux
+   mois, et le dernier au-delà de la fin de la courbe. */
+.months { display: grid; grid-template-columns: repeat(6, 1fr); margin-top: 8px; }
+.month, .monthActive { justify-self: center; }
 .month { font-size: 10px; color: var(--mt-muted-2); padding: 2px 4px; }
 .monthActive {
   font-size: 10px;
@@ -206,6 +177,19 @@
   background: rgba(255,209,0,.22);
   border-radius: 20px;
   padding: 2px 10px;
+}
+/* Journal vide : on ne dessine pas une courbe plate qui se lirait comme une
+   trésorerie à zéro alors qu'il n'y a simplement rien à tracer. */
+.chartEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  margin: 0;
+  border: 1px dashed var(--mt-line-2);
+  border-radius: 10px;
+  font-size: 11.5px;
+  color: var(--mt-muted-2);
 }
 
 /* ---------- Commandes d'inventaire ---------- */
@@ -403,26 +387,9 @@
 .rowMenu:disabled:hover { background: transparent; color: var(--mt-muted-3); }
 
 /* ---------- Formulaire nouvelle transaction ---------- */
-.formRow { display: flex; flex-direction: column; gap: 4px; }
-.formLabel { font-size: 11px; font-weight: 700; color: var(--mt-ink-2); }
-.formInput, .formSelect, .formTextarea {
-  font-family: var(--mt-font);
-  border: 1px solid var(--mt-line-2);
-  background: var(--mt-surface);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 12.5px;
-  color: var(--mt-ink);
-  outline: none;
-  transition: border-color .15s, box-shadow .15s;
-}
-.formInput:focus, .formSelect:focus, .formTextarea:focus {
-  border-color: var(--mt-yellow);
-  box-shadow: 0 0 0 3px rgba(255,209,0,.20);
-}
-.formGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.formError { font-size: 11.5px; font-weight: 600; color: var(--mt-warn-fg); }
-.formActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+/* Formulaires : voir les classes .form-* de app/globals.css — la convention
+   est commune à tout le système, ce module n avait pas à la redéfinir. */
+
 .btnSecondary {
   border: 1px solid var(--mt-line-2);
   background: var(--mt-surface);

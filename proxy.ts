@@ -5,6 +5,8 @@ import {
   ROLES_BACKOFFICE,
   ROLES_HUB_UNIQUEMENT,
   ROLES_KANBAN_UNIQUEMENT,
+  PERMISSIONS_HEADER,
+  ROUTE_PERMISSION_HEADER,
   SESSION_SPACE_HEADER,
   USER_ID_HEADER,
   USER_ROLE_HEADER,
@@ -16,6 +18,7 @@ import {
   type SessionPayload,
   type SessionSpace,
 } from '@/lib/auth';
+import { apiPermissionFor, pagePermissionFor } from '@/lib/permission-routes';
 import type { Role } from '@/app/generated/prisma/enums';
 
 // Chemins publics sous /api/** qui ne nécessitent pas de session existante,
@@ -100,11 +103,16 @@ function estAccessibleAgentHub(pathname: string): boolean {
   return pathname === PREFIXE_BON_ENVOI || pathname.startsWith(`${PREFIXE_BON_ENVOI}/`);
 }
 
-function withUserHeaders(request: NextRequest, session: SessionPayload) {
+function withUserHeaders(request: NextRequest, session: SessionPayload, routePermission?: string | null) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(USER_ID_HEADER, session.sub);
   requestHeaders.set(USER_ROLE_HEADER, session.role);
   requestHeaders.set(EXTRA_ROLES_HEADER, session.extraRoles.join(','));
+  requestHeaders.set(PERMISSIONS_HEADER, session.permissions.join(','));
+  // Toujours écrit (chaîne vide quand le chemin n'est gouverné par aucune
+  // permission), jamais laissé au hasard : un header homonyme envoyé par le
+  // client serait sinon lu tel quel par requireUser et vaudrait octroi.
+  requestHeaders.set(ROUTE_PERMISSION_HEADER, routePermission ?? '');
   requestHeaders.set(SESSION_SPACE_HEADER, session.space);
   requestHeaders.set(IMPERSONATED_HEADER, session.impersonated ? '1' : '0');
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -197,7 +205,28 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(PREFIXE_SCAN_RECEPTION_HUB, origine));
     }
 
-    return withUserHeaders(request, session);
+    // --- 3 bis. Permissions de module --------------------------------------
+    // Troisième couche, après l'hôte (§1) et le rôle (ci-dessus) : ce compte
+    // a-t-il la permission qui gouverne cet écran (§ lib/permission-routes.ts) ?
+    //
+    // Ne s'applique qu'à l'espace back-office : les espaces marchand et
+    // terrain ne sont pas gouvernés par le catalogue (cf. lib/permissions.ts),
+    // et pagePermissionFor n'y renvoie de toute façon rien.
+    //
+    // Un chemin sans permission mappée n'est pas « ouvert » : il reste protégé
+    // par les couches 1 et 2 comme avant l'introduction des permissions.
+    const permissionPage = guard.space === 'admin' ? pagePermissionFor(pathname) : null;
+    if (permissionPage && !session.permissions.includes(permissionPage)) {
+      // Repli sur l'accueil du back-office plutôt que sur /login : la session
+      // est valide, c'est le module qui est fermé. Le 403 ne sert que si
+      // l'accueil lui-même lui est fermé — sans quoi la redirection bouclerait.
+      if (pathname !== '/admin' && session.permissions.includes('dashboard:view')) {
+        return NextResponse.redirect(new URL('/admin', origine));
+      }
+      return new NextResponse('Accès refusé : permission manquante', { status: 403 });
+    }
+
+    return withUserHeaders(request, session, permissionPage);
   }
 
   // --- 4. API --------------------------------------------------------------
@@ -219,7 +248,20 @@ export async function proxy(request: NextRequest) {
       return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
     }
 
-    return withUserHeaders(request, session);
+    // Pendant API du §3 bis. Scopé à l'espace back-office : les mêmes routes
+    // appelées depuis le domaine marchand ou terrain (une bonne part est
+    // partagée) gardent exactement le contrôle qu'elles avaient — celui de
+    // leur `requireUser([...])`.
+    //
+    // La permission résolue est transmise au handler (ROUTE_PERMISSION_HEADER)
+    // pour qu'il puisse honorer un octroi par permission là où sa liste de
+    // rôles ne suffirait pas (cf. requireUser, lib/api-utils.ts).
+    const permissionApi = space === 'admin' ? apiPermissionFor(pathname, request.method) : null;
+    if (permissionApi && !session.permissions.includes(permissionApi)) {
+      return NextResponse.json({ error: 'Accès refusé : permission manquante' }, { status: 403 });
+    }
+
+    return withUserHeaders(request, session, permissionApi);
   }
 
   // --- 5. Reste (pages publiques : /login, /inscription, vues d'impression

@@ -4,7 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Users, X } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Tache, EquipeTache, MembreTache } from '@/lib/types';
-import { STATUTS_TACHE, LABELS_STATUT_TACHE, PRIORITES_TACHE, LABELS_PRIORITE_TACHE, STATUT_TACHE_DOT } from '@/lib/statuts';
+import {
+  STATUTS_TACHE,
+  LABELS_STATUT_TACHE,
+  PRIORITES_TACHE,
+  LABELS_PRIORITE_TACHE,
+  STATUT_TACHE_DOT,
+  STATUT_TACHE_COLONNE,
+} from '@/lib/statuts';
 import { initiales, avatarClassName } from '@/lib/avatar';
 import { TaskCard } from '@/components/admin/TaskCard';
 import { TaskFormModal } from '@/components/admin/TaskFormModal';
@@ -38,6 +45,7 @@ export default function AdminTasksPage() {
   const [composeIn, setComposeIn] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [creating, setCreating] = useState(false);
+  const [assigneesEtendus, setAssigneesEtendus] = useState(false);
 
   async function loadEquipes() {
     try {
@@ -164,12 +172,25 @@ export default function AdminTasksPage() {
 
   const filtresActifs = !!filtreEquipe || !!filtreAssigne || filtrePriorite !== 'all' || !!recherche;
 
+  // La pile « Assigné à » se coupe à cinq visages : au-delà, la barre de
+  // filtres passait sur deux lignes et repoussait le tableau sous la ligne de
+  // flottaison. Le membre filtré reste toujours visible, même au-delà de la
+  // coupe — sinon le filtre actif n'aurait plus de témoin à l'écran.
+  const MAX_AVATARS = 5;
+  const membresVisibles = (() => {
+    if (assigneesEtendus || membresAssignables.length <= MAX_AVATARS) return membresAssignables;
+    const base = membresAssignables.slice(0, MAX_AVATARS);
+    const actif = membresAssignables.find((m) => m.id === filtreAssigne);
+    return actif && !base.some((m) => m.id === actif.id) ? [...base.slice(0, MAX_AVATARS - 1), actif] : base;
+  })();
+  const nbMasques = membresAssignables.length - membresVisibles.length;
+
   return (
     <div className="kdc-board kdc-board-glow">
       <div className="kdc-board-glow__inner flex flex-col gap-3.5">
       <div className="kdc-topbar">
         <div>
-          <h1 className="kdc-page-title">Tâches</h1>
+          <h1 className="page-title">Tâches</h1>
           <p className="mt-0.5 text-[11.5px]" style={{ color: 'var(--text-3)' }}>
             {taches.length} tâche{taches.length > 1 ? 's' : ''} au total
           </p>
@@ -205,10 +226,11 @@ export default function AdminTasksPage() {
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
                 placeholder="Rechercher une tâche"
-                className="w-40 text-xs"
+                className="text-xs"
               />
             </div>
-            <span className="kdc-filters__label">FILTRES</span>
+            <span className="kdc-filters__sep" aria-hidden />
+            <span className="kdc-filters__label">Priorité</span>
             <button
               onClick={() => setFiltrePriorite('all')}
               className={`kdc-chip ${filtrePriorite === 'all' ? 'kdc-chip--active' : ''}`}
@@ -225,8 +247,9 @@ export default function AdminTasksPage() {
               </button>
             ))}
 
+            <span className="kdc-filters__sep" aria-hidden />
             <select
-              className="kdc-select ml-auto w-44 px-2.5 py-[7px] text-xs"
+              className={`kdc-select kdc-select--equipe ${filtreEquipe ? 'kdc-select--on' : ''}`}
               value={filtreEquipe}
               onChange={(e) => setFiltreEquipe(e.target.value)}
             >
@@ -239,26 +262,37 @@ export default function AdminTasksPage() {
             </select>
 
             <div className="kdc-assignees">
-              <span>Assigné à</span>
-              <button
-                onClick={() => setFiltreAssigne('')}
-                title="Tout le monde"
-                aria-pressed={filtreAssigne === ''}
-                className="kdc-avatar kdc-avatar--filter kdc-avatar--all"
-              >
-                ALL
-              </button>
-              {membresAssignables.map((m) => (
+              <span className="kdc-filters__label">Assigné à</span>
+              <div className="kdc-assignees__stack">
                 <button
-                  key={m.id}
-                  onClick={() => setFiltreAssigne(m.id)}
-                  title={m.nomComplet}
-                  aria-pressed={filtreAssigne === m.id}
-                  className={`kdc-avatar kdc-avatar--filter ${avatarClassName(m.nomComplet)}`}
+                  onClick={() => setFiltreAssigne('')}
+                  title="Tout le monde"
+                  aria-pressed={filtreAssigne === ''}
+                  className="kdc-avatar kdc-avatar--filter kdc-avatar--all"
                 >
-                  {initiales(m.nomComplet)}
+                  ALL
                 </button>
-              ))}
+                {membresVisibles.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setFiltreAssigne(m.id)}
+                    title={m.nomComplet}
+                    aria-pressed={filtreAssigne === m.id}
+                    className={`kdc-avatar kdc-avatar--filter ${avatarClassName(m.nomComplet)}`}
+                  >
+                    {initiales(m.nomComplet)}
+                  </button>
+                ))}
+                {(nbMasques > 0 || assigneesEtendus) && (
+                  <button
+                    onClick={() => setAssigneesEtendus((v) => !v)}
+                    title={assigneesEtendus ? 'Réduire la liste' : `Afficher ${nbMasques} membre${nbMasques > 1 ? 's' : ''} de plus`}
+                    className="kdc-avatar kdc-avatar--filter kdc-avatar--more"
+                  >
+                    {assigneesEtendus ? '−' : `+${nbMasques}`}
+                  </button>
+                )}
+              </div>
             </div>
 
             {filtresActifs && (
@@ -286,7 +320,7 @@ export default function AdminTasksPage() {
                   if (dragId) changerStatut(dragId, statut);
                   setDragId(null);
                 }}
-                className="kdc-column"
+                className={`kdc-column ${STATUT_TACHE_COLONNE[statut]}`}
               >
                 <div className="kdc-column__head">
                   <span className={`kdc-dot ${STATUT_TACHE_DOT[statut]}`} />

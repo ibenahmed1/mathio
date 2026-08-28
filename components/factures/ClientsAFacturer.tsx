@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowRight, Search, Store, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Search, Store } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { MarchandAFacturer } from '@/lib/types';
 
@@ -99,10 +99,7 @@ export function ClientsAFacturer({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="page-title flex items-center gap-2">
-          <Users className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Clients à facturer
-        </h1>
+        <h1 className="page-title">Clients à facturer</h1>
         <p className="mt-1 text-sm opacity-70">
           Marchands ayant au moins un colis clos non encore facturé. Les frais viennent de leur grille
           tarifaire par ville, avec repli sur les frais par défaut de leur fiche.

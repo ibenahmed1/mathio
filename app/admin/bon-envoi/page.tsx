@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Send } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
@@ -30,10 +30,7 @@ export default function AdminBonEnvoiPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title flex items-center gap-2">
-          <Send className="h-6 w-6 text-brand-ink dark:text-brand" />
-          Bons d&apos;envoi
-        </h1>
+        <h1 className="page-title">Bons d&apos;envoi</h1>
         {user?.role === 'admin' && (
           <Link href="/admin/bon-envoi/creer" className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" />

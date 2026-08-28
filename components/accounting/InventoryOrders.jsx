@@ -93,7 +93,7 @@ export default function InventoryOrders() {
         </button>
       </div>
 
-      {error && <p className={a.formError}>{error}</p>}
+      {error && <p className="form-error">{error}</p>}
 
       <div className={a.orderList}>
         {!chargement && commandes.length === 0 && (
@@ -149,16 +149,16 @@ export default function InventoryOrders() {
           onClick={() => setModalOuverte(false)}
         >
           <form
-            className="flex w-full max-w-md flex-col gap-4 rounded-lg bg-white p-5 dark:bg-black"
+            className="form-section w-full max-w-md bg-white dark:bg-black"
             onClick={(e) => e.stopPropagation()}
             onSubmit={soumettre}
           >
             <h2 className="text-lg font-bold">Nouvelle commande d&apos;inventaire</h2>
 
-            <div className={a.formRow}>
-              <label className={a.formLabel}>Titre</label>
+            <div className="form-field">
+              <label className="form-label">Titre</label>
               <input
-                className={a.formInput}
+                className="input-basic"
                 value={form.titre}
                 onChange={(e) => setForm((f) => ({ ...f, titre: e.target.value }))}
                 placeholder="Rayonnage Métallique Lourd (x6)"
@@ -166,33 +166,37 @@ export default function InventoryOrders() {
               />
             </div>
 
-            <div className={a.formRow}>
-              <label className={a.formLabel}>Sous-titre (optionnel)</label>
+            <div className="form-field">
+              <label className="form-label">Sous-titre<span className="form-optional">Optionnel</span></label>
               <input
-                className={a.formInput}
+                className="input-basic"
                 value={form.sousTitre}
                 onChange={(e) => setForm((f) => ({ ...f, sousTitre: e.target.value }))}
                 placeholder="Aménagement Zone de Stockage Casa"
               />
             </div>
 
-            <div className={a.formGrid}>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Montant (DH)</label>
-                <input
-                  className={a.formInput}
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.montant}
-                  onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
-                  required
-                />
+            <div className="form-grid">
+              <div className="form-field">
+                <label className="form-label">Montant</label>
+                <div className="form-affix">
+                  <input
+                    className="input-bare"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={form.montant}
+                    onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                    required
+                  />
+                  <span className="form-affix-chip">DH</span>
+                </div>
               </div>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Statut</label>
+              <div className="form-field">
+                <label className="form-label">Statut</label>
                 <select
-                  className={a.formSelect}
+                  className="input-basic"
                   value={form.statut}
                   onChange={(e) => setForm((f) => ({ ...f, statut: e.target.value }))}
                 >
@@ -203,21 +207,21 @@ export default function InventoryOrders() {
               </div>
             </div>
 
-            <div className={a.formGrid}>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Mode de paiement</label>
+            <div className="form-grid">
+              <div className="form-field">
+                <label className="form-label">Mode de paiement</label>
                 <input
-                  className={a.formInput}
+                  className="input-basic"
                   value={form.modePaiement}
                   onChange={(e) => setForm((f) => ({ ...f, modePaiement: e.target.value }))}
                   placeholder="Virement Bancaire, Espèces Hub…"
                   required
                 />
               </div>
-              <div className={a.formRow}>
-                <label className={a.formLabel}>Date de commande</label>
+              <div className="form-field">
+                <label className="form-label">Date de commande</label>
                 <input
-                  className={a.formInput}
+                  className="input-basic"
                   type="date"
                   value={form.dateCommande}
                   onChange={(e) => setForm((f) => ({ ...f, dateCommande: e.target.value }))}
@@ -226,9 +230,9 @@ export default function InventoryOrders() {
               </div>
             </div>
 
-            {formError && <p className={a.formError}>{formError}</p>}
+            {formError && <p className="form-error">{formError}</p>}
 
-            <div className={a.formActions}>
+            <div className="form-actions">
               <button type="button" className={a.btnSecondary} onClick={() => setModalOuverte(false)}>
                 Annuler
               </button>

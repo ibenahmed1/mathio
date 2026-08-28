@@ -84,8 +84,6 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
 
   const [confirmationOuverte, setConfirmationOuverte] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [codeBR, setCodeBR] = useState<string | null>(null);
-  const [statutLabel, setStatutLabel] = useState('Nouveau');
   const [error, setError] = useState<string | null>(null);
 
   // Le Planner ne reçoit qu'un hub (la route le confine côté serveur) :
@@ -359,8 +357,6 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
     setHubId('');
     resetApresHub();
     setEtape('zone');
-    setCodeBR(null);
-    setStatutLabel('Nouveau');
     setError(null);
   }
 
@@ -379,8 +375,6 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
         ramasseurId,
         colisIds: panier.map((c) => c.id),
       });
-      setCodeBR(created.numero);
-      setStatutLabel('En cours');
       setConfirmationOuverte(false);
       setCameraActive(false);
       // La vue d'impression est le document que le ramasseur emporte et fait
@@ -432,7 +426,7 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
 
       <BonDistributionCreerUI
         libelles={{
-          kicker: 'BONS DE RETOUR · CRÉER',
+          titre: 'Nouveau bon de retour',
           etape1: 'ÉTAPE 1 · ZONE DE RETOUR',
           etape1Aide: 'Choisissez le hub où sont les colis à rendre.',
           zoneSousLigne: 'ramasseurs actifs',
@@ -449,9 +443,6 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
           bonVideAide: "Le premier colis fixe la boutique : un bon de retour ne concerne qu'un marchand.",
           validation: 'VALIDATION DU BON DE RETOUR',
         }}
-        codeBD={codeBR}
-        statutLabel={statutLabel}
-        statutTone={statutLabel === 'En cours' ? 'ok' : 'warn'}
         etape={etape === 'zone' ? 'zone' : 'tournee'}
         zones={hubs.map((h) => {
           const maxColis = Math.max(1, ...hubs.map((hh) => hh.nbColisRestituables));

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { UserPlus, Trash2, Users } from 'lucide-react';
 import { apiDelete, apiGet, apiPost } from '@/lib/api-client';
 import type { MarchandMembre } from '@/lib/types';
+import { Field } from '@/components/form/Field';
 
 // Le titulaire du compte invite des membres d'équipe avec juste un email +
 // mot de passe (pas de téléphone) : ils accèdent à toutes les données de la
@@ -86,36 +87,43 @@ export function EquipeSection() {
         {membres.length === 0 && <li className="opacity-60">Aucun membre d&apos;équipe pour le moment</li>}
       </ul>
 
-      <form onSubmit={handleInvite} className="flex max-w-md flex-col gap-2">
-        <input
-          className="input-basic"
-          placeholder="Nom complet"
-          value={form.nomComplet}
-          onChange={(e) => setForm({ ...form, nomComplet: e.target.value })}
-          required
-        />
-        <input
-          className="input-basic"
-          type="email"
-          placeholder="Email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-          required
-        />
-        <input
-          className="input-basic"
-          type="password"
-          placeholder="Mot de passe (8+ car., maj/chiffre/spécial)"
-          value={form.secret}
-          onChange={(e) => setForm({ ...form, secret: e.target.value })}
-          minLength={8}
-          required
-        />
-        {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-        <button type="submit" disabled={envoiEnCours} className="btn-outline flex w-fit items-center gap-2">
-          <UserPlus className="h-4 w-4" />
-          {envoiEnCours ? 'Ajout…' : 'Ajouter un membre'}
-        </button>
+      <form onSubmit={handleInvite} className="form-section max-w-md">
+        <Field label="Nom complet" required>
+          <input
+            className="input-basic"
+            placeholder="Ex. Salma Bennani"
+            value={form.nomComplet}
+            onChange={(e) => setForm({ ...form, nomComplet: e.target.value })}
+            required
+          />
+        </Field>
+        <Field label="Email" required hint="C'est avec cet email que le collaborateur se connectera.">
+          <input
+            className="input-basic"
+            type="email"
+            placeholder="collaborateur@exemple.ma"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+          />
+        </Field>
+        <Field label="Mot de passe" required hint="8 caractères minimum, avec majuscule, chiffre et caractère spécial.">
+          <input
+            className="input-basic"
+            type="password"
+            value={form.secret}
+            onChange={(e) => setForm({ ...form, secret: e.target.value })}
+            minLength={8}
+            required
+          />
+        </Field>
+        {error && <p className="form-error">{error}</p>}
+        <div className="form-actions">
+          <button type="submit" disabled={envoiEnCours} className="btn-outline flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            {envoiEnCours ? 'Ajout…' : 'Ajouter un membre'}
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -20,9 +20,6 @@
  *   - item inactif : texte #5e605e, hover fond rgba(255,209,0,.14)
  *
  * Props (toutes optionnelles, tout est piloté depuis l'extérieur) :
- *   codeBD              string | null      — null → affiche « code à l'impression »
- *   statutLabel         string             — ex. "Nouveau" | "En cours"
- *   statutTone          "warn" | "ok"      — jaune / vert
  *   etape               "zone" | "tournee" — quelle vue afficher
  *   zones               [{ id, nom, nbColis, nbLivreurs, ratio }]  ratio 0–1 pour la barre
  *   zone                { nom } | null
@@ -41,7 +38,7 @@
  *   message             string | null     — bandeau d'info sous le scan
  *   journal             [{ id, heure, texte }]
  *   confirmation        { ouverte, titre, sousTitre, totaux[], texte } | null
- *   libelles            { kicker, etape1, etape1Aide, zoneSousLigne, zoneMetrique,
+ *   libelles            { titre, etape1, etape1Aide, zoneSousLigne, zoneMetrique,
  *                         etape2, etape2Placeholder, etape2Vide, acteurMetrique,
  *                         choisirActeur, choisirActeurAide, etape3,
  *                         etape3Placeholder, colisVide, bonPrefixe, bonVideTitre,
@@ -74,7 +71,7 @@ const C = {
   ligne3: "#EEECE2",
   surface: "#FFFFFF",
   surface2: "#F7F7F4",
-  fontStack: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif',
+  fontStack: 'var(--font-app, "Plus Jakarta Sans", system-ui, -apple-system, sans-serif)',
 };
 
 const S = {
@@ -83,6 +80,11 @@ const S = {
   // non ici — un style inline gagne toujours contre une media query, donc
   // toute propriété qui doit varier avec la largeur d'écran ne peut pas être
   // déclarée dans cet objet.
+  // Ni fond ni marge ici : le wizard est monté dans la coquille admin, qui
+  // porte déjà le halo jaune (.shell-surface) et la marge de page. Les
+  // redéclarer peignait un rectangle blanc décalé À L'INTÉRIEUR du halo — le
+  // « décalage » qu'on voyait sur le Bon de retour. Le wizard se fond
+  // désormais dans la page comme toutes les autres interfaces.
   main: {
     minWidth: 0,
     display: "flex",
@@ -90,24 +92,10 @@ const S = {
     gap: 16,
     fontFamily: C.fontStack,
     color: C.encre,
-    backgroundColor: C.surface,
-    backgroundImage:
-      "radial-gradient(680px 420px at 12% -8%, rgba(255,209,0,.30), rgba(255,209,0,0) 62%)," +
-      "radial-gradient(560px 380px at 88% -4%, rgba(255,238,50,.26), rgba(255,238,50,0) 60%)," +
-      "radial-gradient(900px 520px at 60% 108%, rgba(255,209,0,.10), rgba(255,209,0,0) 65%)",
+    background: "transparent",
   },
   kicker: { fontSize: 10.5, fontWeight: 800, letterSpacing: 1.3, color: "#9a8213" },
   label: { fontSize: 10.5, fontWeight: 800, letterSpacing: 1.1, color: C.muted },
-  chip: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: C.encre2,
-    background: "rgba(255,255,255,.75)",
-    border: `1px solid ${C.ligne}`,
-    borderRadius: 20,
-    padding: "5px 12px",
-    fontVariantNumeric: "tabular-nums",
-  },
   card: {
     background: "rgba(255,255,255,.82)",
     border: `1px solid ${C.ligne}`,
@@ -182,7 +170,9 @@ const css = `
 @keyframes bdSlide { from { opacity: 0; transform: translateX(12px) } to { opacity: 1; transform: none } }
 @keyframes bdPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(255,209,0,.55) } 50% { box-shadow: 0 0 0 7px rgba(255,209,0,0) } }
 
-.bd-main { padding: 20px 24px 26px; }
+/* La marge de page vient de la coquille (AdminShell : p-4 sm:p-6) — en
+   remettre une ici décalerait le wizard par rapport aux autres interfaces. */
+.bd-main { padding: 0; }
 
 /* Le repli est piloté par la largeur RÉELLE du wizard, pas par celle de la
    fenêtre : la sidebar de l'espace (admin ou Planner) lui prend ~280px, une
@@ -218,7 +208,6 @@ const css = `
    conteneur ne peut pas styler son propre conteneur) : il reste sur le
    viewport, où la sidebar ne change rien à la marge à réserver au doigt. */
 @media (max-width: 640px) {
-  .bd-main { padding: 14px 14px 20px; }
   .bd-actions { margin-left: 0; width: 100%; }
   .bd-actions > button { flex: 1 1 auto; justify-content: center; }
 }
@@ -282,9 +271,6 @@ const css = `
 `;
 
 export default function BonDistributionCreerUI({
-  codeBD = null,
-  statutLabel = "Nouveau",
-  statutTone = "warn",
   etape = "zone",
   zones = [],
   zone = null,
@@ -332,7 +318,7 @@ export default function BonDistributionCreerUI({
   // celles de la distribution, pour que l'appelant historique n'ait rien à
   // passer.
   const L = {
-    kicker: "BONS DE DISTRIBUTION · CRÉER",
+    titre: "Nouveau bon de distribution",
     etape1: "ÉTAPE 1 · ZONE DE DISTRIBUTION",
     etape1Aide: "Choisissez la zone : la suite s'y limite.",
     zoneSousLigne: "livreurs actifs",
@@ -358,11 +344,6 @@ export default function BonDistributionCreerUI({
   const [indexCible, setIndexCible] = useState(null);
   const [source, setSource] = useState(null);
 
-  const tone =
-    statutTone === "ok"
-      ? { color: "#4d7a34", background: "rgba(120,170,90,.16)", border: "1px solid rgba(120,170,90,.28)" }
-      : { color: "#8a7405", background: "rgba(255,209,0,.22)", border: "1px solid rgba(255,209,0,.45)" };
-
   const finDrag = () => {
     setDropActif(false);
     setIndexCible(null);
@@ -373,16 +354,14 @@ export default function BonDistributionCreerUI({
     <main className="bd-main" style={S.main}>
       <style>{css}</style>
 
-      {/* EN-TÊTE : kicker + code + statut + actions (pas de titre, pas de stepper) */}
+      {/* EN-TÊTE : titre + actions, rien d'autre. Le titre est le `.page-title`
+          global — le sur-titre maison en capitales était la seule interface à
+          ne pas s'annoncer comme les autres. La pastille de code et celle de
+          statut ont sauté : le code n'est attribué qu'à la création, qui
+          enchaîne aussitôt sur la vue d'impression. */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
-          <div style={S.kicker}>{L.kicker}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 11, marginTop: 8, flexWrap: "wrap" }}>
-            <span style={S.chip}>{codeBD || "Code attribué à l'impression"}</span>
-            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, borderRadius: 20, padding: "5px 12px", ...tone }}>
-              ● {statutLabel.toUpperCase()}
-            </span>
-          </div>
+          <h1 className="page-title">{L.titre}</h1>
         </div>
         <div className="bd-actions">
           <button type="button" style={S.btnGhost} onClick={onReset}>Réinitialiser</button>

@@ -7,6 +7,7 @@ import type { Reclamation } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Modal } from '@/components/admin/Modal';
 import { STATUTS_RECLAMATION, LABELS_STATUT_RECLAMATION } from '@/lib/statuts';
+import { Field } from '@/components/form/Field';
 
 export default function AdminReclamationsPage() {
   const [reclamations, setReclamations] = useState<Reclamation[]>([]);
@@ -142,8 +143,7 @@ function ReponseModal({
           <p className="mt-1">{reclamation.message}</p>
         </div>
 
-        <label className="flex flex-col gap-1 text-sm">
-          Statut
+        <Field label="Statut">
           <select className="input-basic" value={statut} onChange={(e) => setStatut(e.target.value as typeof statut)}>
             {STATUTS_RECLAMATION.map((s) => (
               <option key={s} value={s}>
@@ -151,11 +151,10 @@ function ReponseModal({
               </option>
             ))}
           </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Réponse
+        </Field>
+        <Field label="Réponse">
           <textarea className="input-basic" rows={4} value={reponse} onChange={(e) => setReponse(e.target.value)} />
-        </label>
+        </Field>
       </div>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}

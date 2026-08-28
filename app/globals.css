@@ -13,6 +13,15 @@
      utilisé comme fond de coquille (sidebar/dashboard) pour que les cartes
      blanches se détachent doucement au lieu de flotter sur du blanc pur. */
   --surface: #fffcf0;
+
+  /* Pile typographique unique du système : Plus Jakarta Sans, chargée par
+     next/font dans app/layout.tsx (--font-jakarta).
+     Elle était jusqu'ici importée depuis components/admin/AdminSidebar.module.css,
+     donc la barre latérale et les écrans « design » (Comptabilité, Kanban,
+     wizards) étaient en Jakarta pendant que le corps des pages restait en
+     Arial — deux typographies dans une même vue.
+     (L'espace marchand garde son Inter Tight, cf. .marchand-typo.) */
+  --font-app: var(--font-jakarta), "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @theme inline {
@@ -22,8 +31,9 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-ink: var(--brand-ink);
   --color-surface: var(--surface);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Geist n'a jamais été chargé : `font-sans` ne produisait rien. */
+  --font-sans: var(--font-app);
+  --font-mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,51 +47,333 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Les champs de saisie n'héritent pas de la police du document : sans ça, un
+   <input> ou un <select> retombe sur la police par défaut du navigateur au
+   milieu d'un formulaire. */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+/* Cible de défilement calée sous les en-têtes collants, et défilement doux
+   pour les ancres internes. */
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }
 
 @layer components {
+  /* =========================================================================
+     SYSTÈME DE CONTRÔLES — une seule définition par famille, partagée par
+     toutes les interfaces (admin, marchand, livreur, ramasseur).
+     Ces classes vivent dans @layer components : n'importe quel utilitaire
+     Tailwind écrit au point d'appel (« btn-primary px-2 text-xs ») continue
+     donc de gagner, ce qui laisse les ajustements locaux intacts.
+     ========================================================================= */
+
+  /* ---------- Boutons ----------
+     Même géométrie pour toutes les variantes (hauteur, rayon, graisse) : c'est
+     elle qui fait qu'une barre d'actions paraît alignée. Seule la peau change
+     d'une variante à l'autre. */
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost,
+  .btn-danger,
+  .btn-danger-solid,
+  .btn-dark,
+  .btn-soft {
+    @apply inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-[13px] font-bold leading-none transition-all duration-150;
+    @apply focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/35;
+    @apply disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:brightness-100;
+  }
+  /* Action principale : le jaune de marque en dégradé + son halo, repris du
+     bouton de référence de la Comptabilité (cf. components/admin/Button.tsx). */
   .btn-primary {
-    @apply rounded-md bg-brand px-4 py-2 text-sm font-bold text-brand-foreground shadow-sm transition hover:brightness-95 disabled:opacity-50;
+    @apply bg-brand bg-[linear-gradient(135deg,#FFEE32_0%,#FFD100_100%)] text-brand-foreground shadow-[0_8px_18px_-6px_rgba(255,209,0,0.55)] hover:-translate-y-px hover:brightness-[1.04] active:translate-y-0 active:brightness-95;
   }
+  /* Action secondaire : surface blanche cerclée, la bordure passe au jaune au
+     survol. Remplace l'ancien « bordure noire → aplat noir », qui sautait aux
+     yeux plus que l'action principale et cassait la hiérarchie. */
   .btn-outline {
-    @apply rounded-md border border-black/70 px-3 py-1.5 text-sm font-semibold text-black transition hover:bg-black hover:text-white disabled:opacity-50 dark:border-white/70 dark:text-white dark:hover:bg-white dark:hover:text-black;
+    @apply border border-black/10 bg-white text-black/80 shadow-sm hover:border-brand hover:bg-brand/[0.10] hover:text-black dark:border-white/15 dark:bg-white/5 dark:text-white/85 dark:hover:bg-white/10 dark:hover:text-white;
   }
-  .input-basic {
-    @apply rounded-md border border-black/20 bg-transparent px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 dark:border-white/20;
+  /* Action tertiaire : aucun cadre au repos, pour les barres d'outils denses. */
+  .btn-ghost {
+    @apply border border-transparent text-black/65 hover:bg-black/[0.05] hover:text-black dark:text-white/65 dark:hover:bg-white/10 dark:hover:text-white;
   }
-  .input-underline {
-    @apply w-full border-0 border-b border-black/20 bg-transparent px-0 py-2 text-sm text-black placeholder:text-black/40 focus:border-brand focus:outline-none;
+  /* Action destructive : rouge tenu en réserve (bordure + texte), l'aplat
+     n'arrive qu'au survol pour ne pas hurler dans une liste. */
+  .btn-danger {
+    @apply border border-red-600/25 bg-red-600/[0.07] text-red-700 hover:border-red-600 hover:bg-red-600 hover:text-white focus-visible:ring-red-600/30 dark:text-red-400 dark:hover:text-white;
+  }
+  /* Confirmation destructive : rouge plein. Existe en plus de .btn-danger
+     parce qu'une boîte « Supprimer définitivement ? » a besoin d'une action
+     principale, pas d'une action de liste.
+     (Ces boutons s'écrivaient « btn-primary bg-red-600 » : depuis que l'action
+     principale porte un DÉGRADÉ, un simple bg-* ne la repeint plus — l'image
+     de fond couvre la couleur — et ils seraient restés jaunes.) */
+  .btn-danger-solid {
+    @apply border border-transparent bg-red-600 text-white shadow-[0_8px_18px_-6px_rgba(220,38,38,0.5)] hover:-translate-y-px hover:bg-red-700 focus-visible:ring-red-600/35 active:translate-y-0;
+  }
+  /* Action principale neutre, quand le jaune de marque serait déplacé
+     (page publique, fond déjà jaune). */
+  .btn-dark {
+    @apply border border-transparent bg-black text-white shadow-[0_8px_18px_-8px_rgba(0,0,0,0.6)] hover:-translate-y-px hover:brightness-125 focus-visible:ring-black/25 active:translate-y-0 dark:bg-white dark:text-black;
+  }
+  /* Action de marque discrète : lavage jaune, pour un CTA répété en liste. */
+  .btn-soft {
+    @apply border border-brand/30 bg-brand/[0.14] text-brand-ink hover:border-brand hover:bg-brand/25 dark:border-brand/25 dark:bg-brand/[0.12] dark:text-brand;
+  }
+  /* Modificateurs de taille — à combiner avec n'importe quelle variante. */
+  .btn-sm {
+    @apply gap-1.5 rounded-lg px-3 py-1.5 text-xs;
+  }
+  .btn-lg {
+    @apply gap-2.5 px-5 py-3 text-sm;
+  }
+  .btn-block {
+    @apply w-full;
+  }
+  /* Bouton icône seule : carré, à habiller d'une des peaux ci-dessus. */
+  .btn-icon {
+    @apply inline-grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-lg p-0 transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/35 disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  /* Barre d'actions d'en-tête ou de pied de formulaire. */
+  .btn-row {
+    @apply flex flex-wrap items-center gap-2;
   }
   .btn-gradient {
-    @apply w-full rounded-full bg-gradient-to-r from-sky-400 to-fuchsia-500 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:brightness-105 disabled:opacity-50;
+    @apply w-full rounded-full bg-brand bg-[linear-gradient(135deg,#FFEE32_0%,#FFD100_100%)] px-6 py-3 text-sm font-bold uppercase tracking-wide text-brand-foreground shadow-[0_10px_24px_-8px_rgba(255,209,0,0.6)] transition hover:brightness-105 disabled:opacity-50;
   }
+
+  /* ---------- Formulaires ----------
+     Champs sur fond BLANC (et non transparent) : posés sur le halo jaune de la
+     coquille, des champs transparents se lisaient comme du décor. Le blanc dit
+     « ici, on saisit ». */
+  /* Pas de `w-full` ici : les barres de filtres posent les champs côte à côte
+     dans un `flex flex-wrap`, où une largeur de 100 % renverrait chacun à sa
+     propre ligne. Le plein format est donné par le contexte (cf. .form-field /
+     .form-grid plus bas), pas par le champ. */
+  .input-basic {
+    @apply rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-black shadow-sm outline-none transition-[border-color,box-shadow,background-color] duration-150;
+    @apply placeholder:text-black/35;
+    @apply hover:border-black/20;
+    @apply focus:border-brand focus:ring-[3px] focus:ring-brand/25;
+    @apply disabled:cursor-not-allowed disabled:bg-black/[0.04] disabled:text-black/45;
+    @apply dark:border-white/15 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:hover:border-white/25 dark:disabled:bg-white/[0.03];
+  }
+  /* Champ en erreur : « aria-invalid » suffit, aucune classe à ajouter au
+     point d'appel — l'état d'accessibilité et l'état visuel restent ainsi
+     solidaires. */
+  .input-basic[aria-invalid="true"] {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500/25;
+  }
+  /* Le chevron natif des <select> disparaît dès qu'on pose un fond : on le
+     redessine en image de fond, calé à droite (padding réservé). */
+  select.input-basic {
+    @apply cursor-pointer appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b6d6b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 14px;
+  }
+  textarea.input-basic {
+    @apply min-h-24 resize-y leading-relaxed;
+  }
+  input[type="date"].input-basic,
+  input[type="time"].input-basic,
+  input[type="datetime-local"].input-basic {
+    @apply cursor-pointer;
+  }
+  /* Ôte les flèches des champs numériques : sur une saisie de colis elles
+     n'apportent rien et rognent la place du nombre. */
+  .input-basic[type="number"] {
+    -moz-appearance: textfield;
+  }
+  .input-basic[type="number"]::-webkit-outer-spin-button,
+  .input-basic[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .input-underline {
+    @apply w-full border-0 border-b border-black/15 bg-transparent px-0 py-2 text-sm text-black transition-colors placeholder:text-black/35 focus:border-brand focus:outline-none dark:border-white/20 dark:text-white dark:placeholder:text-white/30;
+  }
+  /* Champ précédé d'une icône (loupe, calendrier…) : le conteneur cale
+     l'icône, le champ réserve la place. */
+  .input-icon-wrap {
+    @apply relative flex items-center;
+  }
+  .input-icon-wrap > svg:first-child {
+    @apply pointer-events-none absolute left-3 h-4 w-4 text-black/35 dark:text-white/40;
+  }
+  .input-icon-wrap > .input-basic {
+    @apply pl-9;
+  }
+
+  /* ---------- Formulaires ----------
+     Convention unique du système, validée sur « Nouveau colis » puis étendue à
+     tous les formulaires (sauf connexion/inscription, qui gardent leur mise en
+     page plein écran). Le principe : la SECTION est un cadre gris translucide
+     — jamais blanc opaque, pour que le halo jaune de la coquille traverse — et
+     les CHAMPS y sont blancs. C'est ce contraste champ/fond qui dit où l'on
+     saisit ; un formulaire blanc sur blanc l'efface. */
+
+  /* Section encartée. Un formulaire court en pose une seule ; un formulaire
+     long en enchaîne plusieurs, chacune introduite par .form-step-title. */
+  .form-section {
+    @apply flex flex-col gap-4 rounded-2xl border border-black/10 bg-black/[0.015] p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.02];
+  }
+  /* En-tête de section numérotée : la pastille donne l'ordre de lecture sans
+     imposer un vrai formulaire multi-écrans. */
+  .form-step-title {
+    @apply flex items-center gap-2.5 text-[15px] font-bold tracking-tight;
+  }
+  .form-step-badge {
+    @apply flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-black text-[11px] font-bold text-white dark:bg-white dark:text-black;
+  }
+  /* Intertitre discret À L'INTÉRIEUR d'une section (« Traitement »,
+     « Récapitulatif ») : se distingue du titre de section, qui est numéroté. */
+  .form-subtitle {
+    @apply text-[11px] font-bold uppercase tracking-wider text-black/50 dark:text-white/50;
+  }
+  /* Filet de séparation entre deux blocs d'une même section. */
+  .form-divider {
+    @apply border-t border-black/[0.07] pt-4 dark:border-white/10;
+  }
+
+  .form-field {
+    @apply flex min-w-0 flex-col gap-1.5;
+  }
+  .form-label {
+    @apply flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-black/60 dark:text-white/60;
+  }
+  /* Astérisque des champs requis et pastille des champs facultatifs : posés
+     dans le libellé, jamais en légende lointaine. */
+  .form-required {
+    @apply text-red-600;
+  }
+  .form-optional {
+    @apply rounded-md bg-black/[0.06] px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-black/45 dark:bg-white/10 dark:text-white/45;
+  }
+  /* Dans un formulaire, le champ prend toute la largeur de sa cellule — c'est
+     l'alignement des bords droits qui fait qu'un formulaire paraît rangé. */
+  .form-field > .input-basic,
+  .form-grid .input-basic,
+  .form-section .input-basic {
+    @apply w-full;
+  }
+  /* Grille de formulaire : une colonne au doigt, deux dès qu'il y a la place.
+     « sm:col-span-2 » sur un champ le fait courir sur toute la largeur. */
+  .form-grid {
+    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+  }
+  .form-hint {
+    @apply text-xs text-black/45 dark:text-white/45;
+  }
+  .form-error {
+    @apply text-xs font-semibold text-red-600 dark:text-red-400;
+  }
+  /* Pied de formulaire : actions à droite, séparées par un filet. */
+  .form-actions {
+    @apply mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-black/[0.07] pt-4 dark:border-white/10;
+  }
+
+  /* Champ encadré avec pastille collée (devise, unité) : le suffixe fait
+     partie du cadre, pour qu'on lise « 120 DH » et non un nombre nu. Le cadre
+     reprend l'anneau de focus de .input-basic via focus-within. */
+  .form-affix {
+    @apply flex items-stretch overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm transition-[border-color,box-shadow] focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand/25 dark:border-white/15 dark:bg-white/[0.06];
+  }
+  /* Champ nu posé dans .form-affix : le cadre est porté par le parent. */
+  .form-affix > .input-bare {
+    @apply min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm text-black outline-none placeholder:text-black/35 dark:text-white dark:placeholder:text-white/35;
+  }
+  .form-affix-chip {
+    @apply flex items-center bg-black/[0.04] px-3 text-sm font-semibold text-black/55 dark:bg-white/[0.06] dark:text-white/55;
+  }
+  .form-affix > .form-affix-chip:first-child {
+    @apply border-r border-black/10 dark:border-white/15;
+  }
+  .form-affix > .form-affix-chip:last-child {
+    @apply border-l border-black/10 dark:border-white/15;
+  }
+  /* Boutons −/+ d'un champ quantité, collés au champ dans .form-affix. */
+  .form-affix-step {
+    @apply w-9 shrink-0 bg-black/[0.04] text-base font-semibold text-black/60 transition-colors hover:bg-black/[0.08] dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/10;
+  }
+  /* Cases à cocher / radios : le jaune de marque au lieu du bleu système. */
+  .check-basic {
+    @apply h-4 w-4 shrink-0 cursor-pointer rounded border-black/25 accent-[color:var(--brand)] dark:border-white/25;
+  }
+  .check-row {
+    @apply flex cursor-pointer select-none items-center gap-2 text-sm font-medium;
+  }
+
   .page-title {
     @apply text-2xl font-black tracking-tight;
   }
+  /* En-tête de page : titre à gauche, actions à droite, repliées dessous au
+     doigt. Uniformise la première ligne de chaque interface. */
+  .page-header {
+    @apply mb-5 flex flex-wrap items-start justify-between gap-3;
+  }
+  .page-subtitle {
+    @apply mt-1 text-sm text-black/50 dark:text-white/50;
+  }
+
+  /* ---------- Tableaux ----------
+     .table-card porte le cadre ET le défilement horizontal : une table large
+     ne doit jamais pousser la PAGE à défiler latéralement, elle défile dans
+     son propre cadre. */
+  /* Le cadre clippe (coins arrondis nets) ; le défilement horizontal d'une
+     table large est porté par un conteneur INTERNE, comme le font déjà les
+     pages — le poser ici en plus créerait deux zones de défilement imbriquées. */
   .table-card {
-    @apply overflow-hidden rounded-xl border border-black/10 shadow-sm dark:border-white/10;
+    @apply w-full max-w-full overflow-hidden rounded-2xl border border-black/[0.07] bg-white shadow-sm shadow-black/[0.04] dark:border-white/10 dark:bg-white/[0.03] dark:shadow-none;
+  }
+  /* Conteneur de défilement d'une table large, à poser DANS .table-card. */
+  .table-scroll {
+    @apply w-full max-w-full overflow-x-auto;
   }
   .table-basic {
     @apply w-full border-collapse text-left text-sm;
   }
   .table-basic thead th {
-    @apply whitespace-nowrap border-b border-black/10 bg-black/[0.03] px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-black/55 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55;
+    @apply whitespace-nowrap border-b border-black/[0.07] bg-brand/[0.10] px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-black/60 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60;
   }
   .table-basic tbody td {
-    @apply border-b border-black/[0.06] px-3 py-2.5 align-middle dark:border-white/[0.06];
+    @apply border-b border-black/[0.05] px-4 py-3 align-middle dark:border-white/[0.06];
   }
   .table-basic tbody tr {
-    @apply transition-colors hover:bg-brand/[0.08];
-  }
-  .table-basic tbody tr:nth-child(even) {
-    @apply bg-black/[0.015] dark:bg-white/[0.02];
+    @apply transition-colors hover:bg-brand/[0.09];
   }
   .table-basic tbody tr:last-child td {
     @apply border-b-0;
   }
+  .table-basic tfoot td {
+    @apply border-t border-black/10 bg-black/[0.02] px-4 py-3 font-bold dark:border-white/10 dark:bg-white/[0.04];
+  }
+  /* Colonne de nombres : tabulaire et calée à droite, seule façon de comparer
+     des montants d'un coup d'œil. */
+  .cell-num {
+    @apply text-right tabular-nums;
+  }
+  /* Colonne d'actions : calée à droite, ne s'étire pas. */
+  .cell-actions {
+    @apply w-px whitespace-nowrap text-right;
+  }
+
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold leading-none;
   }
   .badge-neutral {
     @apply bg-black/[0.06] text-black/70 dark:bg-white/10 dark:text-white/70;
@@ -92,26 +384,38 @@ body {
   .badge-danger {
     @apply bg-red-500/15 text-red-700 dark:text-red-400;
   }
+  .badge-ok {
+    @apply bg-emerald-500/15 text-emerald-700 dark:text-emerald-400;
+  }
   .badge-brand {
-    @apply bg-brand/20 text-brand-foreground dark:text-brand;
+    @apply bg-brand/25 text-brand-ink dark:bg-brand/20 dark:text-brand;
   }
   .empty-state {
-    @apply flex flex-col items-center justify-center gap-1 py-10 text-center opacity-60;
+    @apply flex flex-col items-center justify-center gap-1.5 px-4 py-12 text-center text-sm text-black/45 dark:text-white/45;
   }
   .nav-link {
-    @apply rounded px-2 py-1 font-semibold text-sm text-white/80 transition hover:bg-brand hover:text-brand-foreground;
+    @apply rounded px-2 py-1 text-sm font-semibold text-white/80 transition hover:bg-brand hover:text-brand-foreground;
   }
 
-  /* Fond de coquille (admin/marchand/ramasseur) : même glow jaune que les
-     pages Comptabilité et Kanban (cf. .pageGlow / .kdc-board-glow), pour une
-     identité visuelle cohérente sur l'ensemble des interfaces internes.
-     Base blanc pur (pas --surface) pour matcher exactement ces deux pages. */
+  /* Fond de coquille (admin/livreur/ramasseur) : même halo jaune que les pages
+     Comptabilité et Kanban (cf. .pageGlow / .kdc-board-glow), pour une identité
+     visuelle cohérente sur l'ensemble des interfaces internes.
+     Base blanc pur (pas --surface) pour matcher exactement ces deux pages.
+
+     Deux réglages, tous deux délibérés :
+     - le premier foyer est à 28 % et non 12 % comme sur les deux pages citées :
+       celles-ci ne couvrent QUE la zone de contenu, alors que cette boîte-ci
+       englobe aussi la barre latérale (~256px). À 12 % le halo tombait derrière
+       la barre et ne se voyait pratiquement pas dans la page ;
+     - `fixed` : sans ça le halo remonte avec le contenu et une liste un peu
+       longue finit sur du blanc pur, là où l'écran du haut est ambré. */
   .shell-surface {
     @apply bg-white dark:bg-black;
     background-image:
-      radial-gradient(680px 420px at 12% -8%, rgba(255, 209, 0, 0.3), rgba(255, 209, 0, 0) 62%),
+      radial-gradient(680px 420px at 28% -8%, rgba(255, 209, 0, 0.3), rgba(255, 209, 0, 0) 62%),
       radial-gradient(560px 380px at 88% -4%, rgba(255, 238, 50, 0.26), rgba(255, 238, 50, 0) 60%),
       radial-gradient(900px 520px at 60% 108%, rgba(255, 209, 0, 0.1), rgba(255, 209, 0, 0) 65%);
+    background-attachment: fixed;
   }
   @media (prefers-color-scheme: dark) {
     .shell-surface {
@@ -314,33 +618,66 @@ body {
    Scopés à .kdc-board pour ne pas altérer le thème du reste de l'admin.
    --------------------------------------------------------------------- */
 .kdc-board {
-  --font: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font: var(--font-app);
   font-family: var(--font);
 
-  --bg-page: #E9E9EA;
-  --bg-shell: #FFFFFF;
-  --bg-sidebar: #F6F6F5;
-  --bg-panel: rgba(255, 255, 255, .55);
+  /* ---- Palette du Kanban (WSKZ .04) ----------------------------------
+     Cinq teintes, et rien d'autre : bleu ciel, bleu, marine, ambre, orange.
+     Tout est déclaré ICI, sous .kdc-board : la palette ne sort pas du
+     tableau et le jaune de marque continue de régner sur le reste du
+     back-office. Les dégradés de la planche sont conservés — ils servent
+     aux avatars, aux pastilles d'équipe, au bouton principal et au filet
+     de tête des cartes. */
+  --pal-ciel:   #8ECAE6;
+  --pal-bleu:   #209EBB;
+  --pal-marine: #023047;
+  --pal-ambre:  #FFB701;
+  --pal-orange: #FC8500;
+
+  --bg-page: #F5F6F6;
+  /* Fond de la zone Tâches : un gris à peine posé, deux points sous le blanc
+     — assez pour que les cartes blanches se détachent, trop pâle pour lire
+     comme une couleur. Distinct de --bg-shell, qui sert aux modales. */
+  --bg-board: #FAFBFB;
+  --bg-shell: #F7F8F8;
+  --bg-sidebar: #FFFFFF;
+  --bg-panel: #FFFFFF;
+  /* Les colonnes se posent un cran sous la page : c'est ce léger creux qui
+     les détache, pas une bordure marquée. */
+  /* Colonnes en blanc franc : c'est la PAGE qui porte le gris, pas elles.
+     Les cartes s'en détachent par leur filet et leur ombre (cf. --sh-card),
+     pas par un contraste de fond. */
+  --bg-column: #FFFFFF;
   --bg-panel-solid: #FFFFFF;
-  --bg-subtle: #EAEAE9;
+  --bg-subtle: #E7E9EA;
 
-  --border: #EBE9E1;
-  --border-strong: #DADAD8;
-  --border-glass: rgba(255, 255, 255, .75);
+  --border: #E4E7E9;
+  --border-strong: #D4D9DD;
+  --border-glass: #E7E9E9;
 
-  --text-1: #202020;
-  --text-2: #5e605e;
-  --text-3: #7b7d7b;
+  /* L'encre est le marine de la palette, pas un gris : les titres tiennent
+     à la même famille que les pastilles. */
+  --text-1: #023047;
+  --text-2: #46606F;
+  --text-3: #7D909B;
 
+  /* Partage des rôles : le jaune de marque garde les COMMANDES (boutons,
+     filtre actif, modales) — c'est le même dégradé que .btn-primary partout
+     ailleurs dans l'app — et la planche WSKZ prend l'INFORMATION (statuts,
+     priorités, étiquettes, avatars, filets de carte). Une couleur pour agir,
+     une palette pour lire. */
   --accent: #FFD100;
   --accent-light: #FFEE32;
   --on-accent: #202020;
+  --gradient-cta: linear-gradient(135deg, #FFEE32 0%, #FFD100 100%);
+  --gradient-ambre: linear-gradient(135deg, #FFB701 0%, #FC8500 100%);
 
-  --status-backlog: #7b7d7b;
-  --status-todo: #3f413f;
-  --status-doing: #FFD100;
-  --status-review: #FFEE32;
-  --status-done: #9a9c9a;
+  /* Statuts : froid → chaud → profond, dans l'ordre du flux de travail. */
+  --status-backlog: #8ECAE6;
+  --status-todo: #209EBB;
+  --status-doing: #FFB701;
+  --status-review: #FC8500;
+  --status-done: #023047;
 
   --r-chip: 6px;
   --r-control: 10px;
@@ -350,80 +687,111 @@ body {
   --r-pill: 20px;
   --r-shell: 22px;
 
-  --sh-card: 0 1px 3px rgba(32, 32, 32, .06);
-  --sh-panel: 0 1px 2px rgba(32, 32, 32, .04);
-  --sh-shell: 0 40px 90px rgba(32, 32, 32, .13);
-  --sh-modal: 0 30px 70px rgba(32, 32, 32, .18);
+  --sh-card: 0 1px 2px rgba(2, 48, 71, .08), 0 6px 14px -9px rgba(2, 48, 71, .30);
+  --sh-panel: 0 1px 2px rgba(2, 48, 71, .05);
+  --sh-shell: 0 40px 90px rgba(2, 48, 71, .12);
+  --sh-modal: 0 30px 70px rgba(2, 48, 71, .18);
 
-  --label-design-bg: rgba(255, 209, 0, .24); --label-design-fg: #8a7405;
-  --label-frontend-bg: rgba(255, 209, 0, .20); --label-frontend-fg: #8a7405;
-  --label-backend-bg: rgba(32, 32, 32, .07); --label-backend-fg: #444644;
-  --label-research-bg: rgba(32, 32, 32, .05); --label-research-fg: #3f413f;
-  --label-bug-bg: rgba(255, 209, 0, .18); --label-bug-fg: #C9A400;
-  --label-docs-bg: rgba(32, 32, 32, .07); --label-docs-fg: #5e605e;
+  /* Étiquettes : un fond teinté pour la puce, un dégradé plein pour la
+     pastille d'équipe qui reprend la même teinte (cf. TeamsBoardView). */
+  --label-design-bg: rgba(252, 133, 0, .14); --label-design-fg: #C25E00;
+  --label-design-grad: linear-gradient(145deg, #FFB701, #FC8500);
+  --label-design-on: #023047;
+  --label-frontend-bg: rgba(142, 202, 230, .40); --label-frontend-fg: #0F6C86;
+  --label-frontend-grad: linear-gradient(145deg, #8ECAE6, #209EBB);
+  --label-frontend-on: #023047;
+  --label-backend-bg: rgba(2, 48, 71, .09); --label-backend-fg: #023047;
+  --label-backend-grad: linear-gradient(145deg, #209EBB, #023047);
+  --label-backend-on: #FFFFFF;
+  --label-research-bg: rgba(32, 158, 187, .16); --label-research-fg: #146C82;
+  --label-research-grad: linear-gradient(145deg, #209EBB, #8ECAE6);
+  --label-research-on: #023047;
+  --label-bug-bg: rgba(252, 133, 0, .18); --label-bug-fg: #B85200;
+  --label-bug-grad: linear-gradient(145deg, #FC8500, #FFB701);
+  --label-bug-on: #023047;
+  --label-docs-bg: rgba(2, 48, 71, .07); --label-docs-fg: #46606F;
+  --label-docs-grad: linear-gradient(145deg, #023047, #209EBB);
+  --label-docs-on: #FFFFFF;
 
-  --prio-basse-bg: rgba(32, 32, 32, .05); --prio-basse-fg: #5e605e;
-  --prio-moyenne-bg: rgba(32, 32, 32, .07); --prio-moyenne-fg: #444644;
-  --prio-haute-bg: rgba(255, 209, 0, .20); --prio-haute-fg: #8a7405;
+  --prio-basse-bg: rgba(142, 202, 230, .34); --prio-basse-fg: #0F6C86;
+  --prio-moyenne-bg: rgba(255, 183, 1, .22); --prio-moyenne-fg: #8A5A00;
+  --prio-haute-bg: rgba(252, 133, 0, .18); --prio-haute-fg: #C25E00;
+
+  /* Filet de tête des cartes et lavis de colonne : indexés sur le statut,
+     dans l'ordre du flux — bleu tant que rien n'a commencé, ambre pendant,
+     marine une fois clos. Une carte déplacée change donc de filet, ce qui
+     donne au tableau sa lisibilité de loin. */
+  --bar-todo: linear-gradient(90deg, #209EBB, #8ECAE6);
+  --bar-doing: linear-gradient(90deg, #FFB701, #FC8500);
+  --bar-done: linear-gradient(90deg, #023047, #209EBB);
+  --tint-todo: linear-gradient(180deg, rgba(32, 158, 187, .13) 0%, rgba(32, 158, 187, 0) 38%);
+  --tint-doing: linear-gradient(180deg, rgba(255, 183, 1, .16) 0%, rgba(255, 183, 1, 0) 38%);
+  --tint-done: linear-gradient(180deg, rgba(2, 48, 71, .10) 0%, rgba(2, 48, 71, 0) 38%);
 
   --opt-on-bg: rgba(255, 209, 0, .22); --opt-on-fg: #8a7405;
 
-  --danger-bg: rgba(214, 69, 69, .12); --danger-fg: #B23A3A; --danger-border: rgba(214, 69, 69, .35);
+  /* L'alerte prend l'orange de la planche plutôt qu'un rouge étranger. */
+  --danger-bg: rgba(252, 133, 0, .14); --danger-fg: #B85200; --danger-border: rgba(252, 133, 0, .40);
 
-  --av-0-bg: #FFE888; --av-0-fg: #4a3a00;
-  --av-1-bg: #EAE7DC; --av-1-fg: #57544a;
-  --av-2-bg: #FFD100; --av-2-fg: #3d3100;
-  --av-3-bg: #DFDCD1; --av-3-fg: #4e4b42;
-  --av-4-bg: #F2EFE4; --av-4-fg: #5c594e;
-  --av-5-bg: #D8BE4E; --av-5-fg: #332900;
-  --av-all-bg: #EDEBE3; --av-all-fg: #7b7d7b;
-  --av-ring: inset 0 0 0 1px rgba(32, 32, 32, .06);
+  --av-0-bg: linear-gradient(145deg, #8ECAE6, #209EBB); --av-0-fg: #023047;
+  --av-1-bg: linear-gradient(145deg, #209EBB, #023047); --av-1-fg: #FFFFFF;
+  --av-2-bg: linear-gradient(145deg, #023047, #209EBB); --av-2-fg: #FFFFFF;
+  --av-3-bg: linear-gradient(145deg, #FC8500, #FFB701); --av-3-fg: #FFFFFF;
+  --av-4-bg: linear-gradient(145deg, #FFB701, #FC8500); --av-4-fg: #023047;
+  --av-5-bg: linear-gradient(145deg, #8ECAE6, #FFB701); --av-5-fg: #023047;
+  --av-all-bg: linear-gradient(145deg, #FFF0CC, #FFE29A); --av-all-fg: #8A5A00;
+  --av-ring: inset 0 0 0 1px rgba(2, 48, 71, .08);
 }
 
+/* Sombre : la même palette, posée sur le marine #023047 assombri — aucune
+   teinte n'y est importée d'ailleurs. */
 @media (prefers-color-scheme: dark) {
   .kdc-board {
-    --bg-page: #171818;
-    --bg-shell: #202020;
-    --bg-sidebar: #1a1b1b;
-    --bg-panel: #1a1b1b;
-    --bg-panel-solid: #202020;
-    --bg-subtle: #333533;
+    --bg-page: #04202F;
+    --bg-board: #04202F;
+    --bg-shell: #04202F;
+    --bg-sidebar: #072D41;
+    --bg-panel: #072D41;
+    --bg-column: rgba(142, 202, 230, .06);
+    --bg-panel-solid: #08374E;
+    --bg-subtle: #0C4763;
 
-    --border: #333533;
-    --border-strong: #3f4140;
-    --border-glass: #333533;
+    --border: #0E4A66;
+    --border-strong: #155F80;
+    --border-glass: #0E4A66;
 
-    --text-1: #D6D6D6;
-    --text-2: #8f918f;
-    --text-3: #6e706e;
+    --text-1: #E8F4F9;
+    --text-2: #A9C7D6;
+    --text-3: #7FA5B8;
 
-    --status-backlog: #6e706e;
-    --status-todo: #A9ABA9;
-    --status-done: #D6D6D6;
+    --on-accent: #202020;
 
-    --label-design-bg: rgba(255, 209, 0, .16); --label-design-fg: #FFD100;
-    --label-frontend-bg: rgba(255, 238, 50, .13); --label-frontend-fg: #E8DA6B;
-    --label-backend-bg: rgba(214, 214, 214, .12); --label-backend-fg: #D6D6D6;
-    --label-research-bg: rgba(214, 214, 214, .08); --label-research-fg: #A9ABA9;
-    --label-bug-bg: rgba(255, 209, 0, .10); --label-bug-fg: #C9A400;
-    --label-docs-bg: rgba(51, 53, 51, .9); --label-docs-fg: #8f918f;
+    --status-backlog: #8ECAE6;
+    --status-todo: #209EBB;
+    --status-doing: #FFB701;
+    --status-review: #FC8500;
+    --status-done: #8ECAE6;
 
-    --prio-basse-bg: rgba(214, 214, 214, .07); --prio-basse-fg: #8f918f;
-    --prio-moyenne-bg: rgba(214, 214, 214, .12); --prio-moyenne-fg: #D6D6D6;
-    --prio-haute-bg: rgba(255, 238, 50, .14); --prio-haute-fg: #E8DA6B;
+    --sh-card: 0 1px 3px rgba(0, 0, 0, .35);
+    --sh-panel: 0 1px 2px rgba(0, 0, 0, .30);
 
-    --opt-on-bg: rgba(255, 209, 0, .14); --opt-on-fg: #FFD100;
+    --label-design-bg: rgba(252, 133, 0, .18); --label-design-fg: #FFB701;
+    --label-frontend-bg: rgba(142, 202, 230, .18); --label-frontend-fg: #8ECAE6;
+    --label-backend-bg: rgba(142, 202, 230, .10); --label-backend-fg: #A9C7D6;
+    --label-research-bg: rgba(32, 158, 187, .22); --label-research-fg: #8ECAE6;
+    --label-bug-bg: rgba(252, 133, 0, .22); --label-bug-fg: #FC8500;
+    --label-docs-bg: rgba(142, 202, 230, .08); --label-docs-fg: #A9C7D6;
 
-    --danger-bg: rgba(255, 107, 107, .14); --danger-fg: #FF8C8C; --danger-border: rgba(255, 107, 107, .4);
+    --prio-basse-bg: rgba(142, 202, 230, .16); --prio-basse-fg: #8ECAE6;
+    --prio-moyenne-bg: rgba(255, 183, 1, .18); --prio-moyenne-fg: #FFB701;
+    --prio-haute-bg: rgba(252, 133, 0, .22); --prio-haute-fg: #FC8500;
 
-    --av-0-bg: linear-gradient(150deg, #FFEE32, #C9A400); --av-0-fg: #202020;
-    --av-1-bg: linear-gradient(150deg, #6e706e, #3a3c3a); --av-1-fg: #202020;
-    --av-2-bg: linear-gradient(150deg, #FFD100, #A88800); --av-2-fg: #202020;
-    --av-3-bg: linear-gradient(150deg, #9fa19f, #4a4c4a); --av-3-fg: #202020;
-    --av-4-bg: linear-gradient(150deg, #D6D6D6, #7e807e); --av-4-fg: #202020;
-    --av-5-bg: linear-gradient(150deg, #E8DA6B, #8a7a15); --av-5-fg: #202020;
-    --av-all-bg: #333533; --av-all-fg: #8f918f;
-    --av-ring: none;
+    --opt-on-bg: rgba(255, 209, 0, .16); --opt-on-fg: #FFD100;
+
+    --danger-bg: rgba(252, 133, 0, .18); --danger-fg: #FFB701; --danger-border: rgba(252, 133, 0, .45);
+
+    --av-all-bg: linear-gradient(145deg, #0C4763, #08374E); --av-all-fg: #A9C7D6;
+    --av-ring: inset 0 0 0 1px rgba(232, 244, 249, .10);
   }
 }
 
@@ -452,7 +820,7 @@ body {
   background: radial-gradient(900px 600px at 50% 40%, rgba(32, 32, 32, .16), rgba(32, 32, 32, .34));
   backdrop-filter: blur(9px) saturate(115%);
   -webkit-backdrop-filter: blur(9px) saturate(115%);
-  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-app);
   animation: mtFadeIn .28s ease both;
 }
 .mtOverlay.mtClosing { animation: mtFadeOut .22s ease both; }

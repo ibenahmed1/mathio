@@ -7,6 +7,7 @@ import {
   LABELS_STATUT_TACHE,
   LABELS_PRIORITE_TACHE,
   PRIORITE_TACHE_CLASS,
+  STATUT_TACHE_BARRE,
   LABELS_ETIQUETTE_TACHE,
   labelClassName,
   formatCleTache,
@@ -45,10 +46,14 @@ export function TaskCard({
       onDragStart={peutDeplacer ? onDragStart : undefined}
       onDragEnd={onDragEnd}
       onClick={onOpen}
-      className={`kdc-card ${dragging ? 'kdc-card--dragging' : ''}`}
+      className={`kdc-card ${STATUT_TACHE_BARRE[tache.statut]} ${dragging ? 'kdc-card--dragging' : ''}`}
     >
-      {(tache.bloque || tache.etiquettes.length > 0) && (
+      {/* Ligne d'identité : la référence et les étiquettes à gauche, la
+          priorité seule à droite — elle se lit d'un coup d'œil en balayant la
+          colonne, ce qu'elle ne faisait pas noyée dans le pied de carte. */}
+      <div className="kdc-card__head">
         <div className="kdc-card__labels">
+          <span className="kdc-card__key">{formatCleTache(tache.numero)}</span>
           {tache.bloque && (
             <span className="kdc-label kdc-label--bloque" title={tache.raisonBlocage ?? undefined}>
               <Lock className="h-2.5 w-2.5" /> Bloqué
@@ -60,31 +65,13 @@ export function TaskCard({
             </span>
           ))}
         </div>
-      )}
+        <span className={`kdc-prio ${PRIORITE_TACHE_CLASS[tache.priorite]}`}>
+          {LABELS_PRIORITE_TACHE[tache.priorite]}
+        </span>
+      </div>
 
       <p className="kdc-card__title">{tache.titre}</p>
       {tache.description && <p className="kdc-card__summary">{tache.description}</p>}
-
-      <div className="kdc-card__foot">
-        <div className="kdc-card__meta">
-          <span className="kdc-card__key">{formatCleTache(tache.numero)}</span>
-          <span className={`kdc-prio ${PRIORITE_TACHE_CLASS[tache.priorite]}`}>{LABELS_PRIORITE_TACHE[tache.priorite]}</span>
-        </div>
-        <div className="kdc-card__right">
-          <span className={`kdc-card__due ${enRetard ? 'kdc-card__due--late' : ''}`}>
-            <CalendarClock className="h-3.5 w-3.5" />
-            {echeance ? echeance.toLocaleDateString('fr-FR') : '—'}
-          </span>
-          {tache.assignee && (
-            <span
-              className={`kdc-avatar kdc-avatar--card ${avatarClassName(tache.assignee.nomComplet)}`}
-              title={tache.assignee.nomComplet}
-            >
-              {initiales(tache.assignee.nomComplet)}
-            </span>
-          )}
-        </div>
-      </div>
 
       {hasProgress && (
         <>
@@ -94,6 +81,23 @@ export function TaskCard({
           <div className="kdc-progress__label">{tache.progress}% terminé</div>
         </>
       )}
+
+      {/* Pied : échéance à gauche, porteur à droite, séparés du corps par un
+          filet — les deux informations qu'on cherche une carte déjà lue. */}
+      <div className="kdc-card__foot">
+        <span className={`kdc-card__due ${enRetard ? 'kdc-card__due--late' : ''}`}>
+          <CalendarClock className="h-3.5 w-3.5" />
+          {echeance ? echeance.toLocaleDateString('fr-FR') : '—'}
+        </span>
+        {tache.assignee && (
+          <span
+            className={`kdc-avatar kdc-avatar--card ${avatarClassName(tache.assignee.nomComplet)}`}
+            title={tache.assignee.nomComplet}
+          >
+            {initiales(tache.assignee.nomComplet)}
+          </span>
+        )}
+      </div>
 
       <select
         className="kdc-card__statut-select"

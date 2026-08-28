@@ -120,10 +120,7 @@ export default function CreerBonEnvoiPage() {
         </Link>
       </div>
 
-      <h1 className="page-title flex items-center gap-2">
-        <Send className="h-6 w-6 text-brand-ink dark:text-brand" />
-        Nouveau Bon d&apos;Envoi
-      </h1>
+      <h1 className="page-title">Nouveau Bon d&apos;Envoi</h1>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 

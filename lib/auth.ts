@@ -5,6 +5,7 @@ import { randomBytes, createHash } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import type { Role } from '@/app/generated/prisma/enums';
 import { SESSION_COOKIE_NAMES, spaceForHost, type SessionSpace } from '@/lib/spaces';
+import { effectivePermissions } from '@/lib/permissions';
 
 // Réduit de 7 jours à 24h : même si `verifySpaceCookie` (ci-dessous) revérifie
 // désormais `Utilisateur.actif` en base à chaque requête pour une révocation
@@ -27,6 +28,18 @@ export {
   originForHost,
 } from '@/lib/spaces';
 export type { SessionSpace } from '@/lib/spaces';
+
+// Catalogue des permissions : même principe que ci-dessus — module pur défini
+// à part, ré-exporté ici pour que `@/lib/auth` reste le point d'entrée unique
+// des appelants côté serveur.
+export {
+  PERMISSION_CATALOG,
+  ALL_PERMISSIONS,
+  ROLE_PERMISSIONS,
+  effectivePermissions,
+  sanitizePermissions,
+  isPermission,
+} from '@/lib/permissions';
 
 // Rôles ayant accès plein à l'espace back-office (/admin/**), servi sur le
 // domaine "ops". Brique de base de SPACE_ROLES.admin ci-dessous, exposée ici
@@ -152,6 +165,17 @@ export const SESSION_SPACE_HEADER = 'x-pd-session-space';
 // /api/session-handoff) : sert à l'UI (bandeau + retour back-office) et à la
 // traçabilité, jamais à accorder un droit supplémentaire.
 export const IMPERSONATED_HEADER = 'x-pd-impersonated';
+// Permissions effectives du compte (§ lib/permissions.ts), liste séparée par
+// des virgules — relues en base à chaque requête au même titre que le rôle,
+// pour qu'un retrait de case à cocher s'applique immédiatement sans attendre
+// l'expiration du cookie. Vide pour les espaces marchand/terrain.
+export const PERMISSIONS_HEADER = 'x-pd-user-permissions';
+// Permission exigée par le chemin de la requête en cours, résolue par le proxy
+// (§ lib/permission-routes.ts) et transmise aux route handlers. Leur permet
+// d'honorer un octroi par permission sans que chacune des ~170 routes ait à
+// reconsulter la table (cf. requireUser dans lib/api-utils.ts). Absent quand
+// le chemin n'est pas gouverné par le catalogue.
+export const ROUTE_PERMISSION_HEADER = 'x-pd-route-permission';
 
 function getAuthSecretKey() {
   const secret = process.env.AUTH_SECRET;
@@ -229,6 +253,11 @@ export interface SessionPayload {
   sub: string;
   role: Role;
   extraRoles: Role[];
+  // Permissions effectives (§ lib/permissions.ts) : la liste stockée sur le
+  // compte, ou le catalogue entier pour un admin. Complémentaire de `role` —
+  // le rôle dit à quel espace le compte appartient, les permissions disent
+  // quels modules il peut ouvrir.
+  permissions: string[];
   // Espace (donc hôte) d'où provient la session — utile aux handlers partagés
   // entre plusieurs espaces pour construire un lien de retour correct.
   space: SessionSpace;
@@ -241,6 +270,12 @@ export interface SessionPayload {
 // OU un de ses rôles supplémentaires accordés y figure.
 export function roleMatches(session: SessionPayload, allowedRoles: Role[]): boolean {
   return allowedRoles.includes(session.role) || session.extraRoles.some((r) => allowedRoles.includes(r));
+}
+
+// Détient-il cette permission ? Pendant de `roleMatches` pour la couche
+// permissions (§ lib/permissions.ts).
+export function sessionHasPermission(session: SessionPayload, permission: string): boolean {
+  return session.permissions.includes(permission);
 }
 
 // Payload minimal porté par le JWT lui-même : sert uniquement à identifier
@@ -304,15 +339,25 @@ export async function getSessionUser(): Promise<SessionPayload | null> {
   if (!sub || !role) return null;
   const extraRolesHeader = h.get(EXTRA_ROLES_HEADER);
   const extraRoles = extraRolesHeader ? (extraRolesHeader.split(',').filter(Boolean) as Role[]) : [];
+  const permissionsHeader = h.get(PERMISSIONS_HEADER);
+  const permissions = permissionsHeader ? permissionsHeader.split(',').filter(Boolean) : [];
   const space = spaceForHost(h.get('host'));
   if (!space) return null;
   return {
     sub,
     role: role as Role,
     extraRoles,
+    permissions,
     space,
     impersonated: h.get(IMPERSONATED_HEADER) === '1',
   };
+}
+
+// Permission exigée par le chemin de la requête en cours, telle que résolue
+// par le proxy. `null` si le chemin n'est pas gouverné par le catalogue.
+export async function getRoutePermission(): Promise<string | null> {
+  const h = await headers();
+  return h.get(ROUTE_PERMISSION_HEADER) || null;
 }
 
 interface SessionCookieJar {
@@ -332,15 +377,24 @@ export interface SessionAuthState {
   role: Role;
   actif: boolean;
   extraRoles: Role[];
+  permissions: string[];
 }
 
 export async function getSessionAuthState(userId: string): Promise<SessionAuthState | null> {
   const utilisateur = await prisma.utilisateur.findUnique({
     where: { id: userId },
-    select: { role: true, actif: true, rolesSupplementaires: true },
+    select: { role: true, actif: true, rolesSupplementaires: true, permissions: true },
   });
   if (!utilisateur) return null;
-  return { role: utilisateur.role, actif: utilisateur.actif, extraRoles: utilisateur.rolesSupplementaires };
+  return {
+    role: utilisateur.role,
+    actif: utilisateur.actif,
+    extraRoles: utilisateur.rolesSupplementaires,
+    // Résolues ici, à la source : plus loin dans la chaîne (headers, route
+    // handlers) plus personne n'a à se souvenir que l'admin est un cas
+    // particulier.
+    permissions: effectivePermissions(utilisateur.role, utilisateur.permissions),
+  };
 }
 
 // Vérifie le cookie de l'espace courant, à trois niveaux successifs :
@@ -369,6 +423,7 @@ export async function verifySpaceCookie(
     sub: decoded.sub,
     role: state.role,
     extraRoles: state.extraRoles,
+    permissions: state.permissions,
     space,
     impersonated: decoded.impersonated,
   };

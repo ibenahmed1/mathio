@@ -81,8 +81,6 @@ export function BonDistributionCreer() {
 
   const [confirmationOuverte, setConfirmationOuverte] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [codeBD, setCodeBD] = useState<string | null>(null);
-  const [statutLabel, setStatutLabel] = useState('Nouveau');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -290,8 +288,6 @@ export function BonDistributionCreer() {
     setHubId('');
     resetApresHub();
     setEtape('zone');
-    setCodeBD(null);
-    setStatutLabel('Nouveau');
     setError(null);
   }
 
@@ -310,8 +306,6 @@ export function BonDistributionCreer() {
         livreurId,
         colisIds: bon.map((c) => c.id),
       });
-      setCodeBD(created.numero);
-      setStatutLabel('En cours');
       setConfirmationOuverte(false);
       setCameraActive(false);
       router.push(`/admin/bon-distribution/${created.id}`);
@@ -361,9 +355,6 @@ export function BonDistributionCreer() {
       )}
 
       <BonDistributionCreerUI
-        codeBD={codeBD}
-        statutLabel={statutLabel}
-        statutTone={statutLabel === 'En cours' ? 'ok' : 'warn'}
         etape={etape}
         zones={hubs.map((h) => {
           const nbColis = h.nbColisAuHub ?? 0;

@@ -5,8 +5,11 @@ import { Eye, EyeOff, Upload, X } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { readFileAsDataUrl } from '@/lib/read-file';
 import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
+import { PERMISSION_CATALOG, ROLE_PERMISSIONS } from '@/lib/permissions';
 import type { Hub, Utilisateur } from '@/lib/types';
+import type { Role } from '@/app/generated/prisma/enums';
 import { Modal } from '@/components/admin/Modal';
+import { Affix, Field } from '@/components/form/Field';
 
 export type UserFormMode = { kind: 'create' } | { kind: 'edit'; utilisateur: Utilisateur };
 
@@ -121,6 +124,14 @@ export function UserFormModal({
 
   const [role, setRole] = useState(draft?.role ?? existant?.role ?? 'superviseur');
   const [rolesSupplementaires, setRolesSupplementaires] = useState<string[]>(existant?.rolesSupplementaires ?? []);
+  // Permissions du back-office (§ lib/permissions.ts). À la MODIFICATION, ce
+  // que le compte détient réellement ; à la CRÉATION, le jeu par défaut de la
+  // fonction choisie, que l'admin peut ajuster case par case avant d'envoyer.
+  const [permissions, setPermissions] = useState<string[]>(
+    mode.kind === 'edit'
+      ? (existant?.permissions ?? [])
+      : (ROLE_PERMISSIONS[(draft?.role ?? 'superviseur') as Role] ?? [])
+  );
   const [hubId, setHubId] = useState(draft?.hubId ?? existant?.hubId ?? '');
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [photo, setPhoto] = useState<string | null>(draft?.photoUrl ?? existant?.photoUrl ?? null);
@@ -213,10 +224,28 @@ export function UserFormModal({
     // s'appliqueraient plus et seraient rejetés par l'API — on les retire ici
     // plutôt que de laisser l'utilisateur découvrir l'erreur à la soumission.
     setRolesSupplementaires((prev) => prev.filter((r) => r !== newRole && espaceDe(r) === espaceDe(newRole)));
+    // À la CRÉATION, changer de fonction repositionne les cases sur le jeu par
+    // défaut de la nouvelle fonction : l'admin part de ce que fait ce métier,
+    // puis ajuste. À la MODIFICATION on n'y touche pas — les cases reflètent
+    // ce que le compte détient réellement, et un changement de fonction ne
+    // doit pas effacer silencieusement un accès accordé à la main.
+    if (mode.kind === 'create') {
+      setPermissions(ROLE_PERMISSIONS[newRole as Role] ?? []);
+    }
   }
 
   function toggleRoleSupplementaire(r: string) {
     setRolesSupplementaires((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]));
+  }
+
+  function togglePermission(key: string) {
+    setPermissions((prev) => (prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]));
+  }
+
+  function toggleCategorie(cles: string[], toutCoche: boolean) {
+    setPermissions((prev) =>
+      toutCoche ? prev.filter((x) => !cles.includes(x)) : Array.from(new Set([...prev, ...cles]))
+    );
   }
 
   function ignorerBrouillon() {
@@ -264,6 +293,11 @@ export function UserFormModal({
         }
         payload.hubId = hubId;
       }
+      // Toujours envoyé pour un compte back-office, y compris vide : c'est la
+      // liste transmise qui remplace celle du compte, un décochage doit donc
+      // pouvoir retirer le dernier accès. Pour un compte terrain, on n'envoie
+      // rien — le catalogue ne les gouverne pas (§ lib/permissions.ts).
+      if (!estTerrain) payload.permissions = permissions;
 
       if (mode.kind === 'create') {
         payload.secret = secret;
@@ -317,18 +351,16 @@ export function UserFormModal({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Nom complet *
+        <div className="form-grid">
+          <Field label="Nom complet" required>
             <input
               className="input-basic"
               name="nomComplet"
               defaultValue={draft?.nomComplet ?? existant?.nomComplet ?? ''}
               required
             />
-          </label>
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Fonction
+          </Field>
+          <Field label="Fonction">
             <select className="input-basic" value={role} onChange={(e) => handleRoleChange(e.target.value)}>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -336,10 +368,9 @@ export function UserFormModal({
                 </option>
               ))}
             </select>
-          </label>
+          </Field>
 
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Téléphone *
+          <Field label="Téléphone" required>
             <input
               className="input-basic"
               name="telephone"
@@ -348,7 +379,7 @@ export function UserFormModal({
               defaultValue={draft?.telephone ?? existant?.telephone ?? ''}
               required
             />
-          </label>
+          </Field>
           <label className="flex flex-col gap-1 text-sm font-medium">
             Adresse électronique{estTerrain ? ' *' : ''}
             <input
@@ -361,8 +392,7 @@ export function UserFormModal({
           </label>
 
           {avecHub && (
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Hub de rattachement *
+            <Field label="Hub de rattachement" required>
               <select
                 className="input-basic"
                 name="hubId"
@@ -377,22 +407,18 @@ export function UserFormModal({
                   </option>
                 ))}
               </select>
-            </label>
+            </Field>
           )}
 
           {mode.kind === 'edit' && (
-            <div className="flex flex-col gap-1.5 text-sm font-medium sm:col-span-2">
-              <span>
-                Rôles supplémentaires{' '}
-                <span className="text-xs font-normal opacity-60">
-                  (accès ponctuel à d&apos;autres fonctions du même espace, sans changer la fonction principale)
-                </span>
-              </span>
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            <div className="form-field sm:col-span-2">
+              <span className="form-label">Rôles supplémentaires</span>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
                 {ROLES.filter((r) => r !== role && espaceDe(r) === espaceDe(role)).map((r) => (
-                  <label key={r} className="flex items-center gap-1.5 text-sm font-normal">
+                  <label key={r} className="check-row font-normal">
                     <input
                       type="checkbox"
+                      className="check-basic"
                       checked={rolesSupplementaires.includes(r)}
                       onChange={() => toggleRoleSupplementaire(r)}
                     />
@@ -400,19 +426,69 @@ export function UserFormModal({
                   </label>
                 ))}
               </div>
+              <span className="form-hint">
+                Accès ponctuel à d&apos;autres fonctions du même espace, sans changer la fonction principale.
+              </span>
+            </div>
+          )}
+
+          {/* Permissions du back-office : ce que ce compte peut ouvrir, module
+              par module. Masqué pour les fonctions terrain (livreur,
+              ramasseur), dont l'accès est gouverné par le rôle et le domaine
+              et non par ce catalogue. */}
+          {!estTerrain && (
+            <div className="form-field sm:col-span-2">
+              <span className="form-label">Permissions</span>
+              <span className="form-hint">
+                Les cases cochées déterminent les modules accessibles à ce compte.{' '}
+                {mode.kind === 'create'
+                  ? 'Pré-remplies selon la fonction choisie — ajustez-les librement.'
+                  : 'Décocher une case retire immédiatement l’accès, sans reconnexion.'}
+              </span>
+              <div className="mt-2 flex flex-col gap-3">
+                {PERMISSION_CATALOG.map((cat) => {
+                  const cles = cat.permissions.map((p) => p.key);
+                  const toutCoche = cles.every((k) => permissions.includes(k));
+                  return (
+                    <fieldset key={cat.category} className="rounded-md border border-[var(--border,#e5e7eb)] p-3">
+                      <legend className="flex items-center gap-3 px-1 text-sm font-medium">
+                        {cat.category}
+                        <button
+                          type="button"
+                          className="text-xs font-normal underline opacity-70 hover:opacity-100"
+                          onClick={() => toggleCategorie(cles, toutCoche)}
+                        >
+                          {toutCoche ? 'Tout décocher' : 'Tout cocher'}
+                        </button>
+                      </legend>
+                      <div className="flex flex-wrap gap-x-5 gap-y-2">
+                        {cat.permissions.map((p) => (
+                          <label key={p.key} className="check-row font-normal" title={p.description}>
+                            <input
+                              type="checkbox"
+                              className="check-basic"
+                              checked={permissions.includes(p.key)}
+                              onChange={() => togglePermission(p.key)}
+                            />
+                            {p.label}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {estTerrain && (
             <>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                CIN *
+              <Field label="CIN" required>
                 <input className="input-basic" name="cin" defaultValue={draft?.cin ?? existant?.cin ?? ''} required />
-              </label>
+              </Field>
               <div />
 
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Zone principale
+              <Field label="Zone principale">
                 <select className="input-basic" name="zonePrincipale" defaultValue={draft?.zonePrincipale ?? existant?.zonePrincipale ?? ''}>
                   <option value="">Zone</option>
                   {VILLES_RAMASSAGE.map((v) => (
@@ -421,9 +497,8 @@ export function UserFormModal({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Zone secondaire
+              </Field>
+              <Field label="Zone secondaire">
                 <select className="input-basic" name="zoneSecondaire" defaultValue={draft?.zoneSecondaire ?? existant?.zoneSecondaire ?? ''}>
                   <option value="">Zone</option>
                   {VILLES_RAMASSAGE.map((v) => (
@@ -432,15 +507,13 @@ export function UserFormModal({
                     </option>
                   ))}
                 </select>
-              </label>
+              </Field>
 
-              <label className="flex flex-col gap-1 text-sm font-medium sm:col-span-2">
-                Adresse
+              <Field label="Adresse" className="sm:col-span-2">
                 <input className="input-basic" name="adresse" defaultValue={draft?.adresse ?? existant?.adresse ?? ''} />
-              </label>
+              </Field>
 
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Nom de la banque
+              <Field label="Nom de la banque">
                 <select className="input-basic" name="nomBanque" defaultValue={draft?.nomBanque ?? existant?.nomBanque ?? ''}>
                   <option value="">Nom Du Banque</option>
                   {BANQUES_MAROC.map((b) => (
@@ -449,38 +522,41 @@ export function UserFormModal({
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Numéro de compte
+              </Field>
+              <Field label="Numéro de compte">
                 <input
                   className="input-basic"
                   name="numeroCompte"
                   defaultValue={draft?.numeroCompte ?? existant?.numeroCompte ?? ''}
                 />
-              </label>
+              </Field>
 
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Frais de livraison (DH)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="input-basic"
-                  name="fraisLivraison"
-                  defaultValue={draft?.fraisLivraison ?? existant?.fraisLivraison ?? ''}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-medium">
-                Frais de refus (DH)
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="input-basic"
-                  name="fraisRefus"
-                  defaultValue={draft?.fraisRefus ?? existant?.fraisRefus ?? ''}
-                />
-              </label>
+              <Field label="Frais de livraison">
+                <Affix suffix="DH">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    className="input-bare"
+                    name="fraisLivraison"
+                    defaultValue={draft?.fraisLivraison ?? existant?.fraisLivraison ?? ''}
+                  />
+                </Affix>
+              </Field>
+              <Field label="Frais de refus">
+                <Affix suffix="DH">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    className="input-bare"
+                    name="fraisRefus"
+                    defaultValue={draft?.fraisRefus ?? existant?.fraisRefus ?? ''}
+                  />
+                </Affix>
+              </Field>
             </>
           )}
         </div>
@@ -524,7 +600,7 @@ export function UserFormModal({
         )}
 
         {mode.kind === 'create' && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="form-grid">
             <label className="flex flex-col gap-1 text-sm font-medium">
               Mot de passe * <span className="text-xs font-normal opacity-60">(8+ car., maj. + chiffre + spécial)</span>
               <span className="input-basic flex items-center gap-2 py-0">
@@ -541,8 +617,7 @@ export function UserFormModal({
                 </button>
               </span>
             </label>
-            <label className="flex flex-col gap-1 text-sm font-medium">
-              Confirmation de mot de passe *
+            <Field label="Confirmation de mot de passe" required>
               <span className="input-basic flex items-center gap-2 py-0">
                 <input
                   type={showConfirmSecret ? 'text' : 'password'}
@@ -561,7 +636,7 @@ export function UserFormModal({
                   {showConfirmSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </span>
-            </label>
+            </Field>
           </div>
         )}
 

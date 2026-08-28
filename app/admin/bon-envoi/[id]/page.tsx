@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Send } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
@@ -56,10 +56,7 @@ export default function DetailBonEnvoiPage() {
       </Link>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title flex items-center gap-2">
-          <Send className="h-6 w-6 text-brand-ink dark:text-brand" />
-          {bon.numero}
-        </h1>
+        <h1 className="page-title">{bon.numero}</h1>
         {user && (
           <BonEnvoiActionsMenu
             bon={bon}

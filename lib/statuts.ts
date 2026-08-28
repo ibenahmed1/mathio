@@ -206,6 +206,22 @@ export const PRIORITE_TACHE_CLASS: Record<PrioriteTache, string> = {
   elevee: 'kdc-prio--haute',
 };
 
+// Couleur de statut du Kanban : filet de tête de la carte et lavis de tête
+// de colonne (cf. .kdc-card--* / .kdc-column--* dans board.css). Une carte
+// qui change de colonne change de dégradé — c'est le repère qu'on lit de
+// loin, avant le texte.
+export const STATUT_TACHE_BARRE: Record<StatutTache, string> = {
+  a_faire: 'kdc-card--todo',
+  en_cours: 'kdc-card--doing',
+  termine: 'kdc-card--done',
+};
+
+export const STATUT_TACHE_COLONNE: Record<StatutTache, string> = {
+  a_faire: 'kdc-column--todo',
+  en_cours: 'kdc-column--doing',
+  termine: 'kdc-column--done',
+};
+
 // La clé de couleur d'équipe (EquipeTache.couleur, choisie librement à la
 // création du pôle) est projetée sur les 6 chips "étiquette" du board Kadence
 // — seules couleurs de chip définies par la maquette — plutôt que d'inventer

@@ -3,14 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
-// `roles` restreint l'affichage d'un item aux rôles listés (vérifié contre les
-// permissions réelles des routes API qu'il consomme) ; omis = visible à tout
-// rôle ayant accès à l'espace courant (pas de restriction connue côté API).
-export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string; roles?: string[] };
-export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavLeaf[]; section?: string; roles?: string[] };
+// `permission` restreint l'affichage d'un item aux comptes qui détiennent
+// cette permission (§ lib/permissions.ts) — c'est la même clé que celle
+// exigée par le chemin de l'item dans lib/permission-routes.ts, de sorte que
+// la barre latérale ne montre jamais un lien qui renverrait un 403. Omis =
+// visible à tout compte ayant accès à l'espace courant.
+//
+// `roles` reste pour les navigations qui ne sont pas gouvernées par le
+// catalogue (espaces marchand et terrain).
+export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string; roles?: string[]; permission?: string };
+export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavLeaf[]; section?: string; roles?: string[]; permission?: string };
 export type NavItem = NavLeaf | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {
@@ -46,11 +51,15 @@ export function AppSidebar({
   collapsed,
   mobileOpen,
   onCloseMobile,
+  onToggleCollapse,
 }: {
   nav: NavItem[];
   collapsed: boolean;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  // Optionnel : les espaces dont la barre reste toujours dépliée n'en ont pas
+  // besoin — le bouton n'est alors simplement pas rendu.
+  onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -150,10 +159,28 @@ export function AppSidebar({
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } ${collapsed ? 'w-64 lg:w-20' : 'w-64'}`}
       >
-        <div className="flex items-center justify-between px-4 py-5">
+        {/* Le repli se commande depuis la barre — même règle que l'espace
+            admin : posé dans le contenu, ce bouton volait une gouttière à
+            chaque page. Replié, il passe sous le logo, faute de largeur. */}
+        <div
+          className={`flex items-center gap-2 px-4 py-5 ${
+            collapsed ? 'justify-between lg:flex-col lg:justify-center lg:gap-3 lg:px-2' : 'justify-between'
+          }`}
+        >
           <div className={collapsed ? 'lg:hidden' : ''}>
             <Logo />
           </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="hidden shrink-0 rounded-lg border border-black/10 bg-white p-1.5 text-black/55 shadow-sm transition hover:border-brand hover:bg-brand/10 hover:text-black lg:grid lg:place-items-center dark:border-white/15 dark:bg-white/5 dark:text-white/70 dark:hover:text-white"
+              aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
+              title={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
+            >
+              {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </button>
+          )}
           <button
             onClick={onCloseMobile}
             className="rounded p-1 text-black/50 hover:text-brand-ink lg:hidden dark:text-white/60 dark:hover:text-brand"

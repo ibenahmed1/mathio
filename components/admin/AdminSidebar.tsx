@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LogOut, Search, UserRound, X } from 'lucide-react';
+import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Search, UserRound, X } from 'lucide-react';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
 import { apiPost } from '@/lib/api-client';
@@ -52,6 +52,7 @@ export function AdminSidebar({
   collapsed,
   mobileOpen,
   onCloseMobile,
+  onToggleCollapse,
 }: {
   nav: NavItem[];
   adminName: string;
@@ -59,6 +60,7 @@ export function AdminSidebar({
   collapsed: boolean;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  onToggleCollapse: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -194,10 +196,16 @@ export function AdminSidebar({
       <aside
         className={`${s.sidebar} fixed inset-y-0 left-0 z-40 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        } ${collapsed ? 'w-64 lg:w-20' : 'w-64'}`}
+        } ${collapsed ? `w-64 lg:w-20 ${s.sidebarCollapsed}` : 'w-64'}`}
       >
         {/* ---------- Logo ---------- */}
-        <div className={s.brand}>
+        {/* Le bouton de repli vit DANS la barre (et non dans le contenu de la
+            page) : c'est la barre qu'il commande, et posé dehors il volait une
+            gouttière à chaque page — d'où le décalage visible partout où la
+            page porte son propre fond. Replié, il descend sous le logo
+            (cf. .brandCollapsed) : 80px de large ne laissent pas la place aux
+            deux côte à côte. */}
+        <div className={`${s.brand} ${collapsed ? s.brandCollapsed : ''}`}>
           <div className={s.logoTile}>
             <Image src={LOGO} alt="Mathio Delivery" width={42} height={42} className={s.logoImg} priority />
           </div>
@@ -205,6 +213,15 @@ export function AdminSidebar({
             <span className={s.brandName}>MATHIO</span>
             <span className={s.brandSub}>DELIVERY</span>
           </div>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className={s.collapseBtn}
+            aria-label={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
+            title={collapsed ? 'Étendre la barre latérale' : 'Réduire la barre latérale'}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
           <button onClick={onCloseMobile} className={`${s.closeBtn} lg:hidden`} aria-label="Fermer">
             <X className="h-4 w-4" />
           </button>

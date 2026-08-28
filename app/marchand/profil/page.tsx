@@ -5,6 +5,7 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { AdresseMarchand, Marchand } from '@/lib/types';
 import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
 import { readFileAsDataUrl } from '@/lib/read-file';
+import { Field, FormSection } from '@/components/form/Field';
 import { SupportProfilSubNav } from '../SupportProfilSubNav';
 import { EquipeSection } from './EquipeSection';
 
@@ -108,30 +109,30 @@ export default function MarchandProfilPage() {
 
       <div>
         <h2 className="mb-4 text-lg font-black">Profil boutique</h2>
-        <form onSubmit={handleSave} className="flex max-w-md flex-col gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            Nom de la boutique
-            <input
-              className="input-basic"
-              value={marchand.nomBoutique}
-              onChange={(e) => setMarchand({ ...marchand, nomBoutique: e.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Ville
-            <input
-              className="input-basic"
-              value={marchand.ville ?? ''}
-              onChange={(e) => setMarchand({ ...marchand, ville: e.target.value })}
-            />
-          </label>
+        <form onSubmit={handleSave} className="flex max-w-2xl flex-col gap-4">
+          <FormSection title="Boutique">
+            <div className="form-grid">
+              <Field label="Nom de la boutique">
+                <input
+                  className="input-basic"
+                  value={marchand.nomBoutique}
+                  onChange={(e) => setMarchand({ ...marchand, nomBoutique: e.target.value })}
+                />
+              </Field>
+              <Field label="Ville">
+                <input
+                  className="input-basic"
+                  value={marchand.ville ?? ''}
+                  onChange={(e) => setMarchand({ ...marchand, ville: e.target.value })}
+                />
+              </Field>
+            </div>
+          </FormSection>
 
-          <fieldset className="rounded-lg border border-black/10 p-3 dark:border-white/10">
-            <legend className="px-2 text-sm font-bold">Coordonnées de connexion</legend>
+          <FormSection title="Coordonnées de connexion">
             {estTitulaire ? (
-              <div className="flex flex-col gap-3">
-                <label className="flex flex-col gap-1 text-sm">
-                  Téléphone
+              <div className="form-grid">
+                <Field label="Téléphone">
                   <input
                     className="input-basic"
                     type="tel"
@@ -141,9 +142,8 @@ export default function MarchandProfilPage() {
                       setMarchand({ ...marchand, utilisateur: { ...marchand.utilisateur!, telephone: e.target.value } })
                     }
                   />
-                </label>
-                <label className="flex flex-col gap-1 text-sm">
-                  Adresse électronique
+                </Field>
+                <Field label="Adresse électronique">
                   <input
                     className="input-basic"
                     type="email"
@@ -152,70 +152,55 @@ export default function MarchandProfilPage() {
                       setMarchand({ ...marchand, utilisateur: { ...marchand.utilisateur!, email: e.target.value } })
                     }
                   />
-                </label>
+                </Field>
               </div>
             ) : (
-              <p className="text-xs opacity-60">
+              <p className="form-hint">
                 Téléphone : {marchand.utilisateur?.telephone ?? '—'} · Email : {marchand.utilisateur?.email ?? '—'}
                 <br />
                 Géré par le titulaire du compte, pas modifiable depuis un profil membre d&apos;équipe.
               </p>
             )}
-          </fieldset>
+          </FormSection>
 
-          <fieldset className="rounded-lg border border-black/10 p-3 dark:border-white/10">
-            <legend className="px-2 text-sm font-bold">Identité & légal</legend>
-            <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                CIN
+          <FormSection title="Identité &amp; légal">
+            <div className="form-grid">
+              <Field label="CIN">
                 <input
                   className="input-basic"
                   value={marchand.cin ?? ''}
                   onChange={(e) => setMarchand({ ...marchand, cin: e.target.value })}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Raison sociale
+              </Field>
+              <Field label="Raison sociale">
                 <input
                   className="input-basic"
                   value={marchand.raisonSociale ?? ''}
                   onChange={(e) => setMarchand({ ...marchand, raisonSociale: e.target.value })}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                ICE / RC
+              </Field>
+              <Field label="ICE / RC">
                 <input
                   className="input-basic"
                   value={marchand.iceRc ?? ''}
                   onChange={(e) => setMarchand({ ...marchand, iceRc: e.target.value })}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Registre de commerce
+              </Field>
+              <Field label="Registre de commerce">
                 <input
                   className="input-basic"
                   value={marchand.registreCommerce ?? ''}
                   onChange={(e) => setMarchand({ ...marchand, registreCommerce: e.target.value })}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Site web
+              </Field>
+              <Field label="Site web">
                 <input
                   className="input-basic"
                   value={marchand.siteWeb ?? ''}
                   onChange={(e) => setMarchand({ ...marchand, siteWeb: e.target.value })}
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Adresse
-                <input
-                  className="input-basic"
-                  value={marchand.adresse ?? ''}
-                  onChange={(e) => setMarchand({ ...marchand, adresse: e.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Ville de ramassage
+              </Field>
+              <Field label="Ville de ramassage">
                 <select
                   className="input-basic"
                   value={marchand.villeRamassage ?? ''}
@@ -228,15 +213,20 @@ export default function MarchandProfilPage() {
                     </option>
                   ))}
                 </select>
-              </label>
+              </Field>
+              <Field label="Adresse" className="sm:col-span-2">
+                <input
+                  className="input-basic"
+                  value={marchand.adresse ?? ''}
+                  onChange={(e) => setMarchand({ ...marchand, adresse: e.target.value })}
+                />
+              </Field>
             </div>
-          </fieldset>
+          </FormSection>
 
-          <fieldset className="rounded-lg border border-black/10 p-3 dark:border-white/10">
-            <legend className="px-2 text-sm font-bold">Informations bancaires</legend>
-            <div className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1 text-sm">
-                Banque
+          <FormSection title="Informations bancaires">
+            <div className="form-grid">
+              <Field label="Banque">
                 <select
                   className="input-basic"
                   value={marchand.nomBanque ?? ''}
@@ -249,9 +239,8 @@ export default function MarchandProfilPage() {
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                RIB (24 chiffres)
+              </Field>
+              <Field label="RIB" hint="24 chiffres">
                 <input
                   className="input-basic"
                   value={marchand.rib ?? ''}
@@ -259,63 +248,65 @@ export default function MarchandProfilPage() {
                   maxLength={24}
                   onChange={(e) => setMarchand({ ...marchand, rib: e.target.value.replace(/\D/g, '').slice(0, 24) })}
                 />
-              </label>
-              <div className="flex flex-col gap-2 text-sm">
-                Justificatif RIB
-                {marchand.ribPhotoUrl && !nouvelleRibPhoto && (
-                  <a href={marchand.ribPhotoUrl} target="_blank" rel="noreferrer" className="w-fit">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={marchand.ribPhotoUrl}
-                      alt="Justificatif RIB actuel"
-                      className="max-h-32 w-auto rounded-lg border border-black/10 dark:border-white/10"
-                    />
-                  </a>
-                )}
-                <span className="flex flex-wrap items-center gap-3 rounded-md border border-black/20 px-3 py-2 text-sm text-black/60 dark:border-white/20 dark:text-white/60">
-                  <span className="shrink-0 rounded border border-black/40 bg-black/5 px-3 py-1 font-semibold text-black dark:border-white/40 dark:bg-white/10 dark:text-white">
-                    Changer le fichier
-                  </span>
-                  <span className="min-w-0 truncate">{nouvelleRibPhotoName ?? "Aucun nouveau fichier sélectionné"}</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleRibPhotoChange} />
-                </span>
-              </div>
+              </Field>
             </div>
-          </fieldset>
+            <div className="form-field">
+              <span className="form-label">Justificatif RIB</span>
+              {marchand.ribPhotoUrl && !nouvelleRibPhoto && (
+                <a href={marchand.ribPhotoUrl} target="_blank" rel="noreferrer" className="w-fit">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={marchand.ribPhotoUrl}
+                    alt="Justificatif RIB actuel"
+                    className="max-h-32 w-auto rounded-lg border border-black/10 dark:border-white/10"
+                  />
+                </a>
+              )}
+              <label className="flex flex-wrap items-center gap-3 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-black/60 shadow-sm dark:border-white/15 dark:bg-white/[0.06] dark:text-white/60">
+                <span className="shrink-0 rounded-lg border border-black/20 bg-black/[0.04] px-3 py-1 font-semibold text-black dark:border-white/25 dark:bg-white/10 dark:text-white">
+                  Changer le fichier
+                </span>
+                <span className="min-w-0 truncate">{nouvelleRibPhotoName ?? 'Aucun nouveau fichier sélectionné'}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleRibPhotoChange} />
+              </label>
+            </div>
+          </FormSection>
 
-          <fieldset className="rounded-lg border border-brand p-3">
-            <legend className="rounded bg-brand px-2 text-sm font-bold text-brand-foreground">Ramassage récurrent</legend>
-            <label className="flex items-center gap-2 text-sm">
+          <FormSection title="Ramassage récurrent">
+            <label className="check-row">
               <input
                 type="checkbox"
+                className="check-basic"
                 checked={marchand.ramassageRecurrentActif}
                 onChange={(e) => setMarchand({ ...marchand, ramassageRecurrentActif: e.target.checked })}
               />
               Activer la planification automatique
             </label>
-            <label className="mt-2 flex flex-col gap-1 text-sm">
-              Jours (ex. lun,mar,mer,jeu,ven)
-              <input
-                className="input-basic"
-                value={marchand.ramassageJours ?? ''}
-                onChange={(e) => setMarchand({ ...marchand, ramassageJours: e.target.value })}
-              />
-            </label>
-            <label className="mt-2 flex flex-col gap-1 text-sm">
-              Créneau horaire (ex. 17:00-19:00)
-              <input
-                className="input-basic"
-                value={marchand.ramassageCreneauHoraire ?? ''}
-                onChange={(e) => setMarchand({ ...marchand, ramassageCreneauHoraire: e.target.value })}
-              />
-            </label>
-          </fieldset>
+            <div className="form-grid">
+              <Field label="Jours" hint="Ex. lun,mar,mer,jeu,ven">
+                <input
+                  className="input-basic"
+                  value={marchand.ramassageJours ?? ''}
+                  onChange={(e) => setMarchand({ ...marchand, ramassageJours: e.target.value })}
+                />
+              </Field>
+              <Field label="Créneau horaire" hint="Ex. 17:00-19:00">
+                <input
+                  className="input-basic"
+                  value={marchand.ramassageCreneauHoraire ?? ''}
+                  onChange={(e) => setMarchand({ ...marchand, ramassageCreneauHoraire: e.target.value })}
+                />
+              </Field>
+            </div>
+          </FormSection>
 
-          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-          {saved && <p className="text-sm font-medium text-green-700">Enregistré.</p>}
-          <button type="submit" className="btn-primary">
-            Enregistrer
-          </button>
+          {error && <p className="form-error">{error}</p>}
+          {saved && <p className="text-xs font-semibold text-green-700 dark:text-green-400">Enregistré.</p>}
+          <div className="form-actions">
+            <button type="submit" className="btn-primary">
+              Enregistrer
+            </button>
+          </div>
         </form>
       </div>
 
@@ -329,24 +320,30 @@ export default function MarchandProfilPage() {
           ))}
           {adresses.length === 0 && <li className="opacity-60">Aucune adresse</li>}
         </ul>
-        <form onSubmit={handleAddAdresse} className="flex max-w-md flex-col gap-2">
-          <input
-            className="input-basic"
-            placeholder="Libellé (ex. Entrepôt)"
-            value={nouvelleAdresse.libelle}
-            onChange={(e) => setNouvelleAdresse({ ...nouvelleAdresse, libelle: e.target.value })}
-            required
-          />
-          <input
-            className="input-basic"
-            placeholder="Adresse complète"
-            value={nouvelleAdresse.adresseComplete}
-            onChange={(e) => setNouvelleAdresse({ ...nouvelleAdresse, adresseComplete: e.target.value })}
-            required
-          />
-          <button type="submit" className="btn-outline w-fit">
-            Ajouter l&apos;adresse
-          </button>
+        <form onSubmit={handleAddAdresse} className="form-section max-w-2xl">
+          <div className="form-grid">
+            <Field label="Libellé" required hint="Ex. Entrepôt">
+              <input
+                className="input-basic"
+                value={nouvelleAdresse.libelle}
+                onChange={(e) => setNouvelleAdresse({ ...nouvelleAdresse, libelle: e.target.value })}
+                required
+              />
+            </Field>
+            <Field label="Adresse complète" required>
+              <input
+                className="input-basic"
+                value={nouvelleAdresse.adresseComplete}
+                onChange={(e) => setNouvelleAdresse({ ...nouvelleAdresse, adresseComplete: e.target.value })}
+                required
+              />
+            </Field>
+          </div>
+          <div className="form-actions">
+            <button type="submit" className="btn-outline">
+              Ajouter l&apos;adresse
+            </button>
+          </div>
         </form>
       </div>
 

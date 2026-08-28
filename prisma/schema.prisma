@@ -286,6 +286,23 @@ model Utilisateur {
   // frontière d'espace (admin/marchand/terrain).
   rolesSupplementaires Role[] @default([]) @map("roles_supplementaires")
 
+  // Permissions du back-office détenues par ce compte (clés du catalogue de
+  // lib/permissions.ts, ex. "colis:read", "comptabilite:read"). Stockées en
+  // texte libre plutôt qu'en enum Prisma : le catalogue évolue au rythme des
+  // écrans, et une migration de schéma à chaque nouvelle case à cocher serait
+  // hors de proportion. Les clés inconnues sont ignorées à la lecture
+  // (sanitizePermissions), donc une clé retirée du catalogue n'accorde rien.
+  //
+  // C'est la liste STOCKÉE qui fait foi — pas le rôle. ROLE_PERMISSIONS ne
+  // sert qu'à pré-remplir ce champ (migration des comptes existants, cases
+  // pré-cochées à la création). Seule exception : le rôle `admin`, qui détient
+  // toujours le catalogue entier quoi que contienne cette colonne
+  // (cf. effectivePermissions).
+  //
+  // Ne gouverne QUE l'espace back-office : les rôles marchand/livreur/ramasseur
+  // n'en ont pas l'usage et gardent une liste vide.
+  permissions String[] @default([])
+
   marchand       Marchand?
   marchandMembre MarchandMembre?
 
