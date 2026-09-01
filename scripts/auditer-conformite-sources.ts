@@ -25,19 +25,41 @@ import { normaliserVille } from '../lib/hub-stock';
  * agence, quel prix — pas la graphie. Les écarts de graphie sont listés à part.
  */
 
-type LigneSource = { agence: string; nom: string; tarif: number | null; retour?: number | null };
+type LigneSource = {
+  agence: string;
+  nom: string;
+  tarif: number | null;
+  retour?: number | null;
+  // Prestataire dont la grille porte cette ligne. Renseigné uniquement quand il
+  // n'est pas celui du hub : les 13 villes du HUB CASABLANCA viennent du fichier
+  // Power Delivery alors que le hub, lui, est INTERNE et n'a pas de prestataire.
+  // Sans ça, l'audit cherchait un tarif « du prestataire null » et déclarait les
+  // treize lignes non tarifées, alors qu'elles le sont.
+  prestataire?: string;
+};
 
 // Construit les lignes d'une zone à tarif unique.
-const zone = (agence: string, tarif: number | null, noms: string[], retour: number | null = null): LigneSource[] =>
-  noms.map((nom) => ({ agence, nom, tarif, retour }));
+const zone = (
+  agence: string,
+  tarif: number | null,
+  noms: string[],
+  retour: number | null = null,
+  prestataire?: string
+): LigneSource[] => noms.map((nom) => ({ agence, nom, tarif, retour, prestataire }));
 
 const SOURCE: LigneSource[] = [
   // ══ Power Delivery — « ville Power.pdf » (91 lignes) ═══════════════════
-  ...zone('Hub Casablanca', 15, ['Casablanca']),
-  ...zone('Hub Casablanca', 20, [
-    'Bouskoura', 'TIT MELIL', 'Dar bouazza', 'Deroua', 'NOUACER', 'TAMARIS', 'MEDIOUNA',
-    'Berrechid', 'SIDI HAJAJ', 'SETTAT', 'Ben ahmed', 'Lahraouyine',
-  ]),
+  ...zone('Hub Casablanca', 15, ['Casablanca'], null, 'Power Delivery'),
+  ...zone(
+    'Hub Casablanca',
+    20,
+    [
+      'Bouskoura', 'TIT MELIL', 'Dar bouazza', 'Deroua', 'NOUACER', 'TAMARIS', 'MEDIOUNA',
+      'Berrechid', 'SIDI HAJAJ', 'SETTAT', 'Ben ahmed', 'Lahraouyine',
+    ],
+    null,
+    'Power Delivery'
+  ),
   ...zone('Agence El Jadida', 20, ['l jadida']),
   ...zone('Agence El Jadida', 23, [
     'SIDI RAHAL', 'Azemmour', 'Sidi bouzid', 'TNIN CHTOUKA - EL JADIDA', 'Bir jdid', 'SIDI SMAIL',
@@ -101,16 +123,13 @@ const SOURCE: LigneSource[] = [
   // ══ Sahario Express (68 lignes) ════════════════════════════════════════
   ...zone('Agence Guelmim', 15, ['Guelmim']),
   ...zone('Agence Guelmim', 25, [
-    'Bouizakarn', 'Sidi Ifni', 'Mirleft', 'Assa', 'Zag', 'Tantan', 'El Ouatia', 'Tarfaya',
-    'Laayoune', 'Laayoune Porte', 'Es Semara', 'Boujdour', 'Dakhla',
+    'Bouizakarn', 'Sidi ifni', 'Mirleft', 'Assa', 'Zag', 'Tantan', 'El ouatia', 'Tarfaya',
+    'Laayoune', 'Laayoune porte', 'Es semara', 'Boujdour', 'Dakhla',
   ]),
-  // « ait mlloul » est la graphie du message. La base porte « Ait Melloul » :
-  // orthographe corrigée à l'import, ce qui n'a pas à être fait sur une grille
-  // fournisseur. L'audit doit donc le signaler.
-  ...zone('Agence Agadir', 15, ['Agadir', 'Dchaira', 'Inzgane', 'ait mlloul']),
+  ...zone('Agence Agadir', 15, ['Agadir', 'dchaira', 'inzgane', 'ait mlloul']),
   ...zone('Agence Agadir', 20, [
-    'Sidi Bibi', 'Anza', 'Aourir', 'Biougra', 'Ait Aamira', 'Tadart Anza', 'Tamraght', 'Tarast',
-    'Drarga', 'Tikiwine', 'Leqliaa', 'Tamait',
+    'Sidi bibi', 'Anza', 'Aourir', 'Biougra', 'Ait aamira', 'Tadart anza', 'Tamraght', 'Tarast',
+    'Drarga', 'Tikiwine', 'Leqliaa', 'tamait',
   ]),
   // Zone 23 : 35 localités, PAS 38. Les captures WhatsApp écrivent
   // « . Taroudant : », « . Tiznit : » et « . Oulad teima : » comme des
@@ -120,13 +139,13 @@ const SOURCE: LigneSource[] = [
   // source », ce qui est précisément le cas aujourd'hui.
   ...zone('Agence Agadir', 23, [
     // groupe Taroudant
-    'Zaouiat', 'Iferkane', 'Ait Aiaaza', 'El Nouwayle', 'Oulad Aarfa', 'Taliwin', 'Awlouz', 'Oulad Berhil',
+    'Zaouiat', 'iferkane', 'Ait aiaaza', 'El nouwayle', 'Oulad aarfa', 'taliwin', 'awlouz', 'oulad berhil',
     // groupe Tiznit
-    'Anzi', 'Tighmi', 'Idawsmlal', 'Tafraout', 'Ait Jraj', 'Lakhssas', 'Bounaiman', 'Sihll',
-    'Merleft', 'Sidi Fini', 'Aglou', 'Lmaader', 'Rasmouka', 'Wijan',
+    'Anzi', 'tighmi', 'idawsmlal', 'tafraout', 'ait jraj', 'lakhssas', 'bounaiman', 'sihll',
+    'merleft', 'sidi fini', 'aglou', 'lmaader', 'rasmouka', 'wijan',
     // groupe Oulad Teima, puis le message qui le suit (Belfaa → imi wadar)
-    'Sidi moussa', 'Lhamri', 'Sebt El Guerdane', 'Douar Sulad', 'Said Qrarma', 'Lakhnafif',
-    'El Koudia', 'Lagfifat', 'Ain Seddaq', 'Belfaa', 'Massa', 'Taghazout', 'Imi Wadar',
+    'Sidi moussa', 'lhamri', 'Sebt el guerdane', 'Douar sulad', 'said Qrarma', 'Lakhnafif',
+    'El koudia', 'Lagfifat', 'Ain seddaq', 'Belfaa', 'massa', 'taghazout', 'imi wadar',
   ]),
 
   // ══ Amir Livraison — Agence Tanger (17 lignes) ═════════════════════════
@@ -166,24 +185,43 @@ const DOUBLONS_ATTENDUS = [
 ];
 
 async function main() {
-  const villes = await prisma.ville.findMany({
-    select: {
-      nom: true,
-      hub: { select: { nom: true, prestataireId: true } },
-      tarifsPrestataires: { select: { prestataireId: true, tarifLivraison: true, tarifRetour: true } },
-    },
-  });
+  const [villes, prestataires] = await Promise.all([
+    prisma.ville.findMany({
+      select: {
+        nom: true,
+        hub: { select: { nom: true, prestataireId: true } },
+        tarifsPrestataires: { select: { prestataireId: true, tarifLivraison: true, tarifRetour: true } },
+      },
+    }),
+    prisma.prestataire.findMany({ select: { id: true, nom: true } }),
+  ]);
+  const idParNom = new Map(prestataires.map((p) => [p.nom, p.id]));
 
-  // Index base : agence + nom normalisé -> { nom réel, tarif du prestataire du hub }
-  const enBase = new Map<string, { nom: string; tarif: number | null; retour: number | null }>();
+  // Index base : agence + nom normalisé -> la ville et TOUS ses tarifs. Le tarif
+  // à comparer est choisi plus bas, ligne par ligne, car il dépend de la grille
+  // dont la ligne provient (cf. LigneSource.prestataire).
+  type EnBase = {
+    nom: string;
+    prestataireHub: string | null;
+    tarifs: { prestataireId: string; tarifLivraison: unknown; tarifRetour: unknown }[];
+  };
+  const enBase = new Map<string, EnBase>();
   for (const v of villes) {
-    const t = v.tarifsPrestataires.find((x) => x.prestataireId === v.hub.prestataireId);
     enBase.set(`${v.hub.nom}|${normaliserVille(v.nom)}`, {
       nom: v.nom,
-      tarif: t ? Number(t.tarifLivraison) : null,
-      retour: t?.tarifRetour == null ? null : Number(t.tarifRetour),
+      prestataireHub: v.hub.prestataireId,
+      tarifs: v.tarifsPrestataires,
     });
   }
+
+  const tarifDe = (v: EnBase, prestataire?: string) => {
+    const cible = prestataire ? idParNom.get(prestataire) : v.prestataireHub;
+    const t = v.tarifs.find((x) => x.prestataireId === cible);
+    return {
+      tarif: t ? Number(t.tarifLivraison) : null,
+      retour: t?.tarifRetour == null ? null : Number(t.tarifRetour),
+    };
+  };
 
   const manquantes: string[] = [];
   const tarifsFaux: string[] = [];
@@ -205,13 +243,14 @@ async function main() {
     }
     vues.add(cle);
 
-    if (ligne.tarif !== null && trouvee.tarif !== ligne.tarif) {
-      tarifsFaux.push(`${ligne.agence} / "${ligne.nom}" : fichier ${ligne.tarif} DH, base ${trouvee.tarif ?? '—'} DH`);
+    const { tarif, retour } = tarifDe(trouvee, ligne.prestataire);
+    if (ligne.tarif !== null && tarif !== ligne.tarif) {
+      tarifsFaux.push(`${ligne.agence} / "${ligne.nom}" : fichier ${ligne.tarif} DH, base ${tarif ?? '—'} DH`);
     }
     const retourAttendu = ligne.retour ?? null;
-    if (retourAttendu !== null && trouvee.retour !== retourAttendu) {
+    if (retourAttendu !== null && retour !== retourAttendu) {
       tarifsFaux.push(
-        `${ligne.agence} / "${ligne.nom}" : retour fichier ${retourAttendu} DH, base ${trouvee.retour ?? '—'} DH`
+        `${ligne.agence} / "${ligne.nom}" : retour fichier ${retourAttendu} DH, base ${retour ?? '—'} DH`
       );
     }
     if (trouvee.nom !== ligne.nom) {
@@ -219,8 +258,11 @@ async function main() {
     }
   }
 
-  // Villes en base qu'aucune ligne source ne réclame.
+  // Villes en base qu'aucune ligne source ne réclame. Les hubs fabriqués par
+  // les scripts d'audit (§ scripts/test-tournee-cloture-audit.ts, recréés à
+  // chaque exécution) sont hors périmètre : ils ne viennent d'aucune grille.
   const enTrop = [...enBase.entries()]
+    .filter(([cle]) => !cle.startsWith('Hub Audit Tournée'))
     .filter(([cle]) => !SOURCE.some((l) => `${l.agence}|${normaliserVille(l.nom)}` === cle))
     .map(([cle, v]) => `${cle.split('|')[0]} / "${v.nom}"`);
 

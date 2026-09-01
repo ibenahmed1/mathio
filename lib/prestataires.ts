@@ -1,6 +1,7 @@
 import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
+import { normaliserVille } from '@/lib/hub-stock';
 
 // Deux unicités cohabitent sur Hub, et un 409 qui les confondrait enverrait
 // l'admin renommer son hub alors que le vrai problème est ailleurs :
@@ -38,7 +39,7 @@ export async function resoudreHubImport(params: {
   prestataireId: string | null;
   ville: string;
   nom: string;
-}): Promise<{ id: string; nom: string; cree: boolean }> {
+}): Promise<{ id: string; nom: string; cree: boolean; renommeDepuis?: string }> {
   const { prestataireId, ville, nom } = params;
 
   if (prestataireId) {
@@ -49,8 +50,15 @@ export async function resoudreHubImport(params: {
     if (agence) return { ...agence, cree: false };
   }
 
-  const homonyme = await prisma.hub.findUnique({
-    where: { nom },
+  // Comparaison INSENSIBLE À LA CASSE. `Hub.nom` est unique au sens de
+  // PostgreSQL, donc « hub casablanca » et « Hub Casablanca » y cohabitent
+  // sans conflit : un import cherchant la seconde graphie ne trouvait pas la
+  // première et créait un DOUBLON — deux hubs pour la même ville, l'un avec les
+  // villes et les tarifs, l'autre avec les colis et les utilisateurs déjà
+  // rattachés. C'est exactement le cas d'un environnement où un hub a d'abord
+  // été saisi à la main depuis /admin/hubs.
+  const homonyme = await prisma.hub.findFirst({
+    where: { nom: { equals: nom, mode: 'insensitive' } },
     select: { id: true, nom: true, ville: true, prestataireId: true, prestataire: { select: { nom: true } } },
   });
 
@@ -59,6 +67,20 @@ export async function resoudreHubImport(params: {
     // le même propriétaire. Sinon on s'arrête — transférer un quai d'un réseau
     // à l'autre est une décision, pas un effet de bord d'import.
     if (homonyme.prestataireId === prestataireId) {
+      // Le NOM est aligné sur celui du script quand seule la casse diffère :
+      // « hub casablanca » saisi à la main devient « Hub Casablanca ». C'est un
+      // libellé, rien n'en dépend — aucune clé étrangère ne porte le nom d'un
+      // hub, seulement son `id`, qui ne bouge pas. Les utilisateurs, les colis,
+      // les bons et l'historique déjà rattachés restent donc intacts.
+      //
+      // Tout le reste est laissé tel quel : ville-siège, adresse, téléphone,
+      // rattachement à un prestataire, drapeau central. Ce sont des données
+      // d'exploitation, saisies dans l'application ; un import de grille
+      // fournisseur n'a pas à les réécrire.
+      if (homonyme.nom !== nom) {
+        await prisma.hub.update({ where: { id: homonyme.id }, data: { nom } });
+        return { id: homonyme.id, nom, cree: false, renommeDepuis: homonyme.nom };
+      }
       return { id: homonyme.id, nom: homonyme.nom, cree: false };
     }
     const proprietaire = homonyme.prestataire ? `l'agence de ${homonyme.prestataire.nom}` : 'un hub interne';
@@ -74,6 +96,49 @@ export async function resoudreHubImport(params: {
     select: { id: true, nom: true },
   });
   return { ...cree, cree: true };
+}
+
+// § Sous-traitance — retrouve (ou crée) une ville dans SON agence, en imposant
+// la graphie du document source.
+//
+// Une grille fournisseur se recopie, elle ne se corrige pas : `TIT MELIL`,
+// `l jadida`, `sidi 3llal lbahraoui kamoni` s'affichent tels que le
+// transporteur les écrit. Sinon l'écran ne montre plus ce qui a été annoncé,
+// et toute vérification contre le fichier d'origine devient impossible.
+//
+// D'où les trois temps ci-dessous. Le deuxième est le seul qui écrit : si la
+// ville existe à la casse près — parce qu'un import antérieur l'avait
+// normalisée, ou parce qu'elle a été saisie à la main — son nom est RAMENÉ à
+// celui du fichier, plutôt que de créer un doublon à côté. C'est ce qui rend
+// les imports auto-réparateurs : rejouer `npm run db:reseau` réaligne toujours
+// la base sur les scripts, quel que soit son état de départ.
+export async function resoudreVilleImport(
+  hubId: string,
+  nom: string
+): Promise<{ id: string; cree: boolean; renommeeDepuis: string | null }> {
+  const exacte = await prisma.ville.findUnique({
+    where: { hubId_nom: { hubId, nom } },
+    select: { id: true },
+  });
+  if (exacte) return { id: exacte.id, cree: false, renommeeDepuis: null };
+
+  // Rapprochement en MÉMOIRE et non en SQL : le `mode: 'insensitive'` de
+  // PostgreSQL ignore la casse mais PAS les accents. Chercher « Sale » ne
+  // retrouvait donc pas « Salé », et l'import créait un doublon — six d'un coup
+  // sur la seule Agence Rabat (Salé, Témara, Kénitra, Aïn Atiq, Aïn Aouda, Salé
+  // El Jadida). `normaliserVille` replie les deux, comme pour le rapprochement
+  // des villes saisies en texte libre sur les colis. Une agence compte quelques
+  // dizaines de villes : les charger coûte moins qu'un index d'expression.
+  const duHub = await prisma.ville.findMany({ where: { hubId }, select: { id: true, nom: true } });
+  const cible = normaliserVille(nom);
+  const equivalente = duHub.find((v) => normaliserVille(v.nom) === cible);
+  if (equivalente) {
+    await prisma.ville.update({ where: { id: equivalente.id }, data: { nom } });
+    return { id: equivalente.id, cree: false, renommeeDepuis: equivalente.nom };
+  }
+
+  const creee = await prisma.ville.create({ data: { nom, hubId }, select: { id: true } });
+  return { id: creee.id, cree: true, renommeeDepuis: null };
 }
 
 // § Sous-traitance (/admin/hubs) — le tarif d'achat d'une ville se saisit là où

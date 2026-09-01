@@ -1,6 +1,6 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { resoudreHubImport } from '../lib/prestataires';
+import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
  * Import de l'Agence Tanger (§ /admin/hubs), exécutable via
@@ -63,6 +63,7 @@ async function main() {
   });
 
   const hub = await resoudreHubImport({ prestataireId: prestataire.id, ville: VILLE_HUB, nom: HUB });
+  if (hub.renommeDepuis) console.log(`Hub renommé : "${hub.renommeDepuis}" → "${hub.nom}"`);
   console.log(`${hub.nom} — agence ${prestataire.nom}`);
 
   let creees = 0;
@@ -75,17 +76,10 @@ async function main() {
       // une fois, à la reprise de la zone en sous-traitance ; il n'a plus lieu
       // d'être ici, et une ville homonyme chez un autre réseau n'est plus un
       // conflit — chaque prestataire tient sa propre liste.
-      const existante = await prisma.ville.findUnique({
-        where: { hubId_nom: { hubId: hub.id, nom } },
-      });
-
-      let villeId: string;
-      if (existante) {
-        villeId = existante.id;
-      } else {
-        villeId = (await prisma.ville.create({ data: { nom, hubId: hub.id } })).id;
-        creees += 1;
-      }
+      const ville = await resoudreVilleImport(hub.id, nom);
+      const villeId = ville.id;
+      if (ville.cree) creees += 1;
+      if (ville.renommeeDepuis) console.log(`   ⤷ "${ville.renommeeDepuis}" → "${nom}"`);
 
       await prisma.tarifPrestataireVille.upsert({
         where: { prestataireId_villeId: { prestataireId: prestataire.id, villeId } },

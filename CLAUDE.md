@@ -34,7 +34,8 @@ les contourner ni désactiver une règle pour faire passer le build.
 | `npm test` | `tsx --test lib/__tests__/*.test.ts` — **pas Jest, pas Vitest**. Seul `lib/` est testé |
 | `npm run lint` / `lint:fix` | eslint 9 (flat config) |
 | `npm run db:migrate` | `prisma migrate deploy` |
-| `npm run db:seed` | `tsx prisma/seed.ts` (déclaré dans `prisma.config.ts`, pas dans `package.json`) |
+| `npm run db:seed` | `tsx prisma/seed.ts` (déclaré dans `prisma.config.ts`, pas dans `package.json`) — **le compte admin, et rien d'autre** |
+| `npm run db:reseau` | charge le référentiel de sous-traitance (5 prestataires, 17 agences, 341 villes, 238 tarifs) depuis `scripts/import-prestataire-*.ts`. Idempotent : à rejouer sans risque. **Le seed ne le fait pas** — sans cette commande, une base fraîchement migrée n'a ni hub, ni ville, ni tarif |
 
 ## Stack
 
@@ -157,6 +158,8 @@ export async function POST(request: Request) {
 
 Longue, à lire à la demande — ne pas en recopier le contenu ici :
 
+- `SOUS_TRAITANCE.md` — prestataires, agences, villes et tarifs : ce qui a été **interprété** faute
+  de réponse métier, et les questions qui restent. À lire avant de toucher au référentiel.
 - `GESTION_UTILISATEURS_ROLES_PERMISSIONS.md` — les 12 rôles et le catalogue de permissions
 - `ISOLATION_ROLES_COOKIES.md` — séparation des espaces, cookies, sessions
 - `AUTHENTIFICATION_MARCHAND.md` — parcours d'inscription et de connexion marchand

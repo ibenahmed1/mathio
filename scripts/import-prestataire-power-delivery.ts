@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { resoudreHubImport } from '../lib/prestataires';
+import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
  * Import de la grille de sous-traitance Power Delivery (§ /admin/hubs,
@@ -49,6 +49,12 @@ type AgenceImport = {
   ville: string;
   // false = agence du prestataire (Hub.prestataireId renseigné).
   interne: boolean;
+  // Entrepôt principal de préparation (Hub.isCentral). Posé UNIQUEMENT à la
+  // création du hub : sur une base neuve, sans ce drapeau, aucun hub n'est
+  // central et tout colis de stock préparé part en `en_transit` au lieu de
+  // rester au quai (cf. lib/hub-stock.ts). Sur une base existante on n'y
+  // touche pas — le choix du hub central appartient à l'admin.
+  central?: boolean;
   villes: LigneVille[];
 };
 
@@ -78,19 +84,20 @@ const AGENCES: AgenceImport[] = [
     hub: 'Hub Casablanca',
     ville: 'Casablanca',
     interne: true,
+    central: true,
     villes: [
       ['Casablanca', 15],
       ['Bouskoura', 20],
-      ['Tit Melil', 20],
-      ['Dar Bouazza', 20],
+      ['TIT MELIL', 20],
+      ['Dar bouazza', 20],
       ['Deroua', 20],
-      ['Nouacer', 20],
-      ['Tamaris', 20],
-      ['Mediouna', 20],
+      ['NOUACER', 20],
+      ['TAMARIS', 20],
+      ['MEDIOUNA', 20],
       ['Berrechid', 20],
-      ['Sidi Hajaj', 20],
-      ['Settat', 20],
-      ['Ben Ahmed', 20],
+      ['SIDI HAJAJ', 20],
+      ['SETTAT', 20],
+      ['Ben ahmed', 20],
       ['Lahraouyine', 20],
     ],
   },
@@ -100,16 +107,16 @@ const AGENCES: AgenceImport[] = [
     interne: false,
     villes: [
       ['l jadida', 20],
-      ['Sidi Rahal', 23],
+      ['SIDI RAHAL', 23],
       ['Azemmour', 23],
-      ['Sidi Bouzid', 23],
+      ['Sidi bouzid', 23],
       ['TNIN CHTOUKA - EL JADIDA', 23],
-      ['Bir Jdid', 23],
-      ['Sidi Smail', 23],
-      ['Khemis des Zemamra', 25],
-      ['Moulay Abdellah', 23],
-      ['Had Soualem', 23],
-      ['Sidi Bennour', 25],
+      ['Bir jdid', 23],
+      ['SIDI SMAIL', 23],
+      ['Khemis des zemamra', 25],
+      ['MOULAY ABDELLAH', 23],
+      ['Had soualem', 23],
+      ['SIDI BENNOUR', 25],
     ],
   },
   {
@@ -120,43 +127,43 @@ const AGENCES: AgenceImport[] = [
       ['Ben Guerir', 25],
       ['Demnat', 25],
       ['Marrakech', 20],
-      ['Tamansourt', 25],
+      ['TAMANSOURT', 25],
       ['ait aourir', 25],
       ['El Kelaâ des Sraghna', 25],
       ['Chichaoua', 25],
-      ['El Attaouia', 25],
-      ['Ouled Yahya', 25],
+      ['El attaouia', 25],
+      ['ouled yahya', 25],
       ['tamelelt', 25],
-      ['Sidi Bou Othmane', 25],
-      ['Mzoudia', 25],
+      ['Sidi bou othmane', 25],
+      ['mzoudia', 25],
       ['Mzouda', 25],
-      ['Ouargui', 25],
-      ['Kettara', 25],
-      ['Lamnabeha', 25],
-      ['Ras El Ain Rhamna', 25],
-      ['Skhour Rehamna', 25],
-      ['Tassoultante', 25],
-      ['Sid Mokhtar', 25],
-      ['Lalla Takerkoust', 25],
-      ['Moulay Brahim', 25],
-      ['Tahannaout', 25],
-      ['Aghmat', 25],
-      ['Sidi Ghiat', 25],
-      ['Ouled Hassoune', 25],
-      ['Tassaout', 25],
-      ['Sidi Zouine', 25],
-      ['Loudaya', 25],
-      ['Souihla', 25],
+      ['ouargui', 25],
+      ['kettara', 25],
+      ['lamnabeha', 25],
+      ['ras elain erhamna', 25],
+      ['skhour rehamna', 25],
+      ['tassoultante', 25],
+      ['sid mokhtar', 25],
+      ['lalla takerkoust', 25],
+      ['moulay brahim', 25],
+      ['tahannaout', 25],
+      ['aghmat', 25],
+      ['sidi ghiat', 25],
+      ['ouled hassoune', 25],
+      ['tassaout', 25],
+      ['Sidi zouine', 25],
+      ['loudaya', 25],
+      ['souihla', 25],
       ['Ourika', 25],
-      ['Choueiter', 25],
+      ['choueiter', 25],
       ['Amizmiz', 25],
       ['Imintanoute', 25],
-      ['Tameslouhte', 25],
+      ['tameslouhte', 25],
       ['Echemmaia', 25],
-      ['Youssoufia', 25],
-      ['Asni', 25],
-      ['El Ouidane', 25],
-      ['Ouaht Sidi Brahim', 25],
+      ['YOUSSOUFIA', 25],
+      ['ASNI', 25],
+      ['el ouidane', 25],
+      ['Ouaht sidi brahim', 25],
       ['Sidi moussa - Marrakech', 25],
       // Secondes graphies du MÊME fichier : « Aït ourir » (p.2) redit
       // « ait aourir » (p.1), « Tamallalt » redit « tamelelt ». Elles sont
@@ -172,10 +179,10 @@ const AGENCES: AgenceImport[] = [
     ville: 'Safi',
     interne: false,
     villes: [
-      ['Safi', 23],
+      ['SAFI', 23],
       ['Essaouira', 23],
-      ['Sebt Gzoula', 23],
-      ['Jemaa Shaim', 23],
+      ['SEBT GZOULA', 23],
+      ['Jemaa shaim', 23],
     ],
   },
   {
@@ -184,27 +191,27 @@ const AGENCES: AgenceImport[] = [
     interne: false,
     villes: [
       ['Rabat', 20],
-      ['Salé', 23],
-      ['Témara', 23],
-      ['Kénitra', 25],
+      ['Sale', 23],
+      ['Temara', 23],
+      ['Kenitra', 25],
       ['Bouknadel', 25],
       ['Harhoura', 25],
-      ['Mers El Kheir', 25],
-      ['Aïn Atiq', 25],
+      ['Mers el kheir', 25],
+      ['Ain atiq', 25],
       ['Skhirate', 25],
       // « TEMSENA » et « Tamssna » sont deux lignes du fichier pour ce qui est
       // vraisemblablement la même ville. Les deux sont conservées : trancher
       // serait corriger le fournisseur à sa place.
       ['TEMSENA', 25],
       ['Tamssna', 25],
-      ['Aïn Aouda', 25],
+      ['Ain aouda', 25],
       ['Bouznika', 25],
-      ['Allal Tazi', 25],
+      ['Allal tazi', 25],
       ['Benslimane', 25],
-      ['El Arjat', 25],
-      ['Sidi Taibi', 25],
-      ['Salé El Jadida', 25],
-      ['Bassatine El Menzah', 25],
+      ['El arjat', 25],
+      ['Sidi taibi', 25],
+      ['Sale el jadida', 25],
+      ['Bassatine elmnzah', 25],
     ],
   },
 ];
@@ -230,6 +237,37 @@ async function main() {
     // rattachement, qu'un import n'a pas à changer sous les pieds d'un autre
     // réseau (§ resoudreHubImport).
     const hub = await resoudreHubImport({ prestataireId, ville: agence.ville, nom: agence.hub });
+    if (hub.renommeDepuis) console.log(`\nHub renommé : "${hub.renommeDepuis}" → "${hub.nom}"`);
+
+    // SEULE écriture de tout l'import sur un Hub — et elle ne vise QUE les hubs
+    // que l'import vient de créer.
+    //
+    // Sur une base neuve, sans ce drapeau, aucun hub n'est central et tout colis
+    // de stock préparé part en `en_transit` au lieu de rester au quai
+    // (cf. lib/hub-stock.ts) : il faut donc le poser.
+    //
+    // Sur un hub qui EXISTAIT DÉJÀ, non : ce hub porte des utilisateurs, des
+    // colis et des bons: le marquer central changerait le comportement d'un
+    // système en service, sur la seule foi d'un script d'import. On le signale,
+    // et un humain tranche depuis /admin/hubs.
+    if (agence.central) {
+      const central = await prisma.hub.findFirst({ where: { isCentral: true }, select: { nom: true } });
+      if (central) {
+        if (central.nom !== hub.nom) {
+          console.log(`\n(hub central déjà défini : « ${central.nom} » — laissé tel quel)`);
+        }
+      } else if (hub.cree) {
+        await prisma.hub.update({ where: { id: hub.id }, data: { isCentral: true } });
+        console.log(`\n${hub.nom} — marqué hub CENTRAL à sa création`);
+      } else {
+        console.log(
+          `\n⚠ AUCUN hub central, et « ${hub.nom} » existait déjà : il n'a PAS été modifié.\n` +
+            `  Cochez « hub central » sur ce hub depuis /admin/hubs, sinon les colis de stock\n` +
+            `  préparés partiront en transit au lieu de rester au quai.`
+        );
+      }
+    }
+
     console.log(
       `\n${hub.nom} — ${agence.interne ? 'hub interne' : `agence ${prestataire.nom}`} · ${agence.villes.length} villes`
     );
@@ -240,13 +278,11 @@ async function main() {
       // liste, écrite comme son fichier l'écrit. Une ville homonyme chez un
       // concurrent n'est plus un conflit à arbitrer ni une ville à déplacer —
       // ce sont deux offres sur la même ville, ce que le référentiel sait
-      // désormais représenter.
-      const ville =
-        (await prisma.ville.findUnique({ where: { hubId_nom: { hubId: hub.id, nom } } })) ??
-        (await prisma.ville.create({ data: { nom, hubId: hub.id } }).then((v) => {
-          villesCreees += 1;
-          return v;
-        }));
+      // désormais représenter. Et la graphie du fichier fait foi : une ville
+      // trouvée à la casse près est RENOMMÉE (cf. resoudreVilleImport).
+      const ville = await resoudreVilleImport(hub.id, nom);
+      if (ville.cree) villesCreees += 1;
+      if (ville.renommeeDepuis) console.log(`   ⤷ "${ville.renommeeDepuis}" → "${nom}"`);
 
       await prisma.tarifPrestataireVille.upsert({
         where: { prestataireId_villeId: { prestataireId: prestataire.id, villeId: ville.id } },

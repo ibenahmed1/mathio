@@ -1,6 +1,6 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { resoudreHubImport } from '../lib/prestataires';
+import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
  * Import du réseau Meta Livraison (§ /admin/hubs), exécutable via
@@ -52,46 +52,46 @@ const AGENCES: AgenceImport[] = [
     hub: 'Agence Taounate',
     ville: 'Taounate',
     secteurs: [
-      { jours: '-xxxxxx', villes: ['Rafsay', 'Wrtzag', 'Hajriya', 'Sahla Botahr', 'Mazraoua'] },
-      { jours: 'xxxxxx-', villes: ['Taounate Centre', 'Rmila', 'Dchiyar'] },
-      { jours: '-x-xxxx', villes: ['Galaz', 'Fricha', 'Timzgana'] },
-      { jours: 'xxxxxxx', villes: ['Sidi Mkhfi', 'Hjar Ma3dan'] },
-      { jours: '-xx--x-', villes: ['Ikaouen', 'Bab Jbah'] },
-      // « Kantra Asqar » figure aussi dans le secteur Mrouj ci-dessous, avec des
+      { jours: '-xxxxxx', villes: ['Rafsay', 'wrtzag', 'hajriya', 'sahla botahr', 'mazraoua'] },
+      { jours: 'xxxxxx-', villes: ['taounate centre', 'rmila', 'dchiyar'] },
+      { jours: '-x-xxxx', villes: ['galaz', 'fricha', 'timzgana'] },
+      { jours: 'xxxxxxx', villes: ['sidi mkhfi', 'hjar ma3dan'] },
+      { jours: '-xx--x-', villes: ['ikaouen', 'bab jbah'] },
+      // « kantra asqar » figure aussi dans le secteur mrouj ci-dessous, avec des
       // jours différents. Première occurrence retenue, cf. le rapport de fin.
-      { jours: '-xx--x-', villes: ['Khlalfa', 'Zrizer', 'Kantra Asqar'] },
-      { jours: '-xx--x-', villes: ['Imghden', 'Taounat Aqchour', 'Machkour'] },
-      { jours: 'x--x---', villes: ['Marnissa', 'Thar Souk', 'Kantra Jdida'] },
-      { jours: 'xxxx-x-', villes: ['Mrouj', 'Bouhouda', 'Bni Wlid'] },
-      { jours: 'x-x-x--', villes: ['Bouadil', 'Ain Madyouna', 'Wlad Azam'] },
-      { jours: 'xxxxxx-', villes: ['Wlad Daouad', 'Kanssara', 'Firma Pla'] },
-      { jours: 'xxxxxx-', villes: ['Tissa'] },
-      { jours: '-x-x-x-', villes: ['Ain Aicha'] },
+      { jours: '-xx--x-', villes: ['khlalfa', 'zrizer', 'kantra asqar'] },
+      { jours: '-xx--x-', villes: ['imghden', 'taounat aqchour', 'machkour'] },
+      { jours: 'x--x---', villes: ['marnissa', 'thar souk', 'kantra jdida'] },
+      { jours: 'xxxx-x-', villes: ['mrouj', 'bouhouda', 'bni wlid'] },
+      { jours: 'x-x-x--', villes: ['bouadil', 'ain madyouna', 'wlad azam'] },
+      { jours: 'xxxxxx-', villes: ['wlad daouad', 'kanssara', 'firma pla'] },
+      { jours: 'xxxxxx-', villes: ['tissa'] },
+      { jours: '-x-x-x-', villes: ['AIN AICHA'] },
     ],
   },
   {
     hub: 'Agence Taza',
     ville: 'Taza',
     secteurs: [
-      { jours: 'xxxxxx-', villes: ['Taza', 'Guercif', 'Taourirt', 'Tahla'] },
-      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['Ouad Amlil'] },
+      { jours: 'xxxxxx-', villes: ['TAZA', 'GUERCIF', 'TAOURIRT', 'TAHLA'] },
+      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['OUAD AMLIL'] },
       // Le fichier liste ces localités sans aucun jour coché : elles sont
       // desservies par l'agence, le calendrier n'est simplement pas rempli.
       {
         jours: '???????',
         villes: [
-          'Aknoul',
-          'Tiziousli',
-          'Ajdir Taza',
-          'Boured',
-          'Sidi Ali Bourekba',
-          'Bab Marzoka',
-          'Taddart Guerci',
-          'Marzou9a',
-          'Bni Ftaah',
-          'Sabt Bou9lal',
-          'Bouhlou',
-          'Jbarna',
+          'AKNOUL',
+          'TIZIOUSLI',
+          'AJDIR TAZA',
+          'BOURED',
+          'SIDI ALI BOUREKBA',
+          'BAB MARZOKA',
+          'TADDART GUERCI',
+          'marzou9a',
+          'bni ftaah',
+          'sabt bou9lal',
+          'bouhlou',
+          'jbarna',
         ],
       },
     ],
@@ -100,38 +100,40 @@ const AGENCES: AgenceImport[] = [
     hub: 'Agence Missour',
     ville: 'Missour',
     secteurs: [
-      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['Outat El Haj'] },
-      { jours: '---x--x', villes: ['Imouzzer Marmocha'] },
-      { jours: '???????', villes: ['Missour', 'Tandit'] },
+      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['outat el haj'] },
+      { jours: '---x--x', villes: ['imouzzer marmocha'] },
+      { jours: '???????', villes: ['missour', 'tandit'] },
     ],
   },
   {
     hub: 'Agence Boulmane',
     ville: 'Boulmane',
     secteurs: [
-      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['Guigo'] },
-      { jours: '???????', villes: ['Timahdit'] },
+      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['guigo'] },
+      { jours: '???????', villes: ['timahdit'] },
     ],
   },
   {
     hub: 'Agence Khemisset',
     ville: 'Khemisset',
     secteurs: [
-      { jours: 'xxxxxx-', villes: ['Khemisset'] },
-      // Le fichier écrit « sidi 3llal lbahraoui kamoni » d'un seul tenant, sans
-      // séparateur : conservé tel quel plutôt que découpé au jugé.
-      { jours: 'x-x-x--', villes: ['Sidi Allal Lbahraoui Kamoni'] },
-      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['Ain Sbiit'] },
-      { jours: '???????', villes: ['Tifelt', 'Oualmas', 'Romani', 'Lma3ziz', 'Tedass', 'Jm3at Hodran'] },
+      { jours: 'xxxxxx-', villes: ['khemisset'] },
+      // Écrit d'un seul tenant dans le tableur, sans séparateur : conservé tel
+      // quel plutôt que découpé au jugé. Le « 3 » de l'alphabet de discussion
+      // (ع) est gardé, comme dans marzou9a, lma3ziz, jm3at hodran, sidi 3edi —
+      // une version antérieure le développait en « A » sur ce seul nom.
+      { jours: 'x-x-x--', villes: ['sidi 3llal lbahraoui kamoni'] },
+      { jours: '???????', note: TOUS_JOURS_SAUF_JOUR_MEME, villes: ['ain sbiit'] },
+      { jours: '???????', villes: ['tifelt', 'oualmas', 'romani', 'lma3ziz', 'tedass', 'jm3at hodran'] },
     ],
   },
   {
     hub: 'Agence Azrou',
     ville: 'Azrou',
     secteurs: [
-      { jours: 'xxxxxx-', villes: ['Azrou', 'Ifrane'] },
-      { jours: '--x--x-', villes: ['Ain Louh', 'Sidi 3edi'] },
-      { jours: '???????', villes: ['Ait Yahya Oualla', 'Ait Amour Ouali'] },
+      { jours: 'xxxxxx-', villes: ['azrou', 'ifrane'] },
+      { jours: '--x--x-', villes: ['ain louh', 'sidi 3edi'] },
+      { jours: '???????', villes: ['ait yahya oualla', 'ait amour ouali'] },
     ],
   },
   {
@@ -141,38 +143,40 @@ const AGENCES: AgenceImport[] = [
       {
         jours: 'xxxxxx-',
         villes: [
-          'Meknès',
-          'Lhajeb',
-          'Boufakrane',
-          'Mejjat',
-          'Sidi Slimen Moul Lkifan',
-          'Lhaj 9adour',
-          'Dar Oum Soultan',
+          // Graphie du tableur (« meknes »), sans l'accent ajouté à l'import.
+          'meknes',
+          'lhajeb',
+          'boufakrane',
+          'mejjat',
+          'sidi slimen moul lkifan',
+          'lhaj 9adour',
+          'dar oum soultan',
         ],
       },
-      { jours: 'xx-x---', villes: ['Ouad Jdida', 'Sebaa Ayoun'] },
-      { jours: '-x-x-x-', villes: ['Kantina', 'Agouray', 'Jeri', 'Sebt Jehjouh', 'Ait Ya3zem'] },
-      { jours: '---x-x-', villes: ['Ain Karma'] },
-      { jours: 'x-x-x--', villes: ['Sidi Ali', 'Ragouba'] },
-      { jours: 'x--x---', villes: ['Dkhissa'] },
-      { jours: '???????', villes: ['Moulay Driss Zerhouni'] },
+      // « SEBA AYOUN » dans le tableur — un « a » avait été ajouté à l'import.
+      { jours: 'xx-x---', villes: ['ouad jdida', 'SEBA AYOUN'] },
+      { jours: '-x-x-x-', villes: ['kantina', 'AGOURAY', 'JERI', 'sebt jehjouh', 'ait ya3zem'] },
+      { jours: '---x-x-', villes: ['ain karma'] },
+      { jours: 'x-x-x--', villes: ['sidi ali', 'ragouba'] },
+      { jours: 'x--x---', villes: ['dkhissa'] },
+      { jours: '???????', villes: ['moulay driss zerhouni'] },
     ],
   },
   {
     hub: 'Agence Sefrou',
     ville: 'Sefrou',
     secteurs: [
-      { jours: 'xxxxxx-', villes: ['Sefrou', 'Bhalil'] },
-      { jours: 'x-x-x--', villes: ['Ras Tbouda', 'Bir Tamtam', 'Azzaba', 'El Menzel', 'Bodrahm', 'Rebat Lkhir'] },
-      { jours: 'x---x--', villes: ['Zaouiat Bougrine'] },
+      { jours: 'xxxxxx-', villes: ['SEFROU', 'BHALIL'] },
+      { jours: 'x-x-x--', villes: ['RAS TBOUDA', 'BIR TAMTAM', 'AZZABA', 'EL MENZEL', 'BODRAHM', 'REBAT LKHIR'] },
+      { jours: 'x---x--', villes: ['ZAOUIAT BOUGRINE'] },
     ],
   },
   {
     hub: 'Agence Fès',
     ville: 'Fès',
     secteurs: [
-      { jours: '--x--x-', villes: ['Moulay Yaacoub'] },
-      { jours: 'x--x---', villes: ['Sidi Hrazem'] },
+      { jours: '--x--x-', villes: ['MOULAY YAACOUB'] },
+      { jours: 'x--x---', villes: ['SIDI HRAZEM'] },
     ],
   },
 ];
@@ -199,6 +203,7 @@ async function main() {
 
     const villes = agence.secteurs.flatMap((s) => s.villes);
     console.log(`\n${hub.nom} — ${villes.length} villes`);
+    if (hub.renommeDepuis) console.log(`   Hub renommé : "${hub.renommeDepuis}" → "${hub.nom}"`);
 
     for (const nom of villes) {
       if (dejaVues.has(nom)) {
@@ -210,15 +215,11 @@ async function main() {
       // Recherche DANS CETTE AGENCE (§ @@unique([hubId, nom]) sur Ville).
       // L'homonymie avec la ville d'un autre réseau n'est plus un conflit à
       // signaler : chaque prestataire tient sa propre liste, et deux
-      // transporteurs qui desservent Aknoul y ont chacun leur ligne.
-      const existante = await prisma.ville.findUnique({
-        where: { hubId_nom: { hubId: hub.id, nom } },
-      });
-
-      if (!existante) {
-        await prisma.ville.create({ data: { nom, hubId: hub.id } });
-        creees += 1;
-      }
+      // transporteurs qui desservent AKNOUL y ont chacun leur ligne, chacune
+      // écrite comme son fichier l'écrit.
+      const ville = await resoudreVilleImport(hub.id, nom);
+      if (ville.cree) creees += 1;
+      if (ville.renommeeDepuis) console.log(`   ⤷ "${ville.renommeeDepuis}" → "${nom}"`);
     }
   }
 

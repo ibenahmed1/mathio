@@ -282,111 +282,79 @@ export default function AdminHubsPage() {
     }
   }
 
-  async function supprimerPrestataire(prestataire: Prestataire) {
-    if (!window.confirm(`Supprimer le prestataire "${prestataire.nom}" ? Sa grille tarifaire sera perdue.`)) return;
-    setError(null);
-    try {
-      await apiDelete(`/api/prestataires/${prestataire.id}`);
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    }
+  // Ouvre la fiche d'un prestataire depuis la carte d'une de ses agences.
+  // Sa SUPPRESSION n'a plus de point d'entrée, le bandeau qui la portait ayant
+  // été retiré : `DELETE /api/prestataires/[id]` existe toujours et reste
+  // protégé (refus tant qu'une agence lui est rattachée), il n'est simplement
+  // plus appelé d'ici.
+  function ouvrirPrestataire(id: string) {
+    const prestataire = prestataires.find((p) => p.id === id);
+    if (prestataire) setModal({ kind: 'prestataire', mode: 'edit', prestataire });
   }
 
   const hubFormulaireVille = hubs.find((h) => h.id === villeHubId) ?? null;
 
   return (
     <div className="hubs-page">
-      <div className="page-header">
+      {/* En-tête et filtres reprennent les composants de `globals.css`
+          (`page-title`, `btn-primary`, `btn-outline`, `input-basic`,
+          `dashboard-card`) plutôt que les leurs : cette page se lit à la suite
+          des autres écrans admin, elle doit ouvrir comme eux. Seules les CARTES
+          gardent leur feuille propre — c'est là qu'est la valeur du dessin. */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1>Gestion des Hubs</h1>
-          <p className="subtitle">
+          <h1 className="page-title">Gestion des Hubs</h1>
+          <p className="mt-0.5 text-sm opacity-60">
             {totaux.hubs} hub{totaux.hubs > 1 ? 's' : ''} dont {totaux.agences} sous-traité{totaux.agences > 1 ? 's' : ''} ·{' '}
             {totaux.villes} ville{totaux.villes > 1 ? 's' : ''} · {totaux.colisDepot} colis au dépôt
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="hub-btn" onClick={() => setModal({ kind: 'prestataire', mode: 'create' })}>
-            <Building2 size={15} /> Nouveau prestataire
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-outline" onClick={() => setModal({ kind: 'prestataire', mode: 'create' })}>
+            <Building2 className="h-4 w-4" /> Nouveau prestataire
           </button>
-          <button type="button" className="hub-btn hub-btn--primary" onClick={() => setModal({ kind: 'hub', mode: 'create' })}>
-            <Plus size={15} /> Nouveau hub
+          <button type="button" className="btn-primary" onClick={() => setModal({ kind: 'hub', mode: 'create' })}>
+            <Plus className="h-4 w-4" /> Nouveau hub
           </button>
         </div>
       </div>
 
-      {error && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#9C4E46' }}>{error}</p>}
+      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-      <div className="filter-bar">
-        <div className="search">
-          <Search size={15} style={{ stroke: 'var(--gray-light)', flex: '0 0 15px' }} />
+      <div className="dashboard-card flex flex-wrap items-center gap-3">
+        <div className="relative min-w-56 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-40" />
           <input
+            className="input-basic w-full pl-9"
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Hub, prestataire ou ville…"
             aria-label="Rechercher un hub ou une ville"
           />
         </div>
-        <div className="divider" />
-        <span className="label">EXPLOITATION</span>
-        {(
-          [
-            ['tous', 'Tous'],
-            ['interne', 'Internes'],
-            ['soustraite', 'Sous-traités'],
-          ] as const
-        ).map(([valeur, label]) => (
-          <button
-            key={valeur}
-            type="button"
-            className={`hub-chip ${filtre === valeur ? 'is-active' : ''}`}
-            onClick={() => setFiltre(valeur)}
-          >
-            {label}
-          </button>
-        ))}
-        <span className="badge-depot" style={{ marginLeft: 'auto' }}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-wider opacity-45">Exploitation</span>
+          {(
+            [
+              ['tous', 'Tous'],
+              ['interne', 'Internes'],
+              ['soustraite', 'Sous-traités'],
+            ] as const
+          ).map(([valeur, label]) => (
+            <button
+              key={valeur}
+              type="button"
+              className={filtre === valeur ? 'btn-primary' : 'btn-outline'}
+              onClick={() => setFiltre(valeur)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="ml-auto rounded-full bg-brand/20 px-3 py-1.5 text-sm font-semibold">
           {totaux.colisDepot} colis au dépôt
         </span>
       </div>
-
-      {/* Prestataires : en tête de grille, parce qu'un hub ne peut être rattaché
-          qu'à un prestataire déjà créé. */}
-      {prestataires.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {prestataires.map((p) => (
-            <div key={p.id} className={`prestataire-row ${p.actif ? '' : 'prestataire-row--inactif'}`}>
-              <Building2 size={15} style={{ stroke: 'var(--gray-light)', flex: '0 0 15px' }} />
-              <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <span className="prestataire-row__nom">
-                  {p.nom}
-                  {!p.actif && <span style={{ fontWeight: 400, opacity: 0.7 }}> · inactif</span>}
-                </span>
-                <span className="prestataire-row__meta">
-                  {p.agences?.length ?? 0} agence{(p.agences?.length ?? 0) > 1 ? 's' : ''} · {p.nbVillesTarifees ?? 0} villes
-                  tarifées
-                </span>
-              </span>
-              <button
-                type="button"
-                className="hub-btn hub-btn--icon"
-                aria-label={`Modifier ${p.nom}`}
-                onClick={() => setModal({ kind: 'prestataire', mode: 'edit', prestataire: p })}
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                type="button"
-                className="hub-btn hub-btn--icon is-danger"
-                aria-label={`Supprimer ${p.nom}`}
-                onClick={() => supprimerPrestataire(p)}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
 
       <div className="hub-grid">
         {hubsFiltres.map((hub) => {
@@ -408,8 +376,27 @@ export default function AdminHubsPage() {
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                   <div style={{ minWidth: 0 }}>
                     <div className="hub-card__name">{hub.nom}</div>
+                    {/* Le nom du prestataire ouvre sa fiche : le bandeau qui
+                        listait les prestataires a été retiré, et sans ce point
+                        d'entrée on ne pourrait plus en renommer un ni corriger
+                        ses coordonnées. Aucun chrome ajouté — c'est la ligne de
+                        service, déjà affichée. */}
                     <div className="hub-card__sub">
-                      {hub.prestataire ? hub.prestataire.nom : hub.isCentral ? 'Hub central' : 'Hub interne'} · {hub.ville}
+                      {hub.prestataire ? (
+                        <button
+                          type="button"
+                          className="hub-card__sub-lien"
+                          title={`Modifier ${hub.prestataire.nom}`}
+                          onClick={() => ouvrirPrestataire(hub.prestataire!.id)}
+                        >
+                          {hub.prestataire.nom}
+                        </button>
+                      ) : hub.isCentral ? (
+                        'Hub central'
+                      ) : (
+                        'Hub interne'
+                      )}{' '}
+                      · {hub.ville}
                     </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -521,7 +508,7 @@ export default function AdminHubsPage() {
 
                 <div className="hub-card__actions">
                   <button type="button" className="hub-btn" onClick={() => setDepliees((d) => basculer(d, hub.id))}>
-                    <MapPin size={14} /> {estDepliee ? 'Masquer les villes' : 'Gérer les villes'}
+                    <MapPin size={16} /> {estDepliee ? 'Masquer les villes' : 'Gérer les villes'}
                   </button>
                   <button
                     type="button"
@@ -529,7 +516,7 @@ export default function AdminHubsPage() {
                     aria-label={`Modifier ${hub.nom}`}
                     onClick={() => setModal({ kind: 'hub', mode: 'edit', hub })}
                   >
-                    <Pencil size={14} />
+                    <Pencil size={17} />
                   </button>
                   <button
                     type="button"
@@ -537,7 +524,7 @@ export default function AdminHubsPage() {
                     aria-label={`Supprimer ${hub.nom}`}
                     onClick={() => supprimerHub(hub)}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={17} />
                   </button>
                 </div>
               </div>

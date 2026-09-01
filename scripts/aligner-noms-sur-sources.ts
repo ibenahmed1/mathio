@@ -33,6 +33,20 @@ import { prisma } from '../lib/prisma';
  */
 
 const RENOMMAGES: { agence: string; de: string; vers: string; motif: string }[] = [
+  // --- Power Delivery -----------------------------------------------------
+  {
+    agence: 'Agence Marrakech',
+    de: 'Ras El Ain Rhamna',
+    vers: 'ras elain erhamna',
+    motif: 'lettres déplacées, pas seulement la casse',
+  },
+  {
+    agence: 'Agence Rabat',
+    de: 'Bassatine El Menzah',
+    vers: 'Bassatine elmnzah',
+    motif: 'un « e » ajouté',
+  },
+
   // --- Meta Livraison -----------------------------------------------------
   {
     agence: 'Agence Khemisset',
@@ -47,17 +61,30 @@ const RENOMMAGES: { agence: string; de: string; vers: string; motif: string }[] 
   { agence: 'Agence Agadir', de: 'Ait Melloul', vers: 'ait mlloul', motif: 'orthographe corrigée à l’import' },
 ];
 
-// En-têtes de groupe des messages WhatsApp, créés à tort comme villes.
-const A_SUPPRIMER: { agence: string; nom: string }[] = [
-  { agence: 'Agence Agadir', nom: 'Taroudant' },
-  { agence: 'Agence Agadir', nom: 'Tiznit' },
-  { agence: 'Agence Agadir', nom: 'Oulad Teima' },
+const A_SUPPRIMER: { agence: string; nom: string; motif: string }[] = [
+  // En-têtes de groupe des messages WhatsApp, créés à tort comme villes.
+  { agence: 'Agence Agadir', nom: 'Taroudant', motif: 'en-tête de groupe' },
+  { agence: 'Agence Agadir', nom: 'Tiznit', motif: 'en-tête de groupe' },
+  { agence: 'Agence Agadir', nom: 'Oulad Teima', motif: 'en-tête de groupe' },
+
+  // Doublons nés d'un rapprochement qui ignorait la casse mais pas les
+  // ACCENTS : « Sale » ne retrouvait pas « Salé », l'import créait une seconde
+  // ligne à côté. Corrigé dans resoudreVilleImport ; ces six-là restaient.
+  // C'est la graphie ACCENTUÉE qui part — le fichier écrit sans accents.
+  { agence: 'Agence Rabat', nom: 'Salé', motif: 'doublon accentué de « Sale »' },
+  { agence: 'Agence Rabat', nom: 'Témara', motif: 'doublon accentué de « Temara »' },
+  { agence: 'Agence Rabat', nom: 'Kénitra', motif: 'doublon accentué de « Kenitra »' },
+  { agence: 'Agence Rabat', nom: 'Aïn Atiq', motif: 'doublon accentué de « Ain atiq »' },
+  { agence: 'Agence Rabat', nom: 'Aïn Aouda', motif: 'doublon accentué de « Ain aouda »' },
+  { agence: 'Agence Rabat', nom: 'Salé El Jadida', motif: 'doublon accentué de « Sale el jadida »' },
 ];
 
+// Null plutôt qu'une exception si le hub n'existe pas : ce script est enchaîné
+// AVANT les imports dans `npm run db:reseau`, et sur une base fraîchement
+// migrée aucun hub n'existe encore. Il doit alors ne rien faire, silencieusement,
+// et laisser les imports créer directement les bons noms.
 async function hubParNom(nom: string) {
-  const hub = await prisma.hub.findUnique({ where: { nom }, select: { id: true } });
-  if (!hub) throw new Error(`Hub introuvable : "${nom}"`);
-  return hub;
+  return prisma.hub.findUnique({ where: { nom }, select: { id: true } });
 }
 
 async function main() {
@@ -65,6 +92,7 @@ async function main() {
   let renommees = 0;
   for (const { agence, de, vers, motif } of RENOMMAGES) {
     const hub = await hubParNom(agence);
+    if (!hub) continue;
     const ville = await prisma.ville.findUnique({ where: { hubId_nom: { hubId: hub.id, nom: de } } });
     if (!ville) {
       console.log(`   (sans effet : "${de}" absente de ${agence})`);
@@ -75,10 +103,11 @@ async function main() {
     renommees += 1;
   }
 
-  console.log('\n--- En-têtes pris pour des villes ---');
+  console.log('\n--- Villes à retirer ---');
   let supprimees = 0;
-  for (const { agence, nom } of A_SUPPRIMER) {
+  for (const { agence, nom, motif } of A_SUPPRIMER) {
     const hub = await hubParNom(agence);
+    if (!hub) continue;
     const ville = await prisma.ville.findUnique({
       where: { hubId_nom: { hubId: hub.id, nom } },
       select: {
@@ -100,7 +129,7 @@ async function main() {
     }
 
     await prisma.ville.delete({ where: { id: ville.id } });
-    console.log(`   − "${nom}" supprimée (en-tête de groupe, pas une destination)`);
+    console.log(`   − "${nom}" supprimée (${motif})`);
     supprimees += 1;
   }
 

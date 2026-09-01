@@ -1,4 +1,4 @@
-/* ===== Gestion des Hubs — style (Mathio Delivery) =====
+﻿/* ===== Gestion des Hubs — style (Mathio Delivery) =====
  *
  * Feuille propre à /admin/hubs, importée par sa page — même convention que
  * app/admin/tasks/board.css.
@@ -69,25 +69,11 @@
   }
 }
 
-/* ---------- en-tête de page ---------- */
-.hubs-page .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-.hubs-page .page-header h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-.hubs-page .page-header .subtitle {
-  margin: 0;
-  font-size: 13px;
-  color: var(--gray);
-}
+/* L'EN-TÊTE ET LA BARRE DE FILTRES ne sont plus habillés ici : ils reprennent
+   `page-title`, `btn-primary`, `btn-outline`, `input-basic` et `dashboard-card`
+   de `globals.css`, pour que cette page ouvre comme les autres écrans admin.
+   Cette feuille ne dessine plus que les CARTES, qui n'ont pas d'équivalent
+   ailleurs. */
 
 /* ---------- boutons ---------- */
 .hubs-page .hub-btn {
@@ -116,12 +102,15 @@
 .hubs-page .hub-btn--primary:hover {
   filter: brightness(0.96);
 }
+/* 42 px et non 34 : à 34 les deux icônes du pied de carte passaient sous la
+   cible tactile confortable, et paraissaient minuscules à côté du bouton
+   « Gérer les villes » qui occupe toute la largeur restante. */
 .hubs-page .hub-btn--icon {
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   padding: 0;
   justify-content: center;
-  flex: 0 0 34px;
+  flex: 0 0 42px;
   color: var(--gray);
 }
 .hubs-page .hub-btn--icon.is-danger {
@@ -132,71 +121,6 @@
   border-color: var(--danger-border);
 }
 
-/* ---------- barre de filtres ---------- */
-.hubs-page .filter-bar {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.hubs-page .filter-bar .search {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-input);
-  flex: 0 0 240px;
-}
-.hubs-page .filter-bar .search input {
-  border: none;
-  outline: none;
-  background: transparent;
-  font: 13px inherit;
-  font-family: inherit;
-  color: var(--ink);
-  width: 100%;
-}
-.hubs-page .filter-bar .divider {
-  width: 1px;
-  height: 24px;
-  background: var(--border);
-}
-.hubs-page .filter-bar .label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--gray-light);
-}
-.hubs-page .hub-chip {
-  padding: 6px 13px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: var(--bg-card);
-  font: 500 12.5px inherit;
-  font-family: inherit;
-  color: var(--ink);
-  cursor: pointer;
-}
-.hubs-page .hub-chip.is-active {
-  background: #ffb701;
-  border-color: #ffb701;
-  color: #1a1a18;
-  font-weight: 600;
-}
-.hubs-page .badge-depot {
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: var(--amber-bg);
-  color: var(--amber-ink);
-  font-size: 12px;
-  font-weight: 600;
-}
 
 /* ---------- grille ---------- */
 /* `align-items: start` laissait chaque carte à sa hauteur naturelle : dans une
@@ -261,6 +185,25 @@
   font-size: 11.5px;
   color: #fff;
   opacity: 0.75;
+}
+/* Le nom du prestataire est cliquable (ouvre sa fiche) sans en avoir l'air : le
+   soulignement n'apparaît qu'au survol, pour ne pas transformer la ligne de
+   service en lien criard sur chacune des dix-sept cartes. */
+.hubs-page .hub-card__sub-lien {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s;
+}
+.hubs-page .hub-card__sub-lien:hover,
+.hubs-page .hub-card__sub-lien:focus-visible {
+  text-decoration-color: currentColor;
 }
 .hubs-page .hub-card__pill {
   padding: 4px 11px;
@@ -450,34 +393,13 @@
 .hubs-page .hub-card__actions .hub-btn {
   flex: 1;
   justify-content: center;
-  font-size: 12.5px;
-  padding: 8px 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 11px 14px;
 }
 .hubs-page .hub-card__actions .hub-btn--icon {
-  flex: 0 0 34px;
-}
-
-/* ---------- prestataires ---------- */
-.hubs-page .prestataire-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-card);
-}
-.hubs-page .prestataire-row--inactif {
-  border-style: dashed;
-  opacity: 0.55;
-}
-.hubs-page .prestataire-row__nom {
-  font-size: 13px;
-  font-weight: 600;
-}
-.hubs-page .prestataire-row__meta {
-  font-size: 11.5px;
-  color: var(--gray);
+  flex: 0 0 42px;
+  padding: 0;
 }
 
 .hubs-page .hub-empty {

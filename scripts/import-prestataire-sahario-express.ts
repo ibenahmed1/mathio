@@ -1,6 +1,6 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { resoudreHubImport } from '../lib/prestataires';
+import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
  * Import du réseau Sahario Express (§ /admin/hubs), exécutable via
@@ -37,20 +37,21 @@ const AGENCES: AgenceImport[] = [
         tarif: 25,
         villes: [
           'Bouizakarn',
-          // Sidi Ifni et Mirleft sont maintenues ici À CÔTÉ de « Sidi Fini » et
-          // « Merleft », rattachées à l'Agence Agadir en zone 23 : le donneur
-          // d'ordre a confirmé les deux listes telles quelles. Ce sont donc
-          // quatre villes distinctes pour le système, pas deux orthographes.
-          'Sidi Ifni',
+          // « Sidi ifni » et « Mirleft » sont maintenues ici À CÔTÉ de
+          // « sidi fini » et « merleft », rattachées à l'Agence Agadir en zone
+          // 23 : le donneur d'ordre a confirmé les deux listes telles quelles.
+          // Ce sont donc quatre villes distinctes pour le système, pas deux
+          // orthographes.
+          'Sidi ifni',
           'Mirleft',
           'Assa',
           'Zag',
           'Tantan',
-          'El Ouatia',
+          'El ouatia',
           'Tarfaya',
           'Laayoune',
-          'Laayoune Porte',
-          'Es Semara',
+          'Laayoune porte',
+          'Es semara',
           'Boujdour',
           'Dakhla',
         ],
@@ -61,72 +62,80 @@ const AGENCES: AgenceImport[] = [
     hub: 'Agence Agadir',
     ville: 'Agadir',
     zones: [
-      { tarif: 15, villes: ['Agadir', 'Dchaira', 'Inzgane', 'Ait Melloul'] },
+      // « ait mlloul » est la graphie du message. Une version antérieure la
+      // corrigeait en « Ait Melloul » : une grille fournisseur se recopie, elle
+      // ne se corrige pas.
+      { tarif: 15, villes: ['Agadir', 'dchaira', 'inzgane', 'ait mlloul'] },
       {
         tarif: 20,
         villes: [
-          'Sidi Bibi',
+          'Sidi bibi',
           'Anza',
           'Aourir',
           'Biougra',
-          'Ait Aamira',
-          'Tadart Anza',
+          'Ait aamira',
+          'Tadart anza',
           'Tamraght',
           'Tarast',
           'Drarga',
           'Tikiwine',
           'Leqliaa',
-          'Tamait',
+          'tamait',
         ],
       },
       {
         tarif: 23,
         villes: [
+          // Les messages écrivent « . Taroudant : », « . Tiznit : » et
+          // « . Oulad teima : » en EN-TÊTES de groupe — un point devant, deux
+          // points derrière — suivis de leurs localités. Ce sont des repères de
+          // lecture, pas des destinations : les trois chefs-lieux ne sont donc
+          // PAS créés. Une version antérieure en faisait des villes livrables à
+          // 23 DH, ce qui ajoutait trois destinations que le fournisseur n'a
+          // jamais annoncées.
+          //
           // Secteur Taroudant
-          'Taroudant',
           'Zaouiat',
-          'Iferkane',
-          'Ait Aiaaza',
-          'El Nouwayle',
-          'Oulad Aarfa',
-          'Taliwin',
-          'Awlouz',
-          'Oulad Berhil',
+          'iferkane',
+          'Ait aiaaza',
+          'El nouwayle',
+          'Oulad aarfa',
+          'taliwin',
+          'awlouz',
+          'oulad berhil',
           // Secteur Tiznit
-          'Tiznit',
           'Anzi',
-          'Tighmi',
-          'Idawsmlal',
-          'Tafraout',
-          'Ait Jraj',
-          'Lakhssas',
-          'Bounaiman',
-          'Sihll',
-          'Merleft',
-          'Sidi Fini',
-          'Aglou',
-          'Lmaader',
-          'Rasmouka',
-          'Wijan',
+          'tighmi',
+          'idawsmlal',
+          'tafraout',
+          'ait jraj',
+          'lakhssas',
+          'bounaiman',
+          'sihll',
+          'merleft',
+          'sidi fini',
+          'aglou',
+          'lmaader',
+          'rasmouka',
+          'wijan',
           // Secteur Oulad Teima
-          'Oulad Teima',
-          // Orthographe du fichier. Elle portait une précision « (Oulad Teima) »
+          // Orthographe du message. Elle portait une précision « (Oulad Teima) »
           // tant que `Ville.nom` était unique pour tout le réseau, pour ne pas
           // entrer en collision avec la Sidi Moussa de Marrakech ; l'unicité
           // par hub (§ @@unique([hubId, nom])) rend cette béquille inutile.
           'Sidi moussa',
-          'Lhamri',
-          'Sebt El Guerdane',
-          'Douar Sulad',
-          'Said Qrarma',
+          'lhamri',
+          'Sebt el guerdane',
+          'Douar sulad',
+          'said Qrarma',
           'Lakhnafif',
-          'El Koudia',
+          'El koudia',
           'Lagfifat',
-          'Ain Seddaq',
+          'Ain seddaq',
           'Belfaa',
-          'Massa',
-          'Taghazout',
-          'Imi Wadar',
+          'massa',
+          'taghazout',
+          'imi wadar',
         ],
       },
     ],
@@ -154,18 +163,16 @@ async function main() {
 
     const total = agence.zones.reduce((t, z) => t + z.villes.length, 0);
     console.log(`\n${hub.nom} — ${total} villes`);
+    if (hub.renommeDepuis) console.log(`   Hub renommé : "${hub.renommeDepuis}" → "${hub.nom}"`);
 
     for (const zone of agence.zones) {
       for (const nom of zone.villes) {
         // Recherche DANS CETTE AGENCE (§ @@unique([hubId, nom]) sur Ville) :
         // une ville homonyme chez un autre réseau n'est plus un conflit, c'est
-        // une seconde offre sur la même ville.
-        const existante = await prisma.ville.findUnique({
-          where: { hubId_nom: { hubId: hub.id, nom } },
-        });
-
-        const ville = existante ?? (await prisma.ville.create({ data: { nom, hubId: hub.id } }));
-        if (!existante) creees += 1;
+        // une seconde offre sur la même ville. La graphie du message fait foi.
+        const ville = await resoudreVilleImport(hub.id, nom);
+        if (ville.cree) creees += 1;
+        if (ville.renommeeDepuis) console.log(`   ⤷ "${ville.renommeeDepuis}" → "${nom}"`);
 
         await prisma.tarifPrestataireVille.upsert({
           where: { prestataireId_villeId: { prestataireId: prestataire.id, villeId: ville.id } },

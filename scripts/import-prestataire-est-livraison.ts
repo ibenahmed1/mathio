@@ -1,6 +1,6 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import { prisma } from '../lib/prisma';
-import { resoudreHubImport } from '../lib/prestataires';
+import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
  * Import du réseau EST Livraison — Région de l'Oriental (§ /admin/hubs),
@@ -158,6 +158,7 @@ async function main() {
   });
 
   const hub = await resoudreHubImport({ prestataireId: prestataire.id, ville: VILLE_HUB, nom: HUB });
+  if (hub.renommeDepuis) console.log(`Hub renommé : "${hub.renommeDepuis}" → "${hub.nom}"`);
   console.log(`${hub.nom} — agence ${prestataire.nom}\n`);
 
   let creees = 0;
@@ -171,17 +172,10 @@ async function main() {
       // Meta Livraison, faute de pouvoir créer la sienne — n'a plus lieu
       // d'être : EST possède maintenant sa propre couverture de la Province de
       // Taza, et les deux grilles se lisent chacune pour ce qu'elle est.
-      const existante = await prisma.ville.findUnique({
-        where: { hubId_nom: { hubId: hub.id, nom } },
-      });
-
-      let villeId: string;
-      if (existante) {
-        villeId = existante.id;
-      } else {
-        villeId = (await prisma.ville.create({ data: { nom, hubId: hub.id } })).id;
-        creees += 1;
-      }
+      const ville = await resoudreVilleImport(hub.id, nom);
+      const villeId = ville.id;
+      if (ville.cree) creees += 1;
+      if (ville.renommeeDepuis) console.log(`   ⤷ "${ville.renommeeDepuis}" → "${nom}"`);
 
       // Villes que d'autres réseaux annoncent aussi : information, pas conflit.
       const ailleurs = await prisma.ville.findFirst({
