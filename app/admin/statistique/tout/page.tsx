@@ -9,6 +9,7 @@ import {
   getCodEncaisse,
   getCompteurs,
   getEvolution,
+  getMarge,
   getRepartitionStatuts,
   periodePrecedenteEquivalente,
   resoudrePeriode,
@@ -30,13 +31,15 @@ export default async function StatistiqueToutPage({
 
   // La période précédente n'est chargée que si elle existe (« depuis le début »
   // n'en a pas) : deux requêtes de plus pour rien sur la vue la plus large.
-  const [compteurs, cod, evolution, repartition, compteursPrec, codPrec] = await Promise.all([
+  const [compteurs, cod, marge, evolution, repartition, compteursPrec, codPrec, margePrec] = await Promise.all([
     getCompteurs(where),
     getCodEncaisse(where),
+    getMarge(where),
     getEvolution(periode),
     getRepartitionStatuts(where),
     precedente ? getCompteurs(filtrePeriode(precedente)) : Promise.resolve(null),
     precedente ? getCodEncaisse(filtrePeriode(precedente)) : Promise.resolve(null),
+    precedente ? getMarge(filtrePeriode(precedente)) : Promise.resolve(null),
   ]);
 
   const tauxActuel = tauxLivraison(compteurs);
@@ -49,7 +52,7 @@ export default async function StatistiqueToutPage({
         qu&apos;ils sont devenus.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <CarteStat
           label="Colis pris en charge"
           valeur={formatNombre(compteurs.total)}
@@ -77,7 +80,26 @@ export default async function StatistiqueToutPage({
           valeur={formatDirhams(cod)}
           variation={codPrec !== null ? variation(cod, codPrec) : null}
         />
+        {/* Marge = frais facturés au marchand − coût réel de la course (livreur
+            interne ou prestataire), sur les seules factures ARRÊTÉES. Le COD
+            n'y entre pas : il appartient au marchand. */}
+        <CarteStat
+          label="Marge plateforme"
+          valeur={formatDirhams(marge.marge)}
+          variation={margePrec && margePrec.produit > 0 ? variation(marge.marge, margePrec.marge) : null}
+          alerte={
+            marge.nbCoutInconnu > 0
+              ? `Marge surestimée : ${formatNombre(marge.nbCoutInconnu)} des ${formatNombre(marge.nbColisFactures)} colis facturés n'ont pas de coût connu.`
+              : undefined
+          }
+        />
       </div>
+
+      <p className="-mt-2 text-xs opacity-55">
+        Marge : {formatDirhams(marge.produit)} de frais facturés moins {formatDirhams(marge.cout)} de coût de livraison, sur{' '}
+        {formatNombre(marge.nbColisFactures)} colis portés par une facture émise ou payée. Les brouillons et les frais annexes
+        n&apos;y entrent pas.
+      </p>
 
       <div className="dashboard-card">
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wide opacity-70">

@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { ROLES_KANBAN_UNIQUEMENT } from '@/lib/auth';
-import { ROLES_BACKOFFICE_TACHES } from '@/lib/taches-scope';
+import {
+  ROLES_BACKOFFICE_TACHES,
+  boardsVisibles,
+  boardAutorise,
+  validerEtiquettes,
+  exigerAssigneAutorise,
+} from '@/lib/taches-scope';
 import type { Prisma } from '@/app/generated/prisma/client';
-import { PRIORITES_TACHE, STATUTS_TACHE, ETIQUETTES_TACHE } from '@/lib/statuts';
+import { PRIORITES_TACHE, STATUTS_TACHE } from '@/lib/statuts';
 
 const ROLES_BACKOFFICE = ROLES_BACKOFFICE_TACHES;
 
@@ -19,12 +25,21 @@ const INCLUDE = {
 // regroupées par colonne côté client) filtrées optionnellement par équipe/assigné.
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(ROLES_BACKOFFICE);
+    const session = await requireUser(ROLES_BACKOFFICE);
     const teamId = request.nextUrl.searchParams.get('teamId');
     const assigneeId = request.nextUrl.searchParams.get('assigneeId');
 
+    // Chacun ne voit que les pôles dont il est membre ; l'admin voit tout
+    // (§ boardsVisibles). Le filtre `teamId` de l'URL ne peut que réduire ce
+    // périmètre, jamais l'élargir.
+    const scope = await boardsVisibles(session);
+
     const where: Prisma.TacheWhereInput = {};
-    if (teamId) where.teamId = teamId;
+    if (scope !== null) where.teamId = { in: scope };
+    if (teamId) {
+      if (!boardAutorise(scope, teamId)) return NextResponse.json({ data: [] });
+      where.teamId = teamId;
+    }
     if (assigneeId) where.assigneeId = assigneeId;
 
     const taches = await prisma.tache.findMany({
@@ -52,6 +67,13 @@ export async function POST(request: Request) {
     const team = await prisma.equipeTache.findUnique({ where: { id: teamId } });
     if (!team) throw new ApiError(400, 'Équipe invalide');
 
+    // Créer dans un pôle auquel on n'appartient pas contournerait le
+    // cloisonnement en lecture : la tâche serait invisible à son auteur.
+    const scope = await boardsVisibles(session);
+    if (!boardAutorise(scope, teamId)) {
+      throw new ApiError(403, 'Vous ne faites pas partie de ce board');
+    }
+
     const priorite = typeof body.priorite === 'string' ? body.priorite : 'moyenne';
     if (!PRIORITES_TACHE.includes(priorite as (typeof PRIORITES_TACHE)[number])) {
       throw new ApiError(400, `priorite invalide. Valeurs possibles : ${PRIORITES_TACHE.join(', ')}`);
@@ -74,19 +96,14 @@ export async function POST(request: Request) {
       }
       const assignee = await prisma.utilisateur.findUnique({ where: { id: body.assigneeId } });
       if (!assignee) throw new ApiError(400, 'assigneeId invalide');
+      await exigerAssigneAutorise(session, teamId, assignee.id);
       assigneeId = assignee.id;
     }
 
     const dateEcheance =
       typeof body.dateEcheance === 'string' && body.dateEcheance ? new Date(body.dateEcheance) : null;
 
-    let etiquettes: string[] = [];
-    if (Array.isArray(body.etiquettes)) {
-      if (!body.etiquettes.every((e: unknown) => ETIQUETTES_TACHE.includes(e as (typeof ETIQUETTES_TACHE)[number]))) {
-        throw new ApiError(400, `etiquettes invalides. Valeurs possibles : ${ETIQUETTES_TACHE.join(', ')}`);
-      }
-      etiquettes = body.etiquettes;
-    }
+    const etiquettes = 'etiquettes' in body ? await validerEtiquettes(body.etiquettes) : [];
 
     const tache = await prisma.$transaction(async (tx) => {
       const created = await tx.tache.create({

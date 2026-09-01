@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { EQUIPE_COULEUR_LABEL } from '@/lib/statuts';
+import { EQUIPE_COULEUR_LABEL, normaliserCode } from '@/lib/statuts';
+import { boardsVisibles } from '@/lib/taches-scope';
+import { ROLES_KANBAN_UNIQUEMENT } from '@/lib/auth';
 
 const ROLES_GESTION_EQUIPES = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable', 'design', 'gestionnaire_hub'] as const;
 
@@ -9,11 +11,23 @@ const ROLES_GESTION_EQUIPES = ['admin', 'superviseur', 'moderateur', 'equipe_sui
 // pour peupler le filtre équipe et le formulaire de création de tâche. Le
 // détail des membres (workflow d'assignation) est inclus pour alimenter le
 // multi-select de gestion d'équipe sans aller-retour supplémentaire.
-export async function GET() {
+// Par défaut la liste est cloisonnée comme les tâches : on ne voit que les
+// pôles dont on est membre (l'admin voit tout, § boardsVisibles). `?toutes=1`
+// rend la liste complète — nécessaire à la modale de gestion d'équipe, qui
+// sert justement à rattacher des comptes à des pôles où l'on ne figure pas
+// encore ; elle reste fermée aux rôles Kanban-only, qui ne gèrent aucune
+// composition.
+export async function GET(request: NextRequest) {
   try {
-    await requireUser([...ROLES_GESTION_EQUIPES]);
+    const session = await requireUser([...ROLES_GESTION_EQUIPES]);
+    const toutes = request.nextUrl.searchParams.get('toutes') === '1';
+    if (toutes && ROLES_KANBAN_UNIQUEMENT.includes(session.role)) {
+      throw new ApiError(403, 'Accès refusé pour ce rôle');
+    }
+    const scope = toutes ? null : await boardsVisibles(session);
 
     const equipes = await prisma.equipeTache.findMany({
+      where: scope === null ? undefined : { id: { in: scope } },
       orderBy: { nom: 'asc' },
       include: {
         membres: {
@@ -30,17 +44,6 @@ export async function GET() {
 }
 
 const COULEURS_AUTORISEES = Object.keys(EQUIPE_COULEUR_LABEL);
-
-// Le code sert d'identifiant lisible et stable du pôle : on le dérive du nom
-// quand l'appelant ne le fournit pas, plutôt que d'imposer une double saisie
-// à la création depuis le Kanban.
-function normaliserCode(valeur: string): string {
-  return valeur
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
 
 // Création d'un nouveau pôle interne — réservée à l'admin pour éviter une
 // prolifération d'équipes créées par erreur depuis le Kanban. Modification et

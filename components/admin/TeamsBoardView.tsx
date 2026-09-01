@@ -1,15 +1,28 @@
 'use client';
 
-import { UserCog, Users } from 'lucide-react';
+import { Settings, Users } from 'lucide-react';
 import type { EquipeTache, Tache } from '@/lib/types';
-import { STATUTS_TACHE, LABELS_STATUT_TACHE, STATUT_TACHE_DOT, EQUIPE_COULEUR_LABEL } from '@/lib/statuts';
+import { EQUIPE_COULEUR_LABEL } from '@/lib/statuts';
 import { initiales, avatarClassName } from '@/lib/avatar';
 
-// Vue "Équipes" du Kanban (§ /admin/tasks), portée à l'identique de l'écran
-// 3 du board Kadence (design_handoff_kanban) : une carte par pôle (membres +
-// charge ouverte) à gauche, répartition des tâches par statut à droite.
+// Vue "Équipes" du Kanban (§ /admin/tasks) : une carte par pôle en grille,
+// en-tête plein dégradé (la teinte de l'équipe) surmonté d'un filigrane, puis
+// la pile d'avatars qui chevauche l'en-tête, l'effectif et l'accès à la
+// gestion.
+//
+// Les dégradés viennent des jetons --label-*-grad (en-tête) et --av-* (membres)
+// déjà posés dans app/globals.css : la maquette des cartes et la planche WSKZ
+// partagent la même palette de cinq teintes, donc rien n'est figé en dur ici —
+// la couleur suit `eq.couleur` et le mode sombre continue de fonctionner.
+//
 // Lecture seule — la composition des pôles se modifie via TeamManagerModal
-// ("Gérer les équipes").
+// ("Gérer l'équipe").
+
+// Au-delà de cinq pastilles la pile sortait du cadre de la carte (overflow
+// hidden) et se faisait rogner : le reste passe dans un « +N » qui livre les
+// noms au survol.
+const MAX_PILE = 5;
+
 export function TeamsBoardView({
   equipes,
   taches,
@@ -21,93 +34,90 @@ export function TeamsBoardView({
   onManage: () => void;
   peutGerer?: boolean;
 }) {
-  const max = Math.max(1, ...STATUTS_TACHE.map((s) => taches.filter((t) => t.statut === s).length));
-
   return (
     <div className="kdc-board kdc-teams">
       <div className="kdc-teams__list">
         {equipes.map((eq) => {
           const membres = eq.membres ?? [];
+          const pile = membres.slice(0, MAX_PILE);
+          const reste = membres.length - pile.length;
           const ouvertes = taches.filter((t) => t.teamId === eq.id && t.statut !== 'termine').length;
           const labelKey = EQUIPE_COULEUR_LABEL[eq.couleur] ?? 'docs';
           return (
-            <div key={eq.id} className="kdc-panel">
-              <div className="kdc-panel__head">
-                <span
-                  className="kdc-team-badge"
-                  style={{ background: `var(--label-${labelKey}-grad)`, color: `var(--label-${labelKey}-on)` }}
-                  aria-hidden
-                >
-                  <Users className="h-4 w-4" />
-                </span>
+            <article key={eq.id} className="kdc-teamcard">
+              <header
+                className="kdc-teamcard__head"
+                style={{ background: `var(--label-${labelKey}-grad)`, color: `var(--label-${labelKey}-on)` }}
+              >
                 <div className="min-w-0">
-                  <p className="kdc-panel__title">{eq.nom}</p>
-                  <p className="kdc-panel__sub">Code {eq.code}</p>
+                  <p className="kdc-teamcard__name">{eq.nom}</p>
+                  <p className="kdc-teamcard__code">Code {eq.code}</p>
                 </div>
-                <div className="kdc-panel__actions">
-                  <span className={`kdc-pill ${ouvertes > 0 ? 'kdc-pill--actif' : ''}`}>
-                    {ouvertes} tâche{ouvertes > 1 ? 's' : ''} ouverte{ouvertes > 1 ? 's' : ''}
-                  </span>
-                  {peutGerer && (
-                    <button onClick={onManage} className="kdc-btn-accent flex items-center gap-1">
-                      <UserCog className="h-3 w-3" /> Gérer
-                    </button>
+                <span className="kdc-teamcard__pill">
+                  {ouvertes} tâche{ouvertes > 1 ? 's' : ''} ouverte{ouvertes > 1 ? 's' : ''}
+                </span>
+                <Users className="kdc-teamcard__mark" size={72} strokeWidth={1.2} aria-hidden />
+              </header>
+
+              <div className="kdc-teamcard__body">
+                {/* Pile chevauchante : l'effectif se lit d'un coup d'œil. Le
+                    décompte de tâches par membre, qui n'a plus de place ici,
+                    reste accessible au survol de chaque pastille. */}
+                <div className="kdc-teamcard__stack">
+                  {membres.length > 0 ? (
+                    pile.map((m) => {
+                      const open = taches.filter((t) => t.assigneeId === m.utilisateur.id && t.statut !== 'termine').length;
+                      return (
+                        <span
+                          key={m.id}
+                          title={`${m.utilisateur.nomComplet} — ${open} tâche${open > 1 ? 's' : ''} ouverte${open > 1 ? 's' : ''}`}
+                          className={`kdc-avatar ${avatarClassName(m.utilisateur.nomComplet)}`}
+                        >
+                          {initiales(m.utilisateur.nomComplet)}
+                        </span>
+                      );
+                    })
+                  ) : (
+                    <span className="kdc-avatar kdc-avatar--vide" aria-hidden>
+                      —
+                    </span>
+                  )}
+                  {reste > 0 && (
+                    <span
+                      className="kdc-avatar kdc-avatar--more"
+                      title={membres.slice(MAX_PILE).map((m) => m.utilisateur.nomComplet).join(', ')}
+                    >
+                      +{reste}
+                    </span>
                   )}
                 </div>
-              </div>
-              <div className="kdc-members">
-                {membres.map((m) => {
-                  const open = taches.filter((t) => t.assigneeId === m.utilisateur.id && t.statut !== 'termine').length;
-                  return (
-                    <div key={m.id} className="kdc-member">
-                      <span className={`kdc-avatar kdc-avatar--member ${avatarClassName(m.utilisateur.nomComplet)}`}>
-                        {initiales(m.utilisateur.nomComplet)}
-                      </span>
-                      <div className="leading-tight">
-                        <p className="kdc-member__name">{m.utilisateur.nomComplet}</p>
-                        <p className="kdc-member__meta">
-                          {open} tâche{open > 1 ? 's' : ''}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-                {membres.length === 0 && (
-                  <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-                    Aucun membre pour le moment
+
+                <div>
+                  <p className="kdc-teamcard__count">
+                    {membres.length} membre{membres.length > 1 ? 's' : ''}
                   </p>
+                  <p className="kdc-teamcard__names">
+                    {membres.length > 0
+                      ? membres.map((m) => m.utilisateur.nomComplet).join(', ')
+                      : 'Aucun membre pour le moment'}
+                  </p>
+                </div>
+
+                {peutGerer && (
+                  <button type="button" onClick={onManage} className="kdc-teamcard__manage">
+                    <Settings className="h-3.5 w-3.5" aria-hidden />
+                    Gérer l&apos;équipe
+                  </button>
                 )}
               </div>
-            </div>
+            </article>
           );
         })}
         {equipes.length === 0 && (
-          <p className="py-6 text-center text-sm" style={{ color: 'var(--text-2)' }}>
+          <p className="kdc-teams__vide py-6 text-center text-sm" style={{ color: 'var(--text-2)' }}>
             Aucune équipe pour le moment
           </p>
         )}
-      </div>
-
-      <div className="kdc-teams__side">
-        <div className="kdc-panel">
-          <p className="kdc-panel__title">Charge par statut</p>
-          <div className="kdc-loads">
-            {STATUTS_TACHE.map((s) => {
-              const count = taches.filter((t) => t.statut === s).length;
-              return (
-                <div key={s}>
-                  <div className="kdc-load__row">
-                    <span>{LABELS_STATUT_TACHE[s]}</span>
-                    <span>{count}</span>
-                  </div>
-                  <div className="kdc-load__track">
-                    <div className={`kdc-load__fill ${STATUT_TACHE_DOT[s]}`} style={{ width: `${(count / max) * 100}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </div>
   );

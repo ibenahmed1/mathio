@@ -1,0 +1,491 @@
+/* ===== Gestion des Hubs — style (Mathio Delivery) =====
+ *
+ * Feuille propre à /admin/hubs, importée par sa page — même convention que
+ * app/admin/tasks/board.css.
+ *
+ * Deux écarts assumés par rapport à la maquette fournie :
+ *
+ *  1. Les jetons vivent sur `.hubs-page` et non sur `:root`, et la règle `body`
+ *     de la maquette n'est pas reprise : cette page est encastrée dans la
+ *     coquille admin, qui pose déjà son fond, sa police et son thème. Une règle
+ *     `body` ici repeindrait toute l'application depuis une feuille de page.
+ *
+ *  2. `.btn`, `.btn-primary`, `.btn-icon` et `.chip` sont renommés `.hub-btn*`
+ *     et `.hub-chip` : `globals.css` définit déjà `.btn-primary` pour toute
+ *     l'application, et deux définitions concurrentes du même nom finissent
+ *     toujours par se départager à l'ordre d'import — c'est-à-dire au hasard.
+ *     Le rendu est identique, seul le nom change.
+ */
+
+.hubs-page {
+  --ink: #1a1a18;
+  --ink-soft: #4a4a45;
+  --gray: #8c8c86;
+  --gray-light: #a3a39c;
+  --border: #e8e8e5;
+  --border-soft: #e2e2de;
+  --bg-page: #f6f6f5;
+  --bg-input: #fafaf9;
+  --bg-card: #fff;
+  --amber-bg: #fff3d1;
+  --amber-ink: #9a6e00;
+  --amber-border: #e2d9be;
+  --danger: #9c4e46;
+  --danger-bg: #f8eae8;
+  --danger-border: #ebd5d2;
+  --grad-accent: linear-gradient(135deg, #ffb701, #fc8500);
+  --grad-navy: linear-gradient(135deg, #023047, #14526e);
+  --grad-blue: linear-gradient(135deg, #8ecae6, #219ebc);
+  --grad-blue-2: linear-gradient(135deg, #219ebc, #1b7f98);
+  --grad-orange: linear-gradient(135deg, #fc8500, #e56a00);
+  --grad-yellow: linear-gradient(135deg, #ffb701, #e8a400);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--ink);
+}
+
+/* Contrepartie sombre : seuls les jetons NEUTRES basculent. Les dégradés
+   d'en-tête sont l'identité colorée d'un hub — les assombrir ferait perdre le
+   repère visuel qui distingue une agence sous-traitée d'un hub interne. */
+@media (prefers-color-scheme: dark) {
+  .hubs-page {
+    --ink: #ededed;
+    --ink-soft: #c7c7c2;
+    --gray: #8f8f89;
+    --gray-light: #75756f;
+    --border: #262626;
+    --border-soft: #2e2e2e;
+    --bg-page: #0f0f0f;
+    --bg-input: #161616;
+    --bg-card: #141414;
+    --amber-bg: rgba(255, 183, 1, 0.14);
+    --amber-ink: #ffc94d;
+    --amber-border: rgba(255, 183, 1, 0.3);
+    --danger: #e08b82;
+    --danger-bg: rgba(156, 78, 70, 0.18);
+    --danger-border: rgba(156, 78, 70, 0.4);
+  }
+}
+
+/* ---------- en-tête de page ---------- */
+.hubs-page .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.hubs-page .page-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.hubs-page .page-header .subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--gray);
+}
+
+/* ---------- boutons ---------- */
+.hubs-page .hub-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-card);
+  border-radius: 8px;
+  font: 500 13px inherit;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.hubs-page .hub-btn:hover {
+  background: var(--bg-page);
+}
+.hubs-page .hub-btn--primary {
+  border: none;
+  background: var(--grad-accent);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(26, 26, 24, 0.15);
+}
+.hubs-page .hub-btn--primary:hover {
+  filter: brightness(0.96);
+}
+.hubs-page .hub-btn--icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+  flex: 0 0 34px;
+  color: var(--gray);
+}
+.hubs-page .hub-btn--icon.is-danger {
+  color: var(--danger);
+}
+.hubs-page .hub-btn--icon.is-danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+/* ---------- barre de filtres ---------- */
+.hubs-page .filter-bar {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.hubs-page .filter-bar .search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-input);
+  flex: 0 0 240px;
+}
+.hubs-page .filter-bar .search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font: 13px inherit;
+  font-family: inherit;
+  color: var(--ink);
+  width: 100%;
+}
+.hubs-page .filter-bar .divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+.hubs-page .filter-bar .label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--gray-light);
+}
+.hubs-page .hub-chip {
+  padding: 6px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: var(--bg-card);
+  font: 500 12.5px inherit;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.hubs-page .hub-chip.is-active {
+  background: #ffb701;
+  border-color: #ffb701;
+  color: #1a1a18;
+  font-weight: 600;
+}
+.hubs-page .badge-depot {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--amber-bg);
+  color: var(--amber-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- grille ---------- */
+/* `align-items: start` laissait chaque carte à sa hauteur naturelle : dans une
+   même rangée, un hub sans étiquette ou sans villes desservies s'arrêtait plus
+   haut que ses voisins et la grille partait en escalier. Les cartes s'étirent
+   donc sur la rangée (défaut `stretch`), et c'est le pied qui va chercher le
+   bas (cf. .hub-card__actions). */
+.hubs-page .hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: 16px;
+}
+
+/* ---------- carte agence ---------- */
+.hubs-page .hub-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+}
+.hubs-page .hub-card:hover {
+  box-shadow: 0 6px 18px rgba(26, 26, 24, 0.09);
+  border-color: #d8d8d3;
+}
+@media (prefers-color-scheme: dark) {
+  .hubs-page .hub-card:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    border-color: #3a3a3a;
+  }
+}
+
+/* Hauteur fixe, et non dictée par le contenu : l'étiquette « CENTRAL » ou
+   « SOUS-TRAITÉ » n'apparaît que sur certains hubs, et sans ce plancher le
+   bandeau coloré changeait de hauteur d'une carte à l'autre — donc aussi la
+   ligne où viennent se poser le logo et la pastille de dépôt. */
+.hubs-page .hub-card__header {
+  padding: 18px;
+  min-height: 92px;
+  position: relative;
+  overflow: hidden;
+}
+/* Le nom et sa ligne de service tiennent sur une ligne chacun : un nom long
+   qui passe à la ligne rallongerait le bandeau et rouvrirait le décalage. */
+.hubs-page .hub-card__name,
+.hubs-page .hub-card__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hubs-page .hub-card__name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.hubs-page .hub-card__sub {
+  font-size: 11.5px;
+  color: #fff;
+  opacity: 0.75;
+}
+.hubs-page .hub-card__pill {
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+  white-space: nowrap;
+}
+.hubs-page .hub-card__tag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.hubs-page .hub-card__watermark {
+  position: absolute;
+  right: -12px;
+  bottom: -20px;
+  opacity: 0.18;
+  stroke: #fff;
+  pointer-events: none;
+}
+
+.hubs-page .hub-card__body {
+  padding: 14px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 12px;
+}
+/* Le logo ne déborde plus sur le bandeau : à cheval sur la limite, il se
+   faisait couper par elle et laissait la pastille de dépôt décalée sous lui,
+   sans ligne commune. Les deux vivent maintenant dans le blanc, sur le même
+   axe. */
+.hubs-page .hub-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hubs-page .hub-card__logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  border: 3px solid var(--bg-card);
+  background: var(--bg-card);
+  box-shadow: 0 2px 6px rgba(26, 26, 24, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 46px;
+}
+.hubs-page .hub-card__logo span {
+  width: 100%;
+  height: 100%;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hubs-page .hub-card__colis {
+  margin-left: auto;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: var(--bg-page);
+  color: var(--gray);
+  white-space: nowrap;
+}
+.hubs-page .hub-card__colis--pending {
+  background: var(--amber-bg);
+  color: var(--amber-ink);
+}
+
+/* ---------- fiche d'identité ---------- */
+.hubs-page .hub-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.hubs-page .hub-card__info .row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.hubs-page .hub-card__info .row svg {
+  flex: 0 0 14px;
+  margin-top: 2px;
+  stroke: var(--gray-light);
+}
+.hubs-page .hub-card__info .row b {
+  font-weight: 600;
+}
+.hubs-page .hub-card__info .row .muted {
+  color: var(--gray);
+}
+
+/* ---------- grille tarifaire dépliée ---------- */
+.hubs-page .hub-card__tarifs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 11px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.hubs-page .city-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 11px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.hubs-page .city-chip__name {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.hubs-page .city-chip__name:hover {
+  color: var(--amber-ink);
+}
+.hubs-page .city-chip .price {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--amber-ink);
+}
+.hubs-page .city-chip .remove {
+  width: 17px;
+  height: 17px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--gray-light);
+}
+.hubs-page .city-chip .remove:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.hubs-page .city-chip--more {
+  border-style: dashed;
+  color: var(--gray);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.hubs-page .city-chip--add {
+  border: 1px solid var(--amber-border);
+  background: var(--amber-bg);
+  color: var(--amber-ink);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 5px 12px;
+}
+
+/* ---------- pied de carte ---------- */
+/* Poussé en bas de la carte : les pieds d'une même rangée s'alignent, quel que
+   soit le nombre de villes desservies au-dessus. */
+.hubs-page .hub-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.hubs-page .hub-card__actions .hub-btn {
+  flex: 1;
+  justify-content: center;
+  font-size: 12.5px;
+  padding: 8px 13px;
+}
+.hubs-page .hub-card__actions .hub-btn--icon {
+  flex: 0 0 34px;
+}
+
+/* ---------- prestataires ---------- */
+.hubs-page .prestataire-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+.hubs-page .prestataire-row--inactif {
+  border-style: dashed;
+  opacity: 0.55;
+}
+.hubs-page .prestataire-row__nom {
+  font-size: 13px;
+  font-weight: 600;
+}
+.hubs-page .prestataire-row__meta {
+  font-size: 11.5px;
+  color: var(--gray);
+}
+
+.hubs-page .hub-empty {
+  grid-column: 1 / -1;
+  padding: 40px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--gray);
+  border: 1px dashed var(--border-soft);
+  border-radius: 14px;
+}

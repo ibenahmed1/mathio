@@ -24,14 +24,19 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
 
   const societe = await getParametresSociete();
 
+  // Les coûts et la marge sont écartés dès la requête, y compris pour un admin :
+  // cette page EST le document remis au marchand, et un chiffre qu'on ne charge
+  // pas ne peut pas être imprimé par accident (cf. LigneFacture.coutLivraison).
   const facture = await prisma.facture.findUnique({
     where: { id },
+    omit: { totalCoutLivraison: true, nbLignesCoutInconnu: true },
     include: {
       marchand: { include: { utilisateur: true } },
       emisePar: { select: { nomComplet: true } },
       validePar: { select: { nomComplet: true } },
       fraisAnnexes: { orderBy: { dateCreation: 'asc' } },
       lignes: {
+        omit: { coutLivraison: true, coutSource: true },
         include: {
           commande: {
             select: { codeSuivi: true, clientNom: true, ville: true, dateLivraison: true },

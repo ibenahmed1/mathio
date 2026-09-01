@@ -1,22 +1,21 @@
 'use client';
 
 import { CalendarClock, Lock } from 'lucide-react';
-import type { Tache } from '@/lib/types';
+import type { Tache, Etiquette } from '@/lib/types';
 import {
   STATUTS_TACHE,
   LABELS_STATUT_TACHE,
   LABELS_PRIORITE_TACHE,
   PRIORITE_TACHE_CLASS,
   STATUT_TACHE_BARRE,
-  LABELS_ETIQUETTE_TACHE,
   labelClassName,
   formatCleTache,
-  type EtiquetteTache,
 } from '@/lib/statuts';
 import { initiales, avatarClassName } from '@/lib/avatar';
 
 export function TaskCard({
   tache,
+  etiquettes = [],
   onOpen,
   onStatutChange,
   onDragStart,
@@ -25,6 +24,9 @@ export function TaskCard({
   peutDeplacer = true,
 }: {
   tache: Tache;
+  /** Catalogue des étiquettes (§ /api/taches/etiquettes) : la tâche ne porte
+   *  que des codes, le libellé et la couleur se lisent ici. */
+  etiquettes?: Etiquette[];
   onOpen: () => void;
   onStatutChange: (statut: string) => void;
   onDragStart: () => void;
@@ -59,11 +61,16 @@ export function TaskCard({
               <Lock className="h-2.5 w-2.5" /> Bloqué
             </span>
           )}
-          {tache.etiquettes.map((e) => (
-            <span key={e} className={`kdc-label ${labelClassName(e)}`}>
-              {LABELS_ETIQUETTE_TACHE[e as EtiquetteTache] ?? e}
-            </span>
-          ))}
+          {tache.etiquettes.map((code) => {
+            // Une étiquette supprimée entre deux chargements laisse son code
+            // sur la carte : on l'affiche en gris plutôt que de le masquer.
+            const et = etiquettes.find((x) => x.code === code);
+            return (
+              <span key={code} className={`kdc-label ${labelClassName(et?.couleur ?? 'docs')}`}>
+                {et?.nom ?? code}
+              </span>
+            );
+          })}
         </div>
         <span className={`kdc-prio ${PRIORITE_TACHE_CLASS[tache.priorite]}`}>
           {LABELS_PRIORITE_TACHE[tache.priorite]}

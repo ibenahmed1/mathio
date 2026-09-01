@@ -1158,6 +1158,18 @@ model Hub {
   // en pratique, mais pas contraint en DB.
   isCentral Boolean @default(false) @map("is_central")
 
+  // § Sous-traitance (/admin/prestataires) — non nul = ce hub est une AGENCE
+  // d'un prestataire externe : les colis y sont remis au prestataire qui livre
+  // lui-même, il n'y a donc ni livreur interne rattaché ni Bon de Distribution
+  // dessus. Null = hub interne, fonctionnement historique inchangé (livreurs,
+  // ramasseurs, § /admin/bon-distribution). C'est volontairement le SEUL
+  // marqueur de sous-traitance : comme Ville.hubId désigne déjà qui couvre une
+  // ville, basculer une ville de l'interne vers un prestataire (et retour) ne
+  // demande que de la déplacer d'un hub à l'autre, sans migration ni champ
+  // supplémentaire à tenir synchronisé.
+  prestataireId String?      @map("prestataire_id")
+  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id])
+
   villes Ville[]
 
   // § /admin/scan/reception : agents hub et livreurs rattachés, colis
@@ -1177,21 +1189,104 @@ model Hub {
   bonsPaiement         BonPaiement[]              @relation("BonPaiementHub")
   bonsRetour           BonRetour[]                @relation("BonRetourHub")
 
+  // Clé naturelle d'une AGENCE : un prestataire n'a qu'un quai par ville-siège.
+  // `nom` reste unique de son côté, mais c'est un libellé, pas une identité —
+  // s'y fier pour retrouver une agence a permis à un import de réaffecter le
+  // hub d'un prestataire à un autre, ses villes avec lui (§ resoudreAgence
+  // dans lib/prestataires.ts). Les hubs internes ont `prestataireId` NULL et
+  // ne sont donc pas contraints par cet index : plusieurs hubs internes dans
+  // une même ville restent possibles, c'est voulu.
+  @@unique([prestataireId, ville])
+  @@index([prestataireId])
   @@map("hubs")
 }
 
 model Ville {
   id    String @id @default(uuid())
-  nom   String @unique
+  nom   String
   hubId String @map("hub_id")
   hub   Hub    @relation(fields: [hubId], references: [id])
 
-  tarifsLivreurs  TarifLivreurVille[]
-  tarifsMarchands TarifMarchandVille[]
-  commandes       Commande[]
+  tarifsLivreurs     TarifLivreurVille[]
+  tarifsMarchands    TarifMarchandVille[]
+  tarifsPrestataires TarifPrestataireVille[]
+  commandes          Commande[]
 
+  // Le nom était unique pour TOUT le réseau. C'était juste tant qu'un seul
+  // transporteur existait : une ville n'appartenait qu'à un hub, le nom
+  // l'identifiait donc sans ambiguïté.
+  //
+  // La sous-traitance a rendu cette contrainte fausse. Plusieurs prestataires
+  // desservent les mêmes villes — EST Livraison et Meta Livraison annoncent
+  // tous deux Taza, Aknoul, Tahla, Bouhlou — et chacun a SON prix et SON
+  // délai. Sous l'ancienne règle, le second import se voyait refuser ces
+  // villes : sa grille était donc amputée en silence, et l'écran ne reflétait
+  // plus la couverture réelle de l'un des deux réseaux.
+  //
+  // L'unicité porte désormais sur (hub, nom) : chaque agence tient sa propre
+  // liste, telle que son fournisseur l'a écrite, sans jamais empiéter sur
+  // celle d'un concurrent. Deux lignes « Aknoul » coexistent, une par réseau.
+  //
+  // ⚠️ Conséquence à connaître : `getVilleHubIndex()` (lib/hub-envoi.ts) fait
+  // correspondre une ville en texte libre à UN hub. Quand plusieurs réseaux
+  // annoncent la même ville, ce choix devient commercial et non technique —
+  // l'index applique une règle déterministe et documentée, faute d'arbitrage
+  // explicite en base.
+  @@unique([hubId, nom])
   @@index([hubId])
+  @@index([nom])
   @@map("villes")
+}
+
+// Prestataire de livraison sous-traité (§ /admin/prestataires) — société
+// externe (Power Delivery…) qui prend nos colis en charge sur un périmètre de
+// villes, à son propre tarif. Ses points de dépôt physiques ne sont pas une
+// nouvelle entité : ce sont des Hub dont `prestataireId` pointe ici, si bien
+// que le référentiel géographique reste plat (Hub ↔ Ville) et que tout le
+// circuit colis existant (réception au quai, transit inter-hubs, historique)
+// fonctionne à l'identique sur une agence sous-traitée.
+model Prestataire {
+  id        String  @id @default(uuid())
+  nom       String  @unique
+  contact   String?
+  telephone String?
+  email     String?
+  // Désactivé plutôt que supprimé : un prestataire dont on arrête le contrat
+  // reste porteur de l'historique tarifaire des colis déjà livrés.
+  actif     Boolean @default(true)
+
+  agences Hub[]
+  tarifs  TarifPrestataireVille[]
+
+  @@map("prestataires")
+}
+
+// Grille tarifaire d'ACHAT de la livraison sous-traitée — troisième grille du
+// système, à côté de TarifLivreurVille (ce que nous devons au livreur interne)
+// et TarifMarchandVille (ce que le marchand nous doit). Les trois coexistent
+// et ne sont jamais dérivées l'une de l'autre, pour la même raison : la marge
+// sur une ville sous-traitée EST la différence entre le tarif marchand et
+// celui-ci, et la rendre implicite la rendrait impossible à piloter.
+//
+// Volontairement indexée sur (prestataire, ville) et non sur l'agence : un
+// prestataire peut être tarifé sur une ville qu'il ne dessert pas encore
+// (comparaison d'offres, bascule), tandis que Ville.hubId dit qui la couvre
+// réellement aujourd'hui.
+//
+// tarifRetour est nullable parce que les grilles fournisseurs ne le donnent
+// pas toujours — celle de Power Delivery n'a qu'une colonne livraison.
+model TarifPrestataireVille {
+  id             String      @id @default(uuid())
+  prestataireId  String      @map("prestataire_id")
+  prestataire    Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  villeId        String      @map("ville_id")
+  ville          Ville       @relation(fields: [villeId], references: [id], onDelete: Cascade)
+  tarifLivraison Decimal     @map("tarif_livraison") @db.Decimal(10, 2)
+  tarifRetour    Decimal?    @map("tarif_retour") @db.Decimal(10, 2)
+
+  @@unique([prestataireId, villeId])
+  @@index([villeId])
+  @@map("tarifs_prestataire_ville")
 }
 
 // Surcharge des frais de livraison/refus d'un livreur pour une ville donnée
@@ -1250,6 +1345,29 @@ model EquipeTacheMembre {
   @@index([equipeId])
   @@index([utilisateurId])
   @@map("equipes_taches_membres")
+}
+
+// Étiquettes de tâche (§ /admin/tasks) : liste tenue en base et modifiable
+// depuis le tableau, plutôt qu'une énumération figée dans le code — ajouter un
+// thème ne demande plus un déploiement.
+//
+// Tache.etiquettes stocke des `code`, pas des libellés : renommer une
+// étiquette n'oblige pas à réécrire les tâches qui la portent. La suppression
+// d'une étiquette retire son code des tâches dans la même transaction (cf.
+// DELETE /api/taches/etiquettes/[id]), sinon les tableaux garderaient des
+// codes fantômes qu'aucune couleur ne saurait peindre.
+model EtiquetteTache {
+  id String @id @default(uuid())
+  // Identifiant lisible et stable, dérivé du nom à la création.
+  code String @unique
+  nom  String
+  // Clé de la palette de chips (design, frontend, backend, research, bug,
+  // docs) consommée côté UI — jamais une valeur CSS brute, même convention
+  // qu'EquipeTache.couleur.
+  couleur      String   @default("docs")
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@map("etiquettes_taches")
 }
 
 model Tache {
@@ -1526,6 +1644,22 @@ model Facture {
   // tel quel.
   netAPayer           Decimal @map("net_a_payer") @db.Decimal(12, 2)
 
+  // § Marge — somme des LigneFacture.coutLivraison CONNUS, et nombre de lignes
+  // dont le coût ne l'est pas. INTERNES tous les deux, retirés des réponses
+  // servies à un marchand (cf. LigneFacture.coutLivraison).
+  //
+  // La marge elle-même n'est pas stockée : c'est
+  //   totalFraisLivraison + totalFraisRetour + totalAutresFrais − totalCoutLivraison
+  // (cf. margeFacture, lib/facturation.ts). Le COD n'y entre pas — il transite
+  // par nos comptes mais appartient au marchand, l'inclure ferait passer pour
+  // du bénéfice l'argent de quelqu'un d'autre.
+  //
+  // `nbLignesCoutInconnu` accompagne toujours le total : sans lui, une facture
+  // dont la moitié des coûts manquent afficherait une marge flatteuse et
+  // fausse, indiscernable d'une vraie.
+  totalCoutLivraison  Decimal @default(0) @map("total_cout_livraison") @db.Decimal(12, 2)
+  nbLignesCoutInconnu Int     @default(0) @map("nb_lignes_cout_inconnu")
+
   // Quatre dates distinctes plutôt qu'une : elles mesurent le délai de
   // reversement aux marchands, qui est l'engagement commercial le plus scruté
   // d'une plateforme COD.
@@ -1590,6 +1724,18 @@ model FraisFacture {
   @@map("frais_facture")
 }
 
+// D'où vient le coût figé sur une ligne de facture — sans lui, un montant seul
+// ne dirait pas s'il est certain (figé à la clôture d'une tournée) ou lu dans
+// une grille fournisseur qui peut avoir bougé depuis.
+enum SourceCoutLivraison {
+  // Commande.fraisLivreur, figé colis par colis à la clôture de la tournée :
+  // c'est le montant réellement dû au livreur, il fait foi.
+  livreur
+  // Grille du prestataire qui exploite le hub couvrant la ville
+  // (TarifPrestataireVille), lue à l'émission de la facture.
+  prestataire
+}
+
 // Une ligne = un colis facturé, avec le tarif RÉELLEMENT appliqué au moment
 // de l'émission. `commandeId` est unique : un colis ne peut appartenir qu'à
 // une seule facture, garanti par la base et non par la seule discipline des
@@ -1606,6 +1752,23 @@ model LigneFacture {
   livre      Boolean
   montantCod Decimal  @map("montant_cod") @db.Decimal(10, 2)
   frais      Decimal  @db.Decimal(10, 2)
+
+  // § Marge — ce que la course nous a COÛTÉ, figé au même instant que `frais`
+  // (ce qu'elle nous rapporte). Les deux côtés du même colis sur la même
+  // ligne : c'est le seul endroit où la marge se lit sans rapprochement.
+  //
+  // INTERNE. Ces deux colonnes ne sortent JAMAIS vers un marchand — ni sur sa
+  // facture, ni dans sa liste (elles sont retirées par `omit` côté requête,
+  // cf. getFacture / GET /api/factures). Lui montrer notre prix d'achat, c'est
+  // lui donner notre marge à la négociation suivante.
+  //
+  // Null = coût inconnu, jamais 0 : une tournée clôturée avant l'introduction
+  // de Commande.fraisLivreur, une ville sous-traitée sans tarif convenu, ou un
+  // retour chez un prestataire dont le tarif de retour n'est pas renseigné.
+  // Zéro dirait « gratuit » et gonflerait la marge d'un montant inventé ;
+  // c'est pour ça que Facture.nbLignesCoutInconnu existe.
+  coutLivraison Decimal?             @map("cout_livraison") @db.Decimal(10, 2)
+  coutSource    SourceCoutLivraison? @map("cout_source")
 
   @@index([factureId])
   @@map("lignes_facture")

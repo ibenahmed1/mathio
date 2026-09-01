@@ -3,10 +3,12 @@ import { test } from 'node:test';
 
 import {
   calculerFacture,
+  margeFacture,
   tarifPourColis,
   type ColisFacturable,
   type TarifsMarchand,
 } from '../facturation';
+import type { CoutsPrestataire } from '../prestataires';
 
 // ------------------------------------------------------------
 // Fixtures
@@ -22,9 +24,18 @@ function colis(
   id: string,
   statut: 'livre' | 'retourne',
   montantCod: number | string,
-  villeId: string | null = null
+  villeId: string | null = null,
+  // Frais figés à la clôture de tournée. Absent = colis jamais passé par un
+  // bon de distribution, donc coût à chercher du côté de la sous-traitance.
+  fraisLivreur: number | null = null
 ): ColisFacturable {
-  return { id, statut, montantCod, villeId } as unknown as ColisFacturable;
+  return { id, statut, montantCod, villeId, fraisLivreur } as unknown as ColisFacturable;
+}
+
+function couts(
+  parVille: Record<string, { livraison: number; retour: number | null }>
+): CoutsPrestataire {
+  return new Map(Object.entries(parVille));
 }
 
 function tarifs(
@@ -151,6 +162,8 @@ test('facture vide : tous les totaux à zéro, aucune ligne', () => {
     lignes: [],
     nbColisLivres: 0,
     nbColisRetournes: 0,
+    totalCoutLivraison: 0,
+    nbLignesCoutInconnu: 0,
     totalCod: 0,
     totalFraisLivraison: 0,
     totalFraisRetour: 0,
@@ -196,4 +209,95 @@ test('montantCod fourni en chaîne (Decimal Prisma) est traité comme un nombre'
 
   assert.equal(f.totalCod, 250.5);
   assert.equal(f.netAPayer, 220.5);
+});
+
+// ------------------------------------------------------------
+// Coût de la course et marge (§ sous-traitance)
+// ------------------------------------------------------------
+
+test('le coût figé du livreur prime sur la grille du prestataire', () => {
+  // Ville sous-traitée à 25, mais le colis a bien été livré par un livreur
+  // maison payé 18 : c'est 18 qui a été réellement déboursé.
+  const f = calculerFacture([colis('c1', 'livre', 400, 'marrakech', 18)], tarifs(30, 15), [], couts({
+    marrakech: { livraison: 25, retour: 12 },
+  }));
+
+  assert.equal(f.lignes[0].coutLivraison, 18);
+  assert.equal(f.lignes[0].coutSource, 'livreur');
+  assert.equal(f.totalCoutLivraison, 18);
+  assert.equal(f.nbLignesCoutInconnu, 0);
+});
+
+test('sans frais livreur, le coût vient de la grille du prestataire de la ville', () => {
+  const grille = couts({ marrakech: { livraison: 25, retour: 12 } });
+
+  const livre = calculerFacture([colis('c1', 'livre', 400, 'marrakech')], tarifs(30, 15), [], grille);
+  assert.equal(livre.lignes[0].coutLivraison, 25);
+  assert.equal(livre.lignes[0].coutSource, 'prestataire');
+
+  // Un retour se paie au tarif de retour, pas au tarif de livraison.
+  const retour = calculerFacture([colis('c2', 'retourne', 400, 'marrakech')], tarifs(30, 15), [], grille);
+  assert.equal(retour.lignes[0].coutLivraison, 12);
+  assert.equal(retour.totalCoutLivraison, 12);
+});
+
+test('coût inconnu : null et jamais 0, et la facture le compte', () => {
+  const f = calculerFacture(
+    [
+      // Ville non couverte par une agence, et jamais passée en tournée.
+      colis('c1', 'livre', 400, 'tanger'),
+      // Ville d'agence dont le tarif de RETOUR n'est pas renseigné : le
+      // fournisseur ne l'a pas chiffré, on ne l'invente pas.
+      colis('c2', 'retourne', 400, 'marrakech'),
+      colis('c3', 'livre', 400, 'marrakech'),
+    ],
+    tarifs(30, 15),
+    [],
+    couts({ marrakech: { livraison: 25, retour: null } })
+  );
+
+  assert.equal(f.lignes[0].coutLivraison, null);
+  assert.equal(f.lignes[0].coutSource, null);
+  assert.equal(f.lignes[1].coutLivraison, null);
+  assert.equal(f.lignes[2].coutLivraison, 25);
+  // Seuls les coûts CONNUS sont sommés — un inconnu compté 0 gonflerait la marge.
+  assert.equal(f.totalCoutLivraison, 25);
+  assert.equal(f.nbLignesCoutInconnu, 2);
+});
+
+// Un colis fabriqué sans la colonne `fraisLivreur` (select partiel, fixture)
+// ne doit pas produire un coût NaN qui contaminerait tout le total en silence.
+test('fraisLivreur absent est traité comme inconnu, pas comme NaN', () => {
+  const partiel = { id: 'c1', statut: 'livre', montantCod: 400, villeId: null } as unknown as ColisFacturable;
+  const f = calculerFacture([partiel], tarifs(30, 15));
+
+  assert.equal(f.lignes[0].coutLivraison, null);
+  assert.equal(f.totalCoutLivraison, 0);
+  assert.equal(f.nbLignesCoutInconnu, 1);
+});
+
+test('la marge est le produit des frais moins le coût, le COD exclu', () => {
+  // Facturé 30 au marchand, payé 18 au livreur : 12 de marge. Les 400 de COD
+  // appartiennent au marchand et n'entrent dans aucun des deux termes.
+  const f = calculerFacture([colis('c1', 'livre', 400, 'casa', 18)], tarifs(30, 15));
+
+  assert.deepEqual(margeFacture(f), { marge: 12, fiable: true });
+});
+
+test('la marge est signalée NON FIABLE dès qu’un coût manque', () => {
+  const f = calculerFacture(
+    [colis('c1', 'livre', 400, 'casa', 18), colis('c2', 'livre', 400, 'tanger')],
+    tarifs(30, 15)
+  );
+
+  // 60 facturés, 18 payés : la marge affichée dit 42, mais un colis n'a pas
+  // encore livré son coût — le drapeau est là pour empêcher de la lire comme
+  // un résultat.
+  assert.deepEqual(margeFacture(f), { marge: 42, fiable: false });
+});
+
+test('marge négative : un colis vendu moins cher qu’il ne coûte reste lisible', () => {
+  const f = calculerFacture([colis('c1', 'livre', 400, 'casa', 35)], tarifs(30, 15));
+
+  assert.equal(margeFacture(f).marge, -5);
 });

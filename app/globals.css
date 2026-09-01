@@ -730,6 +730,11 @@ html {
 
   --opt-on-bg: rgba(255, 209, 0, .22); --opt-on-fg: #8a7405;
 
+  /* Pilule de board retenue (.kdc-boardtab) : teinte CIEL, là où les puces de
+     priorité gardent le jaune de la CTA. Les deux rangs se suivent à l'écran,
+     ils ne doivent pas signaler leur sélection de la même façon. */
+  --tab-on-bg: rgba(142, 202, 230, .34); --tab-on-fg: #023047;
+
   /* L'alerte prend l'orange de la planche plutôt qu'un rouge étranger. */
   --danger-bg: rgba(252, 133, 0, .14); --danger-fg: #B85200; --danger-border: rgba(252, 133, 0, .40);
 
@@ -787,6 +792,8 @@ html {
     --prio-haute-bg: rgba(252, 133, 0, .22); --prio-haute-fg: #FC8500;
 
     --opt-on-bg: rgba(255, 209, 0, .16); --opt-on-fg: #FFD100;
+
+    --tab-on-bg: rgba(142, 202, 230, .18); --tab-on-fg: #8ECAE6;
 
     --danger-bg: rgba(252, 133, 0, .18); --danger-fg: #FFB701; --danger-border: rgba(252, 133, 0, .45);
 

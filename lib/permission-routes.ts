@@ -212,6 +212,10 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // --- Organisation & administration ---------------------------------------
   { pattern: '/api/utilisateurs/**', permission: 'users:manage' },
   { pattern: '/api/hubs/**', permission: 'hubs:manage' },
+  // § Sous-traitance : un prestataire n'est que l'autre face du réseau de hubs
+  // (ses agences SONT des hubs, cf. Hub.prestataireId) et se gère sur le même
+  // écran — même clé, donc, plutôt qu'une permission de plus à cocher.
+  { pattern: '/api/prestataires/**', permission: 'hubs:manage' },
   // Pôles du Kanban : le cycle de vie d'un pôle (créer, renommer, supprimer)
   // et l'affectation de ses membres n'ont jamais eu le même public — d'où deux
   // clés. Les deux règles nommées passent AVANT la règle générique des pôles,

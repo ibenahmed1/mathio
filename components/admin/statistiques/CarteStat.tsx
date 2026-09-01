@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Minus, TriangleAlert } from 'lucide-react';
 
 // Carte de KPI avec variation par rapport à la période précédente.
 //
@@ -14,18 +14,29 @@ export function CarteStat({
   // finissent par ne plus rien vouloir dire.
   hausseEstBonne = true,
   precision,
+  // Réserve sur la valeur elle-même, affichée EN PLUS de la variation et non à
+  // sa place : un chiffre dont on sait qu'il est faux doit le dire au même
+  // endroit qu'on le lit. Sert à la marge, dont le coût peut être incomplet.
+  alerte,
 }: {
   label: string;
   valeur: string;
   variation?: number | null;
   hausseEstBonne?: boolean;
   precision?: string;
+  alerte?: string;
 }) {
   return (
     <div className="dashboard-card flex flex-col gap-1">
       <p className="text-xs font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">{label}</p>
       <p className="text-2xl font-black leading-tight tabular-nums text-black dark:text-white">{valeur}</p>
       <Variation valeur={variation} hausseEstBonne={hausseEstBonne} precision={precision} />
+      {alerte && (
+        <p className="mt-0.5 flex items-start gap-1 text-[11px] font-medium leading-snug text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-px h-3 w-3 shrink-0" />
+          {alerte}
+        </p>
+      )}
     </div>
   );
 }

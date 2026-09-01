@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { messageConflitHub } from '@/lib/prestataires';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -25,6 +26,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.isCentral === 'boolean') {
       data.isCentral = body.isCentral;
     }
+    // Bascule interne ↔ sous-traitance : chaîne vide ou null = on rend le hub
+    // à l'exploitation interne (cf. Hub.prestataireId).
+    if (body.prestataireId !== undefined) {
+      const prestataireId =
+        typeof body.prestataireId === 'string' && body.prestataireId.trim() ? body.prestataireId.trim() : null;
+      if (prestataireId) {
+        if (!(await prisma.prestataire.findUnique({ where: { id: prestataireId } }))) {
+          throw new ApiError(404, 'Prestataire introuvable');
+        }
+        data.prestataire = { connect: { id: prestataireId } };
+      } else {
+        data.prestataire = { disconnect: true };
+      }
+    }
     if (Object.keys(data).length === 0) {
       throw new ApiError(400, 'Aucune modification fournie');
     }
@@ -34,7 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json(hub);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') throw new ApiError(409, 'Ce nom de hub existe déjà');
+        if (error.code === 'P2002') throw new ApiError(409, messageConflitHub(error));
         if (error.code === 'P2025') throw new ApiError(404, 'Hub introuvable');
       }
       throw error;

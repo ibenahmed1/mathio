@@ -129,9 +129,11 @@ async function seed() {
     update: {},
     create: { nom: 'Hub Audit Tournée (autre)', ville: 'Tanger' },
   });
+  // Clé (hub, nom) depuis que plusieurs réseaux peuvent annoncer la même ville
+  // (§ @@unique([hubId, nom]) sur Ville) : l'audit vise SA ville, dans SON hub.
   const ville = await prisma.ville.upsert({
-    where: { nom: 'VilleAuditTournee' },
-    update: { hubId: hub.id },
+    where: { hubId_nom: { hubId: hub.id, nom: 'VilleAuditTournee' } },
+    update: {},
     create: { nom: 'VilleAuditTournee', hubId: hub.id },
   });
 

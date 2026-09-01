@@ -243,17 +243,37 @@ export function labelClassName(labelKey: string): string {
 // Étiquettes de tâche (Tache.etiquettes), reprises à l'identique des 6 chips
 // du board Kadence (design_handoff_kanban) — indépendantes de l'équipe,
 // affectées librement par tâche depuis la modale de détail.
-export const ETIQUETTES_TACHE = ['design', 'frontend', 'backend', 'research', 'bug', 'docs'] as const;
-export type EtiquetteTache = (typeof ETIQUETTES_TACHE)[number];
+// Palette des chips d'étiquette : les six teintes définies par la maquette
+// (--label-*-bg/--label-*-fg dans app/globals.css). Ce ne sont plus les
+// étiquettes elles-mêmes — celles-ci vivent en base (model EtiquetteTache) et
+// se créent depuis le tableau — mais les couleurs qu'on peut leur donner.
+export const COULEURS_ETIQUETTE = ['design', 'frontend', 'backend', 'research', 'bug', 'docs'] as const;
+export type CouleurEtiquette = (typeof COULEURS_ETIQUETTE)[number];
 
-export const LABELS_ETIQUETTE_TACHE: Record<EtiquetteTache, string> = {
-  design: 'Design',
-  frontend: 'Frontend',
-  backend: 'Backend',
-  research: 'Research',
-  bug: 'Bug',
-  docs: 'Docs',
+export const LABELS_COULEUR_ETIQUETTE: Record<CouleurEtiquette, string> = {
+  design: 'Violet',
+  frontend: 'Bleu',
+  backend: 'Vert',
+  research: 'Ambre',
+  bug: 'Rouge',
+  docs: 'Gris',
 };
+
+// Identifiant lisible et stable dérivé d'un libellé (code de pôle, code
+// d'étiquette) : c'est lui qu'on stocke, pour qu'un renommage n'oblige pas à
+// réécrire les lignes qui le référencent.
+export function normaliserCode(valeur: string): string {
+  return valeur
+    .trim()
+    .toLowerCase()
+    // Les accents sont dépliés puis leurs diacritiques retirés AVANT le filtre :
+    // sans ça « Développement » sortait en « d_veloppement », le « é » tombant
+    // dans la classe des caractères remplacés par un souligné.
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 
 // Clé courte affichée sur la carte (KAD-118…), dérivée de Tache.numero
 // (colonne Postgres SERIAL, unique et croissante) — jamais stockée en texte.

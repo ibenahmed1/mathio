@@ -2,7 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { nextFactureNumero } from '@/lib/codes';
 import type { Prisma } from '@/app/generated/prisma/client';
-import type { StatutFacture } from '@/app/generated/prisma/enums';
+import type { SourceCoutLivraison, StatutFacture } from '@/app/generated/prisma/enums';
+import { getCoutsPrestataire, type CoutsPrestataire } from '@/lib/prestataires';
 
 // § Facturation marchand (/admin/factures).
 //
@@ -214,6 +215,9 @@ export interface LigneCalculee {
   livre: boolean;
   montantCod: number;
   frais: number;
+  // Coût de la course, null quand il est inconnu (cf. LigneFacture.coutLivraison).
+  coutLivraison: number | null;
+  coutSource: SourceCoutLivraison | null;
 }
 
 export interface FraisAnnexeSaisi {
@@ -230,6 +234,65 @@ export interface FactureCalculee {
   totalFraisRetour: number;
   totalAutresFrais: number;
   netAPayer: number;
+  totalCoutLivraison: number;
+  nbLignesCoutInconnu: number;
+}
+
+// Ce que le colis nous a coûté, dans l'ordre de FIABILITÉ décroissante.
+//
+// 1. `Commande.fraisLivreur` d'abord : figé colis par colis à la clôture de la
+//    tournée, c'est un montant réellement dû, pas une estimation. Il l'emporte
+//    donc même si la ville est aujourd'hui passée en sous-traitance — le colis,
+//    lui, a bien été livré par un livreur maison.
+// 2. Sinon la grille du prestataire qui dessert la ville : pas de tournée, donc
+//    pas de montant figé, c'est le contrat qui dit le prix.
+// 3. Sinon rien. Null, jamais 0 (cf. LigneFacture.coutLivraison).
+function coutPourColis(
+  colis: ColisFacturable,
+  livre: boolean,
+  couts: CoutsPrestataire
+): { coutLivraison: number | null; coutSource: SourceCoutLivraison | null } {
+  // `!== null` seul ne suffirait pas : un colis construit sans la colonne (un
+  // `select` partiel, une fixture de test) donnerait `undefined`, et
+  // Number(undefined) vaut NaN — un coût qui contaminerait tout le total sans
+  // jamais lever d'erreur.
+  const fraisLivreur = colis.fraisLivreur;
+  if (fraisLivreur !== null && fraisLivreur !== undefined) {
+    return { coutLivraison: arrondi(Number(fraisLivreur)), coutSource: 'livreur' };
+  }
+
+  const tarif = colis.villeId ? couts.get(colis.villeId) : undefined;
+  if (tarif) {
+    const montant = livre ? tarif.livraison : tarif.retour;
+    if (montant !== null) {
+      return { coutLivraison: arrondi(montant), coutSource: 'prestataire' };
+    }
+  }
+
+  return { coutLivraison: null, coutSource: null };
+}
+
+// Marge de la plateforme sur une facture : ce qu'elle facture au marchand moins
+// ce que la prestation lui coûte. Le COD n'entre dans aucun des deux termes —
+// il transite par nos comptes mais appartient au marchand.
+//
+// Calculée à la lecture plutôt que stockée : c'est une soustraction de champs
+// déjà portés par la même ligne, un total dénormalisé de plus ne pourrait que
+// diverger. `fiable` est faux dès qu'une ligne a un coût inconnu — la marge est
+// alors SURESTIMÉE, et l'afficher sans le dire serait mentir par omission.
+export function margeFacture(facture: {
+  totalFraisLivraison: Prisma.Decimal | number | string;
+  totalFraisRetour: Prisma.Decimal | number | string;
+  totalAutresFrais: Prisma.Decimal | number | string;
+  totalCoutLivraison: Prisma.Decimal | number | string;
+  nbLignesCoutInconnu: number;
+}): { marge: number; fiable: boolean } {
+  const produit =
+    Number(facture.totalFraisLivraison) + Number(facture.totalFraisRetour) + Number(facture.totalAutresFrais);
+  return {
+    marge: arrondi(produit - Number(facture.totalCoutLivraison)),
+    fiable: facture.nbLignesCoutInconnu === 0,
+  };
 }
 
 // Cœur du calcul, volontairement PUR (aucune requête) pour être testable et
@@ -242,7 +305,11 @@ export interface FactureCalculee {
 export function calculerFacture(
   colis: ColisFacturable[],
   tarifs: TarifsMarchand,
-  autresFrais: FraisAnnexeSaisi[] = []
+  autresFrais: FraisAnnexeSaisi[] = [],
+  // Par défaut vide : sans référentiel de sous-traitance chargé, seuls les
+  // colis portant un `fraisLivreur` figé ont un coût connu. Le calcul reste
+  // juste, il est simplement moins renseigné.
+  couts: CoutsPrestataire = new Map()
 ): FactureCalculee {
   const lignes: LigneCalculee[] = [];
   let totalCod = 0;
@@ -250,6 +317,8 @@ export function calculerFacture(
   let totalFraisRetour = 0;
   let nbColisLivres = 0;
   let nbColisRetournes = 0;
+  let totalCoutLivraison = 0;
+  let nbLignesCoutInconnu = 0;
 
   for (const c of colis) {
     const livre = c.statut === 'livre';
@@ -258,6 +327,7 @@ export function calculerFacture(
     // Un colis retourné n'a rien encaissé : son COD ne doit jamais entrer
     // dans le total, seulement ses frais de retour.
     const montantCod = livre ? arrondi(Number(c.montantCod)) : 0;
+    const { coutLivraison, coutSource } = coutPourColis(c, livre, couts);
 
     if (livre) {
       nbColisLivres += 1;
@@ -268,7 +338,13 @@ export function calculerFacture(
       totalFraisRetour = arrondi(totalFraisRetour + frais);
     }
 
-    lignes.push({ commandeId: c.id, livre, montantCod, frais });
+    if (coutLivraison === null) {
+      nbLignesCoutInconnu += 1;
+    } else {
+      totalCoutLivraison = arrondi(totalCoutLivraison + coutLivraison);
+    }
+
+    lignes.push({ commandeId: c.id, livre, montantCod, frais, coutLivraison, coutSource });
   }
 
   const totalAutresFrais = arrondi(
@@ -287,6 +363,8 @@ export function calculerFacture(
     // alors le marchand qui doit à la plateforme. Le signe est conservé tel
     // quel, jamais ramené à 0 — le masquer ferait disparaître une dette.
     netAPayer: arrondi(totalCod - totalFraisLivraison - totalFraisRetour - totalAutresFrais),
+    totalCoutLivraison,
+    nbLignesCoutInconnu,
   };
 }
 
@@ -308,9 +386,10 @@ export async function previsualiserFacture(marchandId: string, factureId?: strin
   });
   if (!marchand) throw new ApiError(404, 'Marchand introuvable');
 
-  const [facturables, tarifs] = await Promise.all([
+  const [facturables, tarifs, couts] = await Promise.all([
     getColisFacturables(marchandId, factureId),
     getTarifsMarchand(marchand),
+    getCoutsPrestataire(),
   ]);
 
   return {
@@ -321,7 +400,7 @@ export async function previsualiserFacture(marchandId: string, factureId?: strin
       ville: marchand.ville,
     },
     colis: facturables,
-    total: calculerFacture(facturables, tarifs),
+    total: calculerFacture(facturables, tarifs, [], couts),
   };
 }
 
@@ -358,7 +437,7 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
   const [lignes, frais] = await Promise.all([
     db.ligneFacture.findMany({
       where: { factureId },
-      select: { livre: true, montantCod: true, frais: true },
+      select: { livre: true, montantCod: true, frais: true, coutLivraison: true },
     }),
     db.fraisFacture.findMany({ where: { factureId }, select: { montant: true } }),
   ]);
@@ -368,6 +447,8 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
   let totalCod = 0;
   let totalFraisLivraison = 0;
   let totalFraisRetour = 0;
+  let totalCoutLivraison = 0;
+  let nbLignesCoutInconnu = 0;
 
   for (const l of lignes) {
     if (l.livre) {
@@ -377,6 +458,12 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
     } else {
       nbColisRetournes += 1;
       totalFraisRetour = arrondi(totalFraisRetour + Number(l.frais));
+    }
+
+    if (l.coutLivraison === null) {
+      nbLignesCoutInconnu += 1;
+    } else {
+      totalCoutLivraison = arrondi(totalCoutLivraison + Number(l.coutLivraison));
     }
   }
 
@@ -392,6 +479,8 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
       totalFraisRetour,
       totalAutresFrais,
       netAPayer: arrondi(totalCod - totalFraisLivraison - totalFraisRetour - totalAutresFrais),
+      totalCoutLivraison,
+      nbLignesCoutInconnu,
     },
   });
 }
@@ -412,11 +501,15 @@ export async function ecrireSelection(
     factureId: string;
     colis: ColisFacturable[];
     tarifs: TarifsMarchand;
+    // Résolu par la route AVANT d'ouvrir la transaction, comme `tarifs` : lire
+    // un référentiel depuis l'intérieur d'une transaction d'écriture le tient
+    // ouvert pour rien.
+    couts: CoutsPrestataire;
     autresFrais: FraisAnnexeSaisi[];
     auteurId: string;
   }
 ) {
-  const { factureId, colis, tarifs, autresFrais, auteurId } = options;
+  const { factureId, colis, tarifs, couts, autresFrais, auteurId } = options;
 
   // 1. Libérer ce que la facture tenait déjà.
   const anciennes = await tx.ligneFacture.findMany({
@@ -432,7 +525,7 @@ export async function ecrireSelection(
   }
 
   // 2. Réserver la nouvelle sélection.
-  const calcul = calculerFacture(colis, tarifs, autresFrais);
+  const calcul = calculerFacture(colis, tarifs, autresFrais, couts);
   if (calcul.lignes.length > 0) {
     await tx.ligneFacture.createMany({
       data: calcul.lignes.map((l) => ({ ...l, factureId })),
@@ -467,6 +560,7 @@ export async function creerFacture(
     marchandId: string;
     colis: ColisFacturable[];
     tarifs: TarifsMarchand;
+    couts: CoutsPrestataire;
     autresFrais: FraisAnnexeSaisi[];
     emiseParId: string;
   }
@@ -493,6 +587,7 @@ export async function creerFacture(
     factureId: creee.id,
     colis: options.colis,
     tarifs: options.tarifs,
+    couts: options.couts,
     autresFrais: options.autresFrais,
     auteurId: options.emiseParId,
   });
@@ -638,8 +733,32 @@ export const factureDetailInclude = {
   },
 } satisfies Prisma.FactureInclude;
 
+// Les colonnes de coût sont INTERNES (cf. LigneFacture.coutLivraison). Elles
+// sont écartées par la REQUÊTE et non filtrées après coup : un `omit` ne peut
+// pas être oublié en chemin par un `...spread` compatissant, là où un tri en
+// mémoire finit toujours par laisser passer une nouvelle propriété.
+export const FACTURE_OMIT_COUTS = { totalCoutLivraison: true, nbLignesCoutInconnu: true } as const;
+const LIGNE_OMIT_COUTS = { coutLivraison: true, coutSource: true } as const;
+
+const factureDetailIncludeMarchand = {
+  ...factureDetailInclude,
+  lignes: { ...factureDetailInclude.lignes, omit: LIGNE_OMIT_COUTS },
+} satisfies Prisma.FactureInclude;
+
 export async function getFacture(id: string) {
   const facture = await prisma.facture.findUnique({ where: { id }, include: factureDetailInclude });
+  if (!facture) throw new ApiError(404, 'Facture introuvable');
+  return facture;
+}
+
+// Même document, amputé de ce que le marchand n'a pas à connaître : notre prix
+// d'achat, et donc notre marge.
+export async function getFacturePourMarchand(id: string) {
+  const facture = await prisma.facture.findUnique({
+    where: { id },
+    include: factureDetailIncludeMarchand,
+    omit: FACTURE_OMIT_COUTS,
+  });
   if (!facture) throw new ApiError(404, 'Facture introuvable');
   return facture;
 }

@@ -2,9 +2,17 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { ROLES_KANBAN_UNIQUEMENT } from '@/lib/auth';
-import { ROLES_BACKOFFICE_TACHES, peutModifierTache } from '@/lib/taches-scope';
+import {
+  ROLES_BACKOFFICE_TACHES,
+  peutModifierTache,
+  boardsVisibles,
+  boardAutorise,
+  exigerBoardAutorise,
+  validerEtiquettes,
+  exigerAssigneAutorise,
+} from '@/lib/taches-scope';
 import type { Prisma } from '@/app/generated/prisma/client';
-import { STATUTS_TACHE, PRIORITES_TACHE, ETIQUETTES_TACHE } from '@/lib/statuts';
+import { STATUTS_TACHE, PRIORITES_TACHE } from '@/lib/statuts';
 
 const ROLES_BACKOFFICE = ROLES_BACKOFFICE_TACHES;
 
@@ -28,11 +36,12 @@ const INCLUDE = {
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(ROLES_BACKOFFICE);
+    const session = await requireUser(ROLES_BACKOFFICE);
     const { id } = await params;
 
     const tache = await prisma.tache.findUnique({ where: { id }, include: INCLUDE });
     if (!tache) throw new ApiError(404, 'Tâche introuvable');
+    exigerBoardAutorise(await boardsVisibles(session), tache.teamId);
 
     return NextResponse.json(tache);
   } catch (error) {
@@ -50,6 +59,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const existant = await prisma.tache.findUnique({ where: { id } });
     if (!existant) throw new ApiError(404, 'Tâche introuvable');
+
+    const scope = await boardsVisibles(session);
+    exigerBoardAutorise(scope, existant.teamId);
 
     if (!peutModifierTache(session, existant)) {
       throw new ApiError(403, 'Vous ne pouvez modifier que les tâches que vous avez créées ou qui vous sont attribuées');
@@ -116,13 +128,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if ('etiquettes' in body) {
-      if (
-        !Array.isArray(body.etiquettes) ||
-        !body.etiquettes.every((e: unknown) => ETIQUETTES_TACHE.includes(e as (typeof ETIQUETTES_TACHE)[number]))
-      ) {
-        throw new ApiError(400, `etiquettes invalides. Valeurs possibles : ${ETIQUETTES_TACHE.join(', ')}`);
-      }
-      data.etiquettes = body.etiquettes;
+      data.etiquettes = await validerEtiquettes(body.etiquettes);
     }
     if (typeof body.priorite === 'string') {
       if (!PRIORITES_TACHE.includes(body.priorite as (typeof PRIORITES_TACHE)[number])) {
@@ -133,6 +139,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.teamId === 'string' && body.teamId) {
       const team = await prisma.equipeTache.findUnique({ where: { id: body.teamId } });
       if (!team) throw new ApiError(400, 'Équipe invalide');
+      // Déplacer une tâche vers un pôle dont on n'est pas membre reviendrait à
+      // la faire disparaître de son propre tableau.
+      if (!boardAutorise(scope, team.id)) throw new ApiError(403, 'Vous ne faites pas partie de ce board');
       data.team = { connect: { id: team.id } };
     }
     if ('assigneeId' in body) {
@@ -144,6 +153,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (typeof body.assigneeId === 'string' && body.assigneeId) {
         const assignee = await prisma.utilisateur.findUnique({ where: { id: body.assigneeId } });
         if (!assignee) throw new ApiError(400, 'assigneeId invalide');
+        // Board d'arrivée : une même requête peut déplacer la tâche ET la
+        // réattribuer, l'appartenance se vérifie sur le pôle de destination.
+        const teamIdCible = typeof body.teamId === 'string' && body.teamId ? body.teamId : existant.teamId;
+        await exigerAssigneAutorise(session, teamIdCible, assignee.id);
         data.assignee = { connect: { id: assignee.id } };
       } else {
         data.assignee = { disconnect: true };
@@ -185,6 +198,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
     const existant = await prisma.tache.findUnique({ where: { id } });
     if (!existant) throw new ApiError(404, 'Tâche introuvable');
+    exigerBoardAutorise(await boardsVisibles(session), existant.teamId);
 
     await prisma.tache.delete({ where: { id } });
 

@@ -135,6 +135,11 @@ export function FactureEditeur({
     let fraisRetour = 0;
     let livres = 0;
     let retours = 0;
+    // § Marge — ce que la course NOUS coûte (livreur interne ou prestataire),
+    // face aux frais facturés juste au-dessus. Interne : n'apparaît que dans
+    // cet écran d'édition, jamais sur le document imprimé.
+    let cout = 0;
+    let coutInconnu = 0;
 
     for (const ligne of tarifParColis.values()) {
       if (!selection.has(ligne.commandeId)) continue;
@@ -146,6 +151,8 @@ export function FactureEditeur({
         retours += 1;
         fraisRetour += ligne.frais;
       }
+      if (ligne.coutLivraison === null) coutInconnu += 1;
+      else cout += ligne.coutLivraison;
     }
 
     const autres = frais.reduce((s, f) => s + f.montant, 0);
@@ -157,6 +164,10 @@ export function FactureEditeur({
       livres,
       retours,
       net: cod - fraisLivraison - fraisRetour - autres,
+      cout,
+      coutInconnu,
+      // Le COD n'entre pas dans la marge : il appartient au marchand.
+      marge: fraisLivraison + fraisRetour + autres - cout,
     };
   }, [tarifParColis, selection, frais]);
 
@@ -521,6 +532,39 @@ export function FactureEditeur({
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 Net négatif : les frais dépassent le CRBT encaissé, c&apos;est donc le marchand qui doit à la
                 plateforme. L&apos;écriture comptable sera enregistrée en recette.
+              </p>
+            )}
+          </section>
+
+          {/* Marge : le seul bloc de cet écran qui ne concerne PAS le marchand.
+              Il ne figure sur aucun document imprimé et n'est jamais servi à
+              une session marchand (cf. getFacturePourMarchand). */}
+          <section className="dashboard-card flex flex-col gap-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider opacity-60">Marge plateforme · interne</h2>
+
+            <dl className="flex flex-col gap-1.5 text-sm">
+              <div className="flex items-baseline justify-between gap-3 opacity-80">
+                <dt>Frais facturés</dt>
+                <dd className="font-mono tabular-nums">
+                  {montant(totaux.fraisLivraison + totaux.fraisRetour + totaux.autres)}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 opacity-80">
+                <dt>Coût des courses</dt>
+                <dd className="font-mono tabular-nums">−{montant(totaux.cout)}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-black/10 pt-2 dark:border-white/15">
+              <span className="text-sm font-bold uppercase tracking-wide">Marge</span>
+              <span className="font-mono text-lg font-black tabular-nums">{montant(totaux.marge)}</span>
+            </div>
+
+            {totaux.coutInconnu > 0 && (
+              <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 p-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {totaux.coutInconnu} colis sans coût connu : marge <strong>surestimée</strong>. Un colis livré avant le suivi
+                des frais livreur, ou une ville d&apos;agence dont le tarif prestataire n&apos;est pas renseigné.
               </p>
             )}
           </section>

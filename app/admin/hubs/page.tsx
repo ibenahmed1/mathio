@@ -1,34 +1,130 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Building2, Map, MapPin, Pencil, Plus, Search, Tag, Trash2, Warehouse, X } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
-import type { Hub, Ville } from '@/lib/types';
+import type { Hub, Prestataire, Ville } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
-import { IconButton } from '@/components/admin/IconButton';
 import { Field } from '@/components/form/Field';
+import './hubs.css';
 
 type ModalState =
   | { kind: 'hub'; mode: 'create' }
   | { kind: 'hub'; mode: 'edit'; hub: Hub }
   | { kind: 'ville'; mode: 'create'; hubId: string }
   | { kind: 'ville'; mode: 'edit'; ville: Ville }
+  | { kind: 'prestataire'; mode: 'create' }
+  | { kind: 'prestataire'; mode: 'edit'; prestataire: Prestataire }
   | null;
+
+type Filtre = 'tous' | 'interne' | 'soustraite';
+
+// Nombre de puces de villes affichées avant le repli « + N autres » : au-delà,
+// une agence comme Marrakech (41 villes) noierait la carte et ses actions.
+const VILLES_AVANT_REPLI = 12;
+
+// Identité colorée d'un hub. La couleur n'est plus tirée d'un hachage du nom —
+// elle alternait alors sans raison lisible d'une carte à l'autre — mais dit à
+// QUI appartient le hub :
+//   • marine  → le hub central ;
+//   • bleu    → les hubs internes, tous la même teinte ;
+//   • chaud   → une teinte par prestataire, la même pour toutes ses agences.
+// Comme le tri regroupe les agences par prestataire, la grille se lit en blocs
+// de couleur, et deux cartes de même teinte disent toujours la même chose.
+const GRADIENTS: Record<string, string> = {
+  navy: 'linear-gradient(135deg,#023047,#14526E)',
+  blue: 'linear-gradient(135deg,#8ECAE6,#219EBC)',
+  yellow: 'linear-gradient(135deg,#FFB701,#E8A400)',
+  accent: 'linear-gradient(135deg,#FFB701,#FC8500)',
+  orange: 'linear-gradient(135deg,#FC8500,#E56A00)',
+  orangeDeep: 'linear-gradient(135deg,#E56A00,#C25400)',
+  brique: 'linear-gradient(135deg,#C25400,#9E4300)',
+};
+
+// Rangées dans l'ordre où elles seront distribuées : du plus clair au plus
+// soutenu, pour que deux prestataires voisins dans l'alphabet restent
+// distinguables au premier coup d'œil. Cinq marches pour cinq prestataires
+// (Amir, EST, Meta, Power, Sahario) — au-delà la suite reboucle, et deux
+// réseaux se retrouveraient de la même couleur : il faudra alors trancher
+// autrement qu'en ajoutant une nuance de plus, l'œil ne suivrait pas.
+const GRADIENTS_AGENCE = ['yellow', 'accent', 'orange', 'orangeDeep', 'brique'];
+
+// Teinte de chaque prestataire, attribuée dans l'ordre alphabétique de leur
+// nom : elle ne bouge donc pas d'un rechargement à l'autre, et n'est
+// redistribuée que si un prestataire entre ou sort.
+function couleursParPrestataire(hubs: Hub[]): Record<string, string> {
+  const noms: Record<string, string> = {};
+  for (const hub of hubs) {
+    if (hub.prestataireId) noms[hub.prestataireId] = hub.prestataire?.nom ?? hub.prestataireId;
+  }
+  const ids = Object.keys(noms).sort((a, b) => noms[a].localeCompare(noms[b], 'fr', { sensitivity: 'base' }));
+  const couleurs: Record<string, string> = {};
+  ids.forEach((id, i) => {
+    couleurs[id] = GRADIENTS[GRADIENTS_AGENCE[i % GRADIENTS_AGENCE.length]];
+  });
+  return couleurs;
+}
+
+function gradientDeHub(hub: Hub, couleursAgence: Record<string, string>): string {
+  if (hub.isCentral) return GRADIENTS.navy;
+  if (!hub.prestataireId) return GRADIENTS.blue;
+  return couleursAgence[hub.prestataireId] ?? GRADIENTS.accent;
+}
+
+// Ordre d'affichage : le hub central d'abord, puis les hubs internes, puis les
+// agences sous-traitées, celles-ci groupées par prestataire. C'est l'ordre du
+// réseau lui-même, et il fait tomber les couleurs en blocs continus.
+function rangDeHub(hub: Hub): number {
+  if (hub.isCentral) return 0;
+  return hub.prestataireId ? 2 : 1;
+}
+
+// « Agence El Jadida » → EJ, « Hub Casablanca » → CA. Le préfixe est retiré
+// avant l'initiale : sans ça, tous les hubs afficheraient « HU » ou « AG ».
+function initiales(nom: string): string {
+  const mots = nom.replace(/^(hub|agence)\s+/i, '').trim().split(/\s+/);
+  if (mots.length >= 2) return (mots[0][0] + mots[1][0]).toUpperCase();
+  return (mots[0] ?? '?').slice(0, 2).toUpperCase();
+}
+
+// Tarif retenu pour une ville : celui du prestataire qui l'exploite quand le
+// hub est sous-traité, sinon le meilleur tarif connu chez n'importe quel
+// prestataire — sur un hub interne ce n'est pas un coût réel mais un ordre de
+// grandeur, et le libellé le dit (« Tarification indicative »).
+function tarifDeVille(ville: Ville, hub: Hub): number | null {
+  if (hub.prestataireId) {
+    return ville.tarifPrestataire == null ? null : Number(ville.tarifPrestataire);
+  }
+  const connus = (ville.tarifsPrestataires ?? []).map((t) => Number(t.tarifLivraison));
+  return connus.length > 0 ? Math.min(...connus) : null;
+}
 
 export default function AdminHubsPage() {
   const [hubs, setHubs] = useState<Hub[]>([]);
+  // § Sous-traitance : les prestataires vivent sur le même écran que les hubs,
+  // parce que c'est le même référentiel vu des deux côtés — un hub est soit
+  // exploité par nous, soit par l'un d'eux.
+  const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
-  const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
+  // Hub visé par le formulaire de ville, suivi à part : c'est lui qui décide si
+  // le champ tarif a un sens (agence) ou non (hub interne).
+  const [villeHubId, setVilleHubId] = useState<string>('');
+  const [recherche, setRecherche] = useState('');
+  const [filtre, setFiltre] = useState<Filtre>('tous');
+  // Cartes dont la grille tarifaire est dépliée, et celles qui montrent la
+  // totalité de leurs villes plutôt que les douze premières.
+  const [depliees, setDepliees] = useState<Set<string>>(new Set());
+  const [completes, setCompletes] = useState<Set<string>>(new Set());
 
-  // Conserve la sélection courante si le hub existe toujours après un
-  // rechargement ; sinon retombe sur le premier hub (ou aucune sélection
-  // s'il n'y en a plus) — évite de perdre le focus admin à chaque mutation.
   async function load() {
     try {
-      const res = await apiGet<{ data: Hub[] }>('/api/hubs');
-      setHubs(res.data);
-      setSelectedHubId((current) => (current && res.data.some((h) => h.id === current) ? current : (res.data[0]?.id ?? null)));
+      const [resHubs, resPrestataires] = await Promise.all([
+        apiGet<{ data: Hub[] }>('/api/hubs'),
+        apiGet<{ data: Prestataire[] }>('/api/prestataires'),
+      ]);
+      setHubs(resHubs.data);
+      setPrestataires(resPrestataires.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     }
@@ -41,10 +137,46 @@ export default function AdminHubsPage() {
   const totaux = useMemo(() => {
     const villes = hubs.reduce((total, h) => total + (h.villes?.length ?? 0), 0);
     const colisDepot = hubs.reduce((total, h) => total + (h.nbColisDepot ?? 0), 0);
-    return { hubs: hubs.length, villes, colisDepot };
+    const agences = hubs.filter((h) => h.prestataireId).length;
+    return { hubs: hubs.length, agences, villes, colisDepot };
   }, [hubs]);
 
-  const selectedHub = hubs.find((h) => h.id === selectedHubId) ?? null;
+  const hubsFiltres = useMemo(() => {
+    const q = recherche.trim().toLowerCase();
+    const retenus = hubs.filter((hub) => {
+      if (filtre === 'interne' && hub.prestataireId) return false;
+      if (filtre === 'soustraite' && !hub.prestataireId) return false;
+      if (!q) return true;
+      // La recherche porte aussi sur les VILLES : on cherche bien plus souvent
+      // « qui livre Tahannaout ? » que le nom d'une agence qu'on connaît déjà.
+      return (
+        hub.nom.toLowerCase().includes(q) ||
+        hub.ville.toLowerCase().includes(q) ||
+        (hub.prestataire?.nom.toLowerCase().includes(q) ?? false) ||
+        (hub.villes ?? []).some((v) => v.nom.toLowerCase().includes(q))
+      );
+    });
+    return [...retenus].sort(
+      (a, b) =>
+        rangDeHub(a) - rangDeHub(b) ||
+        (a.prestataire?.nom ?? '').localeCompare(b.prestataire?.nom ?? '', 'fr', { sensitivity: 'base' }) ||
+        a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' })
+    );
+  }, [hubs, recherche, filtre]);
+
+  const couleursAgence = useMemo(() => couleursParPrestataire(hubs), [hubs]);
+
+  function basculer(ensemble: Set<string>, id: string): Set<string> {
+    const suivant = new Set(ensemble);
+    if (suivant.has(id)) suivant.delete(id);
+    else suivant.add(id);
+    return suivant;
+  }
+
+  function ouvrirVille(state: Extract<ModalState, { kind: 'ville' }>) {
+    setVilleHubId(state.mode === 'create' ? state.hubId : state.ville.hubId);
+    setModal(state);
+  }
 
   async function handleHubSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -56,6 +188,8 @@ export default function AdminHubsPage() {
       adresse: String(fd.get('adresse') ?? ''),
       telephone: String(fd.get('telephone') ?? ''),
       isCentral: fd.get('isCentral') === 'on',
+      // Chaîne vide = hub interne : l'API la traduit en détachement.
+      prestataireId: String(fd.get('prestataireId') ?? ''),
     };
     setError(null);
     try {
@@ -75,13 +209,49 @@ export default function AdminHubsPage() {
     e.preventDefault();
     if (!modal || modal.kind !== 'ville') return;
     const fd = new FormData(e.currentTarget);
-    const payload = { nom: String(fd.get('nom') ?? ''), hubId: String(fd.get('hubId') ?? '') };
+    const hubId = String(fd.get('hubId') ?? '');
+    const tarifSaisi = String(fd.get('tarif') ?? '').trim();
+    const retourSaisi = String(fd.get('tarifRetour') ?? '').trim();
+    const sousTraite = Boolean(hubs.find((h) => h.id === hubId)?.prestataireId);
+    const payload = {
+      nom: String(fd.get('nom') ?? ''),
+      hubId,
+      // Champ vide sur une agence = tarif retiré (ville non tarifée) ; sur un
+      // hub interne, l'API l'ignore — il n'y a pas de prestataire à facturer.
+      tarif: sousTraite ? (tarifSaisi === '' ? null : tarifSaisi) : undefined,
+      tarifRetour: sousTraite ? (retourSaisi === '' ? null : retourSaisi) : undefined,
+    };
     setError(null);
     try {
       if (modal.mode === 'create') {
         await apiPost('/api/villes', payload);
       } else {
         await apiPatch(`/api/villes/${modal.ville.id}`, payload);
+      }
+      setModal(null);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    }
+  }
+
+  async function handlePrestataireSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!modal || modal.kind !== 'prestataire') return;
+    const fd = new FormData(e.currentTarget);
+    const payload = {
+      nom: String(fd.get('nom') ?? ''),
+      contact: String(fd.get('contact') ?? ''),
+      telephone: String(fd.get('telephone') ?? ''),
+      email: String(fd.get('email') ?? ''),
+      actif: fd.get('actif') === 'on',
+    };
+    setError(null);
+    try {
+      if (modal.mode === 'create') {
+        await apiPost('/api/prestataires', payload);
+      } else {
+        await apiPatch(`/api/prestataires/${modal.prestataire.id}`, payload);
       }
       setModal(null);
       load();
@@ -112,141 +282,274 @@ export default function AdminHubsPage() {
     }
   }
 
+  async function supprimerPrestataire(prestataire: Prestataire) {
+    if (!window.confirm(`Supprimer le prestataire "${prestataire.nom}" ? Sa grille tarifaire sera perdue.`)) return;
+    setError(null);
+    try {
+      await apiDelete(`/api/prestataires/${prestataire.id}`);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+    }
+  }
+
+  const hubFormulaireVille = hubs.find((h) => h.id === villeHubId) ?? null;
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="hubs-page">
+      <div className="page-header">
         <div>
-          <h1 className="page-title">Gestion des Hubs</h1>
-          <p className="mt-0.5 text-sm opacity-60">
-            {totaux.hubs} hub{totaux.hubs > 1 ? 's' : ''} · {totaux.villes} ville{totaux.villes > 1 ? 's' : ''} · {totaux.colisDepot} colis au dépôt
+          <h1>Gestion des Hubs</h1>
+          <p className="subtitle">
+            {totaux.hubs} hub{totaux.hubs > 1 ? 's' : ''} dont {totaux.agences} sous-traité{totaux.agences > 1 ? 's' : ''} ·{' '}
+            {totaux.villes} ville{totaux.villes > 1 ? 's' : ''} · {totaux.colisDepot} colis au dépôt
           </p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ kind: 'hub', mode: 'create' })}>
-          Nouveau hub
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="hub-btn" onClick={() => setModal({ kind: 'prestataire', mode: 'create' })}>
+            <Building2 size={15} /> Nouveau prestataire
+          </button>
+          <button type="button" className="hub-btn hub-btn--primary" onClick={() => setModal({ kind: 'hub', mode: 'create' })}>
+            <Plus size={15} /> Nouveau hub
+          </button>
+        </div>
       </div>
 
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      {error && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#9C4E46' }}>{error}</p>}
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr] lg:items-start">
-        {/* Liste des hubs : navigation, pas d'actions — le détail porte les actions */}
-        <div
-          className={`flex-col gap-0.5 rounded-lg border border-black/10 p-1.5 dark:border-white/10 ${
-            selectedHubId ? 'hidden lg:flex' : 'flex'
-          }`}
-        >
-          {hubs.map((hub) => {
-            const active = hub.id === selectedHubId;
-            return (
-              <button
-                key={hub.id}
-                type="button"
-                onClick={() => setSelectedHubId(hub.id)}
-                className={`flex items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left transition ${
-                  active ? 'bg-brand/[0.15] dark:bg-brand/[0.12]' : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
-                }`}
-              >
-                <span className="flex flex-col">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    {hub.nom}
-                    {hub.isCentral && (
-                      <span className="rounded-full bg-black px-1.5 py-0.5 text-[10px] font-bold text-white dark:bg-white dark:text-black">
-                        Central
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-xs opacity-60">
-                    {hub.villes?.length ?? 0} ville{(hub.villes?.length ?? 0) > 1 ? 's' : ''} · {hub.nbColisDepot ?? 0} colis au dépôt
-                  </span>
+      <div className="filter-bar">
+        <div className="search">
+          <Search size={15} style={{ stroke: 'var(--gray-light)', flex: '0 0 15px' }} />
+          <input
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            placeholder="Hub, prestataire ou ville…"
+            aria-label="Rechercher un hub ou une ville"
+          />
+        </div>
+        <div className="divider" />
+        <span className="label">EXPLOITATION</span>
+        {(
+          [
+            ['tous', 'Tous'],
+            ['interne', 'Internes'],
+            ['soustraite', 'Sous-traités'],
+          ] as const
+        ).map(([valeur, label]) => (
+          <button
+            key={valeur}
+            type="button"
+            className={`hub-chip ${filtre === valeur ? 'is-active' : ''}`}
+            onClick={() => setFiltre(valeur)}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="badge-depot" style={{ marginLeft: 'auto' }}>
+          {totaux.colisDepot} colis au dépôt
+        </span>
+      </div>
+
+      {/* Prestataires : en tête de grille, parce qu'un hub ne peut être rattaché
+          qu'à un prestataire déjà créé. */}
+      {prestataires.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {prestataires.map((p) => (
+            <div key={p.id} className={`prestataire-row ${p.actif ? '' : 'prestataire-row--inactif'}`}>
+              <Building2 size={15} style={{ stroke: 'var(--gray-light)', flex: '0 0 15px' }} />
+              <span style={{ display: 'flex', flexDirection: 'column' }}>
+                <span className="prestataire-row__nom">
+                  {p.nom}
+                  {!p.actif && <span style={{ fontWeight: 400, opacity: 0.7 }}> · inactif</span>}
                 </span>
-                <ChevronRight className={`h-4 w-4 shrink-0 transition-opacity ${active ? 'opacity-100' : 'opacity-25'}`} />
-              </button>
-            );
-          })}
-          {hubs.length === 0 && <p className="px-3 py-4 text-sm opacity-60">Aucun hub</p>}
-        </div>
-
-        {/* Détail du hub sélectionné : coordonnées et villes rattachées */}
-        <div className={`flex-col gap-4 ${selectedHubId ? 'flex' : 'hidden lg:flex'}`}>
-          {selectedHub ? (
-            <>
+                <span className="prestataire-row__meta">
+                  {p.agences?.length ?? 0} agence{(p.agences?.length ?? 0) > 1 ? 's' : ''} · {p.nbVillesTarifees ?? 0} villes
+                  tarifées
+                </span>
+              </span>
               <button
                 type="button"
-                onClick={() => setSelectedHubId(null)}
-                className="inline-flex items-center gap-1 self-start text-sm font-semibold opacity-60 hover:opacity-100 lg:hidden"
+                className="hub-btn hub-btn--icon"
+                aria-label={`Modifier ${p.nom}`}
+                onClick={() => setModal({ kind: 'prestataire', mode: 'edit', prestataire: p })}
               >
-                <ChevronRight className="h-4 w-4 rotate-180" /> Tous les hubs
+                <Pencil size={14} />
               </button>
-
-              <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-black/10 p-4 dark:border-white/10">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-bold">{selectedHub.nom}</h2>
-                    {selectedHub.isCentral && (
-                      <span className="rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-white dark:bg-white dark:text-black">
-                        Hub Central
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs opacity-60">
-                    {selectedHub.ville}
-                    {selectedHub.adresse ? ` — ${selectedHub.adresse}` : ''}
-                    {selectedHub.telephone ? ` · ${selectedHub.telephone}` : ''}
-                  </p>
-                  <p className="mt-0.5 text-xs opacity-60">
-                    {selectedHub.villes?.length ?? 0} ville(s) · {selectedHub.nbColisDepot ?? 0} colis au dépôt
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <IconButton variant="edit" label="Modifier le hub" onClick={() => setModal({ kind: 'hub', mode: 'edit', hub: selectedHub })}>
-                    <Pencil className="h-4 w-4" />
-                  </IconButton>
-                  <IconButton variant="delete" label="Supprimer le hub" onClick={() => supprimerHub(selectedHub)}>
-                    <Trash2 className="h-4 w-4" />
-                  </IconButton>
-                  <IconButton variant="add" label="Ajouter une ville" onClick={() => setModal({ kind: 'ville', mode: 'create', hubId: selectedHub.id })}>
-                    <Plus className="h-4 w-4" />
-                  </IconButton>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {(selectedHub.villes ?? []).map((ville) => (
-                  <div
-                    key={ville.id}
-                    className="inline-flex items-center overflow-hidden rounded-full border border-black/20 text-xs font-medium text-black/70 dark:border-white/20 dark:text-white/70"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setModal({ kind: 'ville', mode: 'edit', ville })}
-                      title={`Modifier ${ville.nom}`}
-                      className="py-1 pl-3 pr-1 hover:opacity-80"
-                    >
-                      {ville.nom}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => supprimerVille(ville)}
-                      title={`Supprimer ${ville.nom}`}
-                      className="mr-1 rounded-full p-0.5 opacity-60 transition hover:bg-red-600 hover:text-white hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {(selectedHub.villes ?? []).length === 0 && (
-                  <p className="rounded-lg border border-dashed border-black/15 p-4 text-center text-sm opacity-60 dark:border-white/15">
-                    Aucune ville rattachée à ce hub
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="rounded-lg border border-dashed border-black/15 p-8 text-center text-sm opacity-60 dark:border-white/15">
-              Sélectionnez un hub pour voir ses villes
-            </p>
-          )}
+              <button
+                type="button"
+                className="hub-btn hub-btn--icon is-danger"
+                aria-label={`Supprimer ${p.nom}`}
+                onClick={() => supprimerPrestataire(p)}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
         </div>
+      )}
+
+      <div className="hub-grid">
+        {hubsFiltres.map((hub) => {
+          const gradient = gradientDeHub(hub, couleursAgence);
+          const villes = hub.villes ?? [];
+          const apercu = villes.slice(0, 5).map((v) => v.nom);
+          const reste = villes.length - apercu.length;
+
+          const tarifs = villes.map((v) => tarifDeVille(v, hub)).filter((t): t is number => t !== null);
+          const moyenne = tarifs.length > 0 ? Math.round(tarifs.reduce((s, t) => s + t, 0) / tarifs.length) : null;
+
+          const estDepliee = depliees.has(hub.id);
+          const toutMontrer = completes.has(hub.id);
+          const chips = toutMontrer ? villes : villes.slice(0, VILLES_AVANT_REPLI);
+
+          return (
+            <article key={hub.id} className="hub-card">
+              <header className="hub-card__header" style={{ background: gradient }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="hub-card__name">{hub.nom}</div>
+                    <div className="hub-card__sub">
+                      {hub.prestataire ? hub.prestataire.nom : hub.isCentral ? 'Hub central' : 'Hub interne'} · {hub.ville}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <span className="hub-card__pill">
+                      {villes.length} ville{villes.length > 1 ? 's' : ''}
+                    </span>
+                    {hub.isCentral && <span className="hub-card__tag">CENTRAL</span>}
+                    {hub.prestataireId && <span className="hub-card__tag">SOUS-TRAITÉ</span>}
+                  </div>
+                </div>
+                <Warehouse size={92} strokeWidth={1} className="hub-card__watermark" fill="none" />
+              </header>
+
+              <div className="hub-card__body">
+                <div className="hub-card__identity">
+                  <div className="hub-card__logo">
+                    <span style={{ background: gradient }}>{initiales(hub.nom)}</span>
+                  </div>
+                  <span className={`hub-card__colis ${(hub.nbColisDepot ?? 0) > 0 ? 'hub-card__colis--pending' : ''}`}>
+                    {hub.nbColisDepot ?? 0} colis au dépôt
+                  </span>
+                </div>
+
+                <div className="hub-card__info">
+                  <div className="row">
+                    <MapPin size={14} />
+                    <span>
+                      <b>Ville siège :</b> {hub.ville}
+                    </span>
+                  </div>
+                  <div className="row">
+                    <Map size={14} />
+                    <span>
+                      <b>Zone desservie :</b>{' '}
+                      {villes.length === 0 ? (
+                        <span className="muted">Aucune ville desservie pour le moment.</span>
+                      ) : (
+                        <span className="muted">
+                          {apercu.join(', ')}
+                          {reste > 0 ? ` + ${reste} autre${reste > 1 ? 's' : ''}` : ''}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="row">
+                    <Tag size={14} />
+                    <span>
+                      {/* Sur un hub interne, ce prix n'est pas un coût constaté
+                          mais ce que ces villes coûteraient en sous-traitance :
+                          le libellé doit le dire, sans quoi on lirait une
+                          dépense là où il n'y en a pas. */}
+                      <b>{hub.prestataireId ? 'Tarification :' : 'Tarification indicative :'}</b>{' '}
+                      {moyenne === null ? (
+                        <span className="muted">Aucun tarif défini</span>
+                      ) : (
+                        <span className="muted">
+                          {moyenne} DH en moyenne · de {Math.min(...tarifs)} à {Math.max(...tarifs)} DH
+                          {tarifs.length < villes.length ? ` · ${villes.length - tarifs.length} sans tarif` : ''}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {estDepliee && (
+                  <div className="hub-card__tarifs">
+                    {chips.map((ville) => {
+                      const tarif = tarifDeVille(ville, hub);
+                      return (
+                        <span key={ville.id} className="city-chip">
+                          <button
+                            type="button"
+                            className="city-chip__name"
+                            title={`Modifier ${ville.nom}`}
+                            onClick={() => ouvrirVille({ kind: 'ville', mode: 'edit', ville })}
+                          >
+                            {ville.nom}
+                          </button>
+                          {tarif !== null && <span className="price">{tarif} DH</span>}
+                          <button
+                            type="button"
+                            className="remove"
+                            title={`Supprimer ${ville.nom}`}
+                            onClick={() => supprimerVille(ville)}
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    {!toutMontrer && villes.length > VILLES_AVANT_REPLI && (
+                      <button
+                        type="button"
+                        className="city-chip city-chip--more"
+                        onClick={() => setCompletes((c) => basculer(c, hub.id))}
+                      >
+                        + {villes.length - VILLES_AVANT_REPLI} autres
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="city-chip city-chip--add"
+                      onClick={() => ouvrirVille({ kind: 'ville', mode: 'create', hubId: hub.id })}
+                    >
+                      <Plus size={12} /> Ajouter
+                    </button>
+                  </div>
+                )}
+
+                <div className="hub-card__actions">
+                  <button type="button" className="hub-btn" onClick={() => setDepliees((d) => basculer(d, hub.id))}>
+                    <MapPin size={14} /> {estDepliee ? 'Masquer les villes' : 'Gérer les villes'}
+                  </button>
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn--icon"
+                    aria-label={`Modifier ${hub.nom}`}
+                    onClick={() => setModal({ kind: 'hub', mode: 'edit', hub })}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn--icon is-danger"
+                    aria-label={`Supprimer ${hub.nom}`}
+                    onClick={() => supprimerHub(hub)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+
+        {hubsFiltres.length === 0 && (
+          <p className="hub-empty">
+            {hubs.length === 0 ? 'Aucun hub enregistré.' : 'Aucun hub ne correspond à cette recherche.'}
+          </p>
+        )}
       </div>
 
       {modal?.kind === 'hub' && (
@@ -274,6 +577,24 @@ export default function AdminHubsPage() {
                 />
               </Field>
             </div>
+            <Field label="Exploitation" optional>
+              <select
+                name="prestataireId"
+                className="input-basic"
+                defaultValue={modal.mode === 'edit' ? (modal.hub.prestataireId ?? '') : ''}
+              >
+                <option value="">Interne — livré par nos livreurs</option>
+                {prestataires.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    Sous-traité — {p.nom}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs opacity-60">
+                Une agence sous-traitée n&apos;a ni livreur rattaché ni bon de distribution : le prestataire livre lui-même les
+                villes du hub, à sa grille tarifaire.
+              </p>
+            </Field>
             <label className="check-row">
               <input
                 type="checkbox"
@@ -302,16 +623,106 @@ export default function AdminHubsPage() {
               <select
                 name="hubId"
                 className="input-basic"
-                defaultValue={modal.mode === 'edit' ? modal.ville.hubId : modal.hubId}
+                value={villeHubId}
+                onChange={(e) => setVilleHubId(e.target.value)}
                 required
               >
                 {hubs.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.nom}
+                    {h.prestataire ? ` — ${h.prestataire.nom}` : ' — interne'}
                   </option>
                 ))}
               </select>
             </Field>
+            {/* Le tarif n'existe que face à un prestataire : sur un hub interne
+                le coût de la ville est celui du livreur (grille livreur/ville). */}
+            {hubFormulaireVille?.prestataire && (
+              <>
+                <div className="form-grid">
+                  <Field label={`Tarif livraison ${hubFormulaireVille.prestataire.nom} (DH)`} optional>
+                    <input
+                      name="tarif"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input-basic"
+                      defaultValue={modal.mode === 'edit' ? (modal.ville.tarifPrestataire ?? '') : ''}
+                    />
+                  </Field>
+                  <Field label="Tarif retour (DH)" optional>
+                    <input
+                      name="tarifRetour"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="input-basic"
+                      defaultValue={modal.mode === 'edit' ? (modal.ville.tarifPrestataireRetour ?? '') : ''}
+                    />
+                  </Field>
+                </div>
+                <p className="-mt-2 text-xs opacity-60">
+                  Ce que le prestataire nous facture pour cette ville. Laisser vide si le tarif n&apos;est pas encore convenu —
+                  la marge des colis concernés sera alors signalée comme incomplète en facturation.
+                </p>
+              </>
+            )}
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {modal?.kind === 'prestataire' && (
+        <Modal
+          title={modal.mode === 'create' ? 'Nouveau prestataire' : 'Modifier le prestataire'}
+          onClose={() => setModal(null)}
+        >
+          <form onSubmit={handlePrestataireSubmit} className="flex flex-col gap-4">
+            <Field label="Nom du prestataire" required>
+              <input
+                name="nom"
+                className="input-basic"
+                defaultValue={modal.mode === 'edit' ? modal.prestataire.nom : ''}
+                required
+              />
+            </Field>
+            <div className="form-grid">
+              <Field label="Contact" optional>
+                <input
+                  name="contact"
+                  className="input-basic"
+                  defaultValue={modal.mode === 'edit' ? (modal.prestataire.contact ?? '') : ''}
+                />
+              </Field>
+              <Field label="Téléphone" optional>
+                <input
+                  name="telephone"
+                  className="input-basic"
+                  defaultValue={modal.mode === 'edit' ? (modal.prestataire.telephone ?? '') : ''}
+                />
+              </Field>
+            </div>
+            <Field label="Email" optional>
+              <input
+                name="email"
+                type="email"
+                className="input-basic"
+                defaultValue={modal.mode === 'edit' ? (modal.prestataire.email ?? '') : ''}
+              />
+            </Field>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                name="actif"
+                className="check-basic"
+                defaultChecked={modal.mode === 'edit' ? modal.prestataire.actif : true}
+              />
+              Prestataire actif
+            </label>
             <div className="form-actions">
               <button type="submit" className="btn-primary">
                 Enregistrer
