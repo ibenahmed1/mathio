@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { boardsVisibles, exigerBoardAutorise } from '@/lib/taches-scope';
+import { boardsVisibles, exigerTacheAutorisee } from '@/lib/taches-scope';
 import type { Role } from '@/app/generated/prisma/enums';
 
 const ROLES_BACKOFFICE: Role[] = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable', 'design', 'gestionnaire_hub'];
@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!tache) throw new ApiError(404, 'Tâche introuvable');
     // Commenter / joindre un document suit le périmètre de la tâche elle-même
     // (§ boardsVisibles) : hors de ses pôles, la tâche n'existe pas.
-    exigerBoardAutorise(await boardsVisibles(session), tache.teamId);
+    exigerTacheAutorisee(session, await boardsVisibles(session), tache);
 
     const mentionIds = Array.isArray(body.mentionIds)
       ? body.mentionIds.filter((v: unknown): v is string => typeof v === 'string')

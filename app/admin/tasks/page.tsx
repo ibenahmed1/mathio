@@ -136,6 +136,20 @@ export default function AdminTasksPage() {
   // que la composition des pôles existants.
   const peutGererPoles = role === 'admin';
 
+  // Un board peut apparaître dans la liste sans qu'on en soit membre : c'est
+  // le cas de celui d'une tâche confiée de l'extérieur (§ boardsAccessibles).
+  // On y lit sa tâche, on ne peut pas y en créer — l'API refuse, autant ne pas
+  // proposer le geste.
+  function peutCreerDans(board: EquipeTache) {
+    if (role === 'admin') return true;
+    return (board.membres ?? []).some((m) => m.utilisateur.id === userId);
+  }
+  const boardsDeCreation = useMemo(
+    () => equipes.filter((eq) => peutCreerDans(eq)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [equipes, role, userId]
+  );
+
   // Rôles Kanban-only : ne peuvent déplacer/modifier que leurs propres cartes
   // (créées ou attribuées) — cf. lib/taches-scope.ts (peutModifierTache) côté API.
   function peutDeplacerTache(t: Tache) {
@@ -304,7 +318,9 @@ export default function AdminTasksPage() {
           <button
             className="kdc-btn-primary"
             onClick={() => {
-              setFormTeamId(filtreEquipe || undefined);
+              setFormTeamId(
+                filtreEquipe && boardsDeCreation.some((eq) => eq.id === filtreEquipe) ? filtreEquipe : undefined
+              );
               setFormOuvert(true);
             }}
           >
@@ -514,16 +530,18 @@ export default function AdminTasksPage() {
                               <span className={`kdc-dot ${STATUT_TACHE_DOT[statut]}`} />
                               <span className="kdc-column__title">{LABELS_STATUT_TACHE[statut]}</span>
                               <span className="kdc-column__count">{colonnes[statut]?.length ?? 0}</span>
-                              <button
-                                onClick={() => {
-                                  setComposeIn({ teamId: board.id, statut });
-                                  setDraft('');
-                                }}
-                                className="kdc-column__add"
-                                aria-label={`Ajouter une tâche dans ${LABELS_STATUT_TACHE[statut]} du board ${board.nom}`}
-                              >
-                                +
-                              </button>
+                              {peutCreerDans(board) && (
+                                <button
+                                  onClick={() => {
+                                    setComposeIn({ teamId: board.id, statut });
+                                    setDraft('');
+                                  }}
+                                  className="kdc-column__add"
+                                  aria-label={`Ajouter une tâche dans ${LABELS_STATUT_TACHE[statut]} du board ${board.nom}`}
+                                >
+                                  +
+                                </button>
+                              )}
                             </div>
 
                             {compose && (
@@ -596,7 +614,7 @@ export default function AdminTasksPage() {
 
       {formOuvert && (
         <TaskFormModal
-          equipes={equipes}
+          equipes={boardsDeCreation}
           membres={membres}
           peutAssigner={peutGererEquipes}
           teamIdInitial={formTeamId}

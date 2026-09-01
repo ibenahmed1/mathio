@@ -6,6 +6,7 @@ import {
   ROLES_BACKOFFICE_TACHES,
   boardsVisibles,
   boardAutorise,
+  filtreTachesVisibles,
   validerEtiquettes,
   exigerAssigneAutorise,
 } from '@/lib/taches-scope';
@@ -29,17 +30,14 @@ export async function GET(request: NextRequest) {
     const teamId = request.nextUrl.searchParams.get('teamId');
     const assigneeId = request.nextUrl.searchParams.get('assigneeId');
 
-    // Chacun ne voit que les pôles dont il est membre ; l'admin voit tout
-    // (§ boardsVisibles). Le filtre `teamId` de l'URL ne peut que réduire ce
-    // périmètre, jamais l'élargir.
+    // Chacun voit les pôles dont il est membre, plus les tâches qui lui sont
+    // personnellement assignées (§ filtreTachesVisibles) ; l'admin voit tout.
+    // Les filtres `teamId` / `assigneeId` de l'URL s'ajoutent à ce périmètre
+    // (ET logique) : ils ne peuvent que le réduire, jamais l'élargir.
     const scope = await boardsVisibles(session);
 
-    const where: Prisma.TacheWhereInput = {};
-    if (scope !== null) where.teamId = { in: scope };
-    if (teamId) {
-      if (!boardAutorise(scope, teamId)) return NextResponse.json({ data: [] });
-      where.teamId = teamId;
-    }
+    const where: Prisma.TacheWhereInput = filtreTachesVisibles(session, scope);
+    if (teamId) where.teamId = teamId;
     if (assigneeId) where.assigneeId = assigneeId;
 
     const taches = await prisma.tache.findMany({

@@ -8,6 +8,7 @@ import {
   boardsVisibles,
   boardAutorise,
   exigerBoardAutorise,
+  exigerTacheAutorisee,
   validerEtiquettes,
   exigerAssigneAutorise,
 } from '@/lib/taches-scope';
@@ -41,7 +42,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const tache = await prisma.tache.findUnique({ where: { id }, include: INCLUDE });
     if (!tache) throw new ApiError(404, 'Tâche introuvable');
-    exigerBoardAutorise(await boardsVisibles(session), tache.teamId);
+    exigerTacheAutorisee(session, await boardsVisibles(session), tache);
 
     return NextResponse.json(tache);
   } catch (error) {
@@ -61,7 +62,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!existant) throw new ApiError(404, 'Tâche introuvable');
 
     const scope = await boardsVisibles(session);
-    exigerBoardAutorise(scope, existant.teamId);
+    exigerTacheAutorisee(session, scope, existant);
 
     if (!peutModifierTache(session, existant)) {
       throw new ApiError(403, 'Vous ne pouvez modifier que les tâches que vous avez créées ou qui vous sont attribuées');
@@ -198,6 +199,9 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
     const existant = await prisma.tache.findUnique({ where: { id } });
     if (!existant) throw new ApiError(404, 'Tâche introuvable');
+    // Contrairement à la lecture, la suppression exige d'appartenir au pôle :
+    // porter une tâche confiée de l'extérieur autorise à la faire avancer, pas
+    // à l'effacer du tableau d'une autre équipe.
     exigerBoardAutorise(await boardsVisibles(session), existant.teamId);
 
     await prisma.tache.delete({ where: { id } });

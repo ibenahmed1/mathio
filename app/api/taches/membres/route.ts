@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, requireUser } from '@/lib/api-utils';
-import { boardsVisibles, peutAssignerHorsPole } from '@/lib/taches-scope';
+import { boardsAccessibles, peutAssignerHorsPole } from '@/lib/taches-scope';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { Role } from '@/app/generated/prisma/enums';
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await requireUser(ROLES_BACKOFFICE);
     const equipeId = request.nextUrl.searchParams.get('equipeId');
-    const scope = peutAssignerHorsPole(session.role) ? null : await boardsVisibles(session);
+    const scope = peutAssignerHorsPole(session.role) ? null : await boardsAccessibles(session);
 
     const where: Prisma.UtilisateurWhereInput = { role: { in: ROLES_BACKOFFICE }, actif: true };
     if (equipeId) {

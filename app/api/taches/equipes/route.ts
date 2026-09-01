@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { EQUIPE_COULEUR_LABEL, normaliserCode } from '@/lib/statuts';
-import { boardsVisibles } from '@/lib/taches-scope';
+import { boardsAccessibles } from '@/lib/taches-scope';
 import { ROLES_KANBAN_UNIQUEMENT } from '@/lib/auth';
 
 const ROLES_GESTION_EQUIPES = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable', 'design', 'gestionnaire_hub'] as const;
@@ -12,7 +12,9 @@ const ROLES_GESTION_EQUIPES = ['admin', 'superviseur', 'moderateur', 'equipe_sui
 // détail des membres (workflow d'assignation) est inclus pour alimenter le
 // multi-select de gestion d'équipe sans aller-retour supplémentaire.
 // Par défaut la liste est cloisonnée comme les tâches : on ne voit que les
-// pôles dont on est membre (l'admin voit tout, § boardsVisibles). `?toutes=1`
+// pôles dont on est membre, plus celui d'une tâche qui nous a été confiée de
+// l'extérieur — sans quoi son couloir n'aurait nulle part où s'afficher
+// (l'admin voit tout, § boardsAccessibles). `?toutes=1`
 // rend la liste complète — nécessaire à la modale de gestion d'équipe, qui
 // sert justement à rattacher des comptes à des pôles où l'on ne figure pas
 // encore ; elle reste fermée aux rôles Kanban-only, qui ne gèrent aucune
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (toutes && ROLES_KANBAN_UNIQUEMENT.includes(session.role)) {
       throw new ApiError(403, 'Accès refusé pour ce rôle');
     }
-    const scope = toutes ? null : await boardsVisibles(session);
+    const scope = toutes ? null : await boardsAccessibles(session);
 
     const equipes = await prisma.equipeTache.findMany({
       where: scope === null ? undefined : { id: { in: scope } },

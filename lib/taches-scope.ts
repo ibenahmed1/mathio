@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { ROLES_KANBAN_UNIQUEMENT } from '@/lib/auth';
+import type { Prisma } from '@/app/generated/prisma/client';
 import type { Role } from '@/app/generated/prisma/enums';
 
 export const ROLES_BACKOFFICE_TACHES: Role[] = [
@@ -52,10 +53,63 @@ export function boardAutorise(scope: string[] | null, teamId: string): boolean {
   return scope === null || scope.includes(teamId);
 }
 
-// Refus uniforme quand une tâche (ou un pôle) sort du périmètre : 404 plutôt
-// que 403, pour ne pas révéler l'existence des tâches des autres pôles.
+// Refus uniforme quand un pôle sort du périmètre : 404 plutôt que 403, pour ne
+// pas révéler l'existence des tâches des autres pôles. S'applique aux
+// ÉCRITURES qui visent un pôle (créer dedans, y déplacer une carte) — la
+// lecture d'une tâche, elle, passe par exigerTacheAutorisee ci-dessous.
 export function exigerBoardAutorise(scope: string[] | null, teamId: string): void {
   if (!boardAutorise(scope, teamId)) throw new ApiError(404, 'Tâche introuvable');
+}
+
+// Périmètre de LECTURE d'une tâche : les pôles dont on est membre, PLUS les
+// tâches qui nous sont personnellement assignées.
+//
+// Sans ce second terme, une tâche confiée par l'encadrement à quelqu'un d'un
+// autre pôle (§ ROLES_ASSIGNATION_TOUS_POLES) lui restait invisible : ni sur
+// son tableau, ni sous « Mes tâches », ni par lien direct — et comme
+// l'application n'envoie aucune notification, la personne n'apprenait jamais
+// qu'on lui avait confié quelque chose. L'assignation était muette.
+export function filtreTachesVisibles(
+  session: { sub: string },
+  scope: string[] | null
+): Prisma.TacheWhereInput {
+  if (scope === null) return {};
+  return { OR: [{ teamId: { in: scope } }, { assigneeId: session.sub }] };
+}
+
+export function tacheAutorisee(
+  session: { sub: string },
+  scope: string[] | null,
+  tache: { teamId: string; assigneeId: string | null }
+): boolean {
+  return scope === null || scope.includes(tache.teamId) || tache.assigneeId === session.sub;
+}
+
+export function exigerTacheAutorisee(
+  session: { sub: string },
+  scope: string[] | null,
+  tache: { teamId: string; assigneeId: string | null }
+): void {
+  if (!tacheAutorisee(session, scope, tache)) throw new ApiError(404, 'Tâche introuvable');
+}
+
+// Pôles ATTEIGNABLES : ceux dont on est membre, plus ceux où l'on porte une
+// tâche assignée. Sert à ce que le board d'une tâche confiée de l'extérieur
+// existe bien dans la liste (sinon son couloir n'aurait nulle part où
+// s'afficher) et à ce que la discussion y reste utilisable — mentionner
+// quelqu'un suppose de pouvoir lister les membres du pôle.
+//
+// Ce n'est PAS un droit de lecture sur les autres tâches du pôle : celles-ci
+// restent filtrées par filtreTachesVisibles.
+export async function boardsAccessibles(session: { sub: string; role: Role }): Promise<string[] | null> {
+  const membre = await boardsVisibles(session);
+  if (membre === null) return null;
+  const porteuses = await prisma.tache.findMany({
+    where: { assigneeId: session.sub },
+    select: { teamId: true },
+    distinct: ['teamId'],
+  });
+  return Array.from(new Set([...membre, ...porteuses.map((t) => t.teamId)]));
 }
 
 // Rôles NON cloisonnés pour l'assignation (§ /admin/tasks) : l'encadrement

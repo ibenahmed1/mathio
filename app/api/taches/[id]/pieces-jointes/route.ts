@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { ROLES_BACKOFFICE_TACHES, peutModifierTache, boardsVisibles, exigerBoardAutorise } from '@/lib/taches-scope';
+import { ROLES_BACKOFFICE_TACHES, peutModifierTache, boardsVisibles, exigerTacheAutorisee } from '@/lib/taches-scope';
 
 // Pièces jointes d'une tâche (§ /admin/tasks) : lien nommé (pas d'upload de
 // fichier, cf. lib/taches-scope.ts et le modèle PieceJointeTache). Soumises à
@@ -24,7 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!tache) throw new ApiError(404, 'Tâche introuvable');
     // Commenter / joindre un document suit le périmètre de la tâche elle-même
     // (§ boardsVisibles) : hors de ses pôles, la tâche n'existe pas.
-    exigerBoardAutorise(await boardsVisibles(session), tache.teamId);
+    exigerTacheAutorisee(session, await boardsVisibles(session), tache);
     if (!peutModifierTache(session, tache)) {
       throw new ApiError(403, 'Vous ne pouvez modifier que les tâches que vous avez créées ou qui vous sont attribuées');
     }
