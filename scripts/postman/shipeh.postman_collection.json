@@ -1,0 +1,1726 @@
+{
+  "info": {
+    "name": "Mathio — API plateformes partenaires (Shipeh)",
+    "description": "Tests manuels de l'API machine du module d'intégration Shipeh.\n\nPRÉREQUIS\n1. `npm run db:migrate` puis `npm run dev`\n2. `.env` contient `HOST_API=127.0.0.1:3000` — indispensable : Windows ne résout pas `api.localhost`, donc Postman échouerait en ENOTFOUND. Redémarrer `npm run dev` après l'avoir ajouté.\n3. Émettre deux clés depuis /admin/integrations (une `test`, une `live`) et les coller dans l'environnement.\n\nORDRE\nLancer le dossier « 1 » avant les autres : il fixe l'identifiant de passage et crée les marchands dont dépendent les colis. Le Collection Runner exécute tout dans l'ordre.\n\nCHAQUE REQUÊTE PORTE SES ASSERTIONS : l'onglet « Test Results » dit vert ou rouge, il n'y a rien à lire à l'œil.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "6a1d1e40-8642-4859-98eb-b086bd6d68cf"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000",
+      "type": "string"
+    },
+    {
+      "key": "passage",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "marchandTestId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "codeSuivi",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cleTest",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cleLive",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 — Cloisonnement et authentification",
+      "description": "Ce que le serveur doit refuser AVANT de regarder quoi que ce soit d'autre.",
+      "item": [
+        {
+          "name": "0.1 Sans clé → 401 cle_absente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('code = cle_absente', () => pm.expect(pm.response.json().code).to.eql('cle_absente'));"
+                ],
+                "type": "text/javascript",
+                "id": "583e0309-5428-4e75-9d87-4d3fdc83c834"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "Aucun en-tête Authorization. L'authentification passe avant toute lecture du corps."
+          },
+          "response": []
+        },
+        {
+          "name": "0.2 Clé malformée → 401 cle_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('code = cle_invalide', () => pm.expect(pm.response.json().code).to.eql('cle_invalide'));"
+                ],
+                "type": "text/javascript",
+                "id": "54e83dee-2498-454b-b411-932e19688e94"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer ceci-nest-pas-une-cle"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "0.3 Clé bien formée mais inconnue → 401 cle_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('MÊME code qu\\'une clé malformée', () => pm.expect(pm.response.json().code).to.eql('cle_invalide'));",
+                  "// Distinguer « préfixe inconnu » de « secret faux » ferait de cet endpoint",
+                  "// un oracle permettant d'énumérer les préfixes existants."
+                ],
+                "type": "text/javascript",
+                "id": "38486eca-9ccf-4c8e-8a6e-8b422d3ab670"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer mtk_live_deadbeef_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "0.4 L'hôte de l'API n'atteint pas le back-office → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "// Le cloisonnement est réciproque : l'hôte de l'API ne connaît",
+                  "// QUE /api/v1/**. Il est joignable depuis Internet, il ne doit",
+                  "// donner accès à aucune route de session."
+                ],
+                "type": "text/javascript",
+                "id": "ba204a8a-4194-4608-bb94-3e8f0fcb3c37"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/commandes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "commandes"
+              ]
+            },
+            "description": "Aucune clé : le 404 est prononcé par le proxy avant toute authentification. C est le cloisonnement reciproque — l hote de l API ne connait QUE /api/v1/**."
+          },
+          "response": []
+        },
+        {
+          "name": "0.5 L'hôte de l'API ne sert aucune page → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript",
+                "id": "63724a56-8c14-4d2b-860a-44441f44f230"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "0.6 Aucun cookie n'est jamais posé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('aucun Set-Cookie', () => pm.expect(pm.response.headers.has('Set-Cookie')).to.be.false);",
+                  "// C'est la prémisse qui rend l'absence de contrôle d'Origin correcte",
+                  "// sur cet hôte. Si un Set-Cookie apparaît un jour, l'exemption CSRF",
+                  "// devient une faille."
+                ],
+                "type": "text/javascript",
+                "id": "ba55e517-53ba-4714-bfbc-c9e6845e2075"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "0.7 JSON illisible → 400, pas 500",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 et non 500', () => pm.response.to.have.status(400));",
+                  "pm.test('code = json_invalide', () => pm.expect(pm.response.json().code).to.eql('json_invalide'));",
+                  "// Le problème vient de l'appelant : lui renvoyer 500 lui dirait le contraire."
+                ],
+                "type": "text/javascript",
+                "id": "737a47af-d3b1-4aa5-9aff-cebda791d4a4"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ceci n'est pas du json"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1 — Marchands",
+      "description": "À LANCER EN PREMIER : la requête 1.1 fixe l'identifiant de passage réutilisé partout.",
+      "item": [
+        {
+          "name": "1.1 Créer un marchand (clé TEST) → 201, en attente",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Identifiant de PASSAGE, refixé à chaque exécution de la collection.",
+                  "// Les tests d'idempotence ont besoin d'une référence stable dans un run",
+                  "// et neuve d'un run à l'autre — sans ça, le second passage buterait",
+                  "// sur les données du premier.",
+                  "pm.collectionVariables.set('passage', String(Date.now()).slice(-7));"
+                ],
+                "type": "text/javascript",
+                "id": "ace355aa-a09a-422d-84be-c8da9f7a690d"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('issue = cree', () => pm.expect(j.issue).to.eql('cree'));",
+                  "pm.test('une clé TEST ne crée jamais un compte actif', () => pm.expect(j.statut).to.eql('en_attente_validation'));",
+                  "pm.test('aucun email envoyé en bac à sable', () => pm.expect(j.invitationEnvoyee).to.be.false);",
+                  "pm.collectionVariables.set('marchandTestId', j.marchandId);"
+                ],
+                "type": "text/javascript",
+                "id": "9e8289a8-1d18-4c7b-b7a3-91abc2da9481"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"ville\": \"Casablanca\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            },
+            "description": "Les cinq champs requis, plus la ville. Coordonnées FICTIVES : @mathio.test ne route nulle part."
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Rejeu à l'identique → 200 deja_synchronise",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('issue = deja_synchronise', () => pm.expect(j.issue).to.eql('deja_synchronise'));",
+                  "pm.test('MÊME marchand, aucun doublon', () => pm.expect(j.marchandId).to.eql(pm.collectionVariables.get('marchandTestId')));",
+                  "// C'est l'idempotence : une file de messages qui redélivre ne doit",
+                  "// pas créer un second marchand."
+                ],
+                "type": "text/javascript",
+                "id": "0c230105-f680-4d2b-8390-6bed78c4618f"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"ville\": \"Casablanca\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 Créer un marchand (clé LIVE) → 201, ACTIF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('statut = actif', () => pm.expect(j.statut).to.eql('actif'));",
+                  "// Le scope marchands:creation_validee court-circuite l'approbation",
+                  "// par un admin. Si la clé live ne l'a pas, ce test échoue et c'est normal."
+                ],
+                "type": "text/javascript",
+                "id": "5291538d-8c83-481d-a6a6-575ff3901b07"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleLive}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-L{{passage}}\",\n  \"nomComplet\": \"Sara Alaoui\",\n  \"nomBoutique\": \"Sara Cosmetics {{passage}}\",\n  \"telephone\": \"066{{passage}}\",\n  \"email\": \"l{{passage}}@mathio.test\",\n  \"ville\": \"Marrakech\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            },
+            "description": "ATTENTION : une clé live envoie un VRAI email d'invitation. Garder une adresse en @mathio.test."
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Marchand complet — tous les champs → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript",
+                "id": "5aca2947-5269-45fd-949c-59771ddf8864"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-C{{passage}}\",\n  \"nomComplet\": \"Hicham Bennani\",\n  \"nomBoutique\": \"Bennani Electro {{passage}}\",\n  \"telephone\": \"067{{passage}}\",\n  \"email\": \"c{{passage}}@mathio.test\",\n\n  \"ville\": \"Tanger\",\n  \"adresse\": \"45 avenue Mohammed VI\",\n  \"cin\": \"AB123456\",\n  \"rib\": \"123456789012345678901234\",\n  \"nomBanque\": \"CIH\",\n  \"registreCommerce\": \"RC-2026-4471\",\n  \"siteWeb\": \"https://bennani-electro.ma\",\n  \"villeRamassage\": \"Tanger\",\n  \"raisonSociale\": \"Bennani Electro SARL\",\n  \"iceRc\": \"002458796000071\",\n  \"typeCompte\": \"entreprise\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            },
+            "description": "Les 16 champs. Le RIB fait exactement 24 chiffres, sinon 400 rib_invalide."
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 Champ requis manquant → 400 champ_requis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "const j = pm.response.json();",
+                  "pm.test('code = champ_requis', () => pm.expect(j.code).to.eql('champ_requis'));",
+                  "pm.test('le message NOMME le champ', () => pm.expect(j.message).to.include('nomComplet'));"
+                ],
+                "type": "text/javascript",
+                "id": "8754e51a-b23d-4ea0-849c-bf8fdff29063"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"idExterne\": \"SHIPEH-X{{passage}}\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 Téléphone non marocain → 400 telephone_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = telephone_invalide', () => pm.expect(pm.response.json().code).to.eql('telephone_invalide'));",
+                  "// Format : 0 puis 5/6/7 puis 8 chiffres. « 09… » n'existe pas au Maroc.",
+                  "// Le refuser plutôt que de le ranger tel quel : sinon la même personne",
+                  "// reviendrait sous une autre écriture et on lui créerait un second compte."
+                ],
+                "type": "text/javascript",
+                "id": "03c3615d-2955-41df-af55-bdcc87475b61"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Tel\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0900990099\",\n  \"email\": \"x{{passage}}@mathio.test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.7 Email invalide → 400 email_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = email_invalide', () => pm.expect(pm.response.json().code).to.eql('email_invalide'));",
+                  "// L'email est le SEUL champ de coordonnées obligatoire : c'est par lui",
+                  "// que passe le lien « définir mon mot de passe »."
+                ],
+                "type": "text/javascript",
+                "id": "995f4d90-6b77-43ec-a6f8-9ad13b04d6a4"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Mail\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000901\",\n  \"email\": \"pas-un-email\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.8 RIB de mauvaise longueur → 400 rib_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = rib_invalide', () => pm.expect(pm.response.json().code).to.eql('rib_invalide'));"
+                ],
+                "type": "text/javascript",
+                "id": "5b476436-4f7d-4277-a2c9-e4d26e5b5590"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Rib\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000902\",\n  \"email\": \"rib{{passage}}@mathio.test\",\n  \"rib\": \"123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.9 typeCompte hors enum → 400 type_compte_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = type_compte_invalide', () => pm.expect(pm.response.json().code).to.eql('type_compte_invalide'));"
+                ],
+                "type": "text/javascript",
+                "id": "4b78068a-c43f-4a91-ad1d-d841509ac13a"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Type\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000903\",\n  \"email\": \"typ{{passage}}@mathio.test\",\n  \"typeCompte\": \"grossiste\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.10 Corps qui n'est pas un objet → 400 corps_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = corps_invalide', () => pm.expect(pm.response.json().code).to.eql('corps_invalide'));",
+                  "// Sans ce garde, lire un champ sur un tableau produirait un 500 —",
+                  "// « le problème est chez nous » — pour une requête mal formée."
+                ],
+                "type": "text/javascript",
+                "id": "5a2156c8-2c9e-49c5-9337-729454e5bcf7"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 — Colis",
+      "item": [
+        {
+          "name": "2.1 Déposer un colis → 201 + code de suivi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('issue = cree', () => pm.expect(j.issue).to.eql('cree'));",
+                  "pm.test('code de suivi attribué', () => pm.expect(j.codeSuivi).to.match(/^PD-\\d+$/));",
+                  "pm.collectionVariables.set('codeSuivi', j.codeSuivi);"
+                ],
+                "type": "text/javascript",
+                "id": "57d466d9-06f6-4a93-b2c5-4cb600c03e5b"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-001\",\n  \"clientNom\": \"Karim Idrissi\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"18 avenue Mohammed V\",\n  \"montantCod\": 349.90\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "Les sept champs requis. `reference` est la clé d'idempotence."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Rejeu de la même référence → 200, MÊME code de suivi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 et non une erreur', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('issue = deja_ingere', () => pm.expect(j.issue).to.eql('deja_ingere'));",
+                  "pm.test('le code de suivi est IDENTIQUE', () => pm.expect(j.codeSuivi).to.eql(pm.collectionVariables.get('codeSuivi')));",
+                  "// Une reprise après timeout est un cas NORMAL, pas une panne : le code",
+                  "// existant est précisément ce dont l'appelant a besoin pour se réconcilier."
+                ],
+                "type": "text/javascript",
+                "id": "acb74abe-9ecc-4b5f-9b2b-0dd98e6c046e"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-001\",\n  \"clientNom\": \"Karim Idrissi\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"18 avenue Mohammed V\",\n  \"montantCod\": 349.90\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Colis complet — toutes les options → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('montant arrondi à 2 décimales', () => pm.expect(pm.response.json().issue).to.eql('cree'));"
+                ],
+                "type": "text/javascript",
+                "id": "47ae1902-f671-4de4-8f30-ff836d3e9e4c"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-002\",\n  \"clientNom\": \"Nadia Cherkaoui\",\n  \"clientTelephone\": \"0611223344\",\n  \"ville\": \"Casablanca\",\n  \"adresse\": \"12 rue des Orangers, appartement 4\",\n  \"montantCod\": 1250.999,\n\n  \"codePostal\": \"20000\",\n  \"produitDescription\": \"Casque audio sans fil\",\n  \"quantite\": 2,\n  \"poidsKg\": 0.85,\n  \"notes\": \"Livrer avant 18h, interphone 4B\",\n  \"fragile\": true,\n  \"ouvrir\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "montantCod à 1250.999 : la valeur est arrondie à 1251.00 à l'entrée. Sans cet arrondi, PostgreSQL le ferait silencieusement et la réconciliation COD dériverait."
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 Marchand inconnu → 404 marchand_inconnu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('code = marchand_inconnu', () => pm.expect(pm.response.json().code).to.eql('marchand_inconnu'));"
+                ],
+                "type": "text/javascript",
+                "id": "e34a571a-21c1-434f-85a2-cbad7ad38f5d"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"MARCHAND-QUI-NEXISTE-PAS\",\n  \"reference\": \"SHP-{{passage}}-404\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 Montant hors bornes SQL → 400 montant_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 et NON 500', () => pm.response.to.have.status(400));",
+                  "pm.test('code = montant_invalide', () => pm.expect(pm.response.json().code).to.eql('montant_invalide'));",
+                  "// Sans borne haute, cette valeur atteignait PostgreSQL, y déclenchait",
+                  "// un « numeric field overflow » et ressortait en 500. C'était un bug."
+                ],
+                "type": "text/javascript",
+                "id": "1f3846e1-2680-4ce3-b7ec-4da5e34eaa45"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-OVF\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 1000000000000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.6 Montant nul → 400 montant_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = montant_invalide', () => pm.expect(pm.response.json().code).to.eql('montant_invalide'));",
+                  "// Zéro n'est pas « gratuit » ici mais « non renseigné » : un colis que",
+                  "// personne ne saurait encaisser, et qui fausserait la facturation."
+                ],
+                "type": "text/javascript",
+                "id": "9a7a68b0-fe0f-4331-af4b-99264cad53cc"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-Z\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Quantité non entière → 400 quantite_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = quantite_invalide', () => pm.expect(pm.response.json().code).to.eql('quantite_invalide'));"
+                ],
+                "type": "text/javascript",
+                "id": "a1340627-231f-41e6-946f-3cb449bbc678"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-Q\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"quantite\": 2.5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.8 Poids hors bornes → 400 poids_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = poids_invalide', () => pm.expect(pm.response.json().code).to.eql('poids_invalide'));",
+                  "// poidsKg est un Decimal(6,2) : maximum 9 999.99."
+                ],
+                "type": "text/javascript",
+                "id": "cbaa82b9-996e-40a4-940a-f7425404d40d"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-P\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"poidsKg\": 100000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.9 Référence absente → 400 champ_requis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "const j = pm.response.json();",
+                  "pm.test('code = champ_requis', () => pm.expect(j.code).to.eql('champ_requis'));",
+                  "pm.test('le message nomme reference', () => pm.expect(j.message).to.include('reference'));",
+                  "// La colonne est NULLABLE en base — volontairement, pour laisser les colis",
+                  "// saisis à la main hors de la contrainte d'unicité. L'accepter vide ici",
+                  "// désactiverait l'anti-doublon pour toute la plateforme."
+                ],
+                "type": "text/javascript",
+                "id": "a8c7beed-00a7-4eda-aee0-8801043256a5"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 — Lot",
+      "item": [
+        {
+          "name": "3.1 Lot valide de 3 → 207, 3 créés",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('207 Multi-Status', () => pm.response.to.have.status(207));",
+                  "const j = pm.response.json();",
+                  "pm.test('3 créés, 0 refusé', () => { pm.expect(j.crees).to.eql(3); pm.expect(j.refuses).to.eql(0); });",
+                  "pm.test('chaque ligne porte son code de suivi', () => j.lignes.forEach(l => pm.expect(l.resultat.codeSuivi).to.match(/^PD-/)));",
+                  "// 207 même quand tout passe : un code qui changerait selon le contenu",
+                  "// obligerait l'appelant à écrire deux chemins de lecture."
+                ],
+                "type": "text/javascript",
+                "id": "91925010-54f8-4686-980f-201ec9d70266"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-1\",\n    \"clientNom\": \"Sara Alaoui\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-2\",\n    \"clientNom\": \"Youssef Nait\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"Tanger\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80.5\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-3\",\n    \"clientNom\": \"Nadia Cherkaoui\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"quantite\": 2,\n    \"fragile\": true\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis/lot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis",
+                "lot"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.2 Rejeu du lot → 207, 3 déjà ingérés",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('207', () => pm.response.to.have.status(207));",
+                  "const j = pm.response.json();",
+                  "pm.test('3 déjà ingérés, 0 créé', () => { pm.expect(j.dejaIngeres).to.eql(3); pm.expect(j.crees).to.eql(0); });",
+                  "// Aucun doublon : la garantie est la contrainte d'unicité en base,",
+                  "// pas un contrôle applicatif."
+                ],
+                "type": "text/javascript",
+                "id": "01067957-17ea-46f6-bc8f-e71c72c30328"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-1\",\n    \"clientNom\": \"Sara Alaoui\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-2\",\n    \"clientNom\": \"Youssef Nait\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"Tanger\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80.5\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-3\",\n    \"clientNom\": \"Nadia Cherkaoui\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"quantite\": 2,\n    \"fragile\": true\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis/lot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis",
+                "lot"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.3 Lot PARTIELLEMENT invalide → 207, les saines passent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('207', () => pm.response.to.have.status(207));",
+                  "const j = pm.response.json();",
+                  "pm.test('2 créés, 2 refusés — PAS de rejet global', () => { pm.expect(j.crees).to.eql(2); pm.expect(j.refuses).to.eql(2); });",
+                  "const refusees = j.lignes.filter(l => !l.ok);",
+                  "pm.test('les lignes refusées sont aux index 1 et 3', () => pm.expect(refusees.map(l => l.index)).to.eql([1, 3]));",
+                  "pm.test('chaque refus porte son code', () => { pm.expect(refusees[0].code).to.eql('champ_requis'); pm.expect(refusees[1].code).to.eql('marchand_inconnu'); });",
+                  "pm.test('chaque refus porte sa référence', () => refusees.forEach(l => pm.expect(l.reference).to.be.a('string')));",
+                  "// Sans l'index ET la référence, le partenaire ne saurait pas laquelle rejouer."
+                ],
+                "type": "text/javascript",
+                "id": "bcbc3ce1-8944-4995-beda-3a3620aa689e"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-1\",\n    \"clientNom\": \"Ligne saine\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-2\",\n    \"clientNom\": \"Ville vide\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-3\",\n    \"clientNom\": \"Ligne saine\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5\n  },\n  {\n    \"idExterneMarchand\": \"MARCHAND-INCONNU\",\n    \"reference\": \"MIX-{{passage}}-4\",\n    \"clientNom\": \"Marchand inconnu\",\n    \"clientTelephone\": \"0644556677\",\n    \"ville\": \"Rabat\",\n    \"adresse\": \"3 rue de la Plage\",\n    \"montantCod\": 95\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis/lot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis",
+                "lot"
+              ]
+            },
+            "description": "LE test qui justifie le 207 : une machine ne peut pas « corriger et réessayer » comme un humain devant un tableur. 200 colis dont 3 fautifs doivent en créer 197."
+          },
+          "response": []
+        },
+        {
+          "name": "3.4 Lot vide → 400 lot_vide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = lot_vide', () => pm.expect(pm.response.json().code).to.eql('lot_vide'));"
+                ],
+                "type": "text/javascript",
+                "id": "bafe2494-282f-4859-85ab-9a082a9cda5d"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis/lot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis",
+                "lot"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.5 Lot de 201 → 413 lot_trop_grand",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// 201 lignes générées : le plafond est de 200.",
+                  "const passage = pm.collectionVariables.get('passage');",
+                  "const lot = Array.from({ length: 201 }, (_, i) => ({",
+                  "  idExterneMarchand: 'SHIPEH-T' + passage,",
+                  "  reference: 'TROP-' + passage + '-' + i,",
+                  "  clientNom: 'Client ' + i,",
+                  "  clientTelephone: '0655443322',",
+                  "  ville: 'Rabat',",
+                  "  adresse: 'X',",
+                  "  montantCod: 100",
+                  "}));",
+                  "pm.collectionVariables.set('lotTropGrand', JSON.stringify(lot));"
+                ],
+                "type": "text/javascript",
+                "id": "bdb642f8-f640-4c97-8a1e-0bd0dc49525e"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('413', () => pm.response.to.have.status(413));",
+                  "pm.test('code = lot_trop_grand', () => pm.expect(pm.response.json().code).to.eql('lot_trop_grand'));"
+                ],
+                "type": "text/javascript",
+                "id": "c542d3a0-de74-4a3b-bd26-ef5a1fc1776f"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{lotTropGrand}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis/lot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis",
+                "lot"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.6 Corps qui n'est pas un tableau → 400 corps_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = corps_invalide', () => pm.expect(pm.response.json().code).to.eql('corps_invalide'));"
+                ],
+                "type": "text/javascript",
+                "id": "d4be78b2-e0fb-4126-8400-7c45836b29d2"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"reference\": \"pas-un-tableau\" }"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis/lot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis",
+                "lot"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4 — Cloisonnement bac à sable / production",
+      "description": "Les garanties qui empêchent le test et la production de se contaminer. À lancer après le dossier 1.",
+      "item": [
+        {
+          "name": "4.1 Clé TEST → marchand de production = 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('code = marchand_inconnu', () => pm.expect(pm.response.json().code).to.eql('marchand_inconnu'));",
+                  "// LA garantie du bac à sable. Le message est volontairement identique",
+                  "// à celui d'un identifiant inexistant : une clé de test ne doit pas",
+                  "// servir d'oracle sur ce qui existe en production."
+                ],
+                "type": "text/javascript",
+                "id": "b99bf8a3-c15a-4c54-a33c-426e57f460d1"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-L{{passage}}\",\n  \"reference\": \"ENV-{{passage}}\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "SHIPEH-L… a été créé par la clé LIVE en 1.3. La clé test ne le voit pas."
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 Clé LIVE → marchand de bac à sable = 409 marchand_de_test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = marchand_de_test', () => pm.expect(pm.response.json().code).to.eql('marchand_de_test'));",
+                  "// Sans ce refus, la clé de production se rattachait au compte de test :",
+                  "// la plateforme croyait obtenir un marchand actif et héritait d'un compte",
+                  "// resté en attente — devenu de surcroît NON PURGEABLE."
+                ],
+                "type": "text/javascript",
+                "id": "40351422-27df-42e1-b118-04d974937a43"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleLive}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-REPRISE-{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            },
+            "description": "Mêmes coordonnées que le marchand créé en TEST par la requête 1.1, sous un autre idExterne."
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 Le même idExterne vit dans les deux environnements",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('issue = cree — PAS deja_synchronise', () => pm.expect(pm.response.json().issue).to.eql('cree'));",
+                  "// `environnement` fait partie des contraintes d'unicité du lien : test et",
+                  "// production sont deux espaces de noms disjoints. Si cette requête répond",
+                  "// « deja_synchronise », la bascule vers la production est cassée."
+                ],
+                "type": "text/javascript",
+                "id": "d6b29112-e418-4105-8d0a-6e9f4890bfe1"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleLive}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store LIVE {{passage}}\",\n  \"telephone\": \"062{{passage}}\",\n  \"email\": \"live-t{{passage}}@mathio.test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/marchands",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "marchands"
+              ]
+            },
+            "description": "MÊME idExterne qu'en 1.1, mais coordonnées distinctes. Doit créer un SECOND marchand, indépendant."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

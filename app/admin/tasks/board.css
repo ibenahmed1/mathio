@@ -156,6 +156,27 @@
 .kdc-progress__fill { height: 100%; background: var(--gradient-ambre); border-radius: 4px; }
 .kdc-progress__label { font-size: 9.5px; color: var(--text-3); margin-top: 5px; }
 
+/* ---------- checklist sur la carte ----------
+   Les étapes vivaient dans la description et s'affichaient donc en Markdown
+   brut au milieu du résumé (« - [ ] Relancer le prestataire »). Elles ont
+   maintenant leur propre bloc : des cases à cocher, rien d'autre. Ni
+   compteur ni barre d'avancement — ils redisaient en chiffres ce que les
+   cases montrent déjà, sur une carte qui a trois lignes à donner. Les non
+   cochées d'abord : c'est ce qu'on vient chercher sur un board. */
+.kdc-steps { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+.kdc-steps__item { display: flex; align-items: flex-start; gap: 7px; font-size: 11px; line-height: 1.35; color: var(--text-2); }
+/* Case de 13px dessinée à la main : une vraie <input type=checkbox> serait
+   cliquable, or la carte entière ouvre la fiche — cocher ici ferait cocher et
+   ouvrir d'un même geste. Les étapes se cochent dans la fiche. */
+.kdc-steps__box { flex: none; width: 13px; height: 13px; margin-top: 1px; border-radius: 3px; border: 1px solid var(--border-strong); background: var(--bg-panel-solid); display: grid; place-items: center; color: var(--on-accent); }
+.kdc-steps__texte { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kdc-steps__item--fait { color: var(--text-3); }
+.kdc-steps__item--fait .kdc-steps__box { border-color: transparent; background: var(--accent); }
+.kdc-steps__item--fait .kdc-steps__texte { text-decoration: line-through; }
+/* Aligné sur le texte des étapes, pas sur les cases : c'est une note, pas une
+   quatrième étape. */
+.kdc-steps__reste { padding-left: 20px; font-size: 9.5px; font-weight: 700; color: var(--text-3); }
+
 .kdc-label { font-size: 10.5px; font-weight: 700; border-radius: var(--r-chip); padding: 4px 9px; }
 .kdc-label--design { background: var(--label-design-bg); color: var(--label-design-fg); }
 .kdc-label--frontend { background: var(--label-frontend-bg); color: var(--label-frontend-fg); }
@@ -208,7 +229,20 @@
 
 /* ---------- modal ---------- */
 .kdc-overlay { position: fixed; inset: 0; background: rgba(32, 32, 32, 0.34); display: grid; place-items: center; padding: 24px; z-index: 50; }
-.kdc-modal { width: 520px; max-width: 100%; max-height: 90vh; overflow-y: auto; background: var(--bg-shell); border: 1px solid var(--border); border-radius: var(--r-panel); padding: 22px; box-shadow: var(--sh-modal); }
+/* Liseré jaune de 3px en haut : la signature des fenêtres du site
+   (cf. .mtModal::before dans app/globals.css et components/admin/Modal.tsx).
+   Posé en `background-image` et non en ::before parce que la modale défile
+   (`overflow-y: auto`) : un pseudo-élément absolu serait parti avec le
+   contenu, alors qu'un fond reste collé au bord — et le border-radius le
+   découpe proprement aux coins. */
+.kdc-modal {
+  width: 520px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+  background-color: var(--bg-shell);
+  background-image: linear-gradient(90deg, #ffee32, var(--brand) 55%, rgba(255, 209, 0, 0));
+  background-repeat: no-repeat;
+  background-size: 100% 3px;
+  border: 1px solid var(--border); border-radius: var(--r-panel); padding: 22px; box-shadow: var(--sh-modal);
+}
 .kdc-modal__head { display: flex; align-items: center; gap: 8px; }
 .kdc-modal__key { font-size: 11px; font-weight: 800; color: var(--text-3); }
 .kdc-status-badge { font-size: 10px; font-weight: 800; color: var(--on-accent); border-radius: var(--r-chip); padding: 3px 9px; text-transform: uppercase; letter-spacing: 0.4px; }
@@ -231,12 +265,39 @@
 .kdc-blocked-banner__reason { font-size: 12px; margin-top: 2px; line-height: 1.4; color: var(--danger-fg); }
 
 /* ---------- pièces jointes (extension app, hors maquette) ---------- */
-.kdc-attachments { display: flex; flex-direction: column; gap: 6px; margin-top: 9px; }
-.kdc-attachment { display: flex; align-items: center; gap: 7px; background: var(--bg-panel-solid); border: 1px solid var(--border); border-radius: var(--r-control); padding: 7px 10px; }
-.kdc-attachment__link { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--text-1); }
+/* Une pièce jointe est soit une image, soit un document, soit un lien
+   (§ lib/pieces-jointes.ts). La ligne unique « trombone + nom » ne disait
+   laquelle dans aucun des trois cas : la vignette porte désormais l'aperçu de
+   l'image, ou l'extension du document, ou le nom d'hôte du lien. */
+.kdc-attachments { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
+.kdc-attachment { display: flex; align-items: center; gap: 10px; background: var(--bg-panel-solid); border: 1px solid var(--border); border-radius: var(--r-card); padding: 8px 10px; transition: border-color .15s, box-shadow .15s; }
+.kdc-attachment:hover { border-color: var(--border-strong); box-shadow: var(--sh-card); }
+.kdc-attachment__thumb { flex: none; width: 40px; height: 40px; border-radius: 9px; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; background: var(--bg-subtle); color: var(--text-3); }
+.kdc-attachment__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.kdc-attachment__ext { max-width: 100%; padding: 0 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 7.5px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase; }
+/* Chaque nature a sa teinte de vignette — la même palette que les colonnes,
+   pour ne pas introduire de couleur supplémentaire dans la fiche. */
+.kdc-attachment--image .kdc-attachment__thumb { background: var(--tint-done, var(--bg-subtle)); }
+.kdc-attachment--document .kdc-attachment__thumb { color: var(--pal-bleu); }
+.kdc-attachment--lien .kdc-attachment__thumb { color: var(--text-2); }
+.kdc-attachment__body { flex: 1; min-width: 0; }
+.kdc-attachment__link { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; color: var(--text-1); }
 .kdc-attachment__link:hover { text-decoration: underline; }
-.kdc-attachment__remove { flex: none; border: none; background: transparent; color: var(--text-3); cursor: pointer; padding: 2px; }
-.kdc-attachment__remove:hover { color: var(--danger-fg); }
+.kdc-attachment__meta { margin-top: 2px; font-size: 10px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kdc-attachment__actions { flex: none; display: flex; align-items: center; gap: 2px; }
+.kdc-attachment__act { display: grid; place-items: center; width: 26px; height: 26px; border: none; border-radius: 7px; background: transparent; color: var(--text-3); font: inherit; cursor: pointer; transition: background .15s, color .15s; }
+.kdc-attachment__act:hover { background: var(--bg-subtle); color: var(--text-1); }
+.kdc-attachment__act--danger:hover { color: var(--danger-fg); }
+
+/* Zone de dépôt : c'est le geste attendu pour une capture d'écran, et le
+   dépôt n'existait pas du tout jusqu'ici (seul un lien était accepté). */
+.kdc-drop { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 9px; padding: 16px 12px; border: 1px dashed var(--border-strong); border-radius: var(--r-card); background: var(--bg-subtle); color: var(--text-3); text-align: center; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+.kdc-drop:hover, .kdc-drop:focus-visible { border-color: var(--accent); color: var(--text-2); outline: none; }
+.kdc-drop--over { border-color: var(--accent); border-style: solid; background: var(--opt-on-bg); color: var(--opt-on-fg); }
+.kdc-drop--busy { opacity: .6; pointer-events: none; }
+.kdc-drop__main { font-size: 11.5px; font-weight: 700; color: var(--text-1); }
+.kdc-drop__hint { font-size: 10px; }
+
 /* Les champs suivent la convention .form-field / .input-basic ; il ne reste
    ici que la mise en ligne, propre à ce pied de panneau. */
 .kdc-attachment-form { display: flex; align-items: flex-end; gap: 7px; margin-top: 8px; }
@@ -296,23 +357,19 @@
 .kdc-iconbtn:hover { border-color: var(--pal-bleu); color: var(--pal-bleu); }
 .kdc-iconbtn:focus-visible { outline: none; border-color: var(--pal-bleu); box-shadow: 0 0 0 3px rgba(32, 158, 187, .25); }
 
-/* ---------- boards (couloirs par équipe) ----------
-   Le tableau ne montre plus trois colonnes globales mais un couloir par pôle
-   — « Board administration », « Board dev »… — chacun avec ses propres
-   colonnes de statut et ses propres compteurs. Sans ce découpage, deux pôles
-   qui n'ont rien à voir partageaient la même pile « À faire » et le tableau
-   ne disait plus qui doit avancer sur quoi.
-   Le glisser-déposer traverse les couloirs : lâcher une carte dans un autre
-   board la réaffecte (teamId) en plus de changer son statut. */
+/* ---------- board (le couloir du pôle retenu) ----------
+   Le tableau ne montre plus trois colonnes globales mais le couloir d'UN pôle
+   — celui de la pilule retenue dans le rang « Boards ». Sans ce découpage,
+   deux pôles qui n'ont rien à voir partageaient la même pile « À faire » et
+   le tableau ne disait plus qui doit avancer sur quoi.
+   Le couloir n'a plus de titre (la pilule le nomme) ni de pilule « Tous » qui
+   les empilait tous : au-delà de deux ou trois pôles, la pile demandait de
+   défiler pour atteindre le board qu'on venait voir. Conséquence assumée : on
+   ne réaffecte plus une tâche à un autre pôle en la faisant glisser d'un
+   couloir à l'autre — il n'y en a qu'un à l'écran. Ça se fait par le champ
+   « BOARD » de la fiche (§ TaskDetailModal), qui envoie le même PATCH. */
 .kdc-boards { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .kdc-swimlane { background: var(--bg-panel); backdrop-filter: blur(6px); border: 1px solid var(--border-glass); box-shadow: var(--sh-panel); border-radius: var(--r-panel); padding: 12px; min-width: 0; }
-.kdc-swimlane__head { display: flex; align-items: baseline; gap: 9px; padding: 2px 4px 12px; }
-/* Titre de section, plus badge plein : le nom du board se lit comme un
-   intertitre, et la seule couleur qui reste est la pastille de teinte du
-   pôle. Le chevron de repli, le code et le double compteur ont sauté — trois
-   commandes pour une information que la colonne donne déjà. */
-.kdc-swimlane__title { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 800; letter-spacing: -0.15px; color: var(--text-1); min-width: 0; }
-.kdc-swimlane__dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--tab-grad, var(--border-strong)); }
 
 /* ---------- modale d'édition large (création / détail) ----------
    Gabarit à deux volets de la maquette : le contenu rédigé à gauche

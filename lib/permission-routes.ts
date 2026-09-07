@@ -114,6 +114,12 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/admin/tasks/**', permission: 'tasks:manage' },
   { pattern: '/admin/hubs/**', permission: 'hubs:manage' },
   { pattern: '/admin/parametres/**', permission: 'settings:manage' },
+  // Intégrations partenaires (§ /admin/integrations) : émission et révocation
+  // de clés d'API. Clé PROPRE plutôt qu'un rattachement à `settings:manage`,
+  // que tout le back-office détient — une clé permet à une machine tierce de
+  // créer des marchands déjà validés et de déposer des colis (règle n°2 en
+  // tête de ce fichier : pas d'élargissement silencieux).
+  { pattern: '/admin/integrations/**', permission: 'integrations:manage' },
 
   // L'accueil en dernier : `/admin` exactement, une fois que tous les
   // sous-chemins ci-dessus ont eu leur chance.
@@ -232,6 +238,23 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // d'impression (en-tête des bons et des factures) et ouvert à toute session
   // authentifiée. Le gouverner fermerait l'impression à la moitié des rôles.
   { pattern: '/api/parametres/societe', permission: null },
+
+  // --- Intégrations partenaires --------------------------------------------
+  // Administration des plateformes (clés, marchands synchronisés, journal).
+  { pattern: '/api/plateformes/**', permission: 'integrations:manage' },
+
+  // NON GOUVERNÉ — l'API MACHINE des plateformes partenaires (§ lib/spaces.ts,
+  // HOST_API). L'entrée est explicite plutôt qu'absente pour dire l'intention
+  // sur place : ce chemin n'a pas de session, donc pas de permissions à
+  // vérifier. Son contrôle d'accès est d'une autre nature — une clé d'API et
+  // ses scopes, vérifiés par `requirePlateforme` dans chaque handler
+  // (lib/plateforme-auth.ts).
+  //
+  // En pratique cette règle n'est jamais consultée : `/api/v1/**` reçoit 404
+  // sur les trois hôtes d'espace (proxy.ts §1 bis), et ce tableau n'est lu
+  // que sur l'hôte du back-office. Elle documente, et elle empêchera une
+  // future règle générique de happer ce préfixe.
+  { pattern: '/api/v1/**', permission: null },
 ];
 
 function segmentsOf(pathname: string): string[] {

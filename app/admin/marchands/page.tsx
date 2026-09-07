@@ -96,6 +96,17 @@ export default function AdminMarchandsPage() {
                 <Link href={`/admin/marchands/${m.id}`} className="font-semibold underline-offset-2 hover:underline">
                   {m.nomBoutique}
                 </Link>
+                {/* Marchand issu du BAC À SABLE d'une plateforme partenaire.
+                    L'isolation retenue est logique : ces comptes vivent dans la
+                    même table que les vrais clients (§ lib/plateformes.ts). Sans
+                    cette pastille, rien ne les en distingue — et on les approuve
+                    ou on les facture par inadvertance. Ils se suppriment d'un
+                    geste depuis /admin/integrations. */}
+                {m.comptesExternes?.some((c) => c.environnement === 'test') && (
+                  <span className="badge badge-warn ml-2" title="Créé par une clé d’API de test">
+                    test
+                  </span>
+                )}
               </td>
               <td>
                 <div className="flex flex-col">

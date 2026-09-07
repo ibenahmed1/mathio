@@ -20,10 +20,21 @@ function hideMobileBarFor(pathname: string | null) {
   return !!pathname && pathname.startsWith('/admin/comptabilite');
 }
 
-// Les pages qui gèrent elles-mêmes leur pleine largeur (Kanban, Comptabilité)
-// ne veulent pas de la marge de la coquille.
+// Les pages qui gèrent elles-mêmes leur pleine largeur (Kanban, Comptabilité,
+// Hubs) ne veulent pas de la marge de la coquille : elles posent leur propre
+// fond, qui doit courir jusqu'aux bords de la zone de contenu — une marge de
+// la coquille laisserait un liseré de .shell-surface tout autour.
 function isFullBleed(pathname: string | null) {
-  return !!pathname && (pathname.startsWith('/admin/tasks') || pathname.startsWith('/admin/comptabilite'));
+  return (
+    !!pathname &&
+    // L'Accueil en fait partie depuis qu'il porte le tableau de bord : celui-ci
+    // pose son propre fond (#f0f0ed) et ses propres gouttières. Comparaison
+    // EXACTE — un startsWith('/admin') emporterait tout l'espace.
+    (pathname === '/admin' ||
+      pathname.startsWith('/admin/tasks') ||
+      pathname.startsWith('/admin/comptabilite') ||
+      pathname.startsWith('/admin/hubs'))
+  );
 }
 
 export function AdminShell({

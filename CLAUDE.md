@@ -163,5 +163,9 @@ Longue, à lire à la demande — ne pas en recopier le contenu ici :
 - `GESTION_UTILISATEURS_ROLES_PERMISSIONS.md` — les 12 rôles et le catalogue de permissions
 - `ISOLATION_ROLES_COOKIES.md` — séparation des espaces, cookies, sessions
 - `AUTHENTIFICATION_MARCHAND.md` — parcours d'inscription et de connexion marchand
-- `API_PARTENAIRES.md` — API exposée aux partenaires
+- `INTEGRATION_PLATEFORMES_PARTENAIRES.md` — flux **ENTRANT** : une plateforme de vente (Shipeh)
+  nous envoie ses marchands et ses colis. Endpoints réels, carte des fichiers, et les cinq
+  niveaux de test à appliquer pour valider le module. **Implémenté.**
+- `API_PARTENAIRES.md` — flux **SORTANT** : sous-traiter un colis à un transporteur. Une
+  spécification, pas une implémentation — ne pas la confondre avec le document ci-dessus
 - `NUMERO_SERIE_QR_CODEBARRE.md` — numérotation des colis, QR et code-barres

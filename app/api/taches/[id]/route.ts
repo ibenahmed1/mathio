@@ -14,6 +14,7 @@ import {
 } from '@/lib/taches-scope';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { STATUTS_TACHE, PRIORITES_TACHE } from '@/lib/statuts';
+import { piecesJointesExposees } from '@/lib/taches-pieces-jointes';
 
 const ROLES_BACKOFFICE = ROLES_BACKOFFICE_TACHES;
 
@@ -29,10 +30,11 @@ const INCLUDE = {
     orderBy: { horodatage: 'asc' },
     include: { utilisateur: { select: { id: true, nomComplet: true } } },
   },
-  piecesJointes: {
-    orderBy: { dateAjout: 'asc' },
-    include: { auteur: { select: { id: true, nomComplet: true } } },
-  },
+  // `piecesJointes` est volontairement ABSENT de cet include : la colonne
+  // `url` porte le fichier entier encodé en base64 (§ lib/pieces-jointes.ts),
+  // et l'embarquer ici ferait transiter plusieurs mégaoctets à chaque
+  // ouverture de fiche. La liste est jointe à la réponse par
+  // `piecesJointesExposees`, qui n'en lit que l'en-tête.
 } satisfies Prisma.TacheInclude;
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -44,7 +46,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     if (!tache) throw new ApiError(404, 'Tâche introuvable');
     exigerTacheAutorisee(session, await boardsVisibles(session), tache);
 
-    return NextResponse.json(tache);
+    return NextResponse.json({ ...tache, piecesJointes: await piecesJointesExposees(id) });
   } catch (error) {
     return jsonError(error);
   }
@@ -180,7 +182,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return updated;
     });
 
-    return NextResponse.json(tache);
+    return NextResponse.json({ ...tache, piecesJointes: await piecesJointesExposees(id) });
   } catch (error) {
     return jsonError(error);
   }

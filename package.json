@@ -13,7 +13,10 @@
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:reseau": "tsx scripts/aligner-noms-sur-sources.ts && tsx scripts/import-prestataire-power-delivery.ts && tsx scripts/import-prestataire-meta-livraison.ts && tsx scripts/import-prestataire-sahario-express.ts && tsx scripts/import-agence-tanger.ts && tsx scripts/import-prestataire-est-livraison.ts",
-    "db:deploy": "prisma migrate deploy && prisma db seed"
+    "db:deploy": "prisma migrate deploy && prisma db seed",
+    "simuler:shipeh": "tsx scripts/simuler-shipeh.ts",
+    "shipeh": "tsx scripts/console-shipeh.ts",
+    "audit:plateformes": "tsx scripts/test-plateformes-audit.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",
@@ -21,6 +24,7 @@
     "@prisma/config": "^7.9.0",
     "bcryptjs": "^3.0.3",
     "bwip-js": "^4.11.2",
+    "d3": "^7.9.0",
     "dotenv": "^17.4.2",
     "jose": "^6.2.4",
     "jsqr": "^1.4.0",
@@ -32,17 +36,20 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.10.0",
+    "topojson-client": "^3.1.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/d3": "^7.4.3",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/topojson-client": "^3.1.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "prisma": "^7.9.0",

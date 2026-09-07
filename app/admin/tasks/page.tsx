@@ -11,7 +11,6 @@ import {
   LABELS_PRIORITE_TACHE,
   STATUT_TACHE_DOT,
   STATUT_TACHE_COLONNE,
-  EQUIPE_COULEUR_LABEL,
 } from '@/lib/statuts';
 import { initiales, avatarClassName } from '@/lib/avatar';
 import { TaskCard } from '@/components/admin/TaskCard';
@@ -87,10 +86,15 @@ export default function AdminTasksPage() {
     }
   }
 
+  // Le board retenu ne part PAS en paramètre : le tableau n'en montre qu'un,
+  // mais la vue « Équipes » compte les tâches ouvertes de TOUS les pôles à
+  // partir de cette même liste (§ TeamsBoardView). Filtrer côté API mettrait
+  // toutes ses cartes à zéro sauf une. Le cloisonnement, lui, reste tenu par
+  // le serveur (§ filtreTachesVisibles) — ce qui n'est pas envoyé ici n'ouvre
+  // aucun périmètre.
   async function loadTaches() {
     try {
       const params = new URLSearchParams();
-      if (filtreEquipe) params.set('teamId', filtreEquipe);
       if (filtreAssigne) params.set('assigneeId', filtreAssigne);
       const qs = params.toString();
       const res = await apiGet<{ data: Tache[] }>(`/api/taches${qs ? `?${qs}` : ''}`);
@@ -157,13 +161,22 @@ export default function AdminTasksPage() {
     return t.assigneeId === userId || t.createurId === userId;
   }
 
-  // Le menu "Assigné à" ne propose que les membres du pôle sélectionné (§
+  // Le tableau montre UN board à la fois, et il n'y a plus de pilule « Tous » :
+  // il faut donc toujours un pôle retenu. Celui-ci est DÉRIVÉ au rendu — le
+  // choix de l'utilisateur s'il existe encore, sinon le premier de la liste —
+  // plutôt que rattrapé dans un effet : la liste des pôles arrive après le
+  // premier rendu, et un pôle peut disparaître sous les pieds (§
+  // TeamManagerModal). Un effet qui corrige `filtreEquipe` après coup ferait
+  // un second passage de rendu à chaque fois, pour un état qui se calcule.
+  const boardCourantId = equipes.some((eq) => eq.id === filtreEquipe) ? filtreEquipe : (equipes[0]?.id ?? '');
+
+  // Le menu "Assigné à" ne propose que les membres du pôle affiché (§
   // workflow d'assignation) — évite une liste polluée par tout le
   // back-office quand une équipe précise est déjà choisie.
   useEffect(() => {
     (async () => {
       try {
-        const qs = filtreEquipe ? `?equipeId=${filtreEquipe}` : '';
+        const qs = boardCourantId ? `?equipeId=${boardCourantId}` : '';
         const res = await apiGet<{ data: MembreTache[] }>(`/api/taches/membres${qs}`);
         setMembresAssignables(res.data);
         if (filtreAssigne && !res.data.some((m) => m.id === filtreAssigne)) setFiltreAssigne('');
@@ -172,12 +185,12 @@ export default function AdminTasksPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtreEquipe]);
+  }, [boardCourantId]);
 
   useEffect(() => {
     Promise.resolve().then(() => loadTaches());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtreEquipe, filtreAssigne]);
+  }, [filtreAssigne]);
 
   const tachesVisibles = useMemo(() => {
     const q = recherche.trim().toLowerCase();
@@ -186,12 +199,11 @@ export default function AdminTasksPage() {
     );
   }, [taches, filtrePriorite, recherche]);
 
-  // Un couloir par board (§ vue Board) : le filtre « Équipe » ne masque plus
-  // les autres pôles au sein d'une pile commune, il réduit le tableau au seul
-  // board choisi.
+  // Reste une liste, bien qu'elle ne porte jamais plus d'un élément : le cas
+  // « aucun pôle » (base fraîche) se rend alors sans branche particulière.
   const boardsAffiches = useMemo(
-    () => (filtreEquipe ? equipes.filter((eq) => eq.id === filtreEquipe) : equipes),
-    [equipes, filtreEquipe]
+    () => equipes.filter((eq) => eq.id === boardCourantId),
+    [equipes, boardCourantId]
   );
 
   // Statuts par board : map[teamId][statut]. Les tâches d'un pôle supprimé
@@ -262,7 +274,9 @@ export default function AdminTasksPage() {
     }
   }
 
-  const filtresActifs = !!filtreEquipe || !!filtreAssigne || filtrePriorite !== 'all' || !!recherche;
+  // Le board retenu ne compte PAS comme un filtre : il y en a toujours un, et
+  // « Réinitialiser » n'a rien à lever de ce côté-là.
+  const filtresActifs = !!filtreAssigne || filtrePriorite !== 'all' || !!recherche;
 
   // Aperçu du déclencheur d'assignés : trois visages au plus, ou le seul
   // membre filtré. Le reste passe dans le « +N » et se lit dans le menu.
@@ -319,7 +333,7 @@ export default function AdminTasksPage() {
             className="kdc-btn-primary"
             onClick={() => {
               setFormTeamId(
-                filtreEquipe && boardsDeCreation.some((eq) => eq.id === filtreEquipe) ? filtreEquipe : undefined
+                boardCourantId && boardsDeCreation.some((eq) => eq.id === boardCourantId) ? boardCourantId : undefined
               );
               setFormOuvert(true);
             }}
@@ -362,7 +376,6 @@ export default function AdminTasksPage() {
             {filtresActifs && (
               <button
                 onClick={() => {
-                  setFiltreEquipe('');
                   setFiltreAssigne('');
                   setFiltrePriorite('all');
                   setRecherche('');
@@ -459,28 +472,22 @@ export default function AdminTasksPage() {
           </div>
 
           {/* Rang de boards : les pôles se lisent d'un coup d'œil, et la
-              pilule retenue tient lieu de titre au tableau qui suit. */}
+              pilule retenue tient lieu de titre au tableau qui suit.
+              Pas de pilule « Tous » : le tableau montre UN pôle à la fois, et
+              l'empilement de tous les couloirs qu'elle produisait n'était
+              lisible qu'avec deux ou trois boards. */}
           {equipes.length > 0 && (
             <div className="kdc-teamsbar" role="group" aria-label="Boards">
               <span className="kdc-teamsbar__label">Boards</span>
-              <button
-                type="button"
-                className="kdc-tab"
-                aria-pressed={filtreEquipe === ''}
-                onClick={() => setFiltreEquipe('')}
-              >
-                Tous
-              </button>
               {equipes.map((eq) => (
                 <button
                   key={eq.id}
                   type="button"
                   className="kdc-tab"
-                  aria-pressed={filtreEquipe === eq.id}
-                  // Re-cliquer le board affiché lève le filtre : sans ça, la
-                  // seule sortie serait la pilule « Tous », qui peut avoir
-                  // défilé hors de vue sur un rang long.
-                  onClick={() => setFiltreEquipe(filtreEquipe === eq.id ? '' : eq.id)}
+                  aria-pressed={boardCourantId === eq.id}
+                  // Re-cliquer le board affiché ne le désélectionne pas : il
+                  // n'y a plus de « aucun board », le tableau serait vide.
+                  onClick={() => setFiltreEquipe(eq.id)}
                 >
                   {eq.nom}
                   {/* Deux pôles peuvent porter le même nom (le code, lui, est
@@ -495,24 +502,10 @@ export default function AdminTasksPage() {
           <div className="kdc-boards">
             {boardsAffiches.map((board) => {
               const colonnes = parBoard[board.id] ?? { a_faire: [], en_cours: [], termine: [] };
-              const labelKey = EQUIPE_COULEUR_LABEL[board.couleur] ?? 'docs';
               return (
+                // Pas de titre de couloir : un seul board est affiché, et sa
+                // pilule le nomme déjà juste au-dessus.
                 <section key={board.id} className="kdc-swimlane">
-                  {/* Titre de couloir seulement quand plusieurs boards sont
-                      empilés : filtré sur un seul, la pilule retenue le nomme
-                      déjà juste au-dessus. */}
-                  {boardsAffiches.length > 1 && (
-                    <div className="kdc-swimlane__head">
-                      <h2
-                        className="kdc-swimlane__title"
-                        style={{ '--tab-grad': `var(--label-${labelKey}-grad)` } as React.CSSProperties}
-                      >
-                        <span className="kdc-swimlane__dot" aria-hidden />
-                        {board.nom}
-                      </h2>
-                    </div>
-                  )}
-
                   <div className="kdc-columns">
                       {STATUTS_TACHE.map((statut) => {
                         const compose = composeIn?.teamId === board.id && composeIn.statut === statut;
@@ -596,7 +589,10 @@ export default function AdminTasksPage() {
                 </section>
               );
             })}
-            {boardsAffiches.length === 0 && (
+            {/* Sur `equipes` et non sur `boardsAffiches` : entre l'arrivée de
+                la liste et la sélection du premier pôle, `boardsAffiches` est
+                momentanément vide — s'y fier ferait clignoter ce message. */}
+            {equipes.length === 0 && (
               <p className="py-6 text-center text-sm" style={{ color: 'var(--text-2)' }}>
                 Aucun board pour le moment — créez une équipe pour ouvrir un tableau.
               </p>
@@ -658,7 +654,7 @@ export default function AdminTasksPage() {
             await loadEquipes();
             const pool = await apiGet<{ data: MembreTache[] }>('/api/taches/membres');
             setMembres(pool.data);
-            const qs = filtreEquipe ? `?equipeId=${filtreEquipe}` : '';
+            const qs = boardCourantId ? `?equipeId=${boardCourantId}` : '';
             const res = await apiGet<{ data: MembreTache[] }>(`/api/taches/membres${qs}`);
             setMembresAssignables(res.data);
             // Les tâches aussi : supprimer un pôle peut les avoir transférées

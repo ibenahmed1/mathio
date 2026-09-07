@@ -27,7 +27,18 @@ export async function GET(request: NextRequest) {
       prisma.commande.findMany({
         where,
         include: {
-          marchand: { select: { nomBoutique: true } },
+          // `comptesExternes` : de quel canal ce marchand nous vient, et dans
+          // quel environnement. Sert à SIGNALER les colis d'un bac à sable dans
+          // la liste — ce sont de vraies lignes, au milieu des vraies commandes,
+          // et rien d'autre ne permet de les distinguer avant de les router.
+          //
+          // Le critère est EXACT, pas heuristique : depuis les deux gardes de
+          // rattachement (lib/plateforme-marchands.ts), un marchand lié en
+          // `test` a forcément été créé par la synchronisation, et ne peut pas
+          // être aussi un vrai client.
+          marchand: {
+            select: { nomBoutique: true, comptesExternes: { select: { environnement: true } } },
+          },
           livreur: { select: { id: true, nomComplet: true } },
           marchandise: { select: { id: true, nom: true, prix: true } },
           produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },

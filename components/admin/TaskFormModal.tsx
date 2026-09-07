@@ -13,6 +13,7 @@ import {
 import { initiales, avatarClassName } from '@/lib/avatar';
 import { MentionTextarea } from '@/components/admin/MentionTextarea';
 import { EtiquettesPicker } from '@/components/admin/EtiquettesPicker';
+import { recomposerDescription } from '@/lib/taches-description';
 
 // Création d'une tâche (§ /admin/tasks) : même gabarit que la fiche de
 // détail — titre en tête, le rédigé à gauche (description, checklist,
@@ -117,10 +118,12 @@ export function TaskFormModal({
     try {
       // La checklist rejoint la description en cases Markdown : le modèle
       // Tache n'a pas de table d'étapes, et les perdre à l'enregistrement
-      // serait pire que de ne pas les proposer.
-      const corps = [description.trim(), etapes.map((etape) => `- [ ] ${etape}`).join('\n')]
-        .filter(Boolean)
-        .join('\n\n');
+      // serait pire que de ne pas les proposer. Format tenu par
+      // lib/taches-description, partagé avec la fiche de détail et la carte.
+      const corps = recomposerDescription(
+        description,
+        etapes.map((texte) => ({ texte, fait: false }))
+      );
       const tache = await apiPost<Tache>('/api/taches', {
         titre: titre.trim(),
         description: corps || undefined,

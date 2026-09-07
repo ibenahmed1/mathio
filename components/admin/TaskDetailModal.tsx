@@ -1,20 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Activity,
   CalendarClock,
   CheckSquare,
+  Download,
+  FileText,
+  Link2,
   Lock,
   MessagesSquare,
   Paperclip,
   Send,
   Trash2,
   Unlock,
+  UploadCloud,
   X,
 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost, apiDelete } from '@/lib/api-client';
-import type { Tache, EquipeTache, MembreTache, Etiquette } from '@/lib/types';
+import type { Tache, EquipeTache, MembreTache, Etiquette, PieceJointeTache } from '@/lib/types';
 import {
   STATUTS_TACHE,
   LABELS_STATUT_TACHE,
@@ -27,29 +31,16 @@ import { initiales, avatarClassName } from '@/lib/avatar';
 import { MentionTextarea } from '@/components/admin/MentionTextarea';
 import { EtiquettesPicker } from '@/components/admin/EtiquettesPicker';
 import { Field } from '@/components/form/Field';
-
-// Checklist : faute de table d'étapes côté modèle (§ Tache), les étapes
-// vivent dans la description en cases Markdown — même convention qu'à la
-// création (TaskFormModal). On les extrait pour les afficher cochables, et le
-// texte libre de la description reste ce qui n'est pas une case.
-type Etape = { texte: string; fait: boolean };
-const LIGNE_ETAPE = /^- \[([ xX])\]\s*(.*)$/;
-
-function decouperDescription(description: string | null): { texte: string; etapes: Etape[] } {
-  const etapes: Etape[] = [];
-  const reste: string[] = [];
-  for (const ligne of (description ?? '').split('\n')) {
-    const m = LIGNE_ETAPE.exec(ligne.trim());
-    if (m) etapes.push({ fait: m[1].toLowerCase() === 'x', texte: m[2] });
-    else reste.push(ligne);
-  }
-  return { texte: reste.join('\n').trim(), etapes };
-}
-
-function recomposerDescription(texte: string, etapes: Etape[]): string {
-  const bloc = etapes.map((e) => `- [${e.fait ? 'x' : ' '}] ${e.texte}`).join('\n');
-  return [texte.trim(), bloc].filter(Boolean).join('\n\n');
-}
+// Checklist : faute de table d'étapes côté modèle (§ Tache), les étapes vivent
+// dans la description en cases Markdown. La convention est tenue en un seul
+// endroit, partagé avec la fiche de création et la carte du board.
+import { decouperDescription, recomposerDescription, type EtapeTache as Etape } from '@/lib/taches-description';
+import {
+  ACCEPT_PIECE_JOINTE,
+  TAILLE_MAX_PIECE_JOINTE,
+  analyserPieceJointe,
+  libelleTaille,
+} from '@/lib/pieces-jointes';
 
 // Fiche de détail d'une tâche (§ /admin/tasks) : même gabarit à deux volets
 // que la fiche de création — titre en tête, le rédigé à gauche (description,
@@ -96,6 +87,10 @@ export function TaskDetailModal({
   const [pieceNom, setPieceNom] = useState('');
   const [pieceUrl, setPieceUrl] = useState('');
   const [addingPiece, setAddingPiece] = useState(false);
+  // Dépôt de fichiers : la zone se surligne pendant le survol d'un glisser, et
+  // le bouton « Parcourir » déclenche l'input caché.
+  const [surVol, setSurVol] = useState(false);
+  const champFichier = useRef<HTMLInputElement>(null);
   const [pickerOuvert, setPickerOuvert] = useState(false);
   // Liste d'assignés élargie hors du board (encadrement projet uniquement).
   const [horsPole, setHorsPole] = useState(false);
@@ -220,12 +215,20 @@ export function TaskDetailModal({
     setSavingBlocage(false);
   }
 
-  async function ajouterPieceJointe(e: React.FormEvent) {
+  async function ajouterLien(e: React.FormEvent) {
     e.preventDefault();
-    if (!tache || !pieceNom.trim() || !pieceUrl.trim()) return;
+    if (!tache || !pieceUrl.trim()) return;
+    // On refuse ici ce que le serveur refuserait, avec le même message : ça
+    // évite un aller-retour pour un « javascript: » collé par erreur.
+    const analyse = analyserPieceJointe(pieceUrl);
+    if (analyse.statut === 'refus') {
+      setError(analyse.message);
+      return;
+    }
     setAddingPiece(true);
     setError(null);
     try {
+      // Le nom reste facultatif : sans lui, l'API retient l'hôte du lien.
       await apiPost(`/api/taches/${tache.id}/pieces-jointes`, { nom: pieceNom.trim(), url: pieceUrl.trim() });
       setPieceNom('');
       setPieceUrl('');
@@ -236,6 +239,50 @@ export function TaskDetailModal({
     } finally {
       setAddingPiece(false);
     }
+  }
+
+  /** Un fichier lu en data URL — même conversion que les photos de compte
+   *  (§ UserFormModal), c'est la seule forme que la base sait recevoir. */
+  function lireEnDataUrl(fichier: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const lecteur = new FileReader();
+      lecteur.onload = () => resolve(String(lecteur.result));
+      lecteur.onerror = () => reject(new Error(`Lecture impossible : ${fichier.name}`));
+      lecteur.readAsDataURL(fichier);
+    });
+  }
+
+  // Dépôt de fichiers, par glisser ou par « Parcourir ». Les fichiers partent
+  // un par un plutôt qu'en lot : une pièce refusée (format, poids) ne doit pas
+  // emporter celles qui l'accompagnaient.
+  async function ajouterFichiers(fichiers: File[]) {
+    if (!tache || fichiers.length === 0) return;
+    setAddingPiece(true);
+    setError(null);
+    const refus: string[] = [];
+    for (const fichier of fichiers) {
+      // Contrôle du poids avant lecture : encoder 40 Mo pour se les faire
+      // refuser fige l'onglet le temps de la conversion.
+      if (fichier.size > TAILLE_MAX_PIECE_JOINTE) {
+        refus.push(`${fichier.name} — trop lourd (${libelleTaille(fichier.size)}, maximum ${libelleTaille(TAILLE_MAX_PIECE_JOINTE)})`);
+        continue;
+      }
+      try {
+        const dataUrl = await lireEnDataUrl(fichier);
+        const analyse = analyserPieceJointe(dataUrl);
+        if (analyse.statut === 'refus') {
+          refus.push(`${fichier.name} — ${analyse.message}`);
+          continue;
+        }
+        await apiPost(`/api/taches/${tache.id}/pieces-jointes`, { nom: fichier.name, url: dataUrl });
+      } catch (err) {
+        refus.push(`${fichier.name} — ${err instanceof Error ? err.message : 'Erreur'}`);
+      }
+    }
+    await load();
+    onChanged();
+    setError(refus.length > 0 ? refus.join(' · ') : null);
+    setAddingPiece(false);
   }
 
   async function supprimerPieceJointe(pieceId: string) {
@@ -456,48 +503,87 @@ export function TaskDetailModal({
                     <span className="kdc-field-count">({(tache.piecesJointes ?? []).length})</span>
                   )}
                 </div>
-                <div className="kdc-attachments">
-                  {(tache.piecesJointes ?? []).map((p) => (
-                    <div key={p.id} className="kdc-attachment">
-                      <Paperclip className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--text-3)' }} />
-                      <a href={p.url} target="_blank" rel="noreferrer" className="kdc-attachment__link">
-                        {p.nom}
-                      </a>
-                      {peutModifier && (
-                        <button
-                          type="button"
-                          onClick={() => supprimerPieceJointe(p.id)}
-                          className="kdc-attachment__remove"
-                          aria-label={`Retirer ${p.nom}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {(tache.piecesJointes ?? []).length === 0 && <p className="kdc-hint">Aucune pièce jointe.</p>}
-                </div>
-                {peutModifier && (
-                  <form onSubmit={ajouterPieceJointe} className="kdc-attachment-form">
-                    <Field label="Nom du document" className="flex-1">
-                      <input className="input-basic" value={pieceNom} onChange={(e) => setPieceNom(e.target.value)} />
-                    </Field>
-                    <Field label="Lien" className="flex-1">
-                      <input
-                        className="input-basic"
-                        value={pieceUrl}
-                        onChange={(e) => setPieceUrl(e.target.value)}
-                        placeholder="https://…"
+                {(tache.piecesJointes ?? []).length > 0 ? (
+                  <div className="kdc-attachments">
+                    {(tache.piecesJointes ?? []).map((p) => (
+                      <AttachmentRow
+                        key={p.id}
+                        piece={p}
+                        peutRetirer={peutModifier}
+                        onRetirer={() => supprimerPieceJointe(p.id)}
                       />
-                    </Field>
-                    <button
-                      type="submit"
-                      className="kdc-btn-outline"
-                      disabled={addingPiece || !pieceNom.trim() || !pieceUrl.trim()}
+                    ))}
+                  </div>
+                ) : (
+                  !peutModifier && <p className="kdc-hint">Aucune pièce jointe.</p>
+                )}
+                {peutModifier && (
+                  <>
+                    {/* Zone de dépôt : c'est le geste attendu pour une capture
+                        d'écran ou un PDF. Le champ « lien » reste dessous —
+                        beaucoup de pièces sont des documents déjà en ligne. */}
+                    <div
+                      className={`kdc-drop ${surVol ? 'kdc-drop--over' : ''} ${addingPiece ? 'kdc-drop--busy' : ''}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setSurVol(true);
+                      }}
+                      onDragLeave={() => setSurVol(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setSurVol(false);
+                        ajouterFichiers(Array.from(e.dataTransfer.files));
+                      }}
+                      onClick={() => champFichier.current?.click()}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          champFichier.current?.click();
+                        }
+                      }}
                     >
-                      {addingPiece ? 'Ajout…' : 'Ajouter'}
-                    </button>
-                  </form>
+                      <UploadCloud className="h-5 w-5" aria-hidden />
+                      <span className="kdc-drop__main">
+                        {addingPiece ? 'Envoi en cours…' : 'Déposez un fichier ou cliquez pour parcourir'}
+                      </span>
+                      <span className="kdc-drop__hint">
+                        Images, PDF, Word, Excel, PowerPoint, texte, CSV, ZIP — {libelleTaille(TAILLE_MAX_PIECE_JOINTE)}{' '}
+                        maximum
+                      </span>
+                      <input
+                        ref={champFichier}
+                        type="file"
+                        multiple
+                        accept={ACCEPT_PIECE_JOINTE}
+                        className="hidden"
+                        onChange={(e) => {
+                          ajouterFichiers(Array.from(e.target.files ?? []));
+                          // Remis à zéro pour que redéposer le même fichier
+                          // déclenche bien un nouvel évènement `change`.
+                          e.target.value = '';
+                        }}
+                      />
+                    </div>
+
+                    <form onSubmit={ajouterLien} className="kdc-attachment-form">
+                      <Field label="Ou coller un lien" className="flex-[2]">
+                        <input
+                          className="input-basic"
+                          value={pieceUrl}
+                          onChange={(e) => setPieceUrl(e.target.value)}
+                          placeholder="drive.google.com/…"
+                        />
+                      </Field>
+                      <Field label="Nom" optional className="flex-1">
+                        <input className="input-basic" value={pieceNom} onChange={(e) => setPieceNom(e.target.value)} />
+                      </Field>
+                      <button type="submit" className="kdc-btn-outline" disabled={addingPiece || !pieceUrl.trim()}>
+                        {addingPiece ? 'Ajout…' : 'Ajouter'}
+                      </button>
+                    </form>
+                  </>
                 )}
 
                 <div className="kdc-field-label kdc-field-label--icon">
@@ -750,6 +836,86 @@ export function TaskDetailModal({
               </div>
             </div>
           </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Une pièce jointe dans la liste. Trois formes pour trois natures : la vignette
+// de l'image elle-même, l'icône de format d'un document, l'hôte d'un lien
+// externe — sur une seule ligne on ne distinguait ni l'un ni l'autre.
+function AttachmentRow({
+  piece,
+  peutRetirer,
+  onRetirer,
+}: {
+  piece: PieceJointeTache;
+  peutRetirer: boolean;
+  onRetirer: () => void;
+}) {
+  const meta = [
+    piece.format.toUpperCase(),
+    piece.poids !== null ? libelleTaille(piece.poids) : null,
+    piece.auteur?.nomComplet,
+    new Date(piece.dateAjout).toLocaleDateString('fr-FR'),
+  ].filter(Boolean);
+
+  return (
+    <div className={`kdc-attachment kdc-attachment--${piece.type}`}>
+      <a
+        href={piece.url}
+        target="_blank"
+        rel="noreferrer"
+        className="kdc-attachment__thumb"
+        aria-label={`Ouvrir ${piece.nom}`}
+      >
+        {piece.type === 'image' ? (
+          // Balise <img> nue : la route de contenu sert des octets déjà en
+          // base, next/image n'aurait rien à optimiser et exigerait un domaine
+          // déclaré pour les liens externes.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={piece.url} alt="" loading="lazy" />
+        ) : piece.type === 'lien' ? (
+          <Link2 className="h-4 w-4" aria-hidden />
+        ) : (
+          <FileText className="h-4 w-4" aria-hidden />
+        )}
+        {piece.type !== 'image' && <span className="kdc-attachment__ext">{piece.format}</span>}
+      </a>
+
+      <div className="kdc-attachment__body">
+        <a href={piece.url} target="_blank" rel="noreferrer" className="kdc-attachment__link">
+          {piece.nom}
+        </a>
+        <p className="kdc-attachment__meta">{meta.join(' · ')}</p>
+      </div>
+
+      <div className="kdc-attachment__actions">
+        {/* `download` ne vaut que pour la route de contenu, servie par notre
+            origine : sur un lien externe le navigateur l'ignore et ouvre la
+            cible, ce qui est le comportement attendu là aussi. */}
+        <a
+          href={piece.url}
+          download={piece.nom}
+          target="_blank"
+          rel="noreferrer"
+          className="kdc-attachment__act"
+          aria-label={`Télécharger ${piece.nom}`}
+          title="Télécharger"
+        >
+          <Download className="h-3.5 w-3.5" aria-hidden />
+        </a>
+        {peutRetirer && (
+          <button
+            type="button"
+            onClick={onRetirer}
+            className="kdc-attachment__act kdc-attachment__act--danger"
+            aria-label={`Retirer ${piece.nom}`}
+            title="Retirer"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          </button>
         )}
       </div>
     </div>

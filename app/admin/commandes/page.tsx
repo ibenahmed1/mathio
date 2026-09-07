@@ -224,6 +224,21 @@ export default function AdminCommandesPage() {
                     <button onClick={() => setTrackingId(c.id)} className="hover:underline">
                       {c.codeSuivi}
                     </button>
+                    {/* Colis déposé par une clé d'API de BAC À SABLE. Ce sont de
+                        vraies lignes, au milieu des vraies commandes : sans cette
+                        pastille, rien ne les distingue avant de les router vers un
+                        hub ou de les inscrire dans une tournée.
+
+                        Le critère est exact, pas approximatif : depuis les deux
+                        gardes de rattachement (lib/plateforme-marchands.ts), un
+                        marchand lié en `test` a forcément été créé par la
+                        synchronisation et ne peut pas être aussi un vrai client.
+                        Ces colis partent tous à la purge (/admin/integrations). */}
+                    {c.marchand?.comptesExternes?.some((e) => e.environnement === 'test') && (
+                      <span className="badge badge-warn ml-2" title="Colis déposé par une clé d’API de test — effaçable depuis /admin/integrations">
+                        test
+                      </span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap text-xs opacity-70">{new Date(c.dateCreation).toLocaleString('fr-FR')}</td>
                   <td>{c.clientNom}</td>

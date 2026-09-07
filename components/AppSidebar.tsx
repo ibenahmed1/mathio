@@ -14,8 +14,13 @@ import { Logo } from '@/components/Logo';
 //
 // `roles` reste pour les navigations qui ne sont pas gouvernées par le
 // catalogue (espaces marchand et terrain).
+//
+// `children` accepte lui-même des groupes : la navigation du back-office
+// descend à trois niveaux (ex. Documents de transport > Bon de retour > Pour
+// livreur). Les espaces marchand et terrain, eux, restent plats — la
+// récursivité ne leur coûte rien.
 export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string; roles?: string[]; permission?: string };
-export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavLeaf[]; section?: string; roles?: string[]; permission?: string };
+export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavItem[]; section?: string; roles?: string[]; permission?: string };
 export type NavItem = NavLeaf | NavGroup;
 
 function isGroup(item: NavItem): item is NavGroup {
@@ -26,8 +31,25 @@ function isActiveHref(pathname: string, href: string) {
   return pathname === href;
 }
 
-function groupContainsActive(pathname: string, group: NavGroup) {
-  return group.children.some((c) => isActiveHref(pathname, c.href));
+function groupContainsActive(pathname: string, group: NavGroup): boolean {
+  return group.children.some((c) => (isGroup(c) ? groupContainsActive(pathname, c) : isActiveHref(pathname, c.href)));
+}
+
+// Les libellés de groupe servent de clé d'ouverture : deux groupes homonymes à
+// des niveaux différents s'ouvriraient ensemble. On préfixe donc par le
+// chemin de l'ancêtre.
+function groupKey(parentKey: string, label: string) {
+  return parentKey ? `${parentKey} / ${label}` : label;
+}
+
+function collectGroupKeys(nav: NavItem[], pathname: string, parentKey = '', into: Record<string, boolean> = {}) {
+  for (const item of nav) {
+    if (!isGroup(item)) continue;
+    const key = groupKey(parentKey, item.label);
+    into[key] = groupContainsActive(pathname, item);
+    collectGroupKeys(item.children, pathname, key, into);
+  }
+  return into;
 }
 
 // Regroupe les items consécutifs partageant le même `section` sous une même
@@ -62,33 +84,30 @@ export function AppSidebar({
   onToggleCollapse?: () => void;
 }) {
   const pathname = usePathname();
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    for (const item of nav) {
-      if (isGroup(item)) initial[item.label] = groupContainsActive(pathname, item);
-    }
-    return initial;
-  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => collectGroupKeys(nav, pathname));
 
-  function toggleGroup(label: string) {
-    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
-  function renderItem(item: NavItem) {
+  function renderItem(item: NavItem, parentKey = '', depth = 0): React.ReactNode {
     if (isGroup(item)) {
       const Icon = item.icon;
-      const open = !collapsed && (openGroups[item.label] ?? false);
+      const key = groupKey(parentKey, item.label);
+      const open = !collapsed && (openGroups[key] ?? false);
       const active = groupContainsActive(pathname, item);
       return (
-        <li key={item.label}>
+        <li key={key}>
           <button
-            onClick={() => toggleGroup(item.label)}
-            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+            onClick={() => toggleGroup(key)}
+            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 font-semibold transition ${
+              depth > 0 ? 'text-[13px]' : 'text-sm'
+            } ${
               active ? 'bg-brand/15 text-brand-ink dark:text-brand' : 'text-black/70 hover:bg-black/[0.04] dark:text-white/70 dark:hover:bg-white/5'
             }`}
             title={item.label}
           >
-            <Icon className="h-5 w-5 shrink-0" />
+            <Icon className={depth > 0 ? 'h-4 w-4 shrink-0' : 'h-5 w-5 shrink-0'} />
             <span className={collapsed ? 'lg:hidden' : 'flex-1 text-left'}>{item.label}</span>
             <ChevronDown
               className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''} ${collapsed ? 'lg:hidden' : ''}`}
@@ -96,26 +115,7 @@ export function AppSidebar({
           </button>
           {open && (
             <ul className="mt-1 flex flex-col gap-0.5 border-l-2 border-brand/20 pl-5">
-              {item.children.map((child) => {
-                const ChildIcon = child.icon;
-                const childActive = isActiveHref(pathname, child.href);
-                return (
-                  <li key={child.href}>
-                    <Link
-                      href={child.href}
-                      onClick={onCloseMobile}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition ${
-                        childActive
-                          ? 'bg-brand/15 font-semibold text-brand-ink dark:text-brand'
-                          : 'text-black/60 hover:bg-black/[0.04] hover:text-black dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white'
-                      }`}
-                    >
-                      <ChildIcon className="h-4 w-4 shrink-0" />
-                      {child.label}
-                    </Link>
-                  </li>
-                );
-              })}
+              {item.children.map((child) => renderItem(child, key, depth + 1))}
             </ul>
           )}
         </li>
@@ -124,6 +124,24 @@ export function AppSidebar({
 
     const Icon = item.icon;
     const active = isActiveHref(pathname, item.href);
+    if (depth > 0) {
+      return (
+        <li key={item.href}>
+          <Link
+            href={item.href}
+            onClick={onCloseMobile}
+            className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition ${
+              active
+                ? 'bg-brand/15 font-semibold text-brand-ink dark:text-brand'
+                : 'text-black/60 hover:bg-black/[0.04] hover:text-black dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white'
+            }`}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {item.label}
+          </Link>
+        </li>
+      );
+    }
     return (
       <li key={item.href}>
         <Link
@@ -196,7 +214,7 @@ export function AppSidebar({
               if (!block.section) {
                 return (
                   <ul key={`plain-${i}`} className="flex flex-col gap-1">
-                    {block.items.map(renderItem)}
+                    {block.items.map((it) => renderItem(it))}
                   </ul>
                 );
               }
@@ -214,7 +232,7 @@ export function AppSidebar({
                       collapsed ? 'lg:border-0 lg:bg-transparent lg:p-0' : ''
                     }`}
                   >
-                    {block.items.map(renderItem)}
+                    {block.items.map((it) => renderItem(it))}
                   </ul>
                 </div>
               );

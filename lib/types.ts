@@ -76,7 +76,12 @@ export interface Commande {
   // (POST /api/commandes/scan-reception) — null avant le scan.
   hubActuelId: string | null;
   dateReceptionHub: string | null;
-  marchand?: { nomBoutique: string };
+  marchand?: {
+    nomBoutique: string;
+    // § Plateformes partenaires : présent quand le marchand vient d'un canal
+    // de vente. `test` marque un colis de bac à sable.
+    comptesExternes?: { environnement: 'live' | 'test' }[];
+  };
   livreur?: { id: string; nomComplet: string } | null;
   ramasseur?: { id: string; nomComplet: string } | null;
   ramassage?: { ramasseur?: { nomComplet: string } | null } | null;
@@ -203,6 +208,12 @@ export interface Marchand {
     dateCreation?: string;
     derniereConnexion?: string | null;
   };
+  // § Plateformes partenaires : canaux de vente d'où ce marchand nous vient.
+  // Absent pour l'immense majorité des marchands, inscrits en direct.
+  comptesExternes?: {
+    environnement: 'live' | 'test';
+    plateforme: { code: string; nom: string };
+  }[];
   adresses?: AdresseMarchand[];
   membres?: MarchandMembre[];
   _count?: { commandes: number; ramassages: number; marchandises: number };
@@ -511,14 +522,21 @@ export interface HistoriqueStatutTache {
   horodatage: string;
 }
 
+// Forme EXPOSÉE d'une pièce jointe, pas la ligne en base : `url` est soit le
+// lien externe, soit la route de contenu qui sert le fichier — jamais la data
+// URL stockée (§ lib/taches-pieces-jointes.ts).
 export interface PieceJointeTache {
   id: string;
-  tacheId: string;
   nom: string;
   url: string;
-  auteurId: string;
-  auteur?: { id: string; nomComplet: string };
+  auteur: { id: string; nomComplet: string };
   dateAjout: string;
+  type: 'image' | 'document' | 'lien';
+  mime: string | null;
+  /** Poids du fichier, en octets. `null` pour un lien externe. */
+  poids: number | null;
+  /** Extension ou nom d'hôte, pour l'étiquette de la vignette. */
+  format: string;
 }
 
 export interface MembreTache {
@@ -1003,4 +1021,76 @@ export interface ParametresSociete {
   email: string | null;
   siteWeb: string | null;
   logoUrl: string | null;
+}
+
+// ============================================================
+// Plateformes partenaires (§ /admin/integrations)
+// ============================================================
+
+export type EnvironnementApi = 'live' | 'test';
+
+export interface PlateformeResume {
+  id: string;
+  code: string;
+  nom: string;
+  actif: boolean;
+  dateCreation: string;
+  nbClesActives: number;
+  nbMarchands: number;
+}
+
+export interface CleApi {
+  id: string;
+  /** Partie publique de la clé. Le secret, lui, n'est affiché qu'à l'émission. */
+  prefixe: string;
+  environnement: EnvironnementApi;
+  scopes: string[];
+  libelle: string | null;
+  quotaParMinute: number;
+  creeeLe: string;
+  expireLe: string | null;
+  revoqueeLe: string | null;
+  derniereUtilisationLe: string | null;
+  nbAppels: number;
+  active: boolean;
+}
+
+export interface MarchandLiePlateforme {
+  id: string;
+  idExterne: string;
+  environnement: EnvironnementApi;
+  dateCreation: string;
+  marchandId: string;
+  nomBoutique: string;
+  statut: string;
+}
+
+export interface AppelPlateforme {
+  id: string;
+  methode: string;
+  chemin: string;
+  statut: number;
+  dureeMs: number | null;
+  reference: string | null;
+  erreur: string | null;
+  horodatage: string;
+}
+
+// Ce que le bac à sable a laissé dans les vraies tables. L'isolation retenue
+// est logique : les marchands et colis d'une clé `test` sont de vraies lignes,
+// et ce compteur est ce qui empêche cette pollution d'être silencieuse.
+export interface VolumeTestPlateforme {
+  marchands: number;
+  colis: number;
+  /** Marchands liés en test que la purge ne supprimera pas (rattachés, ou liés ailleurs). */
+  marchandsConserves: number;
+  /** Colis de ces marchands-là, qui survivront donc à la purge. */
+  colisConserves: number;
+}
+
+export interface PlateformeDetail extends PlateformeResume {
+  cles: CleApi[];
+  marchands: MarchandLiePlateforme[];
+  appels: AppelPlateforme[];
+  volumeTest: VolumeTestPlateforme;
 }

@@ -1,0 +1,40 @@
+[
+  {
+    "idExterneMarchand": "SHIPEH-M1",
+    "reference": "SHP-2026-1001",
+    "clientNom": "Nadia Cherkaoui",
+    "clientTelephone": "0611223344",
+    "ville": "Casablanca",
+    "adresse": "12 rue des Orangers",
+    "montantCod": 120
+  },
+  {
+    "idExterneMarchand": "SHIPEH-M1",
+    "reference": "SHP-2026-1002",
+    "clientNom": "Youssef Nait",
+    "clientTelephone": "0622334455",
+    "ville": "",
+    "adresse": "22 boulevard Zerktouni",
+    "montantCod": 80
+  },
+  {
+    "idExterneMarchand": "SHIPEH-M1",
+    "reference": "SHP-2026-1003",
+    "clientNom": "Hicham Bennani",
+    "clientTelephone": "0633445566",
+    "ville": "Tanger",
+    "adresse": "8 avenue Hassan II",
+    "montantCod": 210.5,
+    "quantite": 2,
+    "fragile": true
+  },
+  {
+    "idExterneMarchand": "SHIPEH-INCONNU",
+    "reference": "SHP-2026-1004",
+    "clientNom": "Leila Ouazzani",
+    "clientTelephone": "0644556677",
+    "ville": "Agadir",
+    "adresse": "3 rue de la Plage",
+    "montantCod": 95
+  }
+]

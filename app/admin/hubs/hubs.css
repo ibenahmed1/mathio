@@ -18,6 +18,10 @@
  */
 
 .hubs-page {
+  /* Jetons de la planche WSKZ .04 : bleu ciel, bleu, marine, plus l'ambre et
+     l'orange qui identifient les réseaux sous-traités. Les gris restent
+     FROIDS, accordés au marine #023047 — un gris chaud posé à côté d'un bleu
+     se lit comme du beige et ferait mentir la planche. */
   --ink: #1a1a18;
   --ink-soft: #4a4a45;
   --gray: #8c8c86;
@@ -30,9 +34,21 @@
   --amber-bg: #fff3d1;
   --amber-ink: #9a6e00;
   --amber-border: #e2d9be;
+  /* --danger habille la SUPPRESSION d'un hub et d'une ville
+     (.hub-btn--icon.is-danger). Rendre ces deux commandes indiscernables des
+     autres serait un défaut de sûreté, pas un choix de style. */
   --danger: #9c4e46;
   --danger-bg: #f8eae8;
   --danger-border: #ebd5d2;
+  /* Bandeau de carte : ici la couleur porte une INFORMATION — elle dit à QUI
+     appartient le hub. Marine pour le hub central, bleu pour les hubs
+     internes (tous la même teinte), et une teinte chaude par prestataire pour
+     les agences sous-traitées. Comme le tri regroupe les agences par réseau,
+     la grille se lit en blocs de couleur et deux cartes de même teinte disent
+     toujours la même chose.
+     Le dégradé effectif est posé en style inline par app/admin/hubs/page.tsx,
+     seul à connaître l'exploitant ; les jetons ci-dessous tiennent la liste de
+     référence pour que la page n'invente pas ses propres valeurs. */
   --grad-accent: linear-gradient(135deg, #ffb701, #fc8500);
   --grad-navy: linear-gradient(135deg, #023047, #14526e);
   --grad-blue: linear-gradient(135deg, #8ecae6, #219ebc);
@@ -44,6 +60,24 @@
   flex-direction: column;
   gap: 16px;
   color: var(--ink);
+
+  /* Fond plat sur toute la zone de contenu, comme le Kanban
+     (§ .kdc-board-glow dans app/admin/tasks/board.css) : la page pose son
+     propre gris au lieu de laisser paraître le halo jaune de la coquille
+     (§ .shell-surface). Cette page n'est qu'une grille de cartes blanches, et
+     le lavis de marque les noyait au lieu de les détacher.
+     La marge vient d'ici et non de la coquille — /admin/hubs est déclaré
+     `fullBleed` dans AdminShell, sans quoi le fond se serait arrêté avant les
+     bords. */
+  min-height: 100%;
+  background-color: var(--bg-page);
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .hubs-page {
+    padding: 24px;
+  }
 }
 
 /* Contrepartie sombre : seuls les jetons NEUTRES basculent. Les dégradés
@@ -209,10 +243,10 @@
   padding: 4px 11px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(2px);
   color: #fff;
   font-size: 11.5px;
   font-weight: 600;
-  backdrop-filter: blur(2px);
   white-space: nowrap;
 }
 .hubs-page .hub-card__tag {

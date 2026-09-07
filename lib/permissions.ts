@@ -225,6 +225,18 @@ export const PERMISSION_CATALOG: PermissionCategory[] = [
         label: 'Données de la société',
         description: "Modifier les informations de la société (raison sociale, en-têtes de documents…).",
       },
+      // Clé PROPRE, et non un repli sur `settings:manage` que tout le
+      // back-office détient : cet écran émet et révoque des clés d'API, et
+      // une clé donne à une machine tierce le droit de créer des marchands
+      // déjà validés et de déposer des colis. Le rattacher à une permission
+      // largement distribuée serait un élargissement silencieux — exactement
+      // ce que la règle n°2 de lib/permission-routes.ts interdit.
+      {
+        key: 'integrations:manage',
+        label: 'Intégrations partenaires',
+        description:
+          "Gérer les plateformes partenaires : clés d'API, marchands synchronisés, journal des appels.",
+      },
     ],
   },
 ];
@@ -379,6 +391,14 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
   marchand: [],
   livreur: [],
   ramasseur: [],
+
+  // Compte de service d'une plateforme partenaire : il n'ouvre aucun écran,
+  // et n'ouvrirait rien même si on lui cochait des cases — son rôle
+  // n'appartient à aucun espace (SPACE_ROLES, lib/auth.ts), donc il ne peut
+  // pas détenir de session. Ce qu'une plateforme a le droit de faire est
+  // gouverné par les SCOPES de sa clé (lib/plateforme-cles.ts), pas par ce
+  // catalogue, qui ne décrit que le back-office.
+  plateforme: [],
 };
 
 // Permissions réellement détenues par un compte.

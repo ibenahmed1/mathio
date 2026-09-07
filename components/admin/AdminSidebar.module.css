@@ -187,6 +187,22 @@
 .nav::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
 .navList { display: flex; flex-direction: column; gap: 3px; list-style: none; margin: 0; padding: 0; }
 
+/* ---------- Sections (intertitres) ----------
+   La navigation du back-office est découpée en domaines — exploitation,
+   finance, administration. L'intertitre est volontairement muet (petit, gris,
+   non cliquable) : il sépare sans concurrencer les entrées elles-mêmes. */
+.navBlock { display: flex; flex-direction: column; }
+.navBlock + .navBlock { margin-top: 14px; }
+.navSection {
+  margin: 0 0 5px;
+  padding: 0 11px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--mt-muted-2);
+}
+
 .navItem {
   display: flex;
   align-items: center;
@@ -284,6 +300,26 @@
 .subNavItem:hover { background: rgba(255,209,0,.12); color: var(--mt-ink); }
 .subNavItemActive { color: var(--mt-yellow-ink); background: rgba(255,209,0,.16); font-weight: 800; }
 .subNavItem svg { flex: none; }
+
+/* Un sous-groupe (troisième niveau : Stock, Bon de retour, Bon de paiement,
+   Factures) est un <button> et non un <a> : il lui faut la remise à zéro que
+   .subNavItem, écrit pour un lien, ne porte pas. */
+.subNavGroupBtn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.subNavGroupBtn:active { transform: translateY(1px); }
+/* Le liseré du troisième niveau s'efface : deux barres verticales pleines
+   côte à côte donnaient un couloir plus lisible que le contenu. */
+.subNavNested {
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left-color: rgba(255,209,0,.18);
+}
 
 /* ---------- Profil ---------- */
 .profile {

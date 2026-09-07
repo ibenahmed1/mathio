@@ -23,7 +23,7 @@ type Filtre = 'tous' | 'interne' | 'soustraite';
 // une agence comme Marrakech (41 villes) noierait la carte et ses actions.
 const VILLES_AVANT_REPLI = 12;
 
-// Identité colorée d'un hub. La couleur n'est plus tirée d'un hachage du nom —
+// Identité colorée d'un hub. La couleur n'est pas tirée d'un hachage du nom —
 // elle alternait alors sans raison lisible d'une carte à l'autre — mais dit à
 // QUI appartient le hub :
 //   • marine  → le hub central ;
@@ -31,6 +31,9 @@ const VILLES_AVANT_REPLI = 12;
 //   • chaud   → une teinte par prestataire, la même pour toutes ses agences.
 // Comme le tri regroupe les agences par prestataire, la grille se lit en blocs
 // de couleur, et deux cartes de même teinte disent toujours la même chose.
+// Les valeurs doublent celles de --grad-* dans app/admin/hubs/hubs.css : le
+// dégradé est posé en style inline parce que seul ce composant sait à quel
+// exploitant appartient la carte qu'il rend.
 const GRADIENTS: Record<string, string> = {
   navy: 'linear-gradient(135deg,#023047,#14526E)',
   blue: 'linear-gradient(135deg,#8ECAE6,#219EBC)',
