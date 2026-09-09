@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
+import { buttonClassName } from '@/components/admin/Button';
 import type { BonDeLivraison } from '@/lib/types';
 import { BonLivraisonActionsMenu } from '@/components/BonLivraisonActionsMenu';
 
@@ -21,7 +24,16 @@ export default function AdminBonLivraisonPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="page-title">Bons de livraison — tous marchands</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="page-title">Bons de livraison — tous marchands</h1>
+        {/* Le marchand génère normalement son BL lui-même depuis son espace ;
+            ce raccourci sert les dépôts qu'il n'a pas déclarés (remise au
+            comptoir, saisie rattrapée). Même API, mêmes règles d'éligibilité. */}
+        <Link href="/admin/bon-livraison/creer" className={buttonClassName()}>
+          <Plus className="h-4 w-4" />
+          Ajouter un bon de livraison
+        </Link>
+      </div>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
