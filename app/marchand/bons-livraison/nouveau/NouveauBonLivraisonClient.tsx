@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Printer, Tags, Truck, X, PackageCheck } from 'lucide-react';
-import { creerBonDeLivraison, type BonDeLivraisonGenere } from '../actions';
+import { creerBonDeLivraison } from '../actions';
+import type { BonDeLivraisonGenere } from '@/lib/bons-livraison';
 import type { Commande } from '@/lib/types';
 
 type ColisLigne = Pick<Commande, 'id' | 'codeSuivi' | 'clientNom' | 'ville' | 'montantCod' | 'dateCreation'>;
