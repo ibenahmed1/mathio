@@ -84,7 +84,7 @@ function LigneBon({ bon }: { bon: BonPaiementLivreur }) {
           <button
             type="button"
             onClick={() => setOuvert((v) => !v)}
-            className="flex items-center gap-1 text-left font-medium"
+            className="flex items-center gap-1 text-left font-medium pointer-coarse:min-h-11"
             aria-expanded={ouvert}
           >
             {ouvert ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -113,13 +113,18 @@ function LigneBon({ bon }: { bon: BonPaiementLivreur }) {
           )}
         </td>
         <td className="whitespace-nowrap font-bold">{dh(bon.montantTotal)}</td>
-        <td>
+        {/* Collée à droite tant que la table déborde (sous xl) : dernière
+            colonne d'une table de 820 px, l'accès à la fiche n'apparaissait
+            qu'après défilement. Fond opaque pour masquer les montants qui
+            glissent dessous. À partir de xl la table tient, rien ne change. */}
+        <td className="max-xl:sticky max-xl:right-0 max-xl:bg-white dark:max-xl:bg-black">
           <a
             href={`/bons-paiement/${bon.id}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+            className="inline-flex rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10 pointer-coarse:p-3.5"
             title="Ma fiche de paie"
+            aria-label="Ma fiche de paie"
           >
             <Printer className="h-4 w-4" />
           </a>
@@ -129,7 +134,14 @@ function LigneBon({ bon }: { bon: BonPaiementLivreur }) {
       {ouvert && (
         <tr>
           <td colSpan={7} className="bg-black/[0.02] dark:bg-white/[0.03]">
-            <div className="flex flex-col gap-2 px-2 py-3 text-sm">
+            {/* Le détail s'étalait sur les 820 px de la table : montants hors
+                écran au téléphone. Collé à gauche et large de la zone VISIBLE
+                (100cqw = largeur du cadre défilant, déclaré @container), moins
+                le padding horizontal de la cellule (2 × 1rem). `cqw` plutôt que
+                `vw` : il suit la barre latérale et le padding de la coquille à
+                toutes les tailles. Quand la table tient, cette largeur est
+                exactement celle de la cellule — rendu inchangé. */}
+            <div className="sticky left-0 flex w-[calc(100cqw-2rem)] flex-col gap-2 px-2 py-3 text-sm">
               {aDesAjustements ? (
                 <div className="flex flex-col gap-1">
                   <p className="text-xs font-bold uppercase tracking-wide opacity-60">Primes et pénalités</p>
@@ -237,7 +249,7 @@ export default function PaieLivreurPage() {
 
             <section className="flex flex-col gap-2">
               <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">Mes bons de paiement</h2>
-              <div className="overflow-x-auto">
+              <div className="@container overflow-x-auto">
                 <table className="table-basic min-w-[820px]">
                   <thead>
                     <tr>
@@ -247,7 +259,10 @@ export default function PaieLivreurPage() {
                       <th>Commissions</th>
                       <th>Ajustements</th>
                       <th>Net</th>
-                      <th></th>
+                      {/* Pendant collant de la cellule « fiche de paie » : la
+                          teinte de la bande d'en-tête (brand/10 sur fond de
+                          page), rendue opaque. */}
+                      <th className="max-xl:sticky max-xl:right-0 max-xl:bg-[#fffae6] dark:max-xl:bg-[#0d0d0d]"></th>
                     </tr>
                   </thead>
                   <tbody>

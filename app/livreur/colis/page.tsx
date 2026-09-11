@@ -50,12 +50,12 @@ function isoAujourdhui() {
 
 function Tuile({ icone, libelle, valeur, accent }: { icone: React.ReactNode; libelle: string; valeur: string; accent?: string }) {
   return (
-    <div className="card-tint-strong flex flex-col gap-1 p-4">
+    <div className="card-tint-strong flex min-w-0 flex-col gap-1 p-4">
       <span className="flex items-center gap-1.5 text-xs font-semibold opacity-60">
         {icone}
         {libelle}
       </span>
-      <span className={`text-2xl font-bold ${accent ?? ''}`}>{valeur}</span>
+      <span className={`text-xl font-bold [overflow-wrap:anywhere] sm:text-2xl ${accent ?? ''}`}>{valeur}</span>
     </div>
   );
 }
@@ -148,7 +148,10 @@ export default function FeuilleDeRouteLivreurPage() {
                       <MapPin className="h-3 w-3 shrink-0" />
                       {c.ville} — {c.adresse}
                     </span>
-                    <a href={`tel:${c.clientTelephone}`} className="flex items-center gap-1 text-xs font-semibold hover:underline">
+                    <a
+                      href={`tel:${c.clientTelephone}`}
+                      className="flex items-center gap-1 text-xs font-semibold hover:underline pointer-coarse:-mx-2 pointer-coarse:min-h-11 pointer-coarse:gap-1.5 pointer-coarse:px-2 pointer-coarse:text-sm"
+                    >
                       <Phone className="h-3 w-3" />
                       {c.clientTelephone}
                     </a>
@@ -273,14 +276,21 @@ function ModaleAction({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-      <div className="flex max-h-[92vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-t-2xl bg-white p-5 dark:bg-neutral-900 sm:rounded-2xl">
+      {/* Pas de padding bas sur la feuille : c'est la barre collante du bouton
+          Confirmer (plus bas) qui le porte. Un padding bas sur le conteneur
+          défilant rendrait `sticky bottom-0` ambigu — selon le moteur, la
+          barre collerait au bord ou 20 px au-dessus, laissant le contenu
+          défiler dessous. `dvh` : la barre d'adresse mobile ne fait pas
+          partie de l'écran visible, avec `vh` le bas de la feuille passait
+          dessous. */}
+      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pt-5 dark:bg-neutral-900 sm:rounded-2xl">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">{colis.clientNom}</h2>
             <p className="font-mono text-xs opacity-60">{colis.codeSuivi}</p>
             <p className="text-sm font-semibold">{Number(colis.montantCod).toFixed(2)} DH à encaisser</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Fermer">
+          <button type="button" onClick={onClose} className="-m-2 rounded-md p-3 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Fermer">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -363,14 +373,22 @@ function ModaleAction({
 
         {erreur && <p className="text-sm font-semibold text-red-600">{erreur}</p>}
 
-        <button
-          type="button"
-          onClick={envoyer}
-          disabled={!pretAEnvoyer || envoi}
-          className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {envoi ? 'Enregistrement…' : 'Confirmer'}
-        </button>
+        {/* Barre collée au bas de la feuille : après la photo (jusqu'à 192 px)
+            et la signature, « Confirmer » passait sous le pli et le livreur ne
+            voyait plus l'action à faire. Marges négatives calées sur le
+            padding horizontal de la feuille (px-5) pour que le fond couvre
+            toute la largeur ; le padding bas tient compte de la barre système
+            des iPhone. */}
+        <div className="sticky bottom-0 -mx-5 border-t border-black/10 bg-white px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-neutral-900">
+          <button
+            type="button"
+            onClick={envoyer}
+            disabled={!pretAEnvoyer || envoi}
+            className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {envoi ? 'Enregistrement…' : 'Confirmer'}
+          </button>
+        </div>
       </div>
     </div>
   );
