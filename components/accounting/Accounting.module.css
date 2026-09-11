@@ -190,15 +190,46 @@
 .orderLabel { font-size: 11px; color: var(--mt-muted); }
 .orderId { font-size: 11px; font-weight: 800; color: var(--mt-ink); }
 
-.chipDelivered {
+/* Statut d'une commande : une teinte par étape du cycle
+   (lib/commandes-stock-hub.ts). Remplace .chipDelivered, qui peignait tous les
+   statuts du même jaune — « Annulée » se lisait comme « Livré ».
+
+   `background-color` et jamais le raccourci `background` dans les teintes : le
+   raccourci effacerait le chevron dessiné en image de fond par .statutSelect. */
+.statutChip {
   margin-left: auto;
+  flex: none;
+  font-family: inherit;
   font-size: 9.5px;
   font-weight: 800;
-  color: var(--mt-yellow-ink);
-  background: rgba(255,209,0,.24);
+  line-height: 1.3;
+  border: 1px solid transparent;
   border-radius: 20px;
   padding: 3px 9px;
+  white-space: nowrap;
 }
+.statut_brouillon { background-color: var(--mt-surface-2); color: var(--mt-ink-2); border-color: var(--mt-line-2); }
+.statut_commandee { background-color: rgba(255,209,0,.24); color: var(--mt-yellow-ink); }
+.statut_recue     { background-color: var(--mt-ok-bg); color: var(--mt-ok-fg); }
+.statut_annulee   { background-color: var(--mt-surface-2); color: var(--mt-muted-2); text-decoration: line-through; }
+
+/* Pastille-menu : un <select> natif habillé en pastille. Natif à dessein — il
+   ouvre le sélecteur du système au téléphone et se pilote au clavier, sans
+   rien réimplémenter. Le chevron le distingue d'une pastille inerte. */
+.statutSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23202020' stroke-opacity='.55' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 9px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.statutSelect:hover { border-color: var(--mt-yellow); }
+.statutSelect:focus-visible { outline: none; border-color: var(--mt-yellow); box-shadow: 0 0 0 3px rgba(255,209,0,.30); }
+.statutSelect:disabled { opacity: .55; cursor: progress; }
 
 .orderBody { padding: 11px 12px; }
 .orderMain { display: flex; align-items: center; gap: 10px; }
@@ -401,6 +432,9 @@
    focus. La dernière colonne de la table suit la largeur du bouton. */
 @media (pointer: coarse) {
   .rowMenu { width: 40px; height: 40px; }
+  /* Menu de statut : cible tactile, et 16 px pour que iOS ne zoome pas la
+     page à l'ouverture — même raison que la recherche ci-dessous. */
+  .statutSelect { min-height: 36px; font-size: 16px; padding: 4px 28px 4px 12px; background-size: 12px; background-position: right 10px center; }
   .thead,
   .tr { grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 40px; }
   .searchInput { font-size: 16px; }

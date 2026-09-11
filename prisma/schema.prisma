@@ -1546,12 +1546,27 @@ model Transaction {
 // Commandes de stock des hubs (équipement, consommables)
 // ============================================================
 
-// Statut de réception d'une commande de matériel/équipement passée pour le
+// Cycle de vie d'une commande de matériel/équipement passée pour le
 // fonctionnement d'un hub (rayonnage, consommables d'emballage...) — distinct
 // de Produit.statutReception qui suit le stock des marchands.
+//
+//   brouillon — saisie, pas encore passée au fournisseur. Statut par défaut.
+//   commandee — passée au fournisseur, pas encore livrée.
+//   recue     — livrée au hub. Définitif.
+//   annulee   — abandonnée, depuis brouillon ou commandee. Définitif.
+//
+// Les transitions autorisées vivent dans lib/commandes-stock-hub.ts
+// (TRANSITIONS_COMMANDE_STOCK_HUB) : Prisma ne sait pas les exprimer.
+//
+// Jusqu'au 11/09/2026 l'enum valait en_attente / livre / annulee. Les deux
+// premières ont été RENOMMÉES (commandee, recue) plutôt que recréées, et les
+// commandes existantes ont gardé leur sens sans réécriture (migration
+// 20260911150000). NE PAS RÉORDONNER les valeurs ci-dessous : c'est l'ordre
+// réel en base, et PostgreSQL ne sait pas déplacer une valeur d'enum.
 enum StatutCommandeStockHub {
-  en_attente
-  livre
+  brouillon
+  commandee
+  recue
   annulee
 }
 
@@ -1559,13 +1574,17 @@ enum StatutCommandeStockHub {
 // périmètre d'accès que Transaction (admin/responsable, cf. requireUser dans
 // app/api/commandes-stock-hub/**). `numero` sert de référence bordereau
 // lisible (BC-{numero}) sans dépendre de l'UUID.
+//
+// Aucune écriture comptable n'y est rattachée : ni la création ni un
+// changement de statut (annulation comprise) ne crée ou ne compense de
+// Transaction. Le montant est informatif.
 model CommandeStockHub {
   id           String                 @id @default(uuid())
   numero       Int                    @unique @default(autoincrement())
   titre        String
   sousTitre    String?                @map("sous_titre")
   montant      Decimal                @db.Decimal(10, 2)
-  statut       StatutCommandeStockHub @default(en_attente)
+  statut       StatutCommandeStockHub @default(brouillon)
   modePaiement String                 @map("mode_paiement")
   dateCommande DateTime               @map("date_commande")
 
