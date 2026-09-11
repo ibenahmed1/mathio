@@ -89,6 +89,7 @@ export default function MarchandisesPage() {
             <input
               className="input-basic"
               type="number"
+              inputMode="numeric"
               min="0"
               value={form.qteStock}
               onChange={(e) => setForm({ ...form, qteStock: e.target.value })}
@@ -103,6 +104,7 @@ export default function MarchandisesPage() {
               <input
                 className="input-bare"
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 min="0"
                 placeholder="0,00"
@@ -150,7 +152,7 @@ export default function MarchandisesPage() {
                   <td className="w-8">
                     <button
                       onClick={() => handleDelete(m.id)}
-                      className="text-red-600 transition hover:opacity-70"
+                      className="btn-icon -m-2 text-red-600 hover:opacity-70"
                       aria-label={`Supprimer ${m.nom}`}
                     >
                       <Trash2 className="h-4 w-4" />

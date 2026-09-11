@@ -90,10 +90,10 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
       </p>
 
       <div className="flex flex-wrap gap-2">
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
           <input
-            className="input-basic w-64 pl-8"
+            className="input-basic w-full pl-8 sm:w-64"
             placeholder="Code de suivi ou destinataire"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -116,12 +116,18 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
           <thead>
             <tr>
               <th className="w-10">
-                <input
-                  type="checkbox"
-                  checked={tousSelectionnes}
-                  onChange={toggleTout}
-                  aria-label="Tout sélectionner"
-                />
+                {/* Cocher est l'action principale de cette page : le label étend la
+                    zone de tap à 44 px au doigt, et ses marges négatives l'annulent
+                    dans la mise en page — la case ne bouge pas. */}
+                <label className="-m-3 inline-flex cursor-pointer p-3 align-middle">
+                  <input
+                    type="checkbox"
+                    className="check-basic"
+                    checked={tousSelectionnes}
+                    onChange={toggleTout}
+                    aria-label="Tout sélectionner"
+                  />
+                </label>
               </th>
               <th>Code suivi</th>
               <th>Destinataire</th>
@@ -134,12 +140,15 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
             {filtres.map((c) => (
               <tr key={c.id} className={selected.has(c.id) ? 'bg-brand/10' : ''}>
                 <td>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(c.id)}
-                    onChange={() => toggleUn(c.id)}
-                    aria-label={`Sélectionner ${c.codeSuivi}`}
-                  />
+                  <label className="-m-3 inline-flex cursor-pointer p-3 align-middle">
+                    <input
+                      type="checkbox"
+                      className="check-basic"
+                      checked={selected.has(c.id)}
+                      onChange={() => toggleUn(c.id)}
+                      aria-label={`Sélectionner ${c.codeSuivi}`}
+                    />
+                  </label>
                 </td>
                 <td className="font-mono">{c.codeSuivi}</td>
                 <td>{c.clientNom}</td>
@@ -162,13 +171,19 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
       </div>
 
       {selected.size > 0 && (
-        <div className="sticky bottom-0 z-30 -mx-4 border-t border-black/10 bg-white/95 px-4 py-4 backdrop-blur dark:border-white/10 dark:bg-black/95 sm:-mx-6 sm:px-6">
+        // Marge basse d'au moins la zone de sécurité : sur un iPhone sans bouton,
+        // la barre de geste recouvrait sinon le bouton de génération.
+        <div className="sticky bottom-0 z-30 -mx-4 border-t border-black/10 bg-white/95 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur dark:border-white/10 dark:bg-black/95 sm:-mx-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="font-semibold">
               {selected.size} colis sélectionné{selected.size > 1 ? 's' : ''} — Total COD : {totalCod.toFixed(2)} DH
             </p>
-            <button onClick={genererBonDeLivraison} disabled={isPending} className="btn-primary flex items-center gap-2">
-              <PackageCheck className="h-4 w-4" />
+            <button
+              onClick={genererBonDeLivraison}
+              disabled={isPending}
+              className="btn-primary flex w-full items-center gap-2 whitespace-normal text-center leading-tight sm:w-auto sm:whitespace-nowrap sm:leading-none"
+            >
+              <PackageCheck className="h-4 w-4 shrink-0" />
               {isPending ? 'Génération…' : 'Générer le Bon de Livraison & Imprimer'}
             </button>
           </div>
@@ -183,13 +198,17 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
 function ModalConfirmation({ resultat, onFermer }: { resultat: BonDeLivraisonGenere; onFermer: () => void }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-black/10 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-black">
+      <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border border-black/10 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-black">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm opacity-60">Bon de livraison généré</p>
             <p className="text-xl font-black">{resultat.numero}</p>
           </div>
-          <button onClick={onFermer} className="rounded p-1 opacity-60 hover:opacity-100" aria-label="Fermer">
+          <button
+            onClick={onFermer}
+            className="rounded p-1 opacity-60 hover:opacity-100 pointer-coarse:-m-1.5 pointer-coarse:p-2.5"
+            aria-label="Fermer"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -223,7 +242,10 @@ function ModalConfirmation({ resultat, onFermer }: { resultat: BonDeLivraisonGen
           </Link>
         </div>
 
-        <button onClick={onFermer} className="mt-4 w-full text-center text-sm font-semibold opacity-60 hover:opacity-100">
+        <button
+          onClick={onFermer}
+          className="mt-4 w-full text-center text-sm font-semibold opacity-60 hover:opacity-100 pointer-coarse:mt-2 pointer-coarse:-mb-2 pointer-coarse:py-2"
+        >
           Fermer
         </button>
       </div>

@@ -129,8 +129,8 @@ export default function ReclamationsPage() {
         {reclamations.map((r) => (
           <div key={r.id} className="flex flex-col gap-2 rounded-lg border border-black/10 p-4 dark:border-white/10">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-semibold">{r.sujet}</p>
+              <div className="min-w-0">
+                <p className="break-words font-semibold">{r.sujet}</p>
                 <p className="text-xs opacity-60">
                   {new Date(r.dateCreation).toLocaleString('fr-FR')}
                   {r.commande ? ` · Colis ${r.commande.codeSuivi}` : ''}
@@ -138,11 +138,11 @@ export default function ReclamationsPage() {
               </div>
               <StatutBadge statut={r.statut} />
             </div>
-            <p className="text-sm opacity-80">{r.message}</p>
+            <p className="break-words text-sm opacity-80">{r.message}</p>
             {r.reponse && (
               <div className="mt-1 rounded-md border-l-4 border-brand bg-brand/5 px-3 py-2 text-sm">
                 <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Réponse du support</p>
-                <p>{r.reponse}</p>
+                <p className="break-words">{r.reponse}</p>
               </div>
             )}
           </div>

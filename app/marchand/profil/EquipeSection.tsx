@@ -69,15 +69,21 @@ export function EquipeSection() {
         {membres.map((m) => (
           <li
             key={m.id}
-            className="flex items-center justify-between rounded-lg border-l-4 border-brand bg-black/5 px-3 py-2 dark:bg-white/5"
+            className="flex items-center justify-between gap-2 rounded-lg border-l-4 border-brand bg-black/5 px-3 py-2 dark:bg-white/5"
           >
-            <span className="min-w-0 truncate">
-              <strong>{m.utilisateur.nomComplet}</strong> — {m.utilisateur.email}
-              {!m.utilisateur.actif && <span className="ml-2 text-xs opacity-60">(désactivé)</span>}
+            {/* Une ligne tronquée en desktop ; sur téléphone, nom et email
+                s'empilent et l'email se coupe au besoin plutôt que d'être
+                caché — c'est justement lui qui identifie le membre. */}
+            <span className="flex min-w-0 flex-col [overflow-wrap:anywhere] sm:block sm:truncate">
+              <strong>{m.utilisateur.nomComplet}</strong>
+              <span className="hidden sm:inline"> — </span>
+              <span>{m.utilisateur.email}</span>
+              {!m.utilisateur.actif && <span className="text-xs opacity-60 sm:ml-2">(désactivé)</span>}
             </span>
+            {/* Marges négatives : la cible de btn-icon grandit sans épaissir la ligne. */}
             <button
               onClick={() => handleRevoke(m.id)}
-              className="shrink-0 text-red-600 transition hover:opacity-70"
+              className="btn-icon -my-2 -mr-2 text-red-600 hover:opacity-70"
               aria-label={`Retirer ${m.utilisateur.nomComplet}`}
             >
               <Trash2 className="h-4 w-4" />

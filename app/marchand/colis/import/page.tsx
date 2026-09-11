@@ -197,9 +197,11 @@ export default function ImportColisPage() {
         <code className="font-mono">montantCod</code> est laissée vide.
       </p>
 
-      <label className="flex w-fit cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-black/20 bg-black/[0.015] px-6 py-5 text-sm font-semibold transition hover:border-brand hover:bg-brand/5 dark:border-white/20 dark:bg-white/[0.02]">
-        <FileSpreadsheet className="h-6 w-6 opacity-60" />
-        <span className="flex flex-col">
+      <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-black/20 bg-black/[0.015] px-6 py-5 text-sm font-semibold transition hover:border-brand hover:bg-brand/5 dark:border-white/20 dark:bg-white/[0.02] sm:w-fit">
+        <FileSpreadsheet className="h-6 w-6 shrink-0 opacity-60" />
+        {/* Un nom de fichier est souvent un seul bloc insécable (export_2026-09-10_commandes.xlsx) :
+            sans coupure autorisée, il pousserait la page à défiler latéralement. */}
+        <span className="flex min-w-0 flex-1 flex-col [overflow-wrap:anywhere]">
           {fileName || 'Choisir un fichier CSV ou Excel…'}
           <span className="text-xs font-normal opacity-50">.csv, .xlsx ou .xls</span>
         </span>
@@ -222,7 +224,9 @@ export default function ImportColisPage() {
           <div className="table-card">
             <div className="max-h-[420px] overflow-auto">
               <table className="table-basic min-w-[1100px]">
-                <thead className="sticky top-0">
+                {/* Fond opaque sous l'en-tête figé : celui des <th> de .table-basic est
+                    translucide, les lignes défilaient lisiblement dessous. */}
+                <thead className="sticky top-0 z-10 bg-[color:var(--mk-card)]">
                   <tr>
                     <th className="text-right">#</th>
                     {COLONNES_ATTENDUES.map((c) => (
