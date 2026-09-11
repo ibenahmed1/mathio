@@ -421,15 +421,15 @@ export default function AdminImportColisPage() {
 
       <a
         href={`/api/commandes/import/template?type=${type}`}
-        className="btn-outline flex w-fit items-center gap-2"
+        className="btn-outline flex w-fit max-w-full items-center gap-2 whitespace-normal text-left"
       >
-        <Download className="h-4 w-4" />
+        <Download className="h-4 w-4 shrink-0" />
         Télécharger le modèle {type === 'normal' ? 'Colis normal' : 'Colis stock'}.xlsx
       </a>
 
-      <label className="flex w-fit cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-black/20 bg-black/[0.015] px-6 py-5 text-sm font-semibold transition hover:border-brand hover:bg-brand/5 dark:border-white/20 dark:bg-white/[0.02]">
-        <FileSpreadsheet className="h-6 w-6 opacity-60" />
-        <span className="flex flex-col">
+      <label className="flex w-fit max-w-full cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-black/20 bg-black/[0.015] px-6 py-5 text-sm font-semibold transition hover:border-brand hover:bg-brand/5 dark:border-white/20 dark:bg-white/[0.02]">
+        <FileSpreadsheet className="h-6 w-6 shrink-0 opacity-60" />
+        <span className="flex min-w-0 flex-col break-all">
           {fileName || 'Choisir un fichier Excel…'}
           <span className="text-xs font-normal opacity-50">.xlsx ou .xls</span>
         </span>
@@ -470,7 +470,7 @@ export default function AdminImportColisPage() {
                 key={g.identifiant}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/60 px-3 py-1.5 text-xs dark:bg-black/20"
               >
-                <span>
+                <span className="break-all">
                   <strong>{g.identifiant}</strong> — {g.nbColis} colis
                 </span>
                 <a
@@ -495,7 +495,9 @@ export default function AdminImportColisPage() {
           <div className="table-card">
             <div className="max-h-[480px] overflow-auto">
               <table className="table-basic min-w-[1200px]">
-                <thead className="sticky top-0">
+                {/* Fond opaque sous l'en-tête figé : celui des <th> est translucide
+                    (jaune à 10 %), et les lignes défilaient à travers. */}
+                <thead className="sticky top-0 z-10 bg-white dark:bg-black">
                   <tr>
                     <th className="text-right">#</th>
                     <th>Identifiant Marchand</th>
@@ -576,10 +578,10 @@ export default function AdminImportColisPage() {
               <button
                 onClick={() => handleImport(true)}
                 disabled={!pretAImporterPartiel || soumission}
-                className="btn-outline flex items-center gap-2"
+                className="btn-outline flex max-w-full items-center gap-2 whitespace-normal text-left"
                 title="Envoie uniquement les colis sans erreur ; les autres restent affichés pour correction"
               >
-                <UploadCloud className="h-4 w-4" />
+                <UploadCloud className="h-4 w-4 shrink-0" />
                 {soumission ? 'Import en cours…' : `Importer uniquement les colis valides (${nbValides})`}
               </button>
             )}

@@ -22,7 +22,10 @@
 
 /* ---------- en-tête de page ---------- */
 .kdc-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.kdc-topbar__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+/* Le bloc d'actions s'étire et passe à la ligne, calé à droite : en `flex: none`
+   il gardait sa largeur d'une traite (~330 px) et faisait défiler la page
+   latéralement sous 360 px. En desktop il tient sur une ligne, rendu inchangé. */
+.kdc-topbar__actions { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Bascule Board / Équipes — l'onglet retenu se signalait par
    `[aria-selected]`, que le composant ne pose jamais : il rend des boutons
@@ -98,7 +101,18 @@
 .kdc-av-5 { background: var(--av-5-bg); color: var(--av-5-fg); }
 
 /* ---------- board ---------- */
-.kdc-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(228px, 1fr); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
+/* Plancher de colonne à 210 px (228 auparavant) : à 768 et 1024 px, trois
+   colonnes de 228 px dépassaient le couloir de 14 px et la troisième restait
+   rognée. Le `min(…, 85%)` garde un bout de la colonne suivante visible sur un
+   téléphone, pour signaler qu'on peut défiler. Au-delà de 1280 px les colonnes
+   valent 1fr bien au-dessus de ce plancher : rendu inchangé. */
+.kdc-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(min(210px, 85%), 1fr); gap: 12px; align-items: start; overflow-x: auto; padding-bottom: 6px; }
+/* Aimantation réservée au doigt : à la souris, un défilement aimanté pendant un
+   glisser-déposer ferait sauter la colonne cible sous le curseur. */
+@media (pointer: coarse) {
+  .kdc-columns { scroll-snap-type: x mandatory; }
+  .kdc-column { scroll-snap-align: start; }
+}
 .kdc-column { background-color: var(--bg-column); background-image: var(--tint, none); backdrop-filter: blur(6px); border: 1px solid var(--border-glass); box-shadow: var(--sh-panel); border-radius: var(--r-column); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 120px; }
 /* Chaque colonne s'ouvre sur un souffle de sa propre couleur, qui s'éteint
    au tiers de la hauteur : la distinction se lit d'un coup d'œil sans que le
@@ -151,6 +165,10 @@
 .kdc-card__statut-select { margin-top: 8px; align-self: flex-start; border: none; border-radius: 6px; background: var(--bg-subtle); color: var(--text-1); font: inherit; font-size: 10.5px; font-weight: 500; padding: 4px 8px; opacity: 0; transition: opacity 0.15s; }
 .kdc-card:hover .kdc-card__statut-select { opacity: 0.6; }
 .kdc-card__statut-select:hover, .kdc-card__statut-select:focus { opacity: 1; outline: none; }
+/* Sans survol (tactile), le sélecteur resterait invisible — alors qu'il y est
+   le seul moyen de changer une carte de colonne : le glisser-déposer HTML5 ne
+   répond pas au doigt. */
+@media (hover: none) { .kdc-card__statut-select { opacity: 0.6; } }
 
 .kdc-progress { height: 4px; border-radius: 4px; background: var(--bg-subtle); overflow: hidden; margin-top: 10px; }
 .kdc-progress__fill { height: 100%; background: var(--gradient-ambre); border-radius: 4px; }
@@ -236,7 +254,9 @@
    contenu, alors qu'un fond reste collé au bord — et le border-radius le
    découpe proprement aux coins. */
 .kdc-modal {
-  width: 520px; max-width: 100%; max-height: 90vh; overflow-y: auto;
+  /* dvh après vh (repli) : sur mobile, 90vh compte la zone cachée par la barre
+     d'adresse et le pied de la fiche passait dessous. */
+  width: 520px; max-width: 100%; max-height: 90vh; max-height: 90dvh; overflow-y: auto;
   background-color: var(--bg-shell);
   background-image: linear-gradient(90deg, #ffee32, var(--brand) 55%, rgba(255, 209, 0, 0));
   background-repeat: no-repeat;
@@ -300,8 +320,11 @@
 
 /* Les champs suivent la convention .form-field / .input-basic ; il ne reste
    ici que la mise en ligne, propre à ce pied de panneau. */
-.kdc-attachment-form { display: flex; align-items: flex-end; gap: 7px; margin-top: 8px; }
+.kdc-attachment-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 7px; margin-top: 8px; }
 .kdc-attachment-form input { min-width: 0; padding: 7px 10px; font-size: 12px; }
+/* En fiche étroite, lien + nom + bouton sur une ligne laissaient à peine
+   100 px au lien : il prend toute la ligne, nom et bouton passent dessous. */
+@media (max-width: 480px) { .kdc-attachment-form > :first-child { flex-basis: 100%; } }
 
 /* ---------- traçabilité (extension app, hors maquette) ---------- */
 .kdc-traceability { display: flex; flex-direction: column; gap: 7px; margin-top: 9px; }
@@ -516,3 +539,29 @@
 /* Création d'étiquette au fil de l'eau, depuis la fiche de tâche : nom,
    échantillon de couleur, validation — sans quitter la tâche en cours. */
 .kdc-newlabel { display: flex; flex-direction: column; gap: 9px; margin-top: 9px; padding: 11px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--bg-panel-solid); }
+
+/* ---------- écrans étroits et tactile ----------
+   Le gabarit ci-dessus est dessiné pour la souris. Au doigt, les petites
+   commandes (22 à 26 px) passent à 36-40 px ; la marge négative rend
+   l'excédent, pour que la ligne qui les porte garde sa hauteur. */
+@media (max-width: 480px) {
+  .kdc-overlay { padding: 12px; }
+}
+@media (pointer: coarse) {
+  .kdc-column__add { width: 36px; height: 36px; margin-top: -7px; margin-bottom: -7px; }
+  .kdc-modal__close { width: 40px; height: 40px; margin-top: -7px; margin-bottom: -7px; }
+  .kdc-attachment__act { width: 36px; height: 36px; margin: -5px 0; }
+  .kdc-check__x { display: grid; place-items: center; min-width: 36px; min-height: 36px; margin-top: -9px; margin-bottom: -9px; margin-right: -6px; }
+  .kdc-token__x { display: grid; place-items: center; width: 32px; height: 32px; margin: -10px -8px -10px -6px; }
+  /* Sous 16 px, iOS zoome la page au focus d'un champ. Ces champs portent leur
+     propre taille et échappent donc à la règle globale de .input-basic. */
+  .kdc-search input,
+  .kdc-composer input,
+  .kdc-check input,
+  .kdc-attachment-form input,
+  .kdc-input,
+  .kdc-input--full,
+  .kdc-textarea,
+  .kdc-select--full,
+  .kdc-filtre-select { font-size: 16px; }
+}

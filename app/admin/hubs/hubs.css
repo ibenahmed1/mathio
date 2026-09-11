@@ -239,6 +239,13 @@
 .hubs-page .hub-card__sub-lien:focus-visible {
   text-decoration-color: currentColor;
 }
+/* Sans survol (écran tactile), le soulignement « au survol » n'apparaît
+   jamais : rien ne dirait que le nom s'ouvre. Il est donc affiché d'office. */
+@media (hover: none) {
+  .hubs-page .hub-card__sub-lien {
+    text-decoration-color: currentColor;
+  }
+}
 .hubs-page .hub-card__pill {
   padding: 4px 11px;
   border-radius: 999px;
@@ -399,6 +406,16 @@
 .hubs-page .city-chip .remove:hover {
   background: var(--danger-bg);
   color: var(--danger);
+}
+/* Au doigt, 17 px ne se visent pas. La croix passe à 30 px, et la marge
+   négative (-6,5 px de chaque côté) rend l'excédent : la pastille garde sa
+   hauteur et sa largeur, seule la zone de toucher grandit. */
+@media (pointer: coarse) {
+  .hubs-page .city-chip .remove {
+    width: 30px;
+    height: 30px;
+    margin: -6.5px;
+  }
 }
 .hubs-page .city-chip--more {
   border-style: dashed;

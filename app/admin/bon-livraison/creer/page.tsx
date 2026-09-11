@@ -133,7 +133,7 @@ export default function AdminBonLivraisonCreerPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="input-basic w-fit" value={marchandFiltre} onChange={(e) => setMarchandFiltre(e.target.value)}>
+        <select className="input-basic w-fit max-w-full" value={marchandFiltre} onChange={(e) => setMarchandFiltre(e.target.value)}>
           <option value="">Tous les marchands</option>
           {marchands.map((m) => (
             <option key={m} value={m}>
@@ -141,7 +141,7 @@ export default function AdminBonLivraisonCreerPage() {
             </option>
           ))}
         </select>
-        <select className="input-basic w-fit" value={villeFiltre} onChange={(e) => setVilleFiltre(e.target.value)}>
+        <select className="input-basic w-fit max-w-full" value={villeFiltre} onChange={(e) => setVilleFiltre(e.target.value)}>
           <option value="">Toutes les villes</option>
           {villes.map((v) => (
             <option key={v} value={v}>
@@ -161,6 +161,7 @@ export default function AdminBonLivraisonCreerPage() {
                 <th className="w-10">
                   <input
                     type="checkbox"
+                    className="check-basic"
                     checked={tousSelectionnes}
                     onChange={toggleTout}
                     aria-label="Tout sélectionner"
@@ -180,6 +181,7 @@ export default function AdminBonLivraisonCreerPage() {
                   <td>
                     <input
                       type="checkbox"
+                      className="check-basic"
                       checked={selected.has(c.id)}
                       onChange={() => toggleUn(c.id)}
                       aria-label={`Sélectionner ${c.codeSuivi}`}
@@ -239,12 +241,12 @@ export default function AdminBonLivraisonCreerPage() {
 function ModalBonsGeneres({ bons, onFermer }: { bons: BonDeLivraisonGenere[]; onFermer: () => void }) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-black/10 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-black">
+      <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-xl border border-black/10 bg-white p-6 shadow-xl dark:border-white/10 dark:bg-black">
         <div className="flex items-start justify-between">
           <p className="text-lg font-bold">
             {bons.length} bon{bons.length > 1 ? 's' : ''} de livraison généré{bons.length > 1 ? 's' : ''}
           </p>
-          <button onClick={onFermer} className="rounded p-1 opacity-60 hover:opacity-100" aria-label="Fermer">
+          <button onClick={onFermer} className="rounded p-1 opacity-60 hover:opacity-100 pointer-coarse:-m-2 pointer-coarse:p-3" aria-label="Fermer">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -282,7 +284,7 @@ function ModalBonsGeneres({ bons, onFermer }: { bons: BonDeLivraisonGenere[]; on
 
         <button
           onClick={onFermer}
-          className="mt-4 w-full text-center text-sm font-semibold opacity-60 hover:opacity-100"
+          className="mt-4 w-full text-center text-sm font-semibold opacity-60 hover:opacity-100 pointer-coarse:min-h-10"
         >
           Fermer
         </button>

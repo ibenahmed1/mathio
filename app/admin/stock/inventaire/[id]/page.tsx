@@ -169,10 +169,10 @@ Continuer ?`
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="page-title">Modifier produit — {produit.nom}</h1>
-          <div className="mt-1 flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="page-title break-words">Modifier produit — {produit.nom}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
             <span className="opacity-60">{produit.marchand?.nomBoutique}</span>
             <span className="opacity-30">|</span>
             <select

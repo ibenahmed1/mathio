@@ -96,10 +96,10 @@ export default function AdminStockInventairePage() {
           </select>
           entrées par page
         </label>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex max-w-full items-center gap-2 text-sm">
           Rechercher :
           <input
-            className="input-basic py-1"
+            className="input-basic min-w-0 flex-1 py-1"
             value={recherche}
             onChange={(e) => {
               setRecherche(e.target.value);
@@ -172,7 +172,7 @@ export default function AdminStockInventairePage() {
                     <td className="w-8">
                       <Link
                         href={`/admin/stock/inventaire/${p.id}`}
-                        className="inline-flex items-center justify-center rounded-md bg-black/[0.06] p-1.5 transition hover:bg-black/[0.12] dark:bg-white/10 dark:hover:bg-white/20"
+                        className="inline-flex items-center justify-center rounded-md bg-black/[0.06] p-1.5 pointer-coarse:p-2.5 transition hover:bg-black/[0.12] dark:bg-white/10 dark:hover:bg-white/20"
                         aria-label={`Modifier ${p.nom}`}
                       >
                         <Pencil className="h-4 w-4" />
@@ -198,7 +198,7 @@ export default function AdminStockInventairePage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 text-sm opacity-70">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm opacity-70">
         <span>
           Affichage {debut} à {fin} de {filtres.length} entrées
         </span>

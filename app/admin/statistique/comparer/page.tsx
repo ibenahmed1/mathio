@@ -169,7 +169,7 @@ export default async function StatistiqueComparerPage({
         <span className="text-sm opacity-60">Comparer à :</span>
         <Link
           href={`/admin/statistique/comparer?periode=${periodeA.preset}&contre=${DEFAUT_CONTRE}`}
-          className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+          className={`rounded-md px-2.5 py-1 text-xs font-semibold transition pointer-coarse:py-3 ${
             choixContre === DEFAUT_CONTRE
               ? 'bg-brand text-brand-foreground'
               : 'text-black/55 hover:bg-black/5 dark:text-white/55 dark:hover:bg-white/10'
@@ -181,7 +181,7 @@ export default async function StatistiqueComparerPage({
           <Link
             key={p}
             href={`/admin/statistique/comparer?periode=${periodeA.preset}&contre=${p}`}
-            className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+            className={`rounded-md px-2.5 py-1 text-xs font-semibold transition pointer-coarse:py-3 ${
               choixContre === p
                 ? 'bg-brand text-brand-foreground'
                 : 'text-black/55 hover:bg-black/5 dark:text-white/55 dark:hover:bg-white/10'

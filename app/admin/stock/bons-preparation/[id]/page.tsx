@@ -65,7 +65,7 @@ export default function BonPreparationDetailPage() {
             {bon.marchand?.nomBoutique ?? '—'} — {bon.nbColis} colis — généré le {new Date(bon.dateGeneration).toLocaleString('fr-FR')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={`badge ${estValidee ? 'bg-green-600 text-white' : 'badge-neutral'}`}>
             {estValidee ? 'Reçu' : 'En attente de réception'}
           </span>

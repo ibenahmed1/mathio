@@ -61,9 +61,9 @@ export default function AdminRamassagesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <h1 className="page-title">Ramassages</h1>
-        <button onClick={lancerPlanification} className="btn-primary">
+        <button onClick={lancerPlanification} className="btn-primary whitespace-normal text-left">
           Lancer la planification récurrente (RG-16)
         </button>
       </div>
@@ -71,7 +71,9 @@ export default function AdminRamassagesPage() {
       {message && <p className="text-sm font-medium text-green-700">{message}</p>}
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-      <table className="table-basic">
+      <div className="table-card">
+      <div className="table-scroll">
+      <table className="table-basic min-w-[720px]">
         <thead>
           <tr>
             <th>Marchand</th>
@@ -119,6 +121,8 @@ export default function AdminRamassagesPage() {
           )}
         </tbody>
       </table>
+      </div>
+      </div>
     </div>
   );
 }

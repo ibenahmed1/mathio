@@ -112,7 +112,7 @@ export default function ToutesFacturesPage() {
           <button
             type="button"
             onClick={() => setFiltre('brouillon')}
-            className="badge badge-warn hover:brightness-95"
+            className="badge badge-warn whitespace-normal text-left leading-tight hover:brightness-95 sm:leading-none pointer-coarse:py-3"
           >
             {nbBrouillons} brouillon{nbBrouillons > 1 ? 's' : ''} · {montant(totalBrouillons)} en préparation
           </button>
@@ -175,8 +175,9 @@ export default function ToutesFacturesPage() {
                         <>
                           <Link
                             href={`/admin/factures/${f.id}/modifier`}
-                            className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+                            className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10 pointer-coarse:p-3"
                             title="Reprendre le brouillon"
+                            aria-label={`Reprendre le brouillon ${f.numero}`}
                           >
                             <Pencil className="h-4 w-4" />
                           </Link>
@@ -184,8 +185,9 @@ export default function ToutesFacturesPage() {
                             type="button"
                             onClick={() => appeler(f, 'emettre')}
                             disabled={enCours === f.id}
-                            className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950"
+                            className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950 pointer-coarse:p-3"
                             title="Émettre — fige les montants et rend la facture visible du marchand"
+                            aria-label={`Émettre la facture ${f.numero}`}
                           >
                             <Check className="h-4 w-4" />
                           </button>
@@ -194,8 +196,9 @@ export default function ToutesFacturesPage() {
                         <Link
                           href={`/factures/${f.id}`}
                           target="_blank"
-                          className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+                          className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10 pointer-coarse:p-3"
                           title="Imprimer"
+                          aria-label={`Imprimer la facture ${f.numero}`}
                         >
                           <Printer className="h-4 w-4" />
                         </Link>
@@ -210,8 +213,9 @@ export default function ToutesFacturesPage() {
                             setReference('');
                           }}
                           disabled={enCours === f.id}
-                          className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950"
+                          className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950 pointer-coarse:p-3"
                           title="Marquer comme réglée"
+                          aria-label={`Marquer la facture ${f.numero} comme réglée`}
                         >
                           <Wallet className="h-4 w-4" />
                         </button>
@@ -225,8 +229,9 @@ export default function ToutesFacturesPage() {
                             setMotif('');
                           }}
                           disabled={enCours === f.id}
-                          className="rounded p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950"
+                          className="rounded p-1.5 text-red-600 hover:bg-red-50 disabled:opacity-40 dark:hover:bg-red-950 pointer-coarse:p-3"
                           title="Annuler"
+                          aria-label={`Annuler la facture ${f.numero}`}
                         >
                           <Ban className="h-4 w-4" />
                         </button>
@@ -283,7 +288,7 @@ export default function ToutesFacturesPage() {
             />
           )}
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button type="button" onClick={() => setARegler(null)} className="btn-outline">
               Annuler
             </button>
@@ -316,7 +321,7 @@ export default function ToutesFacturesPage() {
               autoFocus
             />
           )}
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button type="button" onClick={() => setAAnnuler(null)} className="btn-outline">
               Revenir
             </button>

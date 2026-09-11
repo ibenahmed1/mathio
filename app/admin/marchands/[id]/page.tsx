@@ -14,7 +14,7 @@ function Champ({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs font-semibold uppercase tracking-wide opacity-50">{label}</span>
-      <span className="text-sm">{value ?? <span className="opacity-40">—</span>}</span>
+      <span className="text-sm [overflow-wrap:anywhere]">{value ?? <span className="opacity-40">—</span>}</span>
     </div>
   );
 }
@@ -122,13 +122,13 @@ export default function AdminMarchandDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <button onClick={() => router.push('/admin/marchands')} className="btn-outline flex items-center gap-1 px-2 py-1 text-xs">
             <ArrowLeft className="h-3 w-3" />
             Retour
           </button>
-          <h1 className="page-title">{marchand.nomBoutique}</h1>
+          <h1 className="page-title min-w-0 break-words">{marchand.nomBoutique}</h1>
           <StatutBadge statut={marchand.statut} />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -161,7 +161,7 @@ export default function AdminMarchandDetailPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="dashboard-card flex flex-col gap-3 lg:col-span-2">
           <h2 className="text-sm font-black uppercase tracking-wide opacity-60">Titulaire du compte</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Champ label="Nom complet" value={u?.nomComplet} />
             <Champ label="Téléphone" value={u?.telephone} />
             <Champ label="Email" value={u?.email} />
@@ -229,7 +229,7 @@ export default function AdminMarchandDetailPage() {
 
         <div className="dashboard-card flex flex-col gap-3 lg:col-span-2">
           <h2 className="text-sm font-black uppercase tracking-wide opacity-60">Identité & légal</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Champ label="Type de compte" value={LABELS_TYPE_COMPTE[marchand.typeCompte]} />
             <Champ label="CIN" value={marchand.cin} />
             <Champ label="Raison sociale" value={marchand.raisonSociale} />
@@ -255,7 +255,7 @@ export default function AdminMarchandDetailPage() {
 
         <div className="dashboard-card flex flex-col gap-3 lg:col-span-2">
           <h2 className="text-sm font-black uppercase tracking-wide opacity-60">Informations bancaires</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Champ label="Banque" value={marchand.nomBanque} />
             <Champ label="RIB" value={marchand.rib} />
           </div>

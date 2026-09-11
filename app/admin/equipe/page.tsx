@@ -81,7 +81,7 @@ export default function AdminEquipePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Équipe</h1>
         <button
           onClick={() => setFormMode({ kind: 'create' })}
@@ -124,7 +124,7 @@ export default function AdminEquipePage() {
             <button
               key={key}
               onClick={() => setFiltreStatut(key)}
-              className={`rounded px-2.5 py-1 text-xs font-semibold transition ${
+              className={`rounded px-2.5 py-1 text-xs font-semibold transition pointer-coarse:py-2 ${
                 filtreStatut === key
                   ? 'bg-brand text-brand-foreground'
                   : 'opacity-60 hover:bg-black/[0.04] hover:opacity-100 dark:hover:bg-white/[0.06]'
@@ -139,7 +139,9 @@ export default function AdminEquipePage() {
         </span>
       </div>
 
-      <table className="table-basic">
+      <div className="table-card">
+      <div className="table-scroll">
+      <table className="table-basic min-w-[860px]">
         <thead>
           <tr>
             <th>Nom</th>
@@ -222,6 +224,8 @@ export default function AdminEquipePage() {
           )}
         </tbody>
       </table>
+      </div>
+      </div>
 
       {tarifsPourUtilisateur && (
         <TarifsVilleModal
