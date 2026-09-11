@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, Menu } from 'lucide-react';
-import { apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 import { AppSidebar } from '@/components/AppSidebar';
 import { NAV_LIVREUR } from './nav';
 
@@ -19,7 +19,11 @@ export function LivreurShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
 
   async function handleLogout() {
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 
