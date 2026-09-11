@@ -131,12 +131,39 @@ d'arbitrage commercial en base : hub interne d'abord, central en priorité, puis
 du nom de hub. Ces quatre villes partent donc chez **EST Livraison**. `villesPartagees()` liste les
 cas où la règle a dû trancher.
 
-### 2.10 Fès et Boulmane ne sont livrables nulle part
+### 2.10 Les villes d'implantation des agences — décision du 9 septembre 2026
 
-Les deux existent comme **noms d'agence** dans le tableur Meta, jamais comme destinations. Aucun
-autre réseau ne les couvre. Un colis adressé à Fès ne se rattache donc à aucun hub, n'est éligible
-à aucun bon d'envoi, et son coût reste inconnu. **Elles n'ont pas été créées** : inventer une ville
-livrable qui ne l'est pas enverrait de vrais colis vers une agence qui les refuserait.
+**Le constat.** Les tableurs nomment l'agence par sa ville d'implantation, mais ne remettent jamais
+cette ville dans sa propre liste de destinations. Cinq agences sur dix-sept étaient dans ce cas :
+
+| Agence | Villes desservies | Sa ville d'implantation |
+|---|---|---|
+| Agence Oujda (EST) | 63 | `Oujda` absente |
+| Agence Taounate (Meta) | 35 | `Taounate` absente |
+| Agence El Jadida (Power) | 11 | `El Jadida` absente |
+| Agence Fès (Meta) | 2 | `Fès` absente |
+| Agence Boulmane (Meta) | 2 | `Boulmane` absente |
+
+Agence Oujda desservait 63 villes de l'Oriental sans pouvoir recevoir un colis pour Oujda. Un tel
+colis ne se rattachait à aucun hub, n'était éligible à aucun bon d'envoi, et rien à l'écran ne
+disait pourquoi.
+
+**La décision.** Ces cinq villes ont été créées, chacune sous son agence, par
+`scripts/ajouter-villes-agences.ts` — désormais exécuté en fin de `npm run db:reseau`.
+
+Cela renverse la position tenue jusqu'ici, qui était de **ne pas** les créer faute d'accord et de
+prix. L'argument d'origine reste vrai et n'est pas levé : nous déclarons livrer ces villes sans que
+les transporteurs l'aient confirmé.
+
+**Ce que la décision ne règle pas.** Aucun tarif n'a été chargé : le coût de ces cinq villes reste
+`null`, donc « inconnu » et signalé comme tel à la facturation
+(`Facture.nbLignesCoutInconnu`) — jamais `0`, qui dirait « gratuit ». La question 3 du §3 ci-dessous
+reste donc entière, et elle porte maintenant sur cinq villes et non deux.
+
+**Pourquoi un script à part des imports.** `scripts/import-prestataire-*.ts` transcrivent les
+fichiers sources à la lettre, et `scripts/auditer-conformite-sources.ts` le vérifie. Y glisser une
+ville absente du CSV falsifierait la transcription : la décision est donc tenue dans son propre
+script, où elle reste visible et réversible.
 
 ### 2.11 Choix de modèle
 
@@ -165,7 +192,10 @@ livrable qui ne l'est pas enverrait de vrais colis vers une agence qui les refus
    n'y a pas de zones.
 2. Combien coûte un colis **retourné** chez Power Delivery, Meta, Sahario et Amir ? Seul EST
    l'annonce (0 DH).
-3. **Livrons-nous Fès et Boulmane**, et à quel prix ?
+3. **À quel prix livrons-nous les cinq villes d'implantation d'agence** — Oujda, Taounate,
+   El Jadida, Fès, Boulmane ? Elles sont désormais déclarées livrables (§2.10) mais leur coût est
+   `null` : chaque colis qui y part fausse la marge tant que les transporteurs n'ont pas donné
+   leur prix — et n'ont pas confirmé qu'ils les livrent.
 4. Comment s'appelle **exactement** le transporteur du Nord-Est ? Le fichier ne le nomme pas.
 5. EST Livraison a-t-il un seul dépôt à Oujda, ou aussi à Nador, Al Hoceima, Driouch, Figuig ?
 

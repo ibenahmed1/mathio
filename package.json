@@ -12,7 +12,7 @@
     "test": "tsx --test \"lib/__tests__/*.test.ts\"",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:reseau": "tsx scripts/aligner-noms-sur-sources.ts && tsx scripts/import-prestataire-power-delivery.ts && tsx scripts/import-prestataire-meta-livraison.ts && tsx scripts/import-prestataire-sahario-express.ts && tsx scripts/import-agence-tanger.ts && tsx scripts/import-prestataire-est-livraison.ts",
+    "db:reseau": "tsx scripts/aligner-noms-sur-sources.ts && tsx scripts/import-prestataire-power-delivery.ts && tsx scripts/import-prestataire-meta-livraison.ts && tsx scripts/import-prestataire-sahario-express.ts && tsx scripts/import-agence-tanger.ts && tsx scripts/import-prestataire-est-livraison.ts && tsx scripts/ajouter-villes-agences.ts",
     "db:deploy": "prisma migrate deploy && prisma db seed",
     "simuler:shipeh": "tsx scripts/simuler-shipeh.ts",
     "shipeh": "tsx scripts/console-shipeh.ts",
