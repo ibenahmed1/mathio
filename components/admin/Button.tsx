@@ -9,10 +9,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 // Bouton standardisé de l'app (jetons --mt-* définis dans
 // AdminSidebar.module.css sous `:global(:root)`, donc disponibles sur toute
-// page /admin/**) — reprend à l'identique le style de référence "+ Nouvelle
-// transaction" (§ Comptabilité, components/accounting/Accounting.module.css
-// .btnPrimary/.btnSecondary), extrait ici en composant réutilisable plutôt
-// que dupliqué en CSS module par page.
+// page /admin/**) — reprend le style de référence "+ Nouvelle transaction" de
+// la Comptabilité, extrait ici en composant réutilisable plutôt que dupliqué en
+// CSS module par page. (La Comptabilité elle-même est depuis passée aux
+// classes .btn-* de app/globals.css ; ses .btnPrimary/.btnSecondary n'existent
+// plus.)
 const BASE =
   'inline-flex shrink-0 items-center gap-2 rounded-[var(--mt-r-md)] px-4 py-2.5 text-[13px] font-extrabold transition disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:hover:translate-y-0';
 
