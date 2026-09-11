@@ -1,21 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { prisma } from '@/lib/prisma';
 import { getPageSession, roleMatches } from '@/lib/auth';
-import { nextBonLivraisonNumero } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
-
-export interface BonDeLivraisonGenere {
-  id: string;
-  numero: string;
-  nbColis: number;
-  montantTotalCod: string;
-}
+import { creerBonsDeLivraison, type BonDeLivraisonGenere } from '@/lib/bons-livraison';
 
 // Server Action : regroupe des colis "nouveau_colis" du marchand connecté dans
-// un nouveau bon de livraison, puis les fait passer en "attente_de_ramassage"
-// (RG-10 : historisation du changement de statut comme pour toute transition).
+// un nouveau bon de livraison, puis les fait passer en "attente_de_ramassage".
+//
+// La règle métier elle-même vit dans lib/bons-livraison.ts, partagée avec
+// POST /api/bons-livraison (flux admin) : ici on ne fait que résoudre QUI agit
+// et sur QUEL périmètre.
 //
 // Note d'architecture : le reste du projet mute exclusivement via des routes
 // `app/api/**` (protégées par le proxy qui lit le cookie de session et injecte
@@ -34,57 +29,17 @@ export async function creerBonDeLivraison(colisIds: string[]): Promise<BonDeLivr
     throw new Error('Profil marchand introuvable');
   }
 
-  const ids = Array.from(new Set(colisIds.filter((id) => typeof id === 'string' && id.length > 0)));
-  if (ids.length === 0) {
-    throw new Error('Sélectionnez au moins un colis');
-  }
-
-  const colis = await prisma.commande.findMany({
-    where: { id: { in: ids }, marchandId: marchand.id, statut: 'nouveau_colis', bonLivraisonId: null, enStock: false },
-  });
-
-  if (colis.length !== ids.length) {
-    throw new Error('Un ou plusieurs colis sélectionnés ne sont plus disponibles (déjà confirmés ou hors de votre compte)');
-  }
-
-  const montantTotalCod = colis.reduce((total, c) => total + Number(c.montantCod), 0);
-  const numero = await nextBonLivraisonNumero();
-
-  const bon = await prisma.$transaction(async (tx) => {
-    const created = await tx.bonDeLivraison.create({
-      data: {
-        numero,
-        marchandId: marchand.id,
-        nbColis: colis.length,
-        montantTotalCod,
-      },
-    });
-
-    await tx.commande.updateMany({
-      where: { id: { in: ids } },
-      data: { bonLivraisonId: created.id, statut: 'attente_de_ramassage', dateConfirmation: new Date() },
-    });
-
-    await tx.historiqueStatutCommande.createMany({
-      data: colis.map((c) => ({
-        commandeId: c.id,
-        ancienStatut: 'nouveau_colis' as const,
-        nouveauStatut: 'attente_de_ramassage' as const,
-        utilisateurId: session.sub,
-      })),
-    });
-
-    return created;
+  // Périmètre borné à sa propre boutique : la sélection ne peut donc produire
+  // qu'un seul bon, d'où le dépliage du tableau.
+  const [bon] = await creerBonsDeLivraison({
+    colisIds,
+    utilisateurId: session.sub,
+    marchandId: marchand.id,
   });
 
   revalidatePath('/marchand/bons-livraison');
   revalidatePath('/marchand/bons-livraison/nouveau');
   revalidatePath('/marchand/colis');
 
-  return {
-    id: bon.id,
-    numero: bon.numero,
-    nbColis: bon.nbColis,
-    montantTotalCod: bon.montantTotalCod.toString(),
-  };
+  return bon;
 }

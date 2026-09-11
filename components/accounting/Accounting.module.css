@@ -20,6 +20,11 @@
   .pageGlow { background-image: none; }
 }
 .pageGlowInner { padding: 18px 20px 24px; }
+/* Page plein cadre : la coquille ne pose aucune marge (cf. isFullBleed dans
+   AdminShell), c'est donc ici que se règle la gouttière au téléphone. */
+@media (max-width: 640px) {
+  .pageGlowInner { padding: 14px 12px 20px; }
+}
 
 .pageRoot {
   font-family: var(--mt-font);
@@ -43,23 +48,12 @@
    ce module n'est rattaché à aucun @layer et gagnerait donc toujours contre
    l'utilitaire `lg:hidden` de Tailwind — d'où l'absence de `display` ici. */
 .sidebarToggle { align-items: center; margin-right: 2px; }
-.btnPrimary {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--mt-gradient);
-  color: var(--mt-ink);
-  border: none;
-  border-radius: var(--mt-r-md);
-  padding: 10px 15px;
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: var(--mt-glow);
-  transition: transform .15s, box-shadow .15s;
-}
-.btnPrimary:hover { transform: translateY(-1px); box-shadow: 0 12px 24px rgba(255,209,0,.42); }
-.btnPrimary:active { transform: translateY(0); }
+
+/* Boutons : aucun ici. Ce module portait ses propres .btnPrimary /
+   .btnSecondary / .selectBtn, copies approximatives des .btn-* de
+   app/globals.css — mêmes intentions, géométrie légèrement différente, et une
+   hauteur tactile qu'il fallait reposer à la main. Les composants utilisent
+   désormais les classes du système, comme le reste de l'admin. */
 
 /* ---------- Grille ---------- */
 .grid {
@@ -95,29 +89,13 @@
 }
 .cardSub { margin: 3px 0 0; font-size: 11px; color: var(--mt-muted); }
 
-.selectBtn {
-  margin-left: auto;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--mt-surface);
-  border: 1px solid var(--mt-line-2);
-  border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--mt-ink-2);
-  cursor: pointer;
-  transition: border-color .15s;
-}
-.selectBtn:hover { border-color: var(--mt-yellow); }
-.selectCaret { color: var(--mt-muted-3); }
 
 /* ---------- Statistiques trésorerie ---------- */
 .statRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …) et non 1fr : un 1fr ne descend pas sous la largeur de son
+     contenu, et « 123456.00 DH » poussait alors la carte hors de l'écran. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 16px;
 }
@@ -141,6 +119,7 @@
   font-weight: 800;
   letter-spacing: -.5px;
   color: var(--mt-ink);
+  overflow-wrap: anywhere;
 }
 .statLabel { font-size: 10px; color: var(--mt-muted); margin-top: 2px; }
 .statValueRevenue { color: var(--mt-ok-fg); }
@@ -211,15 +190,46 @@
 .orderLabel { font-size: 11px; color: var(--mt-muted); }
 .orderId { font-size: 11px; font-weight: 800; color: var(--mt-ink); }
 
-.chipDelivered {
+/* Statut d'une commande : une teinte par étape du cycle
+   (lib/commandes-stock-hub.ts). Remplace .chipDelivered, qui peignait tous les
+   statuts du même jaune — « Annulée » se lisait comme « Livré ».
+
+   `background-color` et jamais le raccourci `background` dans les teintes : le
+   raccourci effacerait le chevron dessiné en image de fond par .statutSelect. */
+.statutChip {
   margin-left: auto;
+  flex: none;
+  font-family: inherit;
   font-size: 9.5px;
   font-weight: 800;
-  color: var(--mt-yellow-ink);
-  background: rgba(255,209,0,.24);
+  line-height: 1.3;
+  border: 1px solid transparent;
   border-radius: 20px;
   padding: 3px 9px;
+  white-space: nowrap;
 }
+.statut_brouillon { background-color: var(--mt-surface-2); color: var(--mt-ink-2); border-color: var(--mt-line-2); }
+.statut_commandee { background-color: rgba(255,209,0,.24); color: var(--mt-yellow-ink); }
+.statut_recue     { background-color: var(--mt-ok-bg); color: var(--mt-ok-fg); }
+.statut_annulee   { background-color: var(--mt-surface-2); color: var(--mt-muted-2); text-decoration: line-through; }
+
+/* Pastille-menu : un <select> natif habillé en pastille. Natif à dessein — il
+   ouvre le sélecteur du système au téléphone et se pilote au clavier, sans
+   rien réimplémenter. Le chevron le distingue d'une pastille inerte. */
+.statutSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23202020' stroke-opacity='.55' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 9px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.statutSelect:hover { border-color: var(--mt-yellow); }
+.statutSelect:focus-visible { outline: none; border-color: var(--mt-yellow); box-shadow: 0 0 0 3px rgba(255,209,0,.30); }
+.statutSelect:disabled { opacity: .55; cursor: progress; }
 
 .orderBody { padding: 11px 12px; }
 .orderMain { display: flex; align-items: center; gap: 10px; }
@@ -263,11 +273,14 @@
 .tableHead {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px 12px;
   flex-wrap: wrap;
 }
+/* Le bloc titre prend la place libre : il pousse la recherche et l'action à
+   droite sans `margin-left: auto`, qui cessait d'agir dès le retour à la
+   ligne. `min-width: 0` le laisse rétrécir au lieu d'éjecter le bouton. */
+.tableTitle { flex: 1 1 auto; min-width: 0; }
 .tableSearch {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -275,14 +288,21 @@
   border: 1px solid var(--mt-line-2);
   border-radius: 11px;
   padding: 8px 11px;
-  min-width: 220px;
+  flex: 0 1 260px;
+  min-width: 0;
   transition: border-color .15s, box-shadow .15s;
 }
 .tableSearch:focus-within {
   border-color: var(--mt-yellow);
   box-shadow: 0 0 0 3px rgba(255,209,0,.20);
 }
-.searchIcon { font-size: 12px; color: var(--mt-muted-2); }
+/* Au téléphone : titre et bouton sur la première ligne, recherche pleine
+   largeur dessous. L'ancien `min-width: 220px` la faisait passer entre les
+   deux et renvoyait le bouton seul sur une troisième ligne. */
+@media (max-width: 640px) {
+  .tableSearch { order: 1; flex-basis: 100%; }
+}
+.searchIcon { width: 14px; height: 14px; flex: none; color: var(--mt-muted-2); }
 .searchInput {
   border: none;
   background: transparent;
@@ -386,21 +406,9 @@
 .rowMenu:disabled { opacity: .35; cursor: not-allowed; }
 .rowMenu:disabled:hover { background: transparent; color: var(--mt-muted-3); }
 
-/* ---------- Formulaire nouvelle transaction ---------- */
-/* Formulaires : voir les classes .form-* de app/globals.css — la convention
-   est commune à tout le système, ce module n avait pas à la redéfinir. */
-
-.btnSecondary {
-  border: 1px solid var(--mt-line-2);
-  background: var(--mt-surface);
-  color: var(--mt-ink-2);
-  border-radius: var(--mt-r-md);
-  padding: 9px 15px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btnSecondary:hover { border-color: var(--mt-yellow); }
+/* Formulaires : aucun style ici. Ils passent par Modal + Field
+   (components/admin/Modal.tsx, components/form/Field.tsx) et les classes
+   .form-* de app/globals.css, comme tous les formulaires du système. */
 
 .rowMenu {
   justify-self: end;
@@ -415,3 +423,19 @@
   transition: background .15s, color .15s;
 }
 .rowMenu:hover { background: rgba(32,32,32,.06); color: var(--mt-ink); }
+
+/* ---------- Tactile ----------
+   Les boutons d'action portent les classes .btn-* du système, dont
+   app/globals.css relève déjà la hauteur sous `pointer: coarse`. Restent ici
+   les seuls éléments propres au module : le bouton d'annulation de ligne, et
+   la recherche qui passe à 16 px — en dessous, iOS zoome la page à la prise de
+   focus. La dernière colonne de la table suit la largeur du bouton. */
+@media (pointer: coarse) {
+  .rowMenu { width: 40px; height: 40px; }
+  /* Menu de statut : cible tactile, et 16 px pour que iOS ne zoome pas la
+     page à l'ouverture — même raison que la recherche ci-dessous. */
+  .statutSelect { min-height: 36px; font-size: 16px; padding: 4px 28px 4px 12px; background-size: 12px; background-position: right 10px center; }
+  .thead,
+  .tr { grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 40px; }
+  .searchInput { font-size: 16px; }
+}

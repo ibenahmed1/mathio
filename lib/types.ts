@@ -76,7 +76,12 @@ export interface Commande {
   // (POST /api/commandes/scan-reception) — null avant le scan.
   hubActuelId: string | null;
   dateReceptionHub: string | null;
-  marchand?: { nomBoutique: string };
+  marchand?: {
+    nomBoutique: string;
+    // § Plateformes partenaires : présent quand le marchand vient d'un canal
+    // de vente. `test` marque un colis de bac à sable.
+    comptesExternes?: { environnement: 'live' | 'test' }[];
+  };
   livreur?: { id: string; nomComplet: string } | null;
   ramasseur?: { id: string; nomComplet: string } | null;
   ramassage?: { ramasseur?: { nomComplet: string } | null } | null;
@@ -203,6 +208,12 @@ export interface Marchand {
     dateCreation?: string;
     derniereConnexion?: string | null;
   };
+  // § Plateformes partenaires : canaux de vente d'où ce marchand nous vient.
+  // Absent pour l'immense majorité des marchands, inscrits en direct.
+  comptesExternes?: {
+    environnement: 'live' | 'test';
+    plateforme: { code: string; nom: string };
+  }[];
   adresses?: AdresseMarchand[];
   membres?: MarchandMembre[];
   _count?: { commandes: number; ramassages: number; marchandises: number };
@@ -393,6 +404,40 @@ export interface Ville {
   id: string;
   nom: string;
   hubId: string;
+  // § Sous-traitance : tarif d'achat de la livraison chez le prestataire qui
+  // exploite le hub couvrant cette ville — null sur un hub interne, où c'est
+  // TarifLivreurVille qui dit le coût. Montant sérialisé en chaîne (Decimal).
+  tarifPrestataire?: string | null;
+  // Tarif de retour du même prestataire — souvent absent des grilles
+  // fournisseurs. Tant qu'il manque, le coût d'un colis retourné dans cette
+  // ville est INCONNU en facturation (cf. Facture.nbLignesCoutInconnu).
+  tarifPrestataireRetour?: string | null;
+  // Toute la grille de la ville, tous prestataires confondus (§ /api/hubs) :
+  // permet de comparer ce que coûterait une ville chez un autre prestataire
+  // que celui qui la dessert aujourd'hui.
+  tarifsPrestataires?: TarifPrestataireVille[];
+}
+
+export interface TarifPrestataireVille {
+  id: string;
+  prestataireId: string;
+  villeId: string;
+  tarifLivraison: string;
+  tarifRetour: string | null;
+  prestataire?: { id: string; nom: string };
+}
+
+// § Sous-traitance (/admin/hubs) — société externe qui livre pour nous. Ses
+// points de dépôt sont des Hub rattachés (`agences`), pas une entité à part.
+export interface Prestataire {
+  id: string;
+  nom: string;
+  contact: string | null;
+  telephone: string | null;
+  email: string | null;
+  actif: boolean;
+  agences?: { id: string; nom: string; ville: string; nbVilles: number }[];
+  nbVillesTarifees?: number;
 }
 
 export interface Hub {
@@ -402,6 +447,10 @@ export interface Hub {
   adresse: string | null;
   telephone: string | null;
   isCentral: boolean;
+  // Null = hub interne (livreurs et ramasseurs maison, § /admin/bon-distribution) ;
+  // renseigné = agence d'un prestataire, qui livre lui-même ses villes.
+  prestataireId: string | null;
+  prestataire?: { id: string; nom: string; actif: boolean } | null;
   villes?: Ville[];
   nbColisDepot?: number;
 }
@@ -418,6 +467,16 @@ export interface EquipeTache {
   nom: string;
   couleur: string;
   membres?: EquipeTacheMembre[];
+}
+
+// Étiquette de tâche (§ /admin/tasks) : catalogue tenu en base, servi par
+// /api/taches/etiquettes. Les tâches n'en stockent que le `code`.
+export interface Etiquette {
+  id: string;
+  code: string;
+  nom: string;
+  couleur: string;
+  dateCreation?: string;
 }
 
 export interface CommentaireTache {
@@ -463,14 +522,21 @@ export interface HistoriqueStatutTache {
   horodatage: string;
 }
 
+// Forme EXPOSÉE d'une pièce jointe, pas la ligne en base : `url` est soit le
+// lien externe, soit la route de contenu qui sert le fichier — jamais la data
+// URL stockée (§ lib/taches-pieces-jointes.ts).
 export interface PieceJointeTache {
   id: string;
-  tacheId: string;
   nom: string;
   url: string;
-  auteurId: string;
-  auteur?: { id: string; nomComplet: string };
+  auteur: { id: string; nomComplet: string };
   dateAjout: string;
+  type: 'image' | 'document' | 'lien';
+  mime: string | null;
+  /** Poids du fichier, en octets. `null` pour un lien externe. */
+  poids: number | null;
+  /** Extension ou nom d'hôte, pour l'étiquette de la vignette. */
+  format: string;
 }
 
 export interface MembreTache {
@@ -596,6 +662,11 @@ export interface Facture {
   totalFraisRetour: string;
   totalAutresFrais: string;
   netAPayer: string;
+  // § Marge — INTERNES, et donc OPTIONNELS ici : les réponses servies à une
+  // session marchand les écartent dès la requête (cf. FACTURE_OMIT_COUTS,
+  // lib/facturation.ts). Absents ne veut pas dire nuls, mais « pas pour vous ».
+  totalCoutLivraison?: string;
+  nbLignesCoutInconnu?: number;
   // dateEmission = création du document (brouillon compris) ;
   // dateValidation = passage brouillon → émise, quand les montants ont été figés.
   dateEmission: string;
@@ -646,7 +717,16 @@ export interface PrevisualisationFacture {
   marchand: { id: string; nomBoutique: string; raisonSociale: string | null; ville: string | null };
   colis: Commande[];
   total: {
-    lignes: { commandeId: string; livre: boolean; montantCod: number; frais: number }[];
+    lignes: {
+      commandeId: string;
+      livre: boolean;
+      montantCod: number;
+      frais: number;
+      // § Marge — coût de la course, null quand il est inconnu. INTERNE : la
+      // prévisualisation n'est servie qu'à l'admin et au responsable.
+      coutLivraison: number | null;
+      coutSource: 'livreur' | 'prestataire' | null;
+    }[];
     nbColisLivres: number;
     nbColisRetournes: number;
     totalCod: number;
@@ -654,6 +734,8 @@ export interface PrevisualisationFacture {
     totalFraisRetour: number;
     totalAutresFrais: number;
     netAPayer: number;
+    totalCoutLivraison: number;
+    nbLignesCoutInconnu: number;
   };
 }
 
@@ -939,4 +1021,76 @@ export interface ParametresSociete {
   email: string | null;
   siteWeb: string | null;
   logoUrl: string | null;
+}
+
+// ============================================================
+// Plateformes partenaires (§ /admin/integrations)
+// ============================================================
+
+export type EnvironnementApi = 'live' | 'test';
+
+export interface PlateformeResume {
+  id: string;
+  code: string;
+  nom: string;
+  actif: boolean;
+  dateCreation: string;
+  nbClesActives: number;
+  nbMarchands: number;
+}
+
+export interface CleApi {
+  id: string;
+  /** Partie publique de la clé. Le secret, lui, n'est affiché qu'à l'émission. */
+  prefixe: string;
+  environnement: EnvironnementApi;
+  scopes: string[];
+  libelle: string | null;
+  quotaParMinute: number;
+  creeeLe: string;
+  expireLe: string | null;
+  revoqueeLe: string | null;
+  derniereUtilisationLe: string | null;
+  nbAppels: number;
+  active: boolean;
+}
+
+export interface MarchandLiePlateforme {
+  id: string;
+  idExterne: string;
+  environnement: EnvironnementApi;
+  dateCreation: string;
+  marchandId: string;
+  nomBoutique: string;
+  statut: string;
+}
+
+export interface AppelPlateforme {
+  id: string;
+  methode: string;
+  chemin: string;
+  statut: number;
+  dureeMs: number | null;
+  reference: string | null;
+  erreur: string | null;
+  horodatage: string;
+}
+
+// Ce que le bac à sable a laissé dans les vraies tables. L'isolation retenue
+// est logique : les marchands et colis d'une clé `test` sont de vraies lignes,
+// et ce compteur est ce qui empêche cette pollution d'être silencieuse.
+export interface VolumeTestPlateforme {
+  marchands: number;
+  colis: number;
+  /** Marchands liés en test que la purge ne supprimera pas (rattachés, ou liés ailleurs). */
+  marchandsConserves: number;
+  /** Colis de ces marchands-là, qui survivront donc à la purge. */
+  colisConserves: number;
+}
+
+export interface PlateformeDetail extends PlateformeResume {
+  cles: CleApi[];
+  marchands: MarchandLiePlateforme[];
+  appels: AppelPlateforme[];
+  volumeTest: VolumeTestPlateforme;
 }

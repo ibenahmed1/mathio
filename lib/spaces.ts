@@ -187,6 +187,23 @@ export function assertSpaceHostsConfigured(): void {
     );
   }
 
+  // L'hôte de l'API machine ne doit pas être l'un des trois hôtes d'espace.
+  // La collision ne serait pas silencieusement dangereuse — `resolveHost`
+  // interroge `spaceForHost` d'abord, donc l'espace gagnerait et l'API
+  // deviendrait simplement injoignable — mais c'est exactement le genre de
+  // panne qu'on ne veut pas diagnostiquer en production sur un « ça répond
+  // 404 » : mieux vaut refuser de démarrer.
+  if (HOST_API) {
+    const hoteApi = HOST_API.toLowerCase();
+    const collision = SESSION_SPACES.find((s) => SPACE_HOSTS[s].toLowerCase() === hoteApi);
+    if (collision) {
+      throw new Error(
+        `HOST_API (${HOST_API}) est déjà l'hôte de l'espace « ${collision} ». ` +
+          "L'API machine doit avoir son propre hôte, sur lequel aucun cookie n'est jamais posé."
+      );
+    }
+  }
+
   hotesVerifies = true;
 }
 
@@ -203,6 +220,72 @@ export function spaceForHost(host: string | null | undefined): SessionSpace | nu
       SPACE_HOSTS_ACCEPTES[s].some((h) => h.toLowerCase() === normalise)
     ) ?? null
   );
+}
+
+// --- L'hôte de l'API machine (§ plateformes partenaires) --------------------
+//
+// Un CINQUIÈME HÔTE, et surtout PAS un quatrième espace. Ajouter 'api' à
+// SESSION_SPACES polluerait mécaniquement six tables qui n'ont aucun sens
+// pour une machine (SESSION_COOKIE_NAMES, SPACE_ROLES, SPACE_LOGIN_ROLES,
+// HOME_SPACES…) et introduirait une valeur d'`aud` JWT qui ne doit jamais
+// être signée. `spaceForHost` reste donc inchangé et continue de renvoyer
+// `null` pour cet hôte : c'est ce qui garantit qu'aucun code existant
+// (getSessionUser, verifySpaceCookie, getPageSession) ne peut prendre un
+// appel machine pour une session.
+//
+// POURQUOI un hôte dédié plutôt qu'un préfixe d'URL exempté sur les hôtes
+// existants : sur un hôte qui pose des cookies de session, exempter un
+// sous-arbre du contrôle d'`Origin` rouvre exactement le trou que ce contrôle
+// a fermé (proxy.ts §2) — et le navigateur y joindrait AUTOMATIQUEMENT le
+// cookie de session. Il faudrait alors une règle négative (« si un cookie est
+// présent sur cette route, refuser »), c'est-à-dire de la sécurité par
+// exception. Ici, aucun cookie n'est jamais posé : il n'y a pas
+// d'authentification ambiante, donc la CSRF est sans objet et l'exemption
+// d'`Origin` est correcte PAR CONSTRUCTION.
+//
+// NON PRÉFIXÉ `NEXT_PUBLIC_`, contrairement aux trois hôtes d'espace : aucun
+// composant client n'a besoin de connaître cet hôte, et le garder hors du
+// bundle évite de publier l'adresse de l'API machine dans le JavaScript servi
+// aux marchands. Conséquence à connaître : dans un bundle client, cette
+// lecture vaut `undefined` et `resolveHost` retomberait sur l'hôte de
+// développement — la fonction ne doit donc JAMAIS être appelée depuis un
+// composant client. Elle ne l'est que par le proxy.
+const HOST_API_DEV = 'api.localhost:3000';
+
+// Optionnel, y compris en production : un déploiement qui n'ouvre aucune
+// intégration partenaire ne configure rien, `resolveHost` ne reconnaît alors
+// aucun hôte d'API, et toute la surface `/api/v1/**` reste injoignable. Une
+// intégration s'ouvre en posant une variable d'environnement, pas en
+// déployant du code.
+export const HOST_API: string | undefined =
+  process.env.HOST_API ?? (process.env.NODE_ENV === 'production' ? undefined : HOST_API_DEV);
+
+// Même tolérance que SPACE_HOSTS_ACCEPTES : hors production, l'hôte
+// `.localhost` reste accepté en plus d'une éventuelle surcharge, pour que
+// l'API reste joignable en local même quand la variable pointe sur un tunnel.
+const HOSTS_API_ACCEPTES: string[] =
+  process.env.NODE_ENV === 'production'
+    ? HOST_API
+      ? [HOST_API]
+      : []
+    : [...new Set([HOST_API ?? HOST_API_DEV, HOST_API_DEV])];
+
+// Nature d'un hôte, résolue une fois en tête de proxy. Le type SOMME est
+// délibéré : il force le proxy à traiter explicitement le cas machine, là où
+// un simple booléen se serait oublié dans une branche.
+export type HostKind =
+  | { kind: 'espace'; space: SessionSpace }
+  | { kind: 'api_plateformes' };
+
+export function resolveHost(host: string | null | undefined): HostKind | null {
+  if (!host) return null;
+  const space = spaceForHost(host);
+  if (space) return { kind: 'espace', space };
+  const normalise = host.trim().toLowerCase();
+  if (HOSTS_API_ACCEPTES.some((h) => h.toLowerCase() === normalise)) {
+    return { kind: 'api_plateformes' };
+  }
+  return null;
 }
 
 // Hôtes joignables en clair. Hors production, tout ce qui n'est pas la boucle

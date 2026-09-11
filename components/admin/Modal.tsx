@@ -42,7 +42,9 @@ export function Modal({
       onClick={onClose}
     >
       <div
-        className={`flex max-h-[90vh] w-full ${width} flex-col overflow-hidden rounded-2xl border border-black/[0.07] bg-white shadow-[0_30px_70px_-20px_rgba(32,32,32,0.45)] dark:border-white/10 dark:bg-neutral-950`}
+        // dvh et non vh : sur mobile, 90vh se mesure barre d'adresse repliée,
+        // et le pied de la boîte passait sous la barre du navigateur.
+        className={`flex max-h-[90dvh] w-full ${width} flex-col overflow-hidden rounded-2xl border border-black/[0.07] bg-white shadow-[0_30px_70px_-20px_rgba(32,32,32,0.45)] dark:border-white/10 dark:bg-neutral-950`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Bandeau jaune de 3px : la même signature que les fenêtres « design »

@@ -1,0 +1,12 @@
+-- Clé naturelle d'une agence sous-traitée : (prestataire, ville-siège).
+--
+-- Les hubs internes portent `prestataire_id` NULL ; en PostgreSQL deux NULL ne
+-- sont jamais égaux, l'index ne les contraint donc pas — plusieurs hubs
+-- internes dans une même ville restent possibles, ce qui est le comportement
+-- voulu (un hub central et un hub de quartier à Casablanca, par exemple).
+--
+-- Si la création échoue, c'est qu'un prestataire a déjà deux agences déclarées
+-- sur la même ville-siège : il faut les arbitrer (fusion ou correction de la
+-- ville-siège) avant de rejouer la migration. Échouer bruyamment est ici
+-- préférable — le doublon signale toujours une erreur de saisie ou d'import.
+CREATE UNIQUE INDEX "hubs_prestataire_id_ville_key" ON "hubs"("prestataire_id", "ville");

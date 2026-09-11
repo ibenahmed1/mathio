@@ -85,7 +85,7 @@ function CellulePreuve({ bonId, commandeId }: { bonId: string; commandeId: strin
           setChargement(false);
         }
       }}
-      className="flex items-center gap-1 text-xs font-semibold hover:underline disabled:opacity-50"
+      className="flex items-center gap-1 text-xs font-semibold hover:underline disabled:opacity-50 pointer-coarse:-mx-2 pointer-coarse:min-h-10 pointer-coarse:px-2"
     >
       <ImageIcon className="h-3.5 w-3.5" />
       {chargement ? 'Chargement…' : 'Voir la preuve'}
@@ -192,7 +192,7 @@ export function ClotureTournee() {
   if (erreur || !bilan) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/admin/bon-distribution" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 hover:opacity-100">
+        <Link href="/admin/bon-distribution" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 hover:opacity-100 pointer-coarse:min-h-10">
           <ChevronLeft className="h-4 w-4" />
           Retour aux Bons de Distribution
         </Link>
@@ -211,7 +211,7 @@ export function ClotureTournee() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href={`/admin/bon-distribution/${bilan.bonId}`}
-          className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100"
+          className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100 pointer-coarse:min-h-10"
         >
           <ChevronLeft className="h-4 w-4" />
           Retour à la tournée {bilan.numero}
@@ -240,7 +240,7 @@ export function ClotureTournee() {
 
       {/* Décompte de tête : ce que le système garantit au Planner avant même
           qu'il ne compte quoi que ce soit. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card-tint-strong flex flex-col gap-1 p-4">
           <span className="flex items-center gap-1.5 text-xs font-semibold opacity-60">
             <PackageCheck className="h-3.5 w-3.5" />
@@ -404,32 +404,34 @@ export function ClotureTournee() {
             <Wallet className="h-4 w-4" />
             Volet gains livreur — enregistrement séparé
           </h2>
-          <table className="table-basic">
-            <thead>
-              <tr>
-                <th>Ligne</th>
-                <th className="text-right">Nb</th>
-                <th className="text-right">Tarif</th>
-                <th className="text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bilan.detailGain.map((l) => (
-                <tr key={l.libelle}>
-                  <td>{l.libelle}</td>
-                  <td className="text-right">{l.nb}</td>
-                  <td className="text-right">{dh(l.tarifMoyen)}</td>
-                  <td className="text-right font-semibold">{dh(l.total)}</td>
+          <div className="overflow-x-auto">
+            <table className="table-basic">
+              <thead>
+                <tr>
+                  <th>Ligne</th>
+                  <th className="text-right">Nb</th>
+                  <th className="text-right">Tarif</th>
+                  <th className="text-right">Total</th>
                 </tr>
-              ))}
-              <tr>
-                <td colSpan={3} className="font-bold">
-                  Ajouté au solde à payer
-                </td>
-                <td className="text-right font-bold">{dh(bilan.gainLivreur)}</td>
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {bilan.detailGain.map((l) => (
+                  <tr key={l.libelle}>
+                    <td>{l.libelle}</td>
+                    <td className="text-right">{l.nb}</td>
+                    <td className="text-right">{dh(l.tarifMoyen)}</td>
+                    <td className="text-right font-semibold">{dh(l.total)}</td>
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={3} className="font-bold">
+                    Ajouté au solde à payer
+                  </td>
+                  <td className="text-right font-bold">{dh(bilan.gainLivreur)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p className="text-xs opacity-60">
             Tarifs résolus par ville (barème du livreur), avec repli sur ses frais par défaut. Ce montant ne touche pas
             la caisse ci-contre : il alimente son solde à payer pour le prochain règlement.

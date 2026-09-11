@@ -69,3 +69,129 @@ Content-Type: application/json
 
 ### 10. Logout
 POST {{baseUrl}}/api/auth/logout
+
+###############################################################################
+### API MACHINE DES PLATEFORMES PARTENAIRES (§ intégration Shipeh)
+###############################################################################
+### Ces requêtes ne partent PAS sur les hôtes d'espace : l'API machine vit sur
+### son propre hôte, et /api/v1/** répond 404 partout ailleurs.
+###
+### Aucun cookie, aucun en-tête Origin — l'authentification se fait par clé.
+### Émettre une clé depuis /admin/integrations ; elle n'est affichée qu'UNE
+### fois, à sa création.
+###
+### Pour un scénario complet et automatique (création, rejeu, rattachement,
+### lot partiel, quota, révocation) : npm run simuler:shipeh
+
+@apiUrl = http://api.localhost:3000
+@cle = mtk_test_00000000_remplacer_par_la_cle_emise
+
+### v1. Synchroniser un marchand
+POST {{apiUrl}}/api/v1/marchands
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{
+  "idExterne": "shipeh-12345",
+  "nomComplet": "Ahmed Benali",
+  "nomBoutique": "Atlas Store",
+  "telephone": "0612345678",
+  "email": "ahmed@atlas-store.ma",
+  "ville": "Casablanca",
+  "adresse": "12 rue des Orangers"
+}
+
+### v2. Rejouer la même synchronisation -> 200 "deja_synchronise", aucune écriture
+POST {{apiUrl}}/api/v1/marchands
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{
+  "idExterne": "shipeh-12345",
+  "nomComplet": "Ahmed Benali",
+  "nomBoutique": "Atlas Store",
+  "telephone": "0612345678",
+  "email": "ahmed@atlas-store.ma"
+}
+
+### v3. Déposer un colis
+POST {{apiUrl}}/api/v1/colis
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{
+  "idExterneMarchand": "shipeh-12345",
+  "reference": "SHP-2026-0001",
+  "clientNom": "Karim Idrissi",
+  "clientTelephone": "0655443322",
+  "ville": "Rabat",
+  "adresse": "18 avenue Mohammed V",
+  "montantCod": 349.90,
+  "produitDescription": "Casque audio",
+  "quantite": 1,
+  "fragile": true
+}
+
+### v4. Rejouer la même référence -> 200 "deja_ingere", MÊME code de suivi
+POST {{apiUrl}}/api/v1/colis
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{
+  "idExterneMarchand": "shipeh-12345",
+  "reference": "SHP-2026-0001",
+  "clientNom": "Karim Idrissi",
+  "clientTelephone": "0655443322",
+  "ville": "Rabat",
+  "adresse": "18 avenue Mohammed V",
+  "montantCod": 349.90
+}
+
+### v5. Déposer un lot -> 207, une ligne de résultat par colis
+### La 2e ligne est volontairement invalide (ville vide) : les autres passent.
+POST {{apiUrl}}/api/v1/colis/lot
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+[
+  {
+    "idExterneMarchand": "shipeh-12345",
+    "reference": "SHP-2026-1001",
+    "clientNom": "Sara Alaoui",
+    "clientTelephone": "0611223344",
+    "ville": "Fès",
+    "adresse": "5 rue Talaa",
+    "montantCod": 120
+  },
+  {
+    "idExterneMarchand": "shipeh-12345",
+    "reference": "SHP-2026-1002",
+    "clientNom": "Youssef Nait",
+    "clientTelephone": "0622334455",
+    "ville": "",
+    "adresse": "22 bd Zerktouni",
+    "montantCod": 80
+  },
+  {
+    "idExterneMarchand": "shipeh-12345",
+    "reference": "SHP-2026-1003",
+    "clientNom": "Nadia Cherkaoui",
+    "clientTelephone": "0633445566",
+    "ville": "Agadir",
+    "adresse": "8 avenue Hassan II",
+    "montantCod": 210.5
+  }
+]
+
+### v6. Sans clé -> 401 "cle_absente"
+POST {{apiUrl}}/api/v1/colis
+Content-Type: application/json
+
+{ "reference": "peu importe" }
+
+### v7. Depuis un hôte d'espace -> 404, l'API n'y existe pas
+POST http://admin.localhost:3000/api/v1/colis
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{ "reference": "peu importe" }

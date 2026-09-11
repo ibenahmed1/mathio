@@ -270,6 +270,7 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
                 <input
                   className="input-bare"
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   placeholder="0,00"
                   value={form.montantCod}

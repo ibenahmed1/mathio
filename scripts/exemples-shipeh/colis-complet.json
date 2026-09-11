@@ -1,0 +1,17 @@
+{
+  "idExterneMarchand": "SHIPEH-M1",
+  "reference": "SHP-2026-0001",
+  "clientNom": "Karim Idrissi",
+  "clientTelephone": "0655443322",
+  "ville": "Rabat",
+  "adresse": "18 avenue Mohammed V, appartement 4",
+  "montantCod": 349.9,
+
+  "codePostal": "10000",
+  "produitDescription": "Casque audio sans fil",
+  "quantite": 1,
+  "poidsKg": 0.8,
+  "notes": "Livrer avant 18h, interphone 4B",
+  "fragile": true,
+  "ouvrir": false
+}

@@ -301,6 +301,7 @@ test('l’agent hub garde la lecture des colis dont son écran a besoin', () => 
 const MIGRATIONS_PERMISSIONS = [
   '20260828120000_permissions_back_office',
   '20260828140000_permissions_complements',
+  '20260902103100_permission_integrations',
 ];
 
 test('le remplissage SQL des migrations correspond à ROLE_PERMISSIONS', () => {

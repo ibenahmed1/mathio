@@ -26,7 +26,7 @@ export default function MotDePasseOubliePage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand p-8">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-brand p-4 sm:p-8">
       <Logo size="lg" />
       <div className="w-full max-w-sm rounded-xl bg-black p-6 shadow-lg">
         <h1 className="mb-2 text-xl font-black text-white">Mot de passe oublié</h1>
@@ -53,7 +53,7 @@ export default function MotDePasseOubliePage() {
           </button>
         </form>
         <p className="mt-4 text-xs text-white/50">
-          <a className="font-semibold text-brand underline" href="/login">
+          <a className="-my-2 inline-block py-2 font-semibold text-brand underline" href="/login">
             Retour à la connexion
           </a>
         </p>

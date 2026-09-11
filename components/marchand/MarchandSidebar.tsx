@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { LogOut, X } from 'lucide-react';
-import { apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import s from './MarchandSidebar.module.css';
 
@@ -51,7 +51,11 @@ export function MarchandSidebar({
   const router = useRouter();
 
   async function handleLogout() {
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 

@@ -79,12 +79,12 @@ export function PreuveLivraison({
         >
           <div className="flex w-full max-w-3xl items-center justify-between text-white">
             <span className="text-sm font-semibold">{plein.titre}</span>
-            <button type="button" onClick={() => setPlein(null)} aria-label="Fermer" className="rounded-md p-1 hover:bg-white/10">
+            <button type="button" onClick={() => setPlein(null)} aria-label="Fermer" className="-m-1.5 rounded-md p-2.5 hover:bg-white/10">
               <X className="h-5 w-5" />
             </button>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={plein.src} alt={plein.titre} className="max-h-[80vh] max-w-full rounded-lg bg-white object-contain" />
+          <img src={plein.src} alt={plein.titre} className="max-h-[80dvh] max-w-full rounded-lg bg-white object-contain" />
         </div>
       )}
     </div>

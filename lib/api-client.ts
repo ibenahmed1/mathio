@@ -31,10 +31,29 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+
+  // Le corps n'est pas toujours du JSON. Toutes les réponses de l'application
+  // le sont (routes via jsonError, proxy), mais pas celles qui arrivent AVANT
+  // elle : page HTML 502/504 de l'hébergeur, page « introuvable » de Next après
+  // un déploiement raté ou sur un cache .next incohérent. `JSON.parse` levait
+  // alors une SyntaxError (« Unexpected token '<' ») qui remontait telle
+  // quelle — affichée mot pour mot par les écrans qui montrent `err.message`,
+  // et en rejet non rattrapé ailleurs : les boutons de déconnexion restaient
+  // sans effet, sans un mot. Un corps illisible cède donc la place au statut.
+  let data: unknown = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Un 200 illisible n'est pas une donnée : le renvoyer tel quel ferait
+      // lire `undefined` plus loin, à un endroit sans rapport avec la cause.
+      throw new ApiRequestError(res.ok ? 'Réponse inattendue du serveur' : `Erreur ${res.status}`, null);
+    }
+  }
 
   if (!res.ok) {
-    const message = (data && typeof data.error === 'string' ? data.error : null) ?? `Erreur ${res.status}`;
+    const erreur = (data as { error?: unknown } | null)?.error;
+    const message = typeof erreur === 'string' ? erreur : `Erreur ${res.status}`;
     throw new ApiRequestError(message, data);
   }
   return data as T;

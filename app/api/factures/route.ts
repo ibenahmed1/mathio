@@ -4,12 +4,14 @@ import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import {
   creerFacture,
+  FACTURE_OMIT_COUTS,
   getColisFacturables,
   getTarifsMarchand,
   parseFraisAnnexes,
   parseReglement,
   reglerFacture,
 } from '@/lib/facturation';
+import { getCoutsPrestataire } from '@/lib/prestataires';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutFacture } from '@/app/generated/prisma/enums';
 
@@ -67,6 +69,9 @@ export async function GET(request: NextRequest) {
     const [data, total] = await Promise.all([
       prisma.facture.findMany({
         where,
+        // Les totaux de coût ne descendent jamais dans une liste servie à un
+        // marchand — même règle que le détail (cf. getFacturePourMarchand).
+        ...(session.role === 'marchand' ? { omit: FACTURE_OMIT_COUTS } : {}),
         include: {
           marchand: { select: { id: true, nomBoutique: true, raisonSociale: true } },
           emisePar: { select: { nomComplet: true } },
@@ -145,7 +150,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const tarifs = await getTarifsMarchand(marchand);
+    const [tarifs, couts] = await Promise.all([getTarifsMarchand(marchand), getCoutsPrestataire()]);
     const now = new Date();
 
     const facture = await prisma.$transaction(async (tx) => {
@@ -153,6 +158,7 @@ export async function POST(request: Request) {
         marchandId,
         colis: retenus,
         tarifs,
+        couts,
         autresFrais,
         emiseParId: session.sub,
       });

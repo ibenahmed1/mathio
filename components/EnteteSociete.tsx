@@ -27,8 +27,16 @@ export function EnteteSociete({
       <p className="font-bold">{societe.raisonSociale}</p>
       {societe.adresse && <p className="text-xs">{societe.adresse}</p>}
       {societe.telephone && <p className="text-xs">Tél. {societe.telephone}</p>}
-      {societe.email && <p className="text-xs">{societe.email}</p>}
-      {societe.siteWeb && <p className="text-xs">{societe.siteWeb}</p>}
+      {/* E-mail et site sont d'un seul tenant : sans point de coupure, ils
+          imposent leur largeur à tout l'en-tête sur un écran étroit. La
+          coupure est annulée à l'impression, où la largeur A4 suffit et où la
+          mise en page papier ne doit pas bouger. */}
+      {societe.email && (
+        <p className="text-xs [overflow-wrap:anywhere] print:[overflow-wrap:normal]">{societe.email}</p>
+      )}
+      {societe.siteWeb && (
+        <p className="text-xs [overflow-wrap:anywhere] print:[overflow-wrap:normal]">{societe.siteWeb}</p>
+      )}
       {children}
     </div>
   );

@@ -13,6 +13,7 @@ import {
   type RepartitionStatut,
 } from '@/lib/statistiques-core';
 import type { Prisma } from '@/app/generated/prisma/client';
+import type { StatutFacture } from '@/app/generated/prisma/enums';
 
 // § Statistiques (/admin/statistique/**) — accès à la base.
 //
@@ -255,6 +256,76 @@ export async function getVentilationClient(
       cod: Number(l._sum.montantCod ?? 0),
     }))
   );
+}
+
+// ------------------------------------------------------------
+// Marge de la plateforme
+// ------------------------------------------------------------
+
+// Ce que les colis d'une période ont RAPPORTÉ, net de ce qu'ils ont COÛTÉ.
+//
+// Les deux montants sont lus sur les lignes de facture, où ils ont été figés
+// ensemble à l'émission (cf. LigneFacture.frais et LigneFacture.coutLivraison) :
+// `frais` est ce que le marchand nous doit pour ce colis, `coutLivraison` ce que
+// la course nous a coûté — livreur interne ou prestataire. Le COD n'entre dans
+// ni l'un ni l'autre : il transite par nos comptes mais appartient au marchand.
+//
+// Cohorte par COLIS, comme tout cet écran : on agrège les lignes des colis
+// CRÉÉS sur la période, pas les factures ÉMISES sur la période. Les deux
+// répondent à des questions différentes, et celle que pose cette page est
+// « les colis pris en charge sur la période, qu'ont-ils rapporté ? ».
+//
+// Trois écarts assumés, tous dans le sens de la prudence :
+//
+//   · Les factures en BROUILLON sont exclues. Leurs montants sont encore
+//     modifiables ; les compter ferait bouger un indicateur financier au gré
+//     d'une case décochée. Une facture annulée, elle, n'a plus aucune ligne
+//     (cf. StatutFacture) — il n'y a donc rien à exclure de ce côté.
+//
+//   · Les FRAIS ANNEXES (emballage, réexpédition…) sont exclus : ils sont
+//     portés par la facture, pas par un colis, et ne sont donc attribuables à
+//     aucune cohorte. La marge est de ce fait légèrement SOUS-estimée.
+//
+//   · `nbCoutInconnu` compte les colis dont le coût n'a pas pu être établi —
+//     ville d'agence sans tarif convenu, retour non chiffré, tournée clôturée
+//     avant le suivi des frais livreur. Sur ceux-là le produit est compté et
+//     le coût vaut zéro : la marge est donc SURESTIMÉE d'autant, et l'écran
+//     doit le dire plutôt que de laisser lire un résultat.
+export interface MargePeriode {
+  produit: number;
+  cout: number;
+  marge: number;
+  nbColisFactures: number;
+  nbCoutInconnu: number;
+}
+
+const STATUTS_FACTURE_ARRETEE: StatutFacture[] = ['emise', 'payee'];
+
+export async function getMarge(where: Prisma.CommandeWhereInput): Promise<MargePeriode> {
+  const filtre: Prisma.LigneFactureWhereInput = {
+    commande: where,
+    facture: { statut: { in: STATUTS_FACTURE_ARRETEE } },
+  };
+
+  const [agregat, nbCoutInconnu] = await Promise.all([
+    prisma.ligneFacture.aggregate({
+      where: filtre,
+      _sum: { frais: true, coutLivraison: true },
+      _count: { _all: true },
+    }),
+    prisma.ligneFacture.count({ where: { ...filtre, coutLivraison: null } }),
+  ]);
+
+  const produit = Number(agregat._sum.frais ?? 0);
+  const cout = Number(agregat._sum.coutLivraison ?? 0);
+
+  return {
+    produit,
+    cout,
+    marge: Number((produit - cout).toFixed(2)),
+    nbColisFactures: agregat._count._all,
+    nbCoutInconnu,
+  };
 }
 
 export { STATUTS_TERMINAUX };

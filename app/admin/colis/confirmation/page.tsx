@@ -62,13 +62,15 @@ export default function AdminConfirmationColisPage() {
                 <td>{c.ville}</td>
                 <td>{c.montantCod} DH</td>
                 <td>{c.aRisque ? '⚠️' : ''}</td>
-                <td className="flex gap-2">
-                  <button onClick={() => changerStatut(c.id, 'attente_de_ramassage')} className="btn-outline px-2 py-1 text-xs">
-                    Confirmer
-                  </button>
-                  <button onClick={() => changerStatut(c.id, 'annule')} className="btn-outline px-2 py-1 text-xs">
-                    Annuler
-                  </button>
+                <td>
+                  <div className="flex gap-2">
+                    <button onClick={() => changerStatut(c.id, 'attente_de_ramassage')} className="btn-outline px-2 py-1 text-xs">
+                      Confirmer
+                    </button>
+                    <button onClick={() => changerStatut(c.id, 'annule')} className="btn-outline px-2 py-1 text-xs">
+                      Annuler
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

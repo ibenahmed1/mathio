@@ -7,6 +7,7 @@ import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { STATUTS_A_RELANCER } from '@/lib/statuts';
 import { ColisActionsMenu } from '@/components/marchand/ColisActionsMenu';
+import { COLONNE_COLLANTE_CARTE } from '@/components/marchand/colonne-collante';
 import { ColisSubNav } from '../ColisSubNav';
 
 // Colis dont la dernière tentative de livraison a échoué (hors livrés et hors
@@ -77,24 +78,30 @@ export default function ColisARelancerPage() {
                 <th>Adresse</th>
                 <th className="text-right">Prix</th>
                 <th>Statut</th>
-                <th></th>
+                <th className={COLONNE_COLLANTE_CARTE.th}></th>
               </tr>
             </thead>
             <tbody>
               {commandes.map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id} className="group">
                   <td className="font-mono text-xs font-semibold text-black/70 dark:text-white/70">{c.codeSuivi}</td>
                   <td className="font-medium">{c.clientNom}</td>
                   <td className="whitespace-nowrap">{c.clientTelephone}</td>
                   <td>{c.ville}</td>
-                  <td className="max-w-[220px] truncate" title={c.adresse}>
-                    {c.adresse}
+                  <td className="max-w-[220px]" title={c.adresse}>
+                    {/* `title` ne s'affiche qu'au survol : au doigt, l'adresse tronquée
+                        serait illisible — c'est pourtant elle qu'on vient corriger ici.
+                        Le line-clamp vit dans un <div> : posé sur la cellule, il lui
+                        retirerait son display table-cell. */}
+                    <div className="truncate pointer-coarse:line-clamp-2 pointer-coarse:whitespace-normal pointer-coarse:break-words">
+                      {c.adresse}
+                    </div>
                   </td>
                   <td className="text-right font-semibold tabular-nums">{c.montantCod} DH</td>
                   <td>
                     <StatutBadge statut={c.statut} />
                   </td>
-                  <td>
+                  <td className={COLONNE_COLLANTE_CARTE.td}>
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => relancer(c.id)}

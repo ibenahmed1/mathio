@@ -1,0 +1,167 @@
+/* ===== Tableau de bord Accueil — mise en page, composition & responsive =====
+   Porté de la maquette « Améliorer l'interface du dashboard ». Le fond, les
+   cartes et les rayons sont ceux de la maquette : cet écran pose sa propre
+   surface d'un bord à l'autre (cf. isFullBleed dans AdminShell) au lieu
+   d'hériter du halo ambré de .shell-surface, qui écrasait les dégradés des
+   cadrans. */
+.main {
+  min-width: 0;
+  width: 100%;
+  padding: 24px 26px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: #F0F0ED;
+  color: #1A1A18;
+  /* Inter Tight est déjà chargée par next/font (app/layout.tsx) : on réutilise
+     sa variable plutôt que d'ajouter un <link> Google Fonts, qui ferait une
+     seconde requête pour la même fonte. */
+  font-family: var(--font-inter-tight), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+.card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(26, 26, 24, 0.05);
+}
+
+/* --- Rangée 1 : cadrans KPI --- */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+.kpi {
+  border-radius: 12px;
+  padding: 18px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --- Rangée 2 : graphe principal + trafic --- */
+.row2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+.chartCard { padding: 20px 22px 0; display: flex; flex-direction: column; gap: 16px; }
+.chartBody { display: flex; gap: 20px; min-height: 210px; }
+.chartStats { display: flex; flex-direction: column; gap: 16px; flex: 0 0 150px; }
+.chartFooter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #F0F0ED;
+  margin: 0 -22px;
+  padding: 14px 22px;
+  gap: 14px;
+}
+.trafficCard { padding: 20px 22px; display: flex; flex-direction: column; gap: 18px; }
+.trafficLegend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: auto; }
+
+/* --- Rangée 3 : activités + commandes --- */
+.row3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 18px;
+  align-items: stretch;
+}
+.tableWrap { overflow-x: auto; }
+.table {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr 0.8fr 1fr;
+  font-size: 12px;
+  min-width: 520px;
+}
+
+/* --- Rangée 4 : zones + carte --- */
+.row4 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+/* Carte du Maroc et villes de base des prestataires. La zone de dessin est
+   posée en absolu : d3 lit sa taille au moment du rendu (clientWidth,
+   clientHeight), c'est donc elle, et non la carte, qui fixe le cadrage. */
+.carteCadre { position: relative; min-height: 340px; padding: 14px; }
+.carteZone {
+  position: absolute;
+  inset: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Coin haut-gauche : le Maroc, plus haut que large, laisse ce coin vide sur une
+   carte large. */
+.carteLegende {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-width: 230px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #F0F0ED;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(26, 26, 24, 0.06);
+  font-size: 11.5px;
+  color: #4A4A45;
+}
+.carteLegendeTitre { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #A3A39C; }
+.carteLegendeListe { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.carteLegendeLigne { display: flex; align-items: center; gap: 8px; cursor: default; }
+.carteLegendePastille { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; }
+.carteLegendeNom { flex: 1; font-weight: 600; white-space: nowrap; }
+.carteLegendeCompte { color: #6E6E68; font-variant-numeric: tabular-nums; }
+.carteLegendeManque { font-size: 10.5px; color: #B85200; }
+/* Carte étroite : le Maroc prend toute la largeur utile et la légende ne trouve
+   plus de coin libre. Elle passe sous la carte, et la zone de dessin s'arrête
+   au-dessus d'elle — sans quoi la côte atlantique passerait dessous. */
+@media (max-width: 640px) {
+  .carteCadre { min-height: 520px; }
+  .carteZone { bottom: 190px; }
+  .carteLegende { top: auto; right: 14px; bottom: 14px; left: 14px; max-width: none; }
+}
+
+/* --- Rangée 5 : vue d'ensemble + sparklines --- */
+.row5 {
+  display: grid;
+  grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+.sparkCol { display: flex; flex-direction: column; gap: 18px; }
+
+/* --- Survols --- */
+.btnYellow:hover { filter: brightness(0.96); }
+.btnNavy:hover { filter: brightness(1.08); }
+
+/* ===== Responsive ===== */
+@media (max-width: 1280px) {
+  .kpiRow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .row2, .row3, .row4, .row5 { grid-template-columns: minmax(0, 1fr); }
+  .sparkCol { flex-direction: row; }
+  .sparkCol > * { flex: 1; }
+}
+@media (max-width: 768px) {
+  .main { padding: 16px 14px 28px; gap: 14px; }
+  .chartBody { flex-direction: column; }
+  .chartStats { flex: none; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 20px; }
+  .chartFooter { grid-template-columns: 1fr; gap: 10px; }
+  .sparkCol { flex-direction: column; }
+  .trafficLegend { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Seuil à 640 et non 480 : entre les deux, deux cadrans côte à côte laissaient
+   trop peu de place à la valeur COD et à la mini-courbe (58 px), qui
+   débordaient du cadran. */
+@media (max-width: 640px) {
+  .kpiRow { grid-template-columns: minmax(0, 1fr); }
+}

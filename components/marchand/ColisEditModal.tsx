@@ -123,6 +123,7 @@ export function ColisEditModal({
           Téléphone <span className="text-red-600">*</span>
           <input
             className="input-basic"
+            type="tel"
             value={form.clientTelephone}
             onChange={(e) => setForm({ ...form, clientTelephone: e.target.value })}
             required
@@ -172,6 +173,7 @@ export function ColisEditModal({
               <input
                 className="input-basic"
                 type="number"
+                inputMode="numeric"
                 min="1"
                 value={form.quantite}
                 onChange={(e) => {
@@ -186,6 +188,7 @@ export function ColisEditModal({
                 <input
                   className="input-bare"
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   placeholder="0,00"
                   value={form.montantCod}
@@ -228,37 +231,37 @@ export function ColisEditModal({
             </Field>
 
             <div className="sm:col-span-2 flex flex-wrap gap-4 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-              <label className="flex items-center gap-2 text-sm font-medium">
+              <label className="check-row">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-brand"
+                  className="check-basic"
                   checked={form.ouvrir}
                   onChange={(e) => setForm({ ...form, ouvrir: e.target.checked })}
                 />
                 Ouvrir
               </label>
-              <label className="flex items-center gap-2 text-sm font-medium">
+              <label className="check-row">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-brand"
+                  className="check-basic"
                   checked={form.fragile}
                   onChange={(e) => setForm({ ...form, fragile: e.target.checked })}
                 />
                 Fragile
               </label>
-              <label className="flex items-center gap-2 text-sm font-medium">
+              <label className="check-row">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-brand"
+                  className="check-basic"
                   checked={form.aRemplacer}
                   onChange={(e) => setForm({ ...form, aRemplacer: e.target.checked })}
                 />
                 À remplacer (échange)
               </label>
-              <label className="flex items-center gap-2 text-sm font-medium">
+              <label className="check-row">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-brand"
+                  className="check-basic"
                   checked={form.enStock}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, enStock: e.target.checked, produitId: e.target.checked ? f.produitId : '' }))

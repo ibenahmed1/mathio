@@ -24,14 +24,19 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
 
   const societe = await getParametresSociete();
 
+  // Les coûts et la marge sont écartés dès la requête, y compris pour un admin :
+  // cette page EST le document remis au marchand, et un chiffre qu'on ne charge
+  // pas ne peut pas être imprimé par accident (cf. LigneFacture.coutLivraison).
   const facture = await prisma.facture.findUnique({
     where: { id },
+    omit: { totalCoutLivraison: true, nbLignesCoutInconnu: true },
     include: {
       marchand: { include: { utilisateur: true } },
       emisePar: { select: { nomComplet: true } },
       validePar: { select: { nomComplet: true } },
       fraisAnnexes: { orderBy: { dateCreation: 'asc' } },
       lignes: {
+        omit: { coutLivraison: true, coutSource: true },
         include: {
           commande: {
             select: { codeSuivi: true, clientNom: true, ville: true, dateLivraison: true },
@@ -71,7 +76,12 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
   const fmt = (v: unknown) => `${Number(v).toFixed(2)} DH`;
 
   return (
-    <div className="mx-auto max-w-3xl bg-white p-10 text-black">
+    <div className="doc-scroll">
+      {/* Au téléphone, le document garde sa largeur de page et défile dans ce
+          cadre, au lieu d'élargir tout l'écran. À l'impression, le cadre et la
+          largeur minimale s'effacent (cf. .doc-scroll / .doc-page dans
+          globals.css) : la mise en page papier est inchangée. */}
+    <div className="doc-page mx-auto max-w-3xl bg-white p-10 text-black">
       <style>{`
         @media print {
           @page { margin: 12mm; }
@@ -241,6 +251,7 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
           <p className="mt-1 opacity-60">Bon pour accord</p>
         </div>
       </div>
+    </div>
     </div>
   );
 }

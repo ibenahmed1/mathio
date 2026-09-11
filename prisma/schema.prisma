@@ -56,6 +56,19 @@ enum Role {
   // il planifie les tournées, et c'est là que se joue son cantonnement, dans
   // les données plutôt que dans le routage.
   planner
+  // Compte de SERVICE d'une plateforme partenaire (§ PlateformePartenaire).
+  // N'est jamais porté par une personne : il n'existe que pour signer les
+  // écritures faites au nom de la plateforme, là où une FK vers Utilisateur
+  // est obligatoire (HistoriqueStatutCommande.utilisateurId).
+  //
+  // C'est le SEUL rôle absent de SPACE_ROLES et de SPACE_LOGIN_ROLES
+  // (lib/auth.ts) : il n'appartient à aucun espace applicatif, donc aucun
+  // domaine ne peut lui ouvrir de session ni en accepter une. Le refus ne
+  // dépend pas de `actif`, ni d'un contrôle dans un handler — il n'y a
+  // simplement aucun espace où ce rôle soit autorisé. C'est aussi pourquoi
+  // getHomeSpace renvoie `null` pour lui, et pourquoi ROLES_EQUIPE
+  // (app/api/utilisateurs) ne le propose pas : il ne se crée pas à la main.
+  plateforme
 }
 
 enum TypeCompteMarchand {
@@ -350,6 +363,12 @@ model Utilisateur {
   handoffsRecus SessionHandoff[] @relation("SessionHandoffCible")
   handoffsEmis  SessionHandoff[] @relation("SessionHandoffEmetteur")
 
+  // § Plateformes partenaires : renseigné UNIQUEMENT sur le compte de service
+  // d'une plateforme (rôle `plateforme`), au plus un par plateforme. Voir
+  // PlateformePartenaire.utilisateurTechnique pour la raison d'être de ce
+  // compte.
+  plateformeTechnique PlateformePartenaire? @relation("PlateformeUtilisateurTechnique")
+
   // § Règlements (/admin/bon-paiement, /admin/factures) : bons de paiement
   // dont il est le BÉNÉFICIAIRE (livreur), et ceux qu'il a émis en tant
   // qu'admin/responsable — deux relations distinctes vers le même modèle,
@@ -502,6 +521,11 @@ model Marchand {
   tarifsVilles    TarifMarchandVille[]
   factures        Facture[]
   bonsRetour      BonRetour[]
+
+  // § Plateformes partenaires : canaux de vente depuis lesquels ce marchand
+  // nous est arrivé (ou auxquels il a été rattaché après coup s'il s'était
+  // déjà inscrit en direct). Vide pour l'immense majorité des marchands.
+  comptesExternes CompteMarchandExterne[]
 
   @@map("marchands")
 }
@@ -1158,6 +1182,18 @@ model Hub {
   // en pratique, mais pas contraint en DB.
   isCentral Boolean @default(false) @map("is_central")
 
+  // § Sous-traitance (/admin/prestataires) — non nul = ce hub est une AGENCE
+  // d'un prestataire externe : les colis y sont remis au prestataire qui livre
+  // lui-même, il n'y a donc ni livreur interne rattaché ni Bon de Distribution
+  // dessus. Null = hub interne, fonctionnement historique inchangé (livreurs,
+  // ramasseurs, § /admin/bon-distribution). C'est volontairement le SEUL
+  // marqueur de sous-traitance : comme Ville.hubId désigne déjà qui couvre une
+  // ville, basculer une ville de l'interne vers un prestataire (et retour) ne
+  // demande que de la déplacer d'un hub à l'autre, sans migration ni champ
+  // supplémentaire à tenir synchronisé.
+  prestataireId String?      @map("prestataire_id")
+  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id])
+
   villes Ville[]
 
   // § /admin/scan/reception : agents hub et livreurs rattachés, colis
@@ -1177,21 +1213,104 @@ model Hub {
   bonsPaiement         BonPaiement[]              @relation("BonPaiementHub")
   bonsRetour           BonRetour[]                @relation("BonRetourHub")
 
+  // Clé naturelle d'une AGENCE : un prestataire n'a qu'un quai par ville-siège.
+  // `nom` reste unique de son côté, mais c'est un libellé, pas une identité —
+  // s'y fier pour retrouver une agence a permis à un import de réaffecter le
+  // hub d'un prestataire à un autre, ses villes avec lui (§ resoudreAgence
+  // dans lib/prestataires.ts). Les hubs internes ont `prestataireId` NULL et
+  // ne sont donc pas contraints par cet index : plusieurs hubs internes dans
+  // une même ville restent possibles, c'est voulu.
+  @@unique([prestataireId, ville])
+  @@index([prestataireId])
   @@map("hubs")
 }
 
 model Ville {
   id    String @id @default(uuid())
-  nom   String @unique
+  nom   String
   hubId String @map("hub_id")
   hub   Hub    @relation(fields: [hubId], references: [id])
 
-  tarifsLivreurs  TarifLivreurVille[]
-  tarifsMarchands TarifMarchandVille[]
-  commandes       Commande[]
+  tarifsLivreurs     TarifLivreurVille[]
+  tarifsMarchands    TarifMarchandVille[]
+  tarifsPrestataires TarifPrestataireVille[]
+  commandes          Commande[]
 
+  // Le nom était unique pour TOUT le réseau. C'était juste tant qu'un seul
+  // transporteur existait : une ville n'appartenait qu'à un hub, le nom
+  // l'identifiait donc sans ambiguïté.
+  //
+  // La sous-traitance a rendu cette contrainte fausse. Plusieurs prestataires
+  // desservent les mêmes villes — EST Livraison et Meta Livraison annoncent
+  // tous deux Taza, Aknoul, Tahla, Bouhlou — et chacun a SON prix et SON
+  // délai. Sous l'ancienne règle, le second import se voyait refuser ces
+  // villes : sa grille était donc amputée en silence, et l'écran ne reflétait
+  // plus la couverture réelle de l'un des deux réseaux.
+  //
+  // L'unicité porte désormais sur (hub, nom) : chaque agence tient sa propre
+  // liste, telle que son fournisseur l'a écrite, sans jamais empiéter sur
+  // celle d'un concurrent. Deux lignes « Aknoul » coexistent, une par réseau.
+  //
+  // ⚠️ Conséquence à connaître : `getVilleHubIndex()` (lib/hub-envoi.ts) fait
+  // correspondre une ville en texte libre à UN hub. Quand plusieurs réseaux
+  // annoncent la même ville, ce choix devient commercial et non technique —
+  // l'index applique une règle déterministe et documentée, faute d'arbitrage
+  // explicite en base.
+  @@unique([hubId, nom])
   @@index([hubId])
+  @@index([nom])
   @@map("villes")
+}
+
+// Prestataire de livraison sous-traité (§ /admin/prestataires) — société
+// externe (Power Delivery…) qui prend nos colis en charge sur un périmètre de
+// villes, à son propre tarif. Ses points de dépôt physiques ne sont pas une
+// nouvelle entité : ce sont des Hub dont `prestataireId` pointe ici, si bien
+// que le référentiel géographique reste plat (Hub ↔ Ville) et que tout le
+// circuit colis existant (réception au quai, transit inter-hubs, historique)
+// fonctionne à l'identique sur une agence sous-traitée.
+model Prestataire {
+  id        String  @id @default(uuid())
+  nom       String  @unique
+  contact   String?
+  telephone String?
+  email     String?
+  // Désactivé plutôt que supprimé : un prestataire dont on arrête le contrat
+  // reste porteur de l'historique tarifaire des colis déjà livrés.
+  actif     Boolean @default(true)
+
+  agences Hub[]
+  tarifs  TarifPrestataireVille[]
+
+  @@map("prestataires")
+}
+
+// Grille tarifaire d'ACHAT de la livraison sous-traitée — troisième grille du
+// système, à côté de TarifLivreurVille (ce que nous devons au livreur interne)
+// et TarifMarchandVille (ce que le marchand nous doit). Les trois coexistent
+// et ne sont jamais dérivées l'une de l'autre, pour la même raison : la marge
+// sur une ville sous-traitée EST la différence entre le tarif marchand et
+// celui-ci, et la rendre implicite la rendrait impossible à piloter.
+//
+// Volontairement indexée sur (prestataire, ville) et non sur l'agence : un
+// prestataire peut être tarifé sur une ville qu'il ne dessert pas encore
+// (comparaison d'offres, bascule), tandis que Ville.hubId dit qui la couvre
+// réellement aujourd'hui.
+//
+// tarifRetour est nullable parce que les grilles fournisseurs ne le donnent
+// pas toujours — celle de Power Delivery n'a qu'une colonne livraison.
+model TarifPrestataireVille {
+  id             String      @id @default(uuid())
+  prestataireId  String      @map("prestataire_id")
+  prestataire    Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Cascade)
+  villeId        String      @map("ville_id")
+  ville          Ville       @relation(fields: [villeId], references: [id], onDelete: Cascade)
+  tarifLivraison Decimal     @map("tarif_livraison") @db.Decimal(10, 2)
+  tarifRetour    Decimal?    @map("tarif_retour") @db.Decimal(10, 2)
+
+  @@unique([prestataireId, villeId])
+  @@index([villeId])
+  @@map("tarifs_prestataire_ville")
 }
 
 // Surcharge des frais de livraison/refus d'un livreur pour une ville donnée
@@ -1252,6 +1371,29 @@ model EquipeTacheMembre {
   @@map("equipes_taches_membres")
 }
 
+// Étiquettes de tâche (§ /admin/tasks) : liste tenue en base et modifiable
+// depuis le tableau, plutôt qu'une énumération figée dans le code — ajouter un
+// thème ne demande plus un déploiement.
+//
+// Tache.etiquettes stocke des `code`, pas des libellés : renommer une
+// étiquette n'oblige pas à réécrire les tâches qui la portent. La suppression
+// d'une étiquette retire son code des tâches dans la même transaction (cf.
+// DELETE /api/taches/etiquettes/[id]), sinon les tableaux garderaient des
+// codes fantômes qu'aucune couleur ne saurait peindre.
+model EtiquetteTache {
+  id String @id @default(uuid())
+  // Identifiant lisible et stable, dérivé du nom à la création.
+  code String @unique
+  nom  String
+  // Clé de la palette de chips (design, frontend, backend, research, bug,
+  // docs) consommée côté UI — jamais une valeur CSS brute, même convention
+  // qu'EquipeTache.couleur.
+  couleur      String   @default("docs")
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  @@map("etiquettes_taches")
+}
+
 model Tache {
   id           String        @id @default(uuid())
   numero       Int           @unique @default(autoincrement())
@@ -1303,9 +1445,24 @@ model HistoriqueStatutTache {
   @@map("historique_statuts_tache")
 }
 
-// Pièces jointes d'une tâche (§ /admin/tasks) : lien nommé plutôt qu'un
-// upload de fichier — même convention que Produit.photoUrl, pas d'infra de
-// stockage de fichiers dans ce projet.
+// Pièces jointes d'une tâche (§ /admin/tasks).
+//
+// `url` porte DEUX choses, et il faut le savoir avant d'écrire une requête
+// dessus :
+//   - un lien externe (« https://… »), ou
+//   - un fichier déposé, encodé en entier dans une data URL
+//     (« data:<mime>;base64,… »).
+// Même convention que Utilisateur.photoUrl : le projet n'a pas d'infra de
+// stockage de fichiers, et en monter une pour un tableau interne coûterait
+// plus cher que la place prise en base. Le plafond de 3 Mo posé dans
+// lib/pieces-jointes.ts (avec la liste blanche des formats acceptés) est ce
+// qui rend le choix tenable.
+//
+// CONSÉQUENCE : ne jamais sélectionner `url` pour dresser une liste. Un
+// findMany naïf rapatrierait plusieurs mégaoctets de base64 par tâche — c'est
+// la raison d'être de `piecesJointesExposees` (lib/taches-pieces-jointes.ts),
+// qui n'en lit que l'en-tête, et de la route de contenu qui sert l'octet à la
+// demande.
 model PieceJointeTache {
   id        String      @id @default(uuid())
   tacheId   String      @map("tache_id")
@@ -1389,12 +1546,27 @@ model Transaction {
 // Commandes de stock des hubs (équipement, consommables)
 // ============================================================
 
-// Statut de réception d'une commande de matériel/équipement passée pour le
+// Cycle de vie d'une commande de matériel/équipement passée pour le
 // fonctionnement d'un hub (rayonnage, consommables d'emballage...) — distinct
 // de Produit.statutReception qui suit le stock des marchands.
+//
+//   brouillon — saisie, pas encore passée au fournisseur. Statut par défaut.
+//   commandee — passée au fournisseur, pas encore livrée.
+//   recue     — livrée au hub. Définitif.
+//   annulee   — abandonnée, depuis brouillon ou commandee. Définitif.
+//
+// Les transitions autorisées vivent dans lib/commandes-stock-hub.ts
+// (TRANSITIONS_COMMANDE_STOCK_HUB) : Prisma ne sait pas les exprimer.
+//
+// Jusqu'au 11/09/2026 l'enum valait en_attente / livre / annulee. Les deux
+// premières ont été RENOMMÉES (commandee, recue) plutôt que recréées, et les
+// commandes existantes ont gardé leur sens sans réécriture (migration
+// 20260911150000). NE PAS RÉORDONNER les valeurs ci-dessous : c'est l'ordre
+// réel en base, et PostgreSQL ne sait pas déplacer une valeur d'enum.
 enum StatutCommandeStockHub {
-  en_attente
-  livre
+  brouillon
+  commandee
+  recue
   annulee
 }
 
@@ -1402,13 +1574,17 @@ enum StatutCommandeStockHub {
 // périmètre d'accès que Transaction (admin/responsable, cf. requireUser dans
 // app/api/commandes-stock-hub/**). `numero` sert de référence bordereau
 // lisible (BC-{numero}) sans dépendre de l'UUID.
+//
+// Aucune écriture comptable n'y est rattachée : ni la création ni un
+// changement de statut (annulation comprise) ne crée ou ne compense de
+// Transaction. Le montant est informatif.
 model CommandeStockHub {
   id           String                 @id @default(uuid())
   numero       Int                    @unique @default(autoincrement())
   titre        String
   sousTitre    String?                @map("sous_titre")
   montant      Decimal                @db.Decimal(10, 2)
-  statut       StatutCommandeStockHub @default(en_attente)
+  statut       StatutCommandeStockHub @default(brouillon)
   modePaiement String                 @map("mode_paiement")
   dateCommande DateTime               @map("date_commande")
 
@@ -1526,6 +1702,22 @@ model Facture {
   // tel quel.
   netAPayer           Decimal @map("net_a_payer") @db.Decimal(12, 2)
 
+  // § Marge — somme des LigneFacture.coutLivraison CONNUS, et nombre de lignes
+  // dont le coût ne l'est pas. INTERNES tous les deux, retirés des réponses
+  // servies à un marchand (cf. LigneFacture.coutLivraison).
+  //
+  // La marge elle-même n'est pas stockée : c'est
+  //   totalFraisLivraison + totalFraisRetour + totalAutresFrais − totalCoutLivraison
+  // (cf. margeFacture, lib/facturation.ts). Le COD n'y entre pas — il transite
+  // par nos comptes mais appartient au marchand, l'inclure ferait passer pour
+  // du bénéfice l'argent de quelqu'un d'autre.
+  //
+  // `nbLignesCoutInconnu` accompagne toujours le total : sans lui, une facture
+  // dont la moitié des coûts manquent afficherait une marge flatteuse et
+  // fausse, indiscernable d'une vraie.
+  totalCoutLivraison  Decimal @default(0) @map("total_cout_livraison") @db.Decimal(12, 2)
+  nbLignesCoutInconnu Int     @default(0) @map("nb_lignes_cout_inconnu")
+
   // Quatre dates distinctes plutôt qu'une : elles mesurent le délai de
   // reversement aux marchands, qui est l'engagement commercial le plus scruté
   // d'une plateforme COD.
@@ -1590,6 +1782,18 @@ model FraisFacture {
   @@map("frais_facture")
 }
 
+// D'où vient le coût figé sur une ligne de facture — sans lui, un montant seul
+// ne dirait pas s'il est certain (figé à la clôture d'une tournée) ou lu dans
+// une grille fournisseur qui peut avoir bougé depuis.
+enum SourceCoutLivraison {
+  // Commande.fraisLivreur, figé colis par colis à la clôture de la tournée :
+  // c'est le montant réellement dû au livreur, il fait foi.
+  livreur
+  // Grille du prestataire qui exploite le hub couvrant la ville
+  // (TarifPrestataireVille), lue à l'émission de la facture.
+  prestataire
+}
+
 // Une ligne = un colis facturé, avec le tarif RÉELLEMENT appliqué au moment
 // de l'émission. `commandeId` est unique : un colis ne peut appartenir qu'à
 // une seule facture, garanti par la base et non par la seule discipline des
@@ -1606,6 +1810,23 @@ model LigneFacture {
   livre      Boolean
   montantCod Decimal  @map("montant_cod") @db.Decimal(10, 2)
   frais      Decimal  @db.Decimal(10, 2)
+
+  // § Marge — ce que la course nous a COÛTÉ, figé au même instant que `frais`
+  // (ce qu'elle nous rapporte). Les deux côtés du même colis sur la même
+  // ligne : c'est le seul endroit où la marge se lit sans rapprochement.
+  //
+  // INTERNE. Ces deux colonnes ne sortent JAMAIS vers un marchand — ni sur sa
+  // facture, ni dans sa liste (elles sont retirées par `omit` côté requête,
+  // cf. getFacture / GET /api/factures). Lui montrer notre prix d'achat, c'est
+  // lui donner notre marge à la négociation suivante.
+  //
+  // Null = coût inconnu, jamais 0 : une tournée clôturée avant l'introduction
+  // de Commande.fraisLivreur, une ville sous-traitée sans tarif convenu, ou un
+  // retour chez un prestataire dont le tarif de retour n'est pas renseigné.
+  // Zéro dirait « gratuit » et gonflerait la marge d'un montant inventé ;
+  // c'est pour ça que Facture.nbLignesCoutInconnu existe.
+  coutLivraison Decimal?             @map("cout_livraison") @db.Decimal(10, 2)
+  coutSource    SourceCoutLivraison? @map("cout_source")
 
   @@index([factureId])
   @@map("lignes_facture")
@@ -1851,4 +2072,219 @@ model ParametresSociete {
   dateMaj DateTime @updatedAt @map("date_maj")
 
   @@map("parametres_societe")
+}
+
+// ============================================================
+// Plateformes partenaires — flux ENTRANT (§ intégration Shipeh)
+// ============================================================
+//
+// Une plateforme partenaire est un CANAL DE VENTE : elle nous envoie ses
+// marchands et ses colis. C'est l'exact inverse d'un sous-traitant de
+// transport (API_PARTENAIRES.md, à qui NOUS confions des colis), et c'est
+// pourquoi les deux ne partagent pas de modèle : ils n'ont en commun que le
+// mécanisme de clé d'API. Les fusionner donnerait une table dont la moitié
+// des colonnes est nulle selon le sens de la relation, et des scopes qui ne
+// veulent rien dire d'un côté ou de l'autre.
+//
+// Tout vit dans ces quatre tables satellites : `commandes`, `marchands` et
+// `utilisateurs` ne reçoivent AUCUNE colonne. Abandonner une intégration
+// revient donc à supprimer des lignes, jamais à défaire des colonnes sur les
+// tables les plus chaudes du schéma.
+
+// Cloisonnement bac à sable / production. Porté par la CLÉ et par le LIEN
+// marchand (CompteMarchandExterne), jamais par le colis : un drapeau `estTest`
+// sur `commandes` serait une colonne de plus sur la table la plus référencée
+// du schéma, et surtout une garantie APPLICATIVE (« ne pas facturer les colis
+// de test ») là où la contrainte retenue est STRUCTURELLE — une clé `test` ne
+// voit que des marchands `test`, donc ne peut pas créer un colis dans le
+// périmètre facturable, quoi que fasse le handler.
+enum EnvironnementApi {
+  live
+  test
+}
+
+model PlateformePartenaire {
+  id    String  @id @default(uuid())
+  // Identifiant stable utilisé dans les journaux et les URL d'administration
+  // (ex. "shipeh") — distinct de `nom`, qui est l'étiquette affichée et peut
+  // changer sans rien casser.
+  code  String  @unique
+  nom   String
+  actif Boolean @default(true)
+
+  // Compte de service qui SIGNE les écritures faites au nom de la plateforme.
+  // Il existe pour une raison précise : HistoriqueStatutCommande.utilisateurId
+  // est NON NULLABLE, et un colis ingéré par une machine n'a pas d'auteur
+  // humain. Rendre cette colonne nullable aurait touché une table chaude et
+  // la vingtaine de lectures qui font `historique.utilisateur.nomComplet` ;
+  // un compte porteur du rôle `plateforme` coûte une ligne et rend
+  // l'historique honnête (« Shipeh » y apparaît comme auteur).
+  //
+  // Ce compte ne peut ouvrir de session NULLE PART : le rôle `plateforme`
+  // n'appartient à aucun espace (SPACE_ROLES / SPACE_LOGIN_ROLES,
+  // lib/auth.ts), donc ni le login ni la vérification de cookie ne peuvent
+  // l'accepter — garantie structurelle, indépendante de `actif`.
+  utilisateurTechniqueId String      @unique @map("utilisateur_technique_id")
+  utilisateurTechnique   Utilisateur @relation("PlateformeUtilisateurTechnique", fields: [utilisateurTechniqueId], references: [id])
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  cles             CleApiPlateforme[]
+  comptesMarchands CompteMarchandExterne[]
+  appels           JournalAppelApi[]
+
+  @@map("plateformes_partenaires")
+}
+
+// Clé d'API machine. Format : mtk_<env>_<prefixe>_<secret>, cf.
+// lib/plateforme-cles.ts pour la composition et le pourquoi de chaque partie.
+model CleApiPlateforme {
+  id           String               @id @default(uuid())
+  plateformeId String               @map("plateforme_id")
+  plateforme   PlateformePartenaire @relation(fields: [plateformeId], references: [id], onDelete: Cascade)
+
+  // Partie PUBLIQUE de la clé, indexée et unique : sert au lookup. Sans elle
+  // il faudrait comparer le hash de la clé reçue à toutes les lignes de la
+  // table à chaque appel.
+  prefixe    String @unique
+  // SHA-256 du secret, et non bcrypt comme les mots de passe (hashSecret,
+  // lib/auth.ts) : le facteur de travail de bcrypt sert à compenser la faible
+  // entropie d'un secret CHOISI PAR UN HUMAIN. Un secret de 256 bits tiré de
+  // randomBytes n'a pas ce défaut, et 60 à 100 ms de CPU par requête seraient
+  // rédhibitoires sur une API appelée en boucle. C'est déjà le raisonnement
+  // appliqué aux jetons de réinitialisation et de transfert de session
+  // (hashResetToken / hashHandoffToken).
+  secretHash String @map("secret_hash")
+
+  environnement EnvironnementApi
+  // Périmètre de la clé, en texte libre plutôt qu'en enum Prisma — même
+  // raisonnement que Utilisateur.permissions : le catalogue évolue au rythme
+  // des endpoints, et les valeurs inconnues sont ignorées à la lecture
+  // (assainirScopes, lib/plateforme-cles.ts), donc un scope retiré du
+  // catalogue n'accorde plus rien.
+  scopes        String[]         @default([])
+  libelle       String?
+
+  // Quota par minute et par clé, stocké plutôt que codé en dur : brider une
+  // intégration qui s'emballe ne doit pas demander un déploiement.
+  quotaParMinute Int @default(600) @map("quota_par_minute")
+
+  creeeLe    DateTime  @default(now()) @map("creee_le")
+  // Refus DOUX passé l'échéance (le partenaire est prévenu par un en-tête de
+  // dépréciation avant), là où `revoqueeLe` est un refus DUR et immédiat.
+  // C'est ce couple qui rend une rotation possible sans coupure : deux clés
+  // actives, l'ancienne expirant après que la nouvelle est déployée.
+  expireLe   DateTime? @map("expire_le")
+  revoqueeLe DateTime? @map("revoquee_le")
+
+  // Jamais supprimée, même révoquée : ces deux compteurs restent exploitables
+  // pour une analyse post-incident (quand la clé fuitée a-t-elle servi, et
+  // combien de fois).
+  derniereUtilisationLe DateTime? @map("derniere_utilisation_le")
+  nbAppels              Int       @default(0) @map("nb_appels")
+
+  appels JournalAppelApi[]
+
+  @@index([plateformeId])
+  @@map("cles_api_plateforme")
+}
+
+// Lien entre un marchand de CHEZ NOUS et son compte CHEZ EUX. Table de liaison
+// plutôt qu'une colonne sur `marchands` : un même marchand peut vendre sur
+// plusieurs canaux, et le lien porte ses propres attributs (environnement,
+// date de synchronisation) qui n'ont pas de sens sur la fiche marchand.
+model CompteMarchandExterne {
+  id           String               @id @default(uuid())
+  plateformeId String               @map("plateforme_id")
+  plateforme   PlateformePartenaire @relation(fields: [plateformeId], references: [id], onDelete: Cascade)
+  // Identifiant du marchand DANS le système de la plateforme. C'est la clé
+  // par laquelle elle nous parle de ce marchand, y compris pour lui rattacher
+  // des colis.
+  idExterne    String               @map("id_externe")
+
+  marchandId String   @map("marchand_id")
+  marchand   Marchand @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  environnement EnvironnementApi
+
+  // La synchronisation a-t-elle CRÉÉ ce marchand, ou seulement rattaché un
+  // marchand qui existait déjà chez nous ?
+  //
+  // Ne sert qu'à une chose, mais elle est décisive : la PURGE des données de
+  // test ne supprime que ce que la plateforme a créé. Un marchand rattaché
+  // s'était inscrit en direct sur notre site — il ne cesse pas d'être notre
+  // client parce qu'une plateforme l'a revendiqué, et l'effacer avec les
+  // données de test serait une perte irréversible.
+  //
+  // Sans cette colonne, la purge reposerait sur une heuristique (le statut, le
+  // nombre de liens, l'absence de connexion) ; une heuristique qui se trompe
+  // efface un vrai marchand. Défaut `false` : une ligne dont la provenance
+  // n'est pas connue n'est JAMAIS supprimée.
+  creeParSynchro Boolean @default(false) @map("cree_par_synchro")
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+  dateSynchro  DateTime @updatedAt @map("date_synchro")
+
+  // Deux unicités, et il faut les deux : la première rend l'appel de création
+  // idempotent (rejouer la même synchronisation ne crée pas un second
+  // marchand), la seconde interdit qu'un même marchand soit atteignable sous
+  // deux identifiants externes de la même plateforme — sans quoi ses colis se
+  // répartiraient entre deux liens selon celui qu'elle envoie.
+  //
+  // `environnement` fait partie des DEUX clés, et ce n'est pas une précision
+  // cosmétique : c'est ce qui rend l'isolation bac à sable / production
+  // STRUCTURELLE plutôt que tenue à la main.
+  //
+  // Prisma dérive de ces contraintes les clés composées
+  // `plateformeId_environnement_idExterne` et `..._marchandId`, et un
+  // `findUnique` dessus EXIGE les trois champs : chercher un lien en oubliant
+  // l'environnement ne compile plus. Sans ça, la garantie reposait sur le fait
+  // qu'un développeur pense à comparer les environnements après coup — et
+  // l'oubli s'était effectivement produit, sur la recherche « déjà
+  // synchronisé » de synchroniserMarchand : une clé `live` y retrouvait le
+  // lien de TEST d'un même idExterne, répondait « déjà synchronisé », puis le
+  // dépôt de colis échouait en 404. La mise en production était silencieusement
+  // cassée pour tout marchand ayant servi aux essais.
+  //
+  // Conséquence assumée : un même `idExterne` peut exister dans les deux
+  // environnements, en deux liens indépendants. C'est le comportement voulu —
+  // ce sont deux espaces de noms distincts.
+  @@unique([plateformeId, environnement, idExterne])
+  @@unique([plateformeId, environnement, marchandId])
+  @@index([marchandId])
+  @@map("comptes_marchands_externes")
+}
+
+// Journal des appels REÇUS. Sa raison d'être est opérationnelle : sans lui,
+// diagnostiquer « vos colis ne passent pas » impose de réclamer ses journaux
+// au partenaire et de le croire sur parole.
+//
+// Le corps rejeté n'est VOLONTAIREMENT pas conservé : il porterait des noms,
+// téléphones et adresses de clients finaux dans une table de journalisation,
+// donc hors du périmètre où ces données sont censées vivre. `erreur` porte le
+// message exact du refus (« ville est requis »), qui est ce dont on a besoin
+// pour trancher entre un bug chez eux et un bug chez nous.
+model JournalAppelApi {
+  id           String               @id @default(uuid())
+  plateformeId String               @map("plateforme_id")
+  plateforme   PlateformePartenaire @relation(fields: [plateformeId], references: [id], onDelete: Cascade)
+  // Nullable : un appel refusé pour clé inconnue n'a pas de clé à rattacher.
+  cleId        String?              @map("cle_id")
+  cle          CleApiPlateforme?    @relation(fields: [cleId], references: [id], onDelete: SetNull)
+
+  methode   String
+  chemin    String
+  statut    Int
+  dureeMs   Int?    @map("duree_ms")
+  adresseIp String? @map("adresse_ip")
+  // Référence du colis ou du marchand concerné quand l'appel n'en vise qu'un —
+  // c'est ce qui rend le journal cherchable sur « où est passé le colis X ».
+  reference String?
+  erreur    String?
+
+  horodatage DateTime @default(now())
+
+  @@index([plateformeId, horodatage])
+  @@index([reference])
+  @@map("journal_appels_api")
 }

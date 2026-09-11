@@ -6,9 +6,11 @@ import {
   ecrireSelection,
   getColisFacturables,
   getFacture,
+  getFacturePourMarchand,
   getTarifsMarchand,
   parseFraisAnnexes,
 } from '@/lib/facturation';
+import { getCoutsPrestataire } from '@/lib/prestataires';
 
 const ROLES_FACTURATION = ['admin', 'responsable'] as const;
 
@@ -21,7 +23,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const session = await requireUser([...ROLES_FACTURATION, 'marchand']);
     const { id } = await params;
 
-    const facture = await getFacture(id);
+    // Le marchand reçoit la version sans nos coûts (cf.
+    // getFacturePourMarchand) : sa facture dit ce qu'il nous doit, pas ce que
+    // la course nous a coûté.
+    const facture = session.role === 'marchand' ? await getFacturePourMarchand(id) : await getFacture(id);
 
     if (session.role === 'marchand') {
       const marchand = await resolveMarchandForUser(session.sub);
@@ -108,13 +113,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       );
     }
 
-    const tarifs = await getTarifsMarchand(marchand);
+    const [tarifs, couts] = await Promise.all([getTarifsMarchand(marchand), getCoutsPrestataire()]);
 
     await prisma.$transaction((tx) =>
       ecrireSelection(tx, {
         factureId: id,
         colis: retenus,
         tarifs,
+        couts,
         autresFrais,
         auteurId: session.sub,
       })

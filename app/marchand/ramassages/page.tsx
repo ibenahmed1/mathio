@@ -113,6 +113,7 @@ export default function MarchandRamassagesPage() {
               <input
                 className="input-basic"
                 type="number"
+                inputMode="numeric"
                 min="0"
                 placeholder="Ex. 12"
                 value={form.nbColisEstimes}

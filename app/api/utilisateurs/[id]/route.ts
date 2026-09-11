@@ -85,6 +85,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         throw new ApiError(400, 'rolesSupplementaires doit être un tableau');
       }
       const espaceCible = getHomeSpace(role);
+      // Un rôle sans espace d'atterrissage (compte de service d'une
+      // plateforme partenaire) ne se gère pas depuis cet écran : sans ce
+      // garde, la comparaison `null !== null` plus bas serait fausse et
+      // laisserait passer n'importe quel octroi sur un tel compte.
+      if (espaceCible === null) {
+        throw new ApiError(400, `Le rôle « ${role} » ne se gère pas depuis cette API`);
+      }
       const rolesSupplementaires = Array.from(new Set(body.rolesSupplementaires)) as unknown[];
       for (const r of rolesSupplementaires) {
         if (typeof r !== 'string' || !ROLES_EQUIPE.includes(r as Role)) {

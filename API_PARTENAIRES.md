@@ -105,7 +105,35 @@ supprimer des tables, jamais à défaire des colonnes.
 - **Espace applicatif** : au sens de `lib/spaces.ts` — un hôte, un cookie, une
   frontière d'autorisation. L'API Partenaires n'en est **pas** un (§3.3).
 
-### 1.4 La porte laissée ouverte
+### 1.4 La porte laissée ouverte — **elle a été ouverte, autrement**
+
+> **Mise à jour (septembre 2026).** Le flux entrant existe désormais, pour les
+> **plateformes partenaires** (canaux de vente type Shipeh), et il n'a *pas*
+> été construit comme le prévoyait la liste ci-dessous. Les cinq points
+> restent la marche à suivre pour ouvrir le flux entrant d'un **transporteur** ;
+> ils ne décrivent pas ce qui a été fait pour une plateforme de vente.
+>
+> Ce qui a réellement été retenu (`lib/plateformes.ts`, `lib/plateforme-*.ts`,
+> `prisma/schema.prisma` § « Plateformes partenaires ») :
+>
+> - un modèle **distinct** (`PlateformePartenaire`) plutôt qu'un champ `sens`
+>   sur `PartenaireTransport` : un transporteur reçoit nos colis, une
+>   plateforme nous en envoie — les deux ne partagent que le mécanisme de clé ;
+> - **pas de marchand-miroir** : une plateforme nous envoie de *vrais*
+>   marchands, chacun devenant un `Marchand` à part entière, lié par
+>   `CompteMarchandExterne` ;
+> - **`Commande.partenaireOrigineId` n'a pas été ajouté**, ni aucune autre
+>   colonne : `codeSuiviPartenaire` et `source = 'api'` existaient déjà, et
+>   `@@unique([marchandId, codeSuiviPartenaire])` porte l'idempotence de
+>   l'ingestion. La phrase « la table `commandes` n'est pas modifiée du tout »
+>   reste donc vraie après ce chantier ;
+> - `estTest` non plus : le cloisonnement bac à sable tient à
+>   `CleApiPlateforme.environnement` et `CompteMarchandExterne.environnement` ;
+> - l'architecture d'authentification machine du §3 a été reprise **telle
+>   quelle** (hôte dédié, clés `mtk_…`, `requirePlateforme`) — c'est la partie
+>   de cette spécification qui a le mieux tenu.
+
+
 
 Si le flux entrant devait être ouvert plus tard, rien de ce qui est spécifié
 ici n'aurait à être défait. Il faudrait **ajouter** :

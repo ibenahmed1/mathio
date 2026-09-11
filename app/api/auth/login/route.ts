@@ -94,7 +94,13 @@ export async function POST(request: Request) {
     //    apprend donc rien qu'il ne sache — et sans ça il resterait bloqué.
     if (!SPACE_LOGIN_ROLES[space].includes(user.role)) {
       const home = getHomeSpace(user.role);
-      if (home === 'admin' || space === 'admin') {
+      // `home === null` : rôle qui n'atterrit sur aucun espace — aujourd'hui
+      // le compte de service d'une plateforme partenaire. Il n'y a nulle part
+      // où l'orienter, et lui répondre autre chose que l'échec générique
+      // confirmerait l'existence du compte. Il est de toute façon inactif,
+      // donc déjà refusé plus haut : cette branche est une seconde barrière,
+      // pas la première.
+      if (home === null || home === 'admin' || space === 'admin') {
         return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
       }
       return NextResponse.json(

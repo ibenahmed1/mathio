@@ -55,6 +55,12 @@ export interface OptionsRequete {
   // Ne pas mémoriser les Set-Cookie de cette réponse : utile quand on teste
   // une connexion qui ne doit PAS aboutir, pour ne pas polluer le bocal.
   ignorerCookies?: boolean;
+  // En-têtes supplémentaires. Ajouté pour l'API MACHINE des plateformes
+  // partenaires, qui s'authentifie par `Authorization: Bearer` et non par
+  // cookie (§ lib/plateforme-auth.ts) : sans ça, aucun script ne peut jouer
+  // le rôle d'un partenaire. Posés APRÈS les en-têtes calculés, donc capables
+  // de les remplacer — c'est voulu, un audit doit pouvoir tout forger.
+  entetes?: Record<string, string>;
 }
 
 export interface ClientAudit {
@@ -110,6 +116,7 @@ export function creerClient(space: SessionSpace): ClientAudit {
             'Content-Type': 'application/json',
             ...(charge ? { 'Content-Length': charge.length } : {}),
             ...(cookieEnvoye ? { Cookie: cookieEnvoye } : {}),
+            ...(options.entetes ?? {}),
           },
         },
         (reponse) => {

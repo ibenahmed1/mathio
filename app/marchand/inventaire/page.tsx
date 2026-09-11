@@ -61,7 +61,7 @@ export default function InventairePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Gestion Inventaire</h1>
         <Link href="/marchand/inventaire/nouveau" className="btn-primary flex items-center gap-2">
           <PackagePlus className="h-4 w-4" />
@@ -182,7 +182,7 @@ export default function InventairePage() {
                     <td className="w-8">
                       <button
                         onClick={() => handleDelete(p.id, p.nom)}
-                        className="text-red-600 transition hover:opacity-70"
+                        className="btn-icon -m-2 text-red-600 hover:opacity-70"
                         aria-label={`Supprimer ${p.nom}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -216,7 +216,7 @@ export default function InventairePage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 text-sm opacity-70">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm opacity-70">
         <span>
           Affichage {debut} à {fin} de {filtres.length} entrées
         </span>

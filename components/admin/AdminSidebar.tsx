@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Search, UserRound, X } from 'lucide-react';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
-import { apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 import s from './AdminSidebar.module.css';
 
 const LOGO = '/mathio-logo.png';
@@ -26,6 +26,11 @@ const ROLE_LABELS: Record<Role, string> = {
   gestionnaire_hub: 'Gestionnaire Hub',
   agent_hub: 'Agent Hub',
   planner: 'Planner',
+  // Ne s'affiche jamais dans cette barre : un compte de service de plateforme
+  // partenaire ne peut pas ouvrir de session (SPACE_ROLES, lib/auth.ts).
+  // L'entrée n'existe que parce que le type est exhaustif — et c'est bien
+  // ainsi : elle documente le cas au lieu de le laisser tomber sur `undefined`.
+  plateforme: 'Plateforme partenaire',
 };
 
 function isGroup(item: NavItem): item is NavGroup {
@@ -36,8 +41,59 @@ function isActiveHref(pathname: string, href: string) {
   return pathname === href;
 }
 
-function groupContainsActive(pathname: string, group: NavGroup) {
-  return group.children.some((c) => isActiveHref(pathname, c.href));
+function groupContainsActive(pathname: string, group: NavGroup): boolean {
+  return group.children.some((c) => (isGroup(c) ? groupContainsActive(pathname, c) : isActiveHref(pathname, c.href)));
+}
+
+// Le libellé seul ne suffit plus comme clé d'ouverture depuis que la
+// navigation descend à trois niveaux : deux groupes homonymes sous deux
+// parents différents s'ouvriraient ensemble. On préfixe donc par l'ancêtre.
+function groupKey(parentKey: string, label: string) {
+  return parentKey ? `${parentKey} / ${label}` : label;
+}
+
+function collectGroupKeys(nav: NavItem[], pathname: string, parentKey = '', into: Record<string, boolean> = {}) {
+  for (const item of nav) {
+    if (!isGroup(item)) continue;
+    const key = groupKey(parentKey, item.label);
+    into[key] = groupContainsActive(pathname, item);
+    collectGroupKeys(item.children, pathname, key, into);
+  }
+  return into;
+}
+
+// La recherche doit atteindre les feuilles enfouies sous deux groupes (ex.
+// « Pour zone » sous Factures & règlements > Bon de paiement) : on garde un
+// groupe dont le libellé correspond — avec tous ses enfants — ou, à défaut,
+// on le réduit aux branches qui correspondent.
+function filtrerParRecherche(nav: NavItem[], q: string): NavItem[] {
+  return nav.reduce<NavItem[]>((acc, item) => {
+    const correspond = item.label.toLowerCase().includes(q);
+    if (!isGroup(item)) {
+      if (correspond) acc.push(item);
+      return acc;
+    }
+    if (correspond) {
+      acc.push(item);
+      return acc;
+    }
+    const children = filtrerParRecherche(item.children, q);
+    if (children.length > 0) acc.push({ ...item, children });
+    return acc;
+  }, []);
+}
+
+// Regroupe les items consécutifs partageant le même `section` sous un même
+// intertitre (EXPLOITATION & LOGISTIQUE, FINANCE…). Les items sans `section`
+// — Accueil, Statistique — restent en tête, sans intertitre.
+function groupBySection(nav: NavItem[]): { section?: string; items: NavItem[] }[] {
+  const blocks: { section?: string; items: NavItem[] }[] = [];
+  for (const item of nav) {
+    const last = blocks[blocks.length - 1];
+    if (last && last.section === item.section) last.items.push(item);
+    else blocks.push({ section: item.section, items: [item] });
+  }
+  return blocks;
 }
 
 function initialsOf(name: string) {
@@ -65,16 +121,10 @@ export function AdminSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    for (const item of nav) {
-      if (isGroup(item)) initial[item.label] = groupContainsActive(pathname, item);
-    }
-    return initial;
-  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => collectGroupKeys(nav, pathname));
 
-  function toggleGroup(label: string) {
-    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   // Menu Profil/Déconnexion : rendu en portail sur document.body pour échapper
@@ -107,58 +157,55 @@ export function AdminSidebar({
 
   async function handleLogout() {
     setProfileMenuOpen(false);
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 
   const q = query.trim().toLowerCase();
-  const items = !q
-    ? nav
-    : nav.filter((item) =>
-        isGroup(item)
-          ? item.label.toLowerCase().includes(q) || item.children.some((c) => c.label.toLowerCase().includes(q))
-          : item.label.toLowerCase().includes(q)
-      );
+  const items = !q ? nav : filtrerParRecherche(nav, q);
+  const blocks = groupBySection(items);
 
-  function renderItem(item: NavItem) {
+  // `depth` : 0 = entrée de premier niveau (pastille d'icône, gros gabarit),
+  // 1 et au-delà = sous-menu (gabarit compact). Un GROUPE de sous-menu garde
+  // le gabarit compact mais reçoit son chevron.
+  function renderItem(item: NavItem, parentKey = '', depth = 0): React.ReactNode {
     if (isGroup(item)) {
       const Icon = item.icon;
-      const open = !collapsed && (openGroups[item.label] ?? false);
+      const key = groupKey(parentKey, item.label);
+      const open = !collapsed && (openGroups[key] ?? false);
       const active = groupContainsActive(pathname, item);
+      const compact = depth > 0;
       return (
-        <li key={item.label}>
+        <li key={key}>
           <button
             type="button"
-            onClick={() => toggleGroup(item.label)}
-            className={`${s.navItem} ${active ? s.navItemActive : ''}`}
+            onClick={() => toggleGroup(key)}
+            className={
+              compact
+                ? `${s.subNavItem} ${s.subNavGroupBtn} ${active ? s.subNavItemActive : ''}`
+                : `${s.navItem} ${active ? s.navItemActive : ''}`
+            }
             title={item.label}
           >
-            <span className={s.navIcon}>
-              <Icon className="h-4 w-4" />
-            </span>
+            {compact ? (
+              <Icon className="h-3.5 w-3.5" />
+            ) : (
+              <span className={s.navIcon}>
+                <Icon className="h-4 w-4" />
+              </span>
+            )}
             <span className={`${s.navLabel} ${collapsed ? s.collapseHide : ''}`}>{item.label}</span>
             <ChevronDown
               className={`${s.navChevronIcon} ${open ? s.navChevronOpen : ''} ${collapsed ? s.collapseHide : ''}`}
             />
           </button>
           {open && (
-            <ul className={s.subNav}>
-              {item.children.map((child) => {
-                const ChildIcon = child.icon;
-                const childActive = isActiveHref(pathname, child.href);
-                return (
-                  <li key={child.href}>
-                    <Link
-                      href={child.href}
-                      onClick={onCloseMobile}
-                      className={`${s.subNavItem} ${childActive ? s.subNavItemActive : ''}`}
-                    >
-                      <ChildIcon className="h-3.5 w-3.5" />
-                      {child.label}
-                    </Link>
-                  </li>
-                );
-              })}
+            <ul className={`${s.subNav} ${compact ? s.subNavNested : ''}`}>
+              {item.children.map((child) => renderItem(child, key, depth + 1))}
             </ul>
           )}
         </li>
@@ -167,6 +214,20 @@ export function AdminSidebar({
 
     const Icon = item.icon;
     const active = isActiveHref(pathname, item.href);
+    if (depth > 0) {
+      return (
+        <li key={item.href}>
+          <Link
+            href={item.href}
+            onClick={onCloseMobile}
+            className={`${s.subNavItem} ${active ? s.subNavItemActive : ''}`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {item.label}
+          </Link>
+        </li>
+      );
+    }
     return (
       <li key={item.href}>
         <Link
@@ -239,8 +300,18 @@ export function AdminSidebar({
         </div>
 
         {/* ---------- Navigation ---------- */}
+        {/* Les intertitres de section (EXPLOITATION & LOGISTIQUE, FINANCE…)
+            disparaissent une fois la barre repliée : à 80px il ne reste que
+            les icônes, un intertitre n'y tiendrait pas. */}
         <nav className={s.nav}>
-          <ul className={s.navList}>{items.map(renderItem)}</ul>
+          {blocks.map((block, i) => (
+            <div key={block.section ?? `plain-${i}`} className={s.navBlock}>
+              {block.section && (
+                <p className={`${s.navSection} ${collapsed ? s.collapseHide : ''}`}>{block.section}</p>
+              )}
+              <ul className={s.navList}>{block.items.map((it) => renderItem(it))}</ul>
+            </div>
+          ))}
         </nav>
 
         {/* ---------- Profil ---------- */}

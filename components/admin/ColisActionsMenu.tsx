@@ -231,8 +231,8 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
 
       {modal === 'modifier' && (
         <Modal title={`Modifier le colis — ${commande.codeSuivi}`} onClose={closeAll}>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="col-span-2 flex flex-col gap-1 text-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm sm:col-span-2">
               Destinataire <span className="text-red-600">*</span>
               <input
                 className="input-basic"
@@ -254,7 +254,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               Ville <span className="text-red-600">*</span>
               <input className="input-basic" value={ville} onChange={(e) => setVille(e.target.value)} required />
             </label>
-            <label className="col-span-2 flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1 text-sm sm:col-span-2">
               Adresse <span className="text-red-600">*</span>
               <input
                 className="input-basic"
@@ -317,7 +317,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               Description produit
               <input className="input-basic" value={produitDescription} onChange={(e) => setProduitDescription(e.target.value)} />
             </label>
-            <label className="col-span-2 flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1 text-sm sm:col-span-2">
               Colis à remplacer (code de suivi)
               <input
                 className="input-basic"
@@ -325,25 +325,26 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
                 onChange={(e) => setColisARemplacerCode(e.target.value)}
               />
             </label>
-            <label className="col-span-2 flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1 text-sm sm:col-span-2">
               Commentaire
               <textarea className="input-basic" rows={2} value={notesModif} onChange={(e) => setNotesModif(e.target.value)} />
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={ouvrirModif} onChange={(e) => setOuvrirModif(e.target.checked)} />
+              <input type="checkbox" className="pointer-coarse:h-5 pointer-coarse:w-5" checked={ouvrirModif} onChange={(e) => setOuvrirModif(e.target.checked)} />
               Ouvrir
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={fragileModif} onChange={(e) => setFragileModif(e.target.checked)} />
+              <input type="checkbox" className="pointer-coarse:h-5 pointer-coarse:w-5" checked={fragileModif} onChange={(e) => setFragileModif(e.target.checked)} />
               Fragile
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={aRemplacerModif} onChange={(e) => setARemplacerModif(e.target.checked)} />
+              <input type="checkbox" className="pointer-coarse:h-5 pointer-coarse:w-5" checked={aRemplacerModif} onChange={(e) => setARemplacerModif(e.target.checked)} />
               À remplacer (échange)
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="pointer-coarse:h-5 pointer-coarse:w-5"
                 checked={enStockModif}
                 onChange={(e) => {
                   setEnStockModif(e.target.checked);
@@ -353,7 +354,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               En stock (entrepôt)
             </label>
             {enStockModif && (
-              <label className="col-span-2 flex flex-col gap-1 text-sm">
+              <label className="flex flex-col gap-1 text-sm sm:col-span-2">
                 Produit du stock
                 <ProduitSelect
                   marchandId={commande.marchandId}
@@ -366,7 +367,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
                 <span className="text-xs opacity-50">Recherche par nom ou référence — pré-remplit la description</span>
               </label>
             )}
-            <p className="col-span-2 -mt-1 text-xs opacity-50">* Champs obligatoires</p>
+            <p className="-mt-1 text-xs opacity-50 sm:col-span-2">* Champs obligatoires</p>
           </div>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">

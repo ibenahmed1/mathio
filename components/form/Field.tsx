@@ -112,7 +112,11 @@ export function QuantiteInput({
       <button type="button" onClick={() => pas(-1)} aria-label="Diminuer la quantité" className="form-affix-step">
         −
       </button>
+      {/* `type="number"` seul ouvre sur iOS le clavier complet (chiffres et
+          ponctuation) : `inputMode` impose le pavé numérique. Posé avant la
+          décomposition des props pour qu'un appelant puisse le surcharger. */}
       <input
+        inputMode="numeric"
         {...props}
         className={`input-bare px-0 text-center font-semibold ${className ?? ''}`}
         type="number"

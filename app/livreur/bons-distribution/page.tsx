@@ -81,7 +81,10 @@ export default function TourneesLivreurPage() {
                 <th>Numéro</th>
                 <th>Hub</th>
                 <th>Statut</th>
-                <th>Colis</th>
+                <th>
+                  Colis
+                  <span className="block font-semibold normal-case tracking-normal">livrés / retournés</span>
+                </th>
                 <th>Caisse remise</th>
                 <th>Gain</th>
                 <th>Date</th>

@@ -79,7 +79,9 @@ export default function AdminMarchandsPage() {
       <h1 className="page-title">Marchands</h1>
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-      <table className="table-basic">
+      <div className="table-card">
+      <div className="table-scroll">
+      <table className="table-basic min-w-[760px]">
         <thead>
           <tr>
             <th>Boutique</th>
@@ -96,6 +98,17 @@ export default function AdminMarchandsPage() {
                 <Link href={`/admin/marchands/${m.id}`} className="font-semibold underline-offset-2 hover:underline">
                   {m.nomBoutique}
                 </Link>
+                {/* Marchand issu du BAC À SABLE d'une plateforme partenaire.
+                    L'isolation retenue est logique : ces comptes vivent dans la
+                    même table que les vrais clients (§ lib/plateformes.ts). Sans
+                    cette pastille, rien ne les en distingue — et on les approuve
+                    ou on les facture par inadvertance. Ils se suppriment d'un
+                    geste depuis /admin/integrations. */}
+                {m.comptesExternes?.some((c) => c.environnement === 'test') && (
+                  <span className="badge badge-warn ml-2" title="Créé par une clé d’API de test">
+                    test
+                  </span>
+                )}
               </td>
               <td>
                 <div className="flex flex-col">
@@ -110,7 +123,8 @@ export default function AdminMarchandsPage() {
               <td>
                 <StatutBadge statut={m.statut} />
               </td>
-              <td className="flex flex-wrap gap-2">
+              <td>
+                <div className="flex flex-wrap gap-2">
                 {m.statut === 'actif' ? (
                   <button
                     onClick={() => accederEspace(m.id)}
@@ -147,6 +161,7 @@ export default function AdminMarchandsPage() {
                 >
                   Supprimer
                 </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -159,6 +174,8 @@ export default function AdminMarchandsPage() {
           )}
         </tbody>
       </table>
+      </div>
+      </div>
     </div>
   );
 }

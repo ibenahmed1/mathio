@@ -64,7 +64,12 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
   const MODES = { virement: 'Virement', especes: 'Espèces', cheque: 'Chèque' } as const;
 
   return (
-    <div className="mx-auto max-w-4xl bg-white p-10 text-black">
+    <div className="doc-scroll">
+      {/* Au téléphone, le document garde sa largeur de page et défile dans ce
+          cadre, au lieu d'élargir tout l'écran. À l'impression, le cadre et la
+          largeur minimale s'effacent (cf. .doc-scroll / .doc-page dans
+          globals.css) : la mise en page papier est inchangée. */}
+    <div className="doc-page mx-auto max-w-4xl bg-white p-10 text-black">
       <style>{`
         @media print {
           @page { margin: 12mm; }
@@ -199,7 +204,7 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
       )}
 
       <section className="mt-5 flex justify-end">
-        <table className="w-72 text-sm">
+        <table className="w-full max-w-72 text-sm">
           <tbody>
             <tr>
               <td className="py-0.5">Tournées de la période</td>
@@ -263,6 +268,7 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
           <p className="mt-1 opacity-60">Reçu la somme ci-dessus</p>
         </div>
       </div>
+    </div>
     </div>
   );
 }

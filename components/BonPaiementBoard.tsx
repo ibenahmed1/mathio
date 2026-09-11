@@ -256,7 +256,7 @@ export function BonPaiementBoard({ parZone }: { parZone: boolean }) {
 
       {kpis && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi
               label="Masse du mois"
               valeur={montant(kpis.masseTotale)}
@@ -362,8 +362,9 @@ export function BonPaiementBoard({ parZone }: { parZone: boolean }) {
                             <Link
                               href={`/bons-paiement/${l.bon.id}`}
                               target="_blank"
-                              className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+                              className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10 pointer-coarse:p-3"
                               title="Fiche de paie"
+                              aria-label={`Fiche de paie de ${l.nomComplet}`}
                             >
                               <Printer className="h-4 w-4" />
                             </Link>
@@ -372,8 +373,9 @@ export function BonPaiementBoard({ parZone }: { parZone: boolean }) {
                                 type="button"
                                 onClick={() => setARegler(l)}
                                 disabled={enCours}
-                                className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950"
+                                className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-40 dark:text-green-400 dark:hover:bg-green-950 pointer-coarse:p-3"
                                 title="Marquer comme payé"
+                                aria-label={`Marquer le bon ${l.bon.numero} comme payé`}
                               >
                                 <Check className="h-4 w-4" />
                               </button>

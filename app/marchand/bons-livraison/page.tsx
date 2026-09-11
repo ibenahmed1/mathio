@@ -6,6 +6,7 @@ import { FilePlus2 } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonDeLivraison } from '@/lib/types';
 import { BonLivraisonActionsMenu } from '@/components/BonLivraisonActionsMenu';
+import { COLONNE_COLLANTE_PAGE } from '@/components/marchand/colonne-collante';
 import { BonsDocumentsSubNav } from '../BonsDocumentsSubNav';
 
 export default function ListeBonsLivraisonPage() {
@@ -44,17 +45,17 @@ export default function ListeBonsLivraisonPage() {
               <th>Colis</th>
               <th>Montant COD</th>
               <th>Date de génération</th>
-              <th></th>
+              <th className={COLONNE_COLLANTE_PAGE.th}></th>
             </tr>
           </thead>
           <tbody>
             {bons.map((b) => (
-              <tr key={b.id}>
+              <tr key={b.id} className="group">
                 <td className="font-mono">{b.numero}</td>
                 <td>{b.nbColis}</td>
                 <td>{Number(b.montantTotalCod).toFixed(2)} DH</td>
                 <td>{new Date(b.dateGeneration).toLocaleDateString('fr-FR')}</td>
-                <td>
+                <td className={COLONNE_COLLANTE_PAGE.td}>
                   <BonLivraisonActionsMenu bon={b} role="marchand" onChanged={load} />
                 </td>
               </tr>

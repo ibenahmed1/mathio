@@ -58,10 +58,13 @@ export function MarchandShell({
       />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         {impersonation && (
-          <div className="flex items-center justify-center gap-2 bg-black px-4 py-1.5 text-center text-xs font-semibold text-white">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-black px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden">
             <ShieldAlert className="h-3.5 w-3.5" />
             Vous consultez cet espace marchand depuis l&apos;administration.
-            <button onClick={quitterEspaceMarchand} className="underline underline-offset-2 hover:opacity-80">
+            <button
+              onClick={quitterEspaceMarchand}
+              className="underline underline-offset-2 hover:opacity-80 pointer-coarse:py-2"
+            >
               Retour à l&apos;administration
             </button>
           </div>
@@ -69,10 +72,10 @@ export function MarchandShell({
         {/* La sidebar reste dépliée en permanence en desktop. Ne subsiste que
             l'ouverture en mobile : la sidebar est alors hors-écran, donc son
             propre bouton de fermeture est inatteignable. */}
-        <div className="px-4 pt-4 lg:hidden">
+        <div className="px-4 pt-4 lg:hidden print:hidden">
           <button
             onClick={() => setMobileOpen(true)}
-            className="shrink-0 rounded-lg border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] p-2 text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] transition-colors hover:bg-[color:var(--mk-line-soft)]"
+            className="shrink-0 rounded-lg border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] p-2 text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] transition-colors hover:bg-[color:var(--mk-line-soft)] pointer-coarse:p-3"
             aria-label="Ouvrir le menu"
           >
             <Menu className="h-5 w-5" />

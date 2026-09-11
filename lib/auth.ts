@@ -26,8 +26,10 @@ export {
   spaceForHost,
   spaceOrigin,
   originForHost,
+  resolveHost,
+  HOST_API,
 } from '@/lib/spaces';
-export type { SessionSpace } from '@/lib/spaces';
+export type { SessionSpace, HostKind } from '@/lib/spaces';
 
 // Catalogue des permissions : même principe que ci-dessus — module pur défini
 // à part, ré-exporté ici pour que `@/lib/auth` reste le point d'entrée unique
@@ -128,7 +130,12 @@ export function spaceAllowsRole(space: SessionSpace, role: Role): boolean {
 // une frontière d'espace (cf. PATCH /api/utilisateurs/[id]). Distinct de
 // SPACE_ROLES, qui dit où un rôle PEUT détenir une session : un même rôle
 // pourrait en couvrir plusieurs, il n'a jamais qu'un seul espace d'origine.
-const HOME_SPACES: Record<Role, SessionSpace> = {
+//
+// `null` pour un rôle qui n'atterrit NULLE PART. C'est le cas du rôle
+// `plateforme` (compte de service d'une plateforme partenaire) : il n'est
+// listé dans aucun espace ci-dessus, donc aucun domaine ne peut lui ouvrir
+// de session — et un espace « par défaut » ici lui en inventerait un.
+const HOME_SPACES: Record<Role, SessionSpace | null> = {
   admin: 'admin',
   superviseur: 'admin',
   moderateur: 'admin',
@@ -141,9 +148,10 @@ const HOME_SPACES: Record<Role, SessionSpace> = {
   marchand: 'marchand',
   livreur: 'terrain',
   ramasseur: 'terrain',
+  plateforme: null,
 };
 
-export function getHomeSpace(role: Role): SessionSpace {
+export function getHomeSpace(role: Role): SessionSpace | null {
   return HOME_SPACES[role];
 }
 

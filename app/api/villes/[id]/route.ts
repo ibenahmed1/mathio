@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { appliquerTarifPrestataire } from '@/lib/prestataires';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,12 +21,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
       data.hub = { connect: { id: body.hubId.trim() } };
     }
-    if (Object.keys(data).length === 0) {
+    // Le tarif ne vit pas sur la Ville (il dépend du prestataire, cf.
+    // TarifPrestataireVille) : il est donc légitime de ne modifier QUE lui.
+    const modifieTarif = body.tarif !== undefined;
+    if (Object.keys(data).length === 0 && !modifieTarif) {
       throw new ApiError(400, 'Aucune modification fournie');
     }
 
     try {
-      const ville = await prisma.ville.update({ where: { id }, data });
+      const ville =
+        Object.keys(data).length > 0
+          ? await prisma.ville.update({ where: { id }, data })
+          : await prisma.ville.findUniqueOrThrow({ where: { id } });
+      if (modifieTarif) {
+        // Sur le hub d'arrivée : déplacer une ville d'une agence à une autre
+        // et retarifer dans la foulée est le geste courant. L'ancienne ligne
+        // tarifaire est conservée volontairement — un prestataire tarifé sur
+        // une ville qu'il ne dessert plus, c'est l'offre qu'on garde sous la
+        // main pour comparer ou revenir en arrière.
+        await appliquerTarifPrestataire(ville.id, ville.hubId, body.tarif, body.tarifRetour);
+      }
       return NextResponse.json(ville);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {

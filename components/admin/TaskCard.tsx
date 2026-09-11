@@ -1,22 +1,22 @@
 'use client';
 
-import { CalendarClock, Lock } from 'lucide-react';
-import type { Tache } from '@/lib/types';
+import { CalendarClock, Check, Lock } from 'lucide-react';
+import type { Tache, Etiquette } from '@/lib/types';
+import { decouperDescription } from '@/lib/taches-description';
 import {
   STATUTS_TACHE,
   LABELS_STATUT_TACHE,
   LABELS_PRIORITE_TACHE,
   PRIORITE_TACHE_CLASS,
   STATUT_TACHE_BARRE,
-  LABELS_ETIQUETTE_TACHE,
   labelClassName,
   formatCleTache,
-  type EtiquetteTache,
 } from '@/lib/statuts';
 import { initiales, avatarClassName } from '@/lib/avatar';
 
 export function TaskCard({
   tache,
+  etiquettes = [],
   onOpen,
   onStatutChange,
   onDragStart,
@@ -25,6 +25,9 @@ export function TaskCard({
   peutDeplacer = true,
 }: {
   tache: Tache;
+  /** Catalogue des étiquettes (§ /api/taches/etiquettes) : la tâche ne porte
+   *  que des codes, le libellé et la couleur se lisent ici. */
+  etiquettes?: Etiquette[];
   onOpen: () => void;
   onStatutChange: (statut: string) => void;
   onDragStart: () => void;
@@ -38,7 +41,22 @@ export function TaskCard({
   // apparition d'un cycle de rendu.
   // eslint-disable-next-line react-hooks/purity
   const enRetard = !!echeance && tache.statut !== 'termine' && echeance.getTime() < Date.now();
-  const hasProgress = tache.progress > 0 && tache.statut !== 'termine';
+
+  // La checklist vit dans la description, en cases Markdown (§
+  // lib/taches-description). Sans ce découpage, le résumé de la carte
+  // affichait « - [ ] Relancer le prestataire » tel quel, tirets et crochets
+  // compris — et les deux premières étapes mangeaient la place du résumé.
+  const { texte: resume, etapes } = decouperDescription(tache.description);
+  // Deux avancements coexistent : les cases de la checklist, et
+  // `Tache.progress`, saisi à la main (il pilote le passage automatique en
+  // « En cours », cf. PATCH /api/taches/[id]). Une carte n'en montre qu'un —
+  // la checklist prime, c'est celui que quelqu'un tient à jour geste après
+  // geste, et les cases le disent mieux qu'une barre.
+  const hasProgress = etapes.length === 0 && tache.progress > 0 && tache.statut !== 'termine';
+  // Trois étapes visibles : au-delà, la carte devient plus haute que ce qu'une
+  // colonne peut montrer d'un coup d'œil. Les non cochées d'abord — ce qui
+  // reste à faire est ce qu'on vient chercher sur un board.
+  const apercuEtapes = [...etapes].sort((a, b) => Number(a.fait) - Number(b.fait)).slice(0, 3);
 
   return (
     <div
@@ -59,11 +77,16 @@ export function TaskCard({
               <Lock className="h-2.5 w-2.5" /> Bloqué
             </span>
           )}
-          {tache.etiquettes.map((e) => (
-            <span key={e} className={`kdc-label ${labelClassName(e)}`}>
-              {LABELS_ETIQUETTE_TACHE[e as EtiquetteTache] ?? e}
-            </span>
-          ))}
+          {tache.etiquettes.map((code) => {
+            // Une étiquette supprimée entre deux chargements laisse son code
+            // sur la carte : on l'affiche en gris plutôt que de le masquer.
+            const et = etiquettes.find((x) => x.code === code);
+            return (
+              <span key={code} className={`kdc-label ${labelClassName(et?.couleur ?? 'docs')}`}>
+                {et?.nom ?? code}
+              </span>
+            );
+          })}
         </div>
         <span className={`kdc-prio ${PRIORITE_TACHE_CLASS[tache.priorite]}`}>
           {LABELS_PRIORITE_TACHE[tache.priorite]}
@@ -71,7 +94,23 @@ export function TaskCard({
       </div>
 
       <p className="kdc-card__title">{tache.titre}</p>
-      {tache.description && <p className="kdc-card__summary">{tache.description}</p>}
+      {resume && <p className="kdc-card__summary">{resume}</p>}
+
+      {etapes.length > 0 && (
+        <ul className="kdc-steps">
+          {apercuEtapes.map((etape, i) => (
+            <li key={`${etape.texte}-${i}`} className={`kdc-steps__item ${etape.fait ? 'kdc-steps__item--fait' : ''}`}>
+              <span className="kdc-steps__box" aria-hidden>
+                {etape.fait && <Check className="h-2.5 w-2.5" strokeWidth={3.5} />}
+              </span>
+              <span className="kdc-steps__texte">{etape.texte}</span>
+            </li>
+          ))}
+          {etapes.length > apercuEtapes.length && (
+            <li className="kdc-steps__reste">+{etapes.length - apercuEtapes.length} autres étapes</li>
+          )}
+        </ul>
+      )}
 
       {hasProgress && (
         <>

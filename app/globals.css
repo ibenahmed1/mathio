@@ -155,6 +155,31 @@ html {
   .btn-gradient {
     @apply w-full rounded-full bg-brand bg-[linear-gradient(135deg,#FFEE32_0%,#FFD100_100%)] px-6 py-3 text-sm font-bold uppercase tracking-wide text-brand-foreground shadow-[0_10px_24px_-8px_rgba(255,209,0,0.6)] transition hover:brightness-105 disabled:opacity-50;
   }
+  /* Au doigt, la géométrie ci-dessus (33 px de haut) reste sous les 44 px d'une
+     cible tactile fiable — et les boutons de liste sont souvent encore réduits
+     au point d'appel (« px-2 py-1 text-xs »). La hauteur minimale est posée
+     ICI, sous `pointer: coarse`, plutôt que page par page : la souris garde la
+     densité du back-office, le tactile gagne la cible sans qu'aucun appel n'ait
+     à y penser. `min-height` et non `height` : aucun utilitaire posé au point
+     d'appel ne fixe cette propriété, rien ne vient donc l'écraser. */
+  @media (pointer: coarse) {
+    .btn-primary,
+    .btn-outline,
+    .btn-ghost,
+    .btn-danger,
+    .btn-danger-solid,
+    .btn-dark,
+    .btn-soft {
+      min-height: 2.75rem;
+    }
+    .btn-sm {
+      min-height: 2.5rem;
+    }
+    .btn-icon {
+      height: 2.75rem;
+      width: 2.75rem;
+    }
+  }
 
   /* ---------- Formulaires ----------
      Champs sur fond BLANC (et non transparent) : posés sur le halo jaune de la
@@ -316,6 +341,18 @@ html {
   }
   .check-row {
     @apply flex cursor-pointer select-none items-center gap-2 text-sm font-medium;
+  }
+  /* Une case de 16 px se rate au doigt, et c'est souvent l'action principale
+     de l'écran (sélection des colis d'un bon). La ligne entière devient la
+     cible, la case grossit juste assez pour se voir cochée. */
+  @media (pointer: coarse) {
+    .check-basic {
+      height: 1.25rem;
+      width: 1.25rem;
+    }
+    .check-row {
+      min-height: 2.75rem;
+    }
   }
 
   .page-title {
@@ -598,17 +635,67 @@ html {
   }
 }
 
-/* Impression des tickets colis : masque la coquille admin (sidebar/header)
-   ainsi que tout élément marqué .print-hide (ex. bouton "Imprimer" lui-même),
-   ne garde que le contenu de la page (voir app/admin/colis/[id]/ticket). */
+/* Impression des tickets colis : masque la coquille admin (sidebar) ainsi que
+   tout élément marqué .print-hide (ex. bouton "Imprimer" lui-même), ne garde
+   que le contenu de la page (voir app/admin/colis/[id]/ticket).
+
+   `header` n'y figure plus : la règle masquait aussi l'en-tête DES DOCUMENTS —
+   titre, numéro, identité société et tampon « Réglée » des factures, fiches de
+   paie et bons de retour, qui sont des <header>. Un en-tête de COQUILLE qui ne
+   doit pas s'imprimer porte désormais `print:hidden` au point d'appel. */
 @media print {
   aside,
-  header,
   .print-hide {
     display: none !important;
   }
   main {
     padding: 0 !important;
+  }
+}
+
+/* Documents imprimables (bons, factures) : leur mise en page est celle du
+   papier et ne se réagence pas à l'écran. Sur un téléphone, c'est donc le
+   document qui défile dans son cadre — jamais la page entière. À
+   l'impression, cadre et largeur minimale s'effacent : le rendu papier est
+   inchangé. */
+.doc-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.doc-page {
+  min-width: 42rem;
+}
+@media print {
+  .doc-scroll {
+    overflow: visible;
+  }
+  .doc-page {
+    min-width: 0;
+  }
+}
+
+/* Anti-zoom iOS : Safari agrandit la page au focus de tout champ dont la police
+   fait moins de 16 px, et ne la rétablit pas ensuite. Règle posée HORS de tout
+   @layer, délibérément : elle doit l'emporter aussi sur les `text-xs` /
+   `text-sm` posés au point d'appel, sans quoi chaque champ réduit localement
+   redéclencherait le zoom. Limitée au pointeur grossier : à la souris, les
+   formulaires gardent leur densité. */
+@media (pointer: coarse) {
+  .input-basic,
+  .input-underline,
+  .input-bare {
+    font-size: 16px;
+  }
+}
+
+/* `background-attachment: fixed` (halo des coquilles) impose un repeint complet
+   à chaque image de défilement — perceptible sur un Android d'entrée de gamme,
+   et de toute façon ignoré par Safari iOS. Au tactile, le halo défile avec la
+   page. */
+@media (hover: none) {
+  .shell-surface,
+  .marchand-surface {
+    background-attachment: scroll;
   }
 }
 
@@ -730,6 +817,11 @@ html {
 
   --opt-on-bg: rgba(255, 209, 0, .22); --opt-on-fg: #8a7405;
 
+  /* Pilule de board retenue (.kdc-boardtab) : teinte CIEL, là où les puces de
+     priorité gardent le jaune de la CTA. Les deux rangs se suivent à l'écran,
+     ils ne doivent pas signaler leur sélection de la même façon. */
+  --tab-on-bg: rgba(142, 202, 230, .34); --tab-on-fg: #023047;
+
   /* L'alerte prend l'orange de la planche plutôt qu'un rouge étranger. */
   --danger-bg: rgba(252, 133, 0, .14); --danger-fg: #B85200; --danger-border: rgba(252, 133, 0, .40);
 
@@ -788,6 +880,8 @@ html {
 
     --opt-on-bg: rgba(255, 209, 0, .16); --opt-on-fg: #FFD100;
 
+    --tab-on-bg: rgba(142, 202, 230, .18); --tab-on-fg: #8ECAE6;
+
     --danger-bg: rgba(252, 133, 0, .18); --danger-fg: #FFB701; --danger-border: rgba(252, 133, 0, .45);
 
     --av-all-bg: linear-gradient(145deg, #0C4763, #08374E); --av-all-fg: #A9C7D6;
@@ -842,6 +936,9 @@ html {
   width: 860px;
   max-width: 100%;
   max-height: calc(100vh - 56px);
+  /* dvh quand le navigateur le connaît : 100vh se mesure barre d'adresse
+     repliée, et le pied du modal passait sous la barre du navigateur mobile. */
+  max-height: calc(100dvh - 56px);
   overflow: auto;
   position: relative;
   border-radius: 26px;
@@ -973,4 +1070,20 @@ body.mtModalOpen .mtContent { filter: blur(7px); transform: scale(1.02); pointer
 @media (max-width: 720px) {
   .mtGrid { grid-template-columns: 1fr; }
   .mtModal { border-radius: 20px; }
+
+  /* Sous 720 px, l'en-tête (icône + titre + CRBT + croix) ne tient plus sur
+     une ligne : le CRBT passe dessous, et la croix est sortie du flux pour
+     rester en haut à droite, là où on la cherche. */
+  .mtOverlay { padding: 12px; }
+  .mtModal { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); }
+  .mtHead { position: relative; flex-wrap: wrap; padding: 18px 60px 14px 16px; }
+  .mtCrbt { margin-left: 0; width: 100%; }
+  .mtCrbtLabel, .mtCrbtValue { text-align: left; }
+  .mtClose { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; }
+  .mtGrid { padding: 0 16px; }
+  .mtTableWrap { padding: 14px 16px 0; }
+  /* La colonne prix de 150 px laissait 0 px au nom du produit à 360 px. */
+  .mtTHead, .mtTRow { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; }
+  .mtFoot { padding: 14px 16px 18px; }
+  .mtActions { margin-left: 0; width: 100%; flex-wrap: wrap; justify-content: flex-end; }
 }

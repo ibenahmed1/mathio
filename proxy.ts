@@ -13,7 +13,7 @@ import {
   assertSpaceHostsConfigured,
   roleMatches,
   originForHost,
-  spaceForHost,
+  resolveHost,
   verifySpaceCookie,
   type SessionPayload,
   type SessionSpace,
@@ -82,6 +82,21 @@ const PREFIXE_SCAN_RECEPTION_HUB = '/admin/scan/reception';
 const PREFIXE_BON_ENVOI = '/admin/bon-envoi';
 const PREFIXE_BON_ENVOI_CREER = '/admin/bon-envoi/creer';
 
+// Racine de l'API machine des plateformes partenaires (§ lib/spaces.ts,
+// HOST_API). Ce préfixe est cloisonné dans les DEUX SENS : il n'existe que sur
+// l'hôte de l'API, et l'hôte de l'API n'atteint que lui.
+const PREFIXE_API_PLATEFORMES = '/api/v1';
+
+// Le préfixe LUI-MÊME compte, pas seulement ses sous-chemins : sans le premier
+// terme, `/api/v1` tout court échappait aux deux cloisonnements. Sur un hôte
+// d'espace il retombait alors dans le traitement API générique et répondait
+// 401 au lieu de 404 — une nuance minuscule, mais elle contredisait
+// l'invariant annoncé (« /api/v1/** répond 404 sur les trois hôtes d'espace »),
+// et un invariant qui souffre une exception non écrite n'en est plus un.
+function estApiPlateformes(pathname: string): boolean {
+  return pathname === PREFIXE_API_PLATEFORMES || pathname.startsWith(`${PREFIXE_API_PLATEFORMES}/`);
+}
+
 // Méthodes sans effet de bord : exemptées du contrôle d'origine ci-dessous,
 // comme le veut la définition CSRF (une lecture ne modifie rien).
 const METHODES_SURES = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -123,13 +138,45 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // --- 1. L'hôte détermine l'espace ----------------------------------------
+  // --- 1. L'hôte détermine la nature de la requête --------------------------
   // Première décision de toute requête, avant même de regarder les cookies :
   // un hôte inconnu (accès direct par IP, ancien domaine encore pointé,
   // sondage automatisé sur un vhost non prévu) n'obtient rien du tout.
   const hote = request.headers.get('host');
-  const space = spaceForHost(hote);
-  if (!space) {
+  const nature = resolveHost(hote);
+  if (!nature) {
+    return new NextResponse(null, { status: 404 });
+  }
+
+  // --- 1 bis. L'hôte de l'API machine --------------------------------------
+  // Branche traitée AVANT tout le reste, et volontairement minuscule.
+  //
+  // Aucun cookie n'est jamais posé sur cet hôte : il n'y a donc pas
+  // d'authentification ambiante, la CSRF est sans objet, et l'absence de
+  // contrôle d'`Origin` ci-dessous est correcte PAR CONSTRUCTION — pas par
+  // exception. Un `Authorization: Bearer` n'est jamais joint automatiquement
+  // par un navigateur, contrairement à un cookie. Le raisonnement complet est
+  // dans lib/spaces.ts, au-dessus de HOST_API.
+  //
+  // L'authentification elle-même (clé, scopes, quota) est faite DANS chaque
+  // handler par `requirePlateforme` (lib/plateforme-auth.ts) : elle exige une
+  // lecture Prisma, que ce proxy — en runtime edge — ne peut pas faire.
+  //
+  // Aucun en-tête CORS n'est posé, et c'est délibéré : le client de cette API
+  // est un serveur, pas un navigateur. Le jour où un partenaire y branchera
+  // une page web, ce sera une politique à écrire ici, pour cet hôte seul —
+  // les hôtes d'espace devant au contraire rester en `Origin` strict.
+  if (nature.kind === 'api_plateformes') {
+    return estApiPlateformes(pathname) ? NextResponse.next() : new NextResponse(null, { status: 404 });
+  }
+
+  const space = nature.space;
+
+  // Réciproque du cloisonnement ci-dessus : l'API machine n'existe QUE sur
+  // son hôte. Sans cette ligne, `/api/v1/**` resterait atteignable depuis le
+  // domaine marchand — donc depuis un navigateur porteur d'un cookie de
+  // session, ce que toute l'architecture cherche à rendre impossible.
+  if (estApiPlateformes(pathname)) {
     return new NextResponse(null, { status: 404 });
   }
 

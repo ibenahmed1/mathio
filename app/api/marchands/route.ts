@@ -17,7 +17,17 @@ export async function GET(request: NextRequest) {
     const marchands = await prisma.marchand.findMany({
       where: statutParam ? { statut: statutParam as StatutMarchand } : undefined,
       orderBy: { dateCreation: 'desc' },
-      include: { utilisateur: { select: { nomComplet: true, telephone: true, email: true, actif: true } } },
+      include: {
+        utilisateur: { select: { nomComplet: true, telephone: true, email: true, actif: true } },
+        // § Plateformes partenaires : de quel canal ce marchand nous vient, et
+        // dans quel environnement. Sert à SIGNALER les marchands issus d'un bac
+        // à sable — l'isolation retenue étant logique, ils vivent dans cette
+        // table au milieu des vrais clients, et rien d'autre ne permettrait de
+        // les en distinguer avant de les approuver ou de les facturer.
+        comptesExternes: {
+          select: { environnement: true, plateforme: { select: { code: true, nom: true } } },
+        },
+      },
     });
 
     return NextResponse.json({ data: marchands });

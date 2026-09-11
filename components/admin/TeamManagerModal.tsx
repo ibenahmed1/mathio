@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Pencil, Plus, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { initiales, avatarClassName } from '@/lib/avatar';
 import { apiDelete, apiPatch, apiPost, apiPut } from '@/lib/api-client';
 import type { EquipeTache, MembreTache } from '@/lib/types';
 import { EQUIPE_COULEUR_LABEL, labelClassName } from '@/lib/statuts';
-import { Modal } from '@/components/admin/Modal';
-import { Field } from '@/components/form/Field';
+
 
 const ROLE_LABELS_EQUIPE: Record<string, string> = {
   admin: 'Administrateur',
@@ -154,8 +154,8 @@ export function TeamManagerModal({
     }
   }
 
-  async function creerPole(e: React.FormEvent) {
-    e.preventDefault();
+  async function creerPole(e?: React.FormEvent) {
+    e?.preventDefault();
     setSaving(true);
     setError(null);
     try {
@@ -174,8 +174,8 @@ export function TeamManagerModal({
     }
   }
 
-  async function modifierPole(e: React.FormEvent) {
-    e.preventDefault();
+  async function modifierPole(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!equipeId) return;
     setSaving(true);
     setError(null);
@@ -285,280 +285,348 @@ export function TeamManagerModal({
   const autresPoles = equipes.filter((eq) => eq.id !== equipeId);
 
   const titre =
-    mode === 'creation' ? 'Nouveau pôle' : mode === 'edition' ? 'Modifier le pôle' : 'Gérer les équipes';
+    mode === 'creation'
+      ? 'Nouveau pôle'
+      : mode === 'edition'
+        ? `Modifier ${equipe?.nom ?? 'le pôle'}`
+        : (equipe?.nom ?? 'Aucun pôle');
+  const membresDuPole = personnesAffichees.filter((p) => selection.has(p.id));
 
   return (
-    <Modal title={titre} onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        {mode === 'creation' || mode === 'edition' ? (
-          <form onSubmit={mode === 'creation' ? creerPole : modifierPole} className="flex flex-col gap-3">
-            <Field label="Nom du pôle" required>
-              <input
-                className="input-basic"
-                autoFocus
-                placeholder="Développement"
-                value={poleForm.nom}
-                onChange={(e) => setPoleForm({ ...poleForm, nom: e.target.value })}
-                required
-              />
-            </Field>
-            <Field label="Code">
-              <input
-                className="input-basic"
-                placeholder={mode === 'creation' ? 'déduit du nom si laissé vide' : ''}
-                value={poleForm.code}
-                onChange={(e) => setPoleForm({ ...poleForm, code: e.target.value })}
-                required={mode === 'edition'}
-              />
-              <span className="text-xs opacity-50">Identifiant court et unique (minuscules, sans espaces).</span>
-            </Field>
-            <div className="flex flex-col gap-1.5 text-sm font-medium">
-              Couleur
-              {/* Le rendu réel du chip d'équipe, pas une pastille abstraite :
-                  la charte étant monochrome (jaune/gris), des ronds de couleur
-                  seraient indistinguables les uns des autres. */}
-              <div className="flex flex-wrap gap-2">
-                {COULEURS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setPoleForm({ ...poleForm, couleur: c })}
-                    aria-label={`Couleur ${c}`}
-                    aria-pressed={poleForm.couleur === c}
-                    className={`kdc-label ${labelClassName(EQUIPE_COULEUR_LABEL[c])} rounded-full border-2 transition ${
-                      poleForm.couleur === c ? 'border-black dark:border-white' : 'border-transparent'
-                    }`}
-                  >
-                    {poleForm.nom.trim() || 'Aperçu'}
-                  </button>
-                ))}
-              </div>
-            </div>
+    <div className="kdc-board kdc-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="kdc-modal kdc-modal--wide" onClick={(e) => e.stopPropagation()}>
+        <div className="kdc-modal__head">
+          <span className="kdc-modal__key">ÉQUIPES</span>
+          <button type="button" onClick={onClose} className="kdc-modal__close" aria-label="Fermer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-            {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+        <p className="kdc-modal__title">{titre}</p>
+        <p className="kdc-modal__meta">
+          {mode === 'membres' && equipe ? (
+            <>
+              <span className={`kdc-label ${labelClassName(EQUIPE_COULEUR_LABEL[equipe.couleur] ?? 'docs')}`}>
+                Code {equipe.code}
+              </span>
+              <span>·</span>
+              <span>
+                {selection.size} membre{selection.size > 1 ? 's' : ''} sur {personnesAffichees.length} compte
+                {personnesAffichees.length > 1 ? 's' : ''} back-office
+              </span>
+            </>
+          ) : mode === 'suppression' ? (
+            <span>Suppression du pôle — les comptes des membres sont conservés.</span>
+          ) : (
+            <span>Nom, code court et couleur du chip d&apos;équipe.</span>
+          )}
+        </p>
 
-            <div className="flex justify-end gap-2 border-t border-black/10 pt-3 dark:border-white/10">
-              <button type="button" className="btn-outline" onClick={reinitialiserEtat} disabled={saving}>
-                Annuler
-              </button>
-              <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? 'Enregistrement…' : mode === 'creation' ? 'Créer le pôle' : 'Enregistrer'}
-              </button>
-            </div>
-          </form>
-        ) : mode === 'suppression' ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm">
-              Supprimer le pôle <strong>{equipe?.nom}</strong> ? Les comptes de ses membres sont conservés ; seul
-              leur rattachement à ce pôle disparaît.
-            </p>
-            <Field label="Transférer ses tâches vers">
-              <select className="input-basic" value={transfertVers} onChange={(e) => setTransfertVers(e.target.value)}>
-                <option value="">Aucun (échoue si le pôle porte des tâches)</option>
-                {autresPoles.map((eq) => (
-                  <option key={eq.id} value={eq.id}>
-                    {eq.nom}
-                  </option>
-                ))}
-              </select>
-            </Field>
+        <div className="kdc-modal__grid">
+          <div className="kdc-modal__col">
+            {mode === 'creation' || mode === 'edition' ? (
+              <>
+                <div className="kdc-field-label">NOM DU PÔLE</div>
+                <input
+                  className="kdc-input kdc-input--full"
+                  autoFocus
+                  placeholder="Développement"
+                  value={poleForm.nom}
+                  onChange={(e) => setPoleForm({ ...poleForm, nom: e.target.value })}
+                  required
+                />
 
-            {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+                <div className="kdc-field-label">CODE</div>
+                <input
+                  className="kdc-input kdc-input--full"
+                  placeholder={mode === 'creation' ? 'déduit du nom si laissé vide' : ''}
+                  value={poleForm.code}
+                  onChange={(e) => setPoleForm({ ...poleForm, code: e.target.value })}
+                  required={mode === 'edition'}
+                />
+                <p className="kdc-hint">Identifiant court et unique (minuscules, sans espaces).</p>
 
-            <div className="flex justify-end gap-2 border-t border-black/10 pt-3 dark:border-white/10">
-              <button type="button" className="btn-outline" onClick={reinitialiserEtat} disabled={saving}>
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="btn-danger-solid"
-                onClick={supprimerPole}
-                disabled={saving}
-              >
-                {saving ? 'Suppression…' : 'Supprimer définitivement'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-end gap-2">
-              <Field label="Équipe" className="flex-1">
+                <div className="kdc-field-label">COULEUR</div>
+                {/* Le rendu réel du chip d'équipe, pas une pastille abstraite :
+                    la charte étant monochrome, des ronds de couleur seraient
+                    indistinguables les uns des autres. */}
+                <div className="kdc-couleurs">
+                  {COULEURS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setPoleForm({ ...poleForm, couleur: c })}
+                      aria-label={`Couleur ${c}`}
+                      aria-pressed={poleForm.couleur === c}
+                      className={`kdc-label ${labelClassName(EQUIPE_COULEUR_LABEL[c])}`}
+                    >
+                      {poleForm.nom.trim() || 'Aperçu'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : mode === 'suppression' ? (
+              <>
+                <div className="kdc-field-label">CONFIRMATION</div>
+                <p className="kdc-hint">
+                  Supprimer le pôle « {equipe?.nom} » ? Les comptes de ses membres sont conservés ; seul leur
+                  rattachement à ce pôle disparaît.
+                </p>
+
+                <div className="kdc-field-label">TRANSFÉRER SES TÂCHES VERS</div>
                 <select
-                  className="input-basic"
-                  value={equipeId}
-                  onChange={(e) => selectionnerEquipe(e.target.value)}
-                  disabled={equipes.length === 0}
+                  className="kdc-select--full"
+                  value={transfertVers}
+                  onChange={(e) => setTransfertVers(e.target.value)}
                 >
-                  {equipes.length === 0 && <option value="">Aucun pôle</option>}
-                  {equipes.map((eq) => (
+                  <option value="">Aucun (échoue si le pôle porte des tâches)</option>
+                  {autresPoles.map((eq) => (
                     <option key={eq.id} value={eq.id}>
                       {eq.nom}
                     </option>
                   ))}
                 </select>
-              </Field>
-              {peutGererPoles && (
-                <div className="flex gap-1 pb-0.5">
-                  <button type="button" onClick={ouvrirCreation} title="Créer un pôle" className="btn-outline px-2 py-2">
-                    <Plus className="h-4 w-4" />
-                  </button>
+              </>
+            ) : (
+              <>
+                <div className="kdc-field-label kdc-field-label--icon">
+                  <Users className="h-3.5 w-3.5" aria-hidden /> MEMBRES DU PÔLE
+                  <span className="kdc-field-count">({selection.size})</span>
+                </div>
+                <div className="kdc-memberlist">
+                  {personnesAffichees.map((p) => (
+                    <div key={p.id} className="kdc-check__item">
+                      <input
+                        id={`membre-${p.id}`}
+                        type="checkbox"
+                        checked={selection.has(p.id)}
+                        onChange={() => toggle(p.id)}
+                        disabled={!equipeId}
+                      />
+                      <span className={`kdc-avatar ${avatarClassName(p.nomComplet)}`}>{initiales(p.nomComplet)}</span>
+                      <label htmlFor={`membre-${p.id}`} className="min-w-0 flex-1 cursor-pointer truncate">
+                        {p.nomComplet}
+                      </label>
+                      <span className="kdc-member__role">{ROLE_LABELS_EQUIPE[p.role] ?? p.role}</span>
+                    </div>
+                  ))}
+                  {personnesAffichees.length === 0 && (
+                    <p className="kdc-hint">Aucun compte back-office pour le moment.</p>
+                  )}
+                </div>
+
+                <div className="kdc-field-label kdc-field-label--icon">
+                  <UserPlus className="h-3.5 w-3.5" aria-hidden /> INVITER UN MEMBRE
+                </div>
+                {inviteOuvert ? (
+                  <form onSubmit={inviter} className="kdc-invite">
+                    <div className="kdc-invite__head">
+                      <span className="kdc-hint" style={{ margin: 0 }}>
+                        Le compte sera créé puis rattaché à ce pôle.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setInviteOuvert(false)}
+                        className="kdc-check__x"
+                        aria-label="Fermer le formulaire d'invitation"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <input
+                      className="kdc-input kdc-input--full"
+                      style={{ marginTop: 0 }}
+                      placeholder="Nom complet"
+                      value={inviteForm.nomComplet}
+                      onChange={(e) => setInviteForm({ ...inviteForm, nomComplet: e.target.value })}
+                      required
+                    />
+                    <input
+                      className="kdc-input kdc-input--full"
+                      style={{ marginTop: 0 }}
+                      type="email"
+                      placeholder="Email"
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                      required
+                    />
+                    <select
+                      className="kdc-select--full"
+                      style={{ marginTop: 0 }}
+                      value={inviteForm.role}
+                      onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                    >
+                      {ROLES_INVITATION.map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABELS_EQUIPE[r]}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label className="kdc-invite__check">
+                      <input
+                        type="checkbox"
+                        checked={avecMotDePasse}
+                        onChange={(e) => setAvecMotDePasse(e.target.checked)}
+                      />
+                      Définir moi-même le mot de passe (sinon : lien d&apos;activation par email)
+                    </label>
+                    {avecMotDePasse && (
+                      <input
+                        className="kdc-input kdc-input--full"
+                        style={{ marginTop: 0 }}
+                        type="password"
+                        placeholder="Mot de passe (8+ car., maj/chiffre/spécial)"
+                        minLength={8}
+                        value={inviteSecret}
+                        onChange={(e) => setInviteSecret(e.target.value)}
+                        required
+                      />
+                    )}
+
+                    <button type="submit" disabled={inviting} className="kdc-btn-outline self-start">
+                      {inviting ? 'Envoi…' : avecMotDePasse ? 'Créer et ajouter au pôle' : 'Envoyer l’invitation'}
+                    </button>
+                  </form>
+                ) : (
                   <button
                     type="button"
-                    onClick={ouvrirEdition}
-                    title="Modifier le pôle"
+                    onClick={() => {
+                      setInviteOuvert(true);
+                      setInfo(null);
+                      setLienInvitation(null);
+                    }}
                     disabled={!equipeId}
-                    className="btn-outline px-2 py-2 disabled:opacity-40"
+                    className="kdc-side__add"
                   >
-                    <Pencil className="h-4 w-4" />
+                    + Inviter un membre
+                  </button>
+                )}
+
+                {lienInvitation && (
+                  <div className="kdc-linkbox">
+                    <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>
+                      Email non envoyé (SMTP non configuré) — transmettez ce lien vous-même, il reste valable 7 jours :
+                    </p>
+                    <div className="kdc-linkbox__row">
+                      <code>{lienInvitation}</code>
+                      <button type="button" onClick={copierLien} className="kdc-check__add">
+                        {lienCopie ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
+            {info && <p className="kdc-ok">{info}</p>}
+          </div>
+
+          <div className="kdc-modal__col kdc-modal__col--side">
+            <div className="kdc-field-label">PÔLE</div>
+            <select
+              className="kdc-select--full"
+              value={equipeId}
+              onChange={(e) => selectionnerEquipe(e.target.value)}
+              disabled={equipes.length === 0 || mode !== 'membres'}
+              aria-label="Pôle"
+            >
+              {equipes.length === 0 && <option value="">Aucun pôle</option>}
+              {equipes.map((eq) => (
+                <option key={eq.id} value={eq.id}>
+                  {eq.nom}
+                </option>
+              ))}
+            </select>
+
+            {peutGererPoles && mode === 'membres' && (
+              <>
+                <div className="kdc-field-label">CYCLE DE VIE DU PÔLE</div>
+                <div className="kdc-side__actions">
+                  <button type="button" className="kdc-side__action" onClick={ouvrirCreation}>
+                    <Plus className="h-3.5 w-3.5" /> Créer un pôle
+                  </button>
+                  <button type="button" className="kdc-side__action" onClick={ouvrirEdition} disabled={!equipeId}>
+                    <Pencil className="h-3.5 w-3.5" /> Renommer / recolorer
                   </button>
                   <button
                     type="button"
+                    className="kdc-side__action kdc-side__action--danger"
                     onClick={ouvrirSuppression}
-                    title="Supprimer le pôle"
                     disabled={!equipeId}
-                    className="btn-outline px-2 py-2 text-red-600 disabled:opacity-40"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" /> Supprimer le pôle
                   </button>
                 </div>
+              </>
+            )}
+
+            {mode === 'membres' && (
+              <>
+                <div className="kdc-field-label">EFFECTIF RETENU</div>
+                {membresDuPole.length > 0 ? (
+                  <div className="kdc-options">
+                    {membresDuPole.slice(0, 8).map((p) => (
+                      <span key={p.id} className={`kdc-avatar ${avatarClassName(p.nomComplet)}`} title={p.nomComplet}>
+                        {initiales(p.nomComplet)}
+                      </span>
+                    ))}
+                    {membresDuPole.length > 8 && (
+                      <span className="kdc-avatar kdc-avatar--more">+{membresDuPole.length - 8}</span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="kdc-side__empty">Aucun membre coché</p>
+                )}
+              </>
+            )}
+
+            <hr className="kdc-side__hr" />
+            <div className="kdc-side__foot">
+              {mode === 'membres' ? (
+                <>
+                  <button
+                    type="button"
+                    className="kdc-btn-primary"
+                    onClick={enregistrerMembres}
+                    disabled={saving || !equipeId}
+                  >
+                    {saving ? 'Enregistrement…' : 'Enregistrer la composition'}
+                  </button>
+                  <button type="button" className="kdc-side__cancel" onClick={onClose} disabled={saving}>
+                    Fermer
+                  </button>
+                </>
+              ) : mode === 'suppression' ? (
+                <>
+                  <button type="button" className="kdc-side__action kdc-side__action--danger" onClick={supprimerPole} disabled={saving}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {saving ? 'Suppression…' : 'Supprimer définitivement'}
+                  </button>
+                  <button type="button" className="kdc-side__cancel" onClick={reinitialiserEtat} disabled={saving}>
+                    Annuler
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="kdc-btn-primary"
+                    onClick={() => (mode === 'creation' ? creerPole() : modifierPole())}
+                    disabled={saving || !poleForm.nom.trim() || (mode === 'edition' && !poleForm.code.trim())}
+                  >
+                    {saving ? 'Enregistrement…' : mode === 'creation' ? 'Créer le pôle' : 'Enregistrer'}
+                  </button>
+                  <button type="button" className="kdc-side__cancel" onClick={reinitialiserEtat} disabled={saving}>
+                    Annuler
+                  </button>
+                </>
               )}
             </div>
-
-            <div className="flex flex-col gap-1">
-              <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide opacity-60">
-                <Users className="h-3.5 w-3.5" /> Membres du pôle
-              </p>
-              <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto rounded-md border border-black/10 p-1.5 dark:border-white/10">
-                {personnesAffichees.map((p) => (
-                  <label
-                    key={p.id}
-                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-black/[0.03] dark:hover:bg-white/[0.05]"
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-brand"
-                      checked={selection.has(p.id)}
-                      onChange={() => toggle(p.id)}
-                      disabled={!equipeId}
-                    />
-                    <span className="flex-1">{p.nomComplet}</span>
-                    <span className="text-xs opacity-50">{ROLE_LABELS_EQUIPE[p.role] ?? p.role}</span>
-                  </label>
-                ))}
-                {personnesAffichees.length === 0 && (
-                  <p className="px-2 py-3 text-center text-xs opacity-50">Aucun compte back-office pour le moment</p>
-                )}
-              </div>
-            </div>
-
-            {inviteOuvert ? (
-              <form
-                onSubmit={inviter}
-                className="flex flex-col gap-2 rounded-md border border-black/10 p-3 dark:border-white/10"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold uppercase tracking-wide opacity-60">Inviter un membre</p>
-                  <button type="button" onClick={() => setInviteOuvert(false)} className="opacity-60 hover:opacity-100">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <input
-                  className="input-basic"
-                  placeholder="Nom complet"
-                  value={inviteForm.nomComplet}
-                  onChange={(e) => setInviteForm({ ...inviteForm, nomComplet: e.target.value })}
-                  required
-                />
-                <input
-                  className="input-basic"
-                  type="email"
-                  placeholder="Email"
-                  value={inviteForm.email}
-                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                  required
-                />
-                <select
-                  className="input-basic"
-                  value={inviteForm.role}
-                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-                >
-                  {ROLES_INVITATION.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS_EQUIPE[r]}
-                    </option>
-                  ))}
-                </select>
-
-                <label className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 accent-brand"
-                    checked={avecMotDePasse}
-                    onChange={(e) => setAvecMotDePasse(e.target.checked)}
-                  />
-                  Définir moi-même le mot de passe (sinon : lien d’activation par email)
-                </label>
-                {avecMotDePasse && (
-                  <input
-                    className="input-basic"
-                    type="password"
-                    placeholder="Mot de passe (8+ car., maj/chiffre/spécial)"
-                    minLength={8}
-                    value={inviteSecret}
-                    onChange={(e) => setInviteSecret(e.target.value)}
-                    required
-                  />
-                )}
-
-                <button type="submit" disabled={inviting} className="btn-outline self-start text-xs">
-                  {inviting ? 'Envoi…' : avecMotDePasse ? 'Créer et ajouter au pôle' : 'Envoyer l’invitation'}
-                </button>
-              </form>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setInviteOuvert(true);
-                  setInfo(null);
-                  setLienInvitation(null);
-                }}
-                disabled={!equipeId}
-                className="flex w-fit items-center gap-1.5 text-xs font-semibold text-brand-foreground opacity-80 hover:opacity-100 disabled:opacity-40"
-              >
-                <UserPlus className="h-3.5 w-3.5" /> Inviter un membre
-              </button>
-            )}
-
-            {lienInvitation && (
-              <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
-                <p className="text-xs font-semibold">
-                  Email non envoyé (SMTP non configuré) — transmettez ce lien vous-même, il reste valable 7 jours :
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 truncate rounded bg-black/5 px-2 py-1 text-[11px] dark:bg-white/10">
-                    {lienInvitation}
-                  </code>
-                  <button type="button" onClick={copierLien} className="btn-outline px-2 py-1 text-xs">
-                    {lienCopie ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-            {info && <p className="text-sm font-medium text-emerald-600">{info}</p>}
-
-            <div className="flex justify-end gap-2 border-t border-black/10 pt-3 dark:border-white/10">
-              <button type="button" className="btn-outline" onClick={onClose} disabled={saving}>
-                Fermer
-              </button>
-              <button type="button" className="btn-primary" onClick={enregistrerMembres} disabled={saving || !equipeId}>
-                {saving ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 }

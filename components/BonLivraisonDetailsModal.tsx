@@ -41,12 +41,12 @@ export function BonLivraisonDetailsModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col gap-4 overflow-y-auto rounded-lg bg-white p-5 dark:bg-black"
+        className="flex max-h-[90dvh] w-full max-w-5xl flex-col gap-4 overflow-y-auto rounded-lg bg-white p-5 dark:bg-black"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-bold">Détails du bon</h2>
-          <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Fermer">
+          <button onClick={onClose} className="opacity-60 hover:opacity-100 pointer-coarse:-m-3 pointer-coarse:p-3" aria-label="Fermer">
             <X className="h-5 w-5" />
           </button>
         </div>

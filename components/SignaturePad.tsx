@@ -22,26 +22,56 @@ export function SignaturePad({
   const dessineRef = useRef(false);
   const [vide, setVide] = useState(true);
 
+  // Dimensionnement refait à chaque changement de largeur, et pas seulement
+  // au montage : après une rotation du téléphone, un tampon resté à l'ancienne
+  // largeur décale le trait du doigt. Le ResizeObserver se déclenche aussi à
+  // l'observation initiale, il tient donc lieu de dimensionnement au montage.
+  //
+  // Redimensionner un canvas l'efface : le tracé est donc recopié à la
+  // nouvelle largeur plutôt que perdu. Une barre de défilement qui apparaît
+  // quand la page s'allonge (photo ajoutée après la signature) suffit à faire
+  // varier la largeur de quelques pixels — effacer alors ferait disparaître
+  // une signature que personne n'a annulée. Le parent garde l'image déjà
+  // reçue : c'est bien celle que le signataire a tracée.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ratio = window.devicePixelRatio || 1;
-    const largeur = canvas.clientWidth;
-    canvas.width = largeur * ratio;
-    canvas.height = hauteur * ratio;
+    let largeurPrecedente: number | null = null;
+    const observer = new ResizeObserver(() => {
+      const largeur = canvas.clientWidth;
+      if (largeur === largeurPrecedente) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#111111';
-    // Fond blanc explicite : un canvas transparent exporté en PNG donne une
-    // signature invisible une fois imprimée sur fond blanc.
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, largeur, hauteur);
+      // Copie du tampon AVANT redimensionnement — sauf au premier passage, où
+      // il n'y a encore rien de tracé.
+      let copie: HTMLCanvasElement | null = null;
+      if (largeurPrecedente !== null) {
+        copie = document.createElement('canvas');
+        copie.width = canvas.width;
+        copie.height = canvas.height;
+        copie.getContext('2d')?.drawImage(canvas, 0, 0);
+      }
+      largeurPrecedente = largeur;
+
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = largeur * ratio;
+      canvas.height = hauteur * ratio;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#111111';
+      // Fond blanc explicite : un canvas transparent exporté en PNG donne une
+      // signature invisible une fois imprimée sur fond blanc.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, largeur, hauteur);
+      if (copie) ctx.drawImage(copie, 0, 0, largeur, hauteur);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
   }, [hauteur]);
 
   function position(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -98,7 +128,11 @@ export function SignaturePad({
       />
       <div className="flex items-center justify-between text-xs opacity-60">
         <span>{vide ? 'Faites signer le marchand ci-dessus' : 'Signature capturée'}</span>
-        <button type="button" onClick={effacer} className="flex items-center gap-1 hover:opacity-100">
+        <button
+          type="button"
+          onClick={effacer}
+          className="flex items-center gap-1 hover:opacity-100 pointer-coarse:min-h-11 pointer-coarse:px-3"
+        >
           <Eraser className="h-3.5 w-3.5" />
           Effacer
         </button>

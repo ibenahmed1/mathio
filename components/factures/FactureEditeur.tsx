@@ -135,6 +135,11 @@ export function FactureEditeur({
     let fraisRetour = 0;
     let livres = 0;
     let retours = 0;
+    // § Marge — ce que la course NOUS coûte (livreur interne ou prestataire),
+    // face aux frais facturés juste au-dessus. Interne : n'apparaît que dans
+    // cet écran d'édition, jamais sur le document imprimé.
+    let cout = 0;
+    let coutInconnu = 0;
 
     for (const ligne of tarifParColis.values()) {
       if (!selection.has(ligne.commandeId)) continue;
@@ -146,6 +151,8 @@ export function FactureEditeur({
         retours += 1;
         fraisRetour += ligne.frais;
       }
+      if (ligne.coutLivraison === null) coutInconnu += 1;
+      else cout += ligne.coutLivraison;
     }
 
     const autres = frais.reduce((s, f) => s + f.montant, 0);
@@ -157,6 +164,10 @@ export function FactureEditeur({
       livres,
       retours,
       net: cod - fraisLivraison - fraisRetour - autres,
+      cout,
+      coutInconnu,
+      // Le COD n'entre pas dans la marge : il appartient au marchand.
+      marge: fraisLivraison + fraisRetour + autres - cout,
     };
   }, [tarifParColis, selection, frais]);
 
@@ -254,7 +265,7 @@ export function FactureEditeur({
   if (!apercu) {
     return (
       <div className="flex flex-col gap-4">
-        <button type="button" onClick={onRetour} className="flex w-fit items-center gap-1.5 text-sm opacity-70">
+        <button type="button" onClick={onRetour} className="flex w-fit items-center gap-1.5 text-sm opacity-70 pointer-coarse:min-h-10">
           <ArrowLeft className="h-4 w-4" />
           {retourLabel}
         </button>
@@ -272,7 +283,7 @@ export function FactureEditeur({
       <button
         type="button"
         onClick={onRetour}
-        className="flex w-fit items-center gap-1.5 text-sm opacity-70 hover:opacity-100"
+        className="flex w-fit items-center gap-1.5 text-sm opacity-70 hover:opacity-100 pointer-coarse:min-h-10"
       >
         <ArrowLeft className="h-4 w-4" />
         {retourLabel}
@@ -286,7 +297,7 @@ export function FactureEditeur({
           </p>
         </div>
         {factureExistante && (
-          <span className="badge badge-warn">
+          <span className="badge badge-warn whitespace-normal leading-tight sm:leading-none">
             Brouillon {factureExistante.numero} — repris pour modification
           </span>
         )}
@@ -324,6 +335,7 @@ export function FactureEditeur({
                     <th className="w-10">
                       <input
                         type="checkbox"
+                        className="check-basic"
                         checked={toutCoche}
                         onChange={basculerTout}
                         aria-label={toutCoche ? 'Tout décocher' : 'Tout cocher'}
@@ -347,6 +359,7 @@ export function FactureEditeur({
                         <td>
                           <input
                             type="checkbox"
+                            className="check-basic"
                             checked={retenu}
                             onChange={() => basculer(c.id)}
                             aria-label={`Inclure ${c.codeSuivi}`}
@@ -369,7 +382,10 @@ export function FactureEditeur({
                             type="button"
                             onClick={() => basculer(c.id)}
                             title={retenu ? 'Retirer de la facture' : 'Remettre dans la facture'}
-                            className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950"
+                            aria-label={
+                              retenu ? `Retirer ${c.codeSuivi} de la facture` : `Remettre ${c.codeSuivi} dans la facture`
+                            }
+                            className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950 pointer-coarse:p-3"
                           >
                             {retenu ? <Trash2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                           </button>
@@ -420,7 +436,7 @@ export function FactureEditeur({
                           type="button"
                           onClick={() => setFrais((prev) => prev.filter((_, j) => j !== i))}
                           aria-label={`Retirer ${f.libelle}`}
-                          className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950"
+                          className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950 pointer-coarse:p-3"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -471,7 +487,7 @@ export function FactureEditeur({
                     key={libelle}
                     type="button"
                     onClick={() => setLibelleFrais(libelle)}
-                    className="rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold transition hover:bg-brand/25 dark:bg-white/10"
+                    className="rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold transition hover:bg-brand/25 dark:bg-white/10 pointer-coarse:py-3"
                   >
                     {libelle}
                   </button>
@@ -479,6 +495,29 @@ export function FactureEditeur({
               </div>
             </div>
           </section>
+        </div>
+
+        {/* Sous xl, le récapitulatif passe SOUS la liste des colis et les
+            frais : le net et « Émettre » quittaient l'écran pendant qu'on
+            décoche, ce que le parti pris n° 2 veut précisément éviter. Cette
+            barre collante les garde sous les yeux. Placée entre les deux
+            colonnes, elle reprend sa place dans le flux quand le récapitulatif
+            complet arrive à l'écran, au lieu de le doubler jusqu'en bas. Ses
+            marges négatives valent le padding de la coquille (p-4 sm:p-6). */}
+        <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-black/10 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:-mx-6 sm:px-6 xl:hidden dark:border-white/10 dark:bg-black/95">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide opacity-60">Net à reverser</p>
+            <p className="font-mono text-lg font-black tabular-nums">{montant(totaux.net)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => enregistrer('emise')}
+            disabled={enCours !== null || selection.size === 0}
+            className="btn-primary flex items-center justify-center gap-1.5"
+          >
+            <Check className="h-4 w-4" />
+            {enCours === 'emise' ? 'Émission…' : `Émettre la facture (${selection.size})`}
+          </button>
         </div>
 
         {/* ----------------------------------------------- colonne droite */}
@@ -521,6 +560,39 @@ export function FactureEditeur({
                 <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 Net négatif : les frais dépassent le CRBT encaissé, c&apos;est donc le marchand qui doit à la
                 plateforme. L&apos;écriture comptable sera enregistrée en recette.
+              </p>
+            )}
+          </section>
+
+          {/* Marge : le seul bloc de cet écran qui ne concerne PAS le marchand.
+              Il ne figure sur aucun document imprimé et n'est jamais servi à
+              une session marchand (cf. getFacturePourMarchand). */}
+          <section className="dashboard-card flex flex-col gap-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider opacity-60">Marge plateforme · interne</h2>
+
+            <dl className="flex flex-col gap-1.5 text-sm">
+              <div className="flex items-baseline justify-between gap-3 opacity-80">
+                <dt>Frais facturés</dt>
+                <dd className="font-mono tabular-nums">
+                  {montant(totaux.fraisLivraison + totaux.fraisRetour + totaux.autres)}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 opacity-80">
+                <dt>Coût des courses</dt>
+                <dd className="font-mono tabular-nums">−{montant(totaux.cout)}</dd>
+              </div>
+            </dl>
+
+            <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-black/10 pt-2 dark:border-white/15">
+              <span className="text-sm font-bold uppercase tracking-wide">Marge</span>
+              <span className="font-mono text-lg font-black tabular-nums">{montant(totaux.marge)}</span>
+            </div>
+
+            {totaux.coutInconnu > 0 && (
+              <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 p-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                {totaux.coutInconnu} colis sans coût connu : marge <strong>surestimée</strong>. Un colis livré avant le suivi
+                des frais livreur, ou une ville d&apos;agence dont le tarif prestataire n&apos;est pas renseigné.
               </p>
             )}
           </section>
@@ -586,7 +658,7 @@ export function FactureEditeur({
               type="button"
               onClick={() => enregistrer('brouillon')}
               disabled={enCours !== null || selection.size === 0}
-              className="flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold opacity-70 transition hover:bg-black/[0.05] hover:opacity-100 disabled:opacity-40 dark:hover:bg-white/10"
+              className="flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold opacity-70 transition hover:bg-black/[0.05] hover:opacity-100 disabled:opacity-40 dark:hover:bg-white/10 pointer-coarse:min-h-11"
             >
               <Save className="h-4 w-4" />
               {enCours === 'brouillon' ? 'Enregistrement…' : 'Enregistrer en brouillon'}
