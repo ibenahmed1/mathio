@@ -3,7 +3,13 @@ import type { EnvironnementApi } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { hashSecretImpossible } from '@/lib/auth';
-import { assainirScopes, genererCle } from '@/lib/plateforme-cles';
+import {
+  SCOPES_INTERDITS_EN_TEST,
+  SCOPES_TRANSPORTEUR,
+  SCOPES_VENTE,
+  assainirScopes,
+  genererCle,
+} from '@/lib/plateforme-cles';
 
 // Administration des plateformes partenaires (§ /admin/integrations).
 //
@@ -27,6 +33,13 @@ export interface PlateformeResume {
   dateCreation: Date;
   nbClesActives: number;
   nbMarchands: number;
+  /**
+   * Transporteur derrière ce compte machine, ou `null` pour un canal de vente.
+   * C'est ce champ — et lui seul — qui dit la NATURE du compte : rempli, il
+   * déclare des issues de livraison ; vide, il dépose des colis. Voir
+   * PlateformePartenaire.prestataireId (prisma/schema.prisma).
+   */
+  prestataire: { id: string; nom: string } | null;
 }
 
 export interface CleResume {
@@ -107,6 +120,7 @@ export async function listerPlateformes(): Promise<PlateformeResume[]> {
     orderBy: { dateCreation: 'asc' },
     include: {
       cles: { select: { expireLe: true, revoqueeLe: true } },
+      prestataire: { select: { id: true, nom: true } },
       _count: { select: { comptesMarchands: true } },
     },
   });
@@ -120,7 +134,22 @@ export async function listerPlateformes(): Promise<PlateformeResume[]> {
     dateCreation: p.dateCreation,
     nbClesActives: p.cles.filter((c) => cleEstActive(c, maintenant)).length,
     nbMarchands: p._count.comptesMarchands,
+    prestataire: p.prestataire,
   }));
+}
+
+/**
+ * Les transporteurs qui peuvent encore recevoir un compte machine : actifs, et
+ * pas déjà rattachés à un autre. Le filtre n'est pas cosmétique — l'unicité de
+ * `prestataireId` ferait échouer la création en 409, et proposer un choix qui
+ * ne peut pas aboutir est une erreur qu'on fait porter à l'utilisateur.
+ */
+export async function listerTransporteursDisponibles(): Promise<{ id: string; nom: string }[]> {
+  return prisma.prestataire.findMany({
+    where: { actif: true, compteMachine: { is: null } },
+    orderBy: { nom: 'asc' },
+    select: { id: true, nom: true },
+  });
 }
 
 export async function detaillerPlateforme(id: string): Promise<PlateformeDetail | null> {
@@ -137,6 +166,7 @@ export async function detaillerPlateforme(id: string): Promise<PlateformeDetail 
       // appels suffisent à voir ce qui arrive en ce moment, et charger tout
       // l'historique d'une intégration active rendrait l'écran inutilisable.
       appels: { orderBy: { horodatage: 'desc' }, take: 100 },
+      prestataire: { select: { id: true, nom: true } },
       _count: { select: { comptesMarchands: true } },
     },
   });
@@ -151,6 +181,7 @@ export async function detaillerPlateforme(id: string): Promise<PlateformeDetail 
     dateCreation: p.dateCreation,
     nbClesActives: p.cles.filter((c) => cleEstActive(c, maintenant)).length,
     nbMarchands: p._count.comptesMarchands,
+    prestataire: p.prestataire,
     cles: p.cles.map((c) => ({
       id: c.id,
       prefixe: c.prefixe,
@@ -188,7 +219,27 @@ export async function detaillerPlateforme(id: string): Promise<PlateformeDetail 
   };
 }
 
-export async function creerPlateforme(code: string, nom: string): Promise<PlateformeResume> {
+export async function creerPlateforme(
+  code: string,
+  nom: string,
+  prestataireId?: string | null
+): Promise<PlateformeResume> {
+  // Le rattachement est vérifié AVANT la transaction : un identifiant inconnu
+  // finirait sinon en violation de clé étrangère, donc en 500 — « le problème
+  // est chez nous » pour une valeur que l'appelant a mal choisie.
+  let prestataire: { id: string; nom: string } | null = null;
+  if (prestataireId) {
+    const trouve = await prisma.prestataire.findUnique({
+      where: { id: prestataireId },
+      select: { id: true, nom: true, actif: true },
+    });
+    if (!trouve) throw new ApiError(404, 'Transporteur introuvable');
+    if (!trouve.actif) {
+      throw new ApiError(400, `Le transporteur « ${trouve.nom} » est désactivé`);
+    }
+    prestataire = { id: trouve.id, nom: trouve.nom };
+  }
+
   // Le compte de service et la plateforme naissent ENSEMBLE, dans une seule
   // transaction : une plateforme sans compte technique ne pourrait rien
   // écrire (HistoriqueStatutCommande.utilisateurId est non nullable) et un
@@ -209,7 +260,7 @@ export async function creerPlateforme(code: string, nom: string): Promise<Platef
       });
 
       return tx.plateformePartenaire.create({
-        data: { code, nom, utilisateurTechniqueId: technique.id },
+        data: { code, nom, utilisateurTechniqueId: technique.id, prestataireId: prestataire?.id },
       });
     });
 
@@ -221,9 +272,20 @@ export async function creerPlateforme(code: string, nom: string): Promise<Platef
       dateCreation: creee.dateCreation,
       nbClesActives: 0,
       nbMarchands: 0,
+      prestataire,
     };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      // Deux unicités peuvent tomber ici, et les confondre enverrait chercher
+      // la panne du mauvais côté : le code de la plateforme, ou le transporteur
+      // qui a déjà son compte machine. `meta.target` dit laquelle.
+      const cible = String(error.meta?.target ?? '');
+      if (cible.includes('prestataire')) {
+        throw new ApiError(
+          409,
+          `Le transporteur « ${prestataire?.nom ?? 'sélectionné'} » a déjà un compte machine`
+        );
+      }
       throw new ApiError(409, `Une plateforme porte déjà le code « ${code} »`);
     }
     throw error;
@@ -258,9 +320,18 @@ export async function majPlateforme(
     return p;
   });
 
-  const [nbClesActives, nbMarchands] = await Promise.all([
+  const [nbClesActives, nbMarchands, prestataire] = await Promise.all([
     compterClesActives(id),
     prisma.compteMarchandExterne.count({ where: { plateformeId: id } }),
+    // Le rattachement ne se modifie pas ici — c'est un choix de création, pas
+    // un réglage : le déplacer d'un transporteur à l'autre changerait le
+    // périmètre de clés déjà émises et déjà déployées chez un tiers. On le
+    // relit seulement, pour que la réponse porte le même résumé complet que
+    // les autres.
+    prisma.prestataire.findFirst({
+      where: { compteMachine: { id } },
+      select: { id: true, nom: true },
+    }),
   ]);
 
   return {
@@ -271,6 +342,7 @@ export async function majPlateforme(
     dateCreation: misAJour.dateCreation,
     nbClesActives,
     nbMarchands,
+    prestataire,
   };
 }
 
@@ -311,15 +383,42 @@ export async function creerCleApi(
     throw new ApiError(400, 'Une clé sans aucun scope ne pourrait rien faire : en choisir au moins un');
   }
 
-  // Une clé de bac à sable ne doit JAMAIS pouvoir ouvrir un compte marchand
-  // actif : ce scope court-circuite l'approbation par un admin (RF-22), et le
-  // propre d'un environnement de test est qu'on y essaie tout. La règle est
-  // ici, à l'ÉMISSION, plutôt que dans le handler : une clé qui ne détient pas
-  // le scope ne peut pas l'exercer, quoi qu'il arrive ensuite au code.
-  if (options.environnement === 'test' && scopes.includes('marchands:creation_validee')) {
+  // Ce qu'une clé de BAC À SABLE ne peut pas recevoir (§ SCOPES_INTERDITS_EN_TEST,
+  // lib/plateforme-cles.ts, où le pourquoi de chaque entrée est écrit). La
+  // règle est ici, à l'ÉMISSION, plutôt que dans le handler : une clé qui ne
+  // détient pas le scope ne peut pas l'exercer, quoi qu'il arrive ensuite au
+  // code.
+  if (options.environnement === 'test') {
+    const interditsEnTest = scopes.filter((s) => SCOPES_INTERDITS_EN_TEST.includes(s));
+    if (interditsEnTest.length > 0) {
+      throw new ApiError(
+        400,
+        `Ces scopes ne peuvent pas être accordés à une clé de test : ${interditsEnTest.join(', ')}`
+      );
+    }
+  }
+
+  // Cohérence entre la NATURE du compte et ce que sa clé peut faire, dans les
+  // deux sens. Même raisonnement que la règle ci-dessus : refuser à
+  // l'émission, parce qu'une clé qui ne détient pas le scope ne peut pas
+  // l'exercer, quoi qu'il arrive ensuite au code.
+  //
+  // Le sens qui compte vraiment est le premier : `livraisons:statut` permet de
+  // FERMER un colis, donc de le rendre facturable. Accordé à un compte sans
+  // transporteur, il n'aurait de toute façon aucun périmètre
+  // (prestataireDeLaCle, lib/livraison-statut.ts) — mais le refuser ici évite
+  // d'émettre une clé qui répondrait 403 à chaque appel sans que personne ne
+  // comprenne pourquoi.
+  const estTransporteur = plateforme.prestataireId !== null;
+  const interdits = estTransporteur
+    ? scopes.filter((s) => SCOPES_VENTE.includes(s))
+    : scopes.filter((s) => SCOPES_TRANSPORTEUR.includes(s));
+  if (interdits.length > 0) {
     throw new ApiError(
       400,
-      'Le scope « marchands:creation_validee » ne peut pas être accordé à une clé de test'
+      estTransporteur
+        ? `Un compte de transporteur ne peut pas recevoir ces scopes : ${interdits.join(', ')}`
+        : `Ces scopes sont réservés aux comptes rattachés à un transporteur : ${interdits.join(', ')}`
     );
   }
 
@@ -510,6 +609,65 @@ export async function purgerDonneesTest(plateformeId: string): Promise<VolumeTes
 // Révocation : refus DUR et immédiat. La ligne n'est jamais supprimée —
 // `derniereUtilisationLe` et `nbAppels` restent exploitables pour savoir, après
 // coup, quand une clé fuitée a servi et combien de fois.
+// --- Purge du journal des appels -------------------------------------------
+//
+// `JournalAppelApi` grossit d'une ligne par appel REÇU, sur toutes les
+// intégrations à la fois. À 600 appels/minute et par clé — le quota par
+// défaut — la table dépasse le million de lignes en une journée soutenue.
+//
+// Elle ne porte aucune donnée personnelle : le corps rejeté n'est
+// volontairement pas conservé (cf. le commentaire du modèle), seuls le
+// chemin, le statut, la durée, l'IP et une référence de colis y figurent. Le
+// problème est donc de VOLUME, pas de confidentialité — et il se règle par une
+// fenêtre glissante plutôt que par une anonymisation.
+//
+// Trente jours par défaut : le journal sert au diagnostic à chaud (« vos colis
+// ne passent pas », « où est passé le colis X »), pas à l'archivage. Au-delà,
+// personne ne l'a jamais relu, et les compteurs qui survivent à une révocation
+// — `derniereUtilisationLe`, `nbAppels` sur la clé — portent seuls ce qui est
+// utile en analyse post-incident.
+export interface PurgeJournal {
+  joursConserves: number;
+  supprimes: number;
+  restants: number;
+  plusAncienRestant: Date | null;
+}
+
+export async function purgerJournalAppels(
+  joursConserves = 30,
+  simuler = false
+): Promise<PurgeJournal> {
+  if (!Number.isInteger(joursConserves) || joursConserves < 1) {
+    throw new ApiError(400, 'Le nombre de jours à conserver doit être un entier positif');
+  }
+
+  const limite = new Date(Date.now() - joursConserves * 24 * 60 * 60 * 1000);
+
+  // En simulation on COMPTE au lieu de supprimer : une purge est
+  // irréversible, et pouvoir la chiffrer avant de la lancer est la seule
+  // façon de distinguer « rien à supprimer » de « je vise la mauvaise
+  // fenêtre ».
+  const supprimes = simuler
+    ? await prisma.journalAppelApi.count({ where: { horodatage: { lt: limite } } })
+    : (await prisma.journalAppelApi.deleteMany({ where: { horodatage: { lt: limite } } })).count;
+
+  const [restants, plusAncien] = await Promise.all([
+    prisma.journalAppelApi.count(simuler ? { where: { horodatage: { gte: limite } } } : undefined),
+    prisma.journalAppelApi.findFirst({
+      where: simuler ? { horodatage: { gte: limite } } : undefined,
+      orderBy: { horodatage: 'asc' },
+      select: { horodatage: true },
+    }),
+  ]);
+
+  return {
+    joursConserves,
+    supprimes,
+    restants,
+    plusAncienRestant: plusAncien?.horodatage ?? null,
+  };
+}
+
 export async function revoquerCleApi(plateformeId: string, cleId: string): Promise<CleResume> {
   const cle = await prisma.cleApiPlateforme.findUnique({ where: { id: cleId } });
   if (!cle || cle.plateformeId !== plateformeId) throw new ApiError(404, 'Clé introuvable');

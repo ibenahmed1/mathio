@@ -138,6 +138,104 @@ export const STATUTS_INJOIGNABLES: StatutCommande[] = [
 // sert à dériver le taux de collecte du dashboard marchand.
 export const STATUTS_AVANT_COLLECTE: StatutCommande[] = ['nouveau_colis', 'attente_de_ramassage'];
 
+// § API prestataires (POST /api/v1/livraisons/statut) : les seuls statuts
+// qu'un transporteur sous-traitant a le droit de poser sur un colis qu'on lui
+// a confié.
+//
+// C'est une LISTE BLANCHE, et le sens de la restriction compte. Les statuts
+// absents d'ici ne sont pas oubliés : ils décrivent NOTRE logistique
+// (`ramasse`, `recu_au_hub`, `en_transit`, `mise_en_distribution`,
+// `retourne_au_hub`…) et un tiers n'a aucun moyen de les observer. Le laisser
+// les poser reviendrait à le laisser réécrire notre circuit interne depuis
+// l'extérieur, sans qu'aucun de nos écrans ne puisse le contredire.
+//
+// Le vocabulaire n'est pas inventé. Les plateformes COD marocaines exposent
+// déjà le même à leurs livreurs (DELIVERED, POSTPONED, NOANSWER, DEUXIEME,
+// TROIXIEME, INTERESTED…), et il se projette terme à terme sur cet enum : un
+// intégrateur qui a déjà branché un confrère y retrouve ses valeurs.
+//
+// ⚠️ C'est un CONTRAT PUBLIC. Ajouter une valeur est indolore ; en RETIRER une
+// casse l'intégration du partenaire en silence, le jour où il l'enverra —
+// donc longtemps après le déploiement qui l'a cassée. Toute réduction de
+// cette liste passe par une nouvelle version de l'API, jamais par une
+// modification en place.
+export interface StatutPrestataire {
+  statut: StatutCommande;
+  libelle: string;
+  // Impose une date de prochaine tentative dans le corps de la requête.
+  dateRequise: boolean;
+  // Ferme le colis : plus aucun statut ne pourra être posé dessus ensuite.
+  terminal: boolean;
+  // Phrase servie telle quelle par GET /api/v1/statuts, donc écrite pour un
+  // intégrateur qui ne connaît pas notre métier — pas pour nous.
+  description: string;
+}
+
+// Ordre délibéré, et c'est celui de la documentation servie : d'abord les
+// issues qui FERMENT le colis, puis celles qui appellent une nouvelle
+// tentative. L'ordre d'affichage interne (STATUTS_COMMANDE) ne convient pas
+// ici — il suit le circuit logistique, dont le prestataire ne voit que la fin.
+const DEFINITIONS_STATUTS_PRESTATAIRE: {
+  statut: StatutCommande;
+  dateRequise?: boolean;
+  description: string;
+}[] = [
+  { statut: 'livre', description: 'Colis remis au destinataire.' },
+  { statut: 'refuse', description: 'Le destinataire a refusé le colis.' },
+  { statut: 'annule', description: 'Livraison annulée à la demande du destinataire.' },
+  { statut: 'hors_zone', description: 'L’adresse est hors de la zone desservie.' },
+  {
+    statut: 'reporte',
+    dateRequise: true,
+    description: 'Livraison reportée : indiquer la date de la prochaine tentative.',
+  },
+  {
+    statut: 'programme',
+    dateRequise: true,
+    description: 'Livraison programmée à une date convenue avec le destinataire.',
+  },
+  { statut: 'injoignable', description: 'Destinataire injoignable.' },
+  { statut: 'boite_vocale', description: 'Appel tombé sur la boîte vocale.' },
+  // `pas_de_reponse_sms` est VOLONTAIREMENT absent, alors qu'il est le voisin
+  // immédiat des deux précédents. Il ne décrit pas un constat de terrain mais
+  // l'échec d'une relance par SMS — un canal que NOUS opérons et qu'un
+  // sous-traitant n'a aucun moyen de déclencher. Le lui ouvrir ferait affirmer
+  // qu'un SMS a été envoyé là où personne n'en a envoyé, et fausserait la
+  // seule statistique qui dit si la relance par SMS sert à quelque chose.
+  //
+  // C'est aussi ce qui lève l'ambiguïté du `NOANSWER` des API du marché :
+  // « personne n'a répondu » se pose ici en `injoignable`, jamais en
+  // `pas_de_reponse_sms`.
+  { statut: 'deuxieme_appel_pas_reponse', description: 'Deuxième appel sans réponse.' },
+  { statut: 'troisieme_appel_pas_reponse', description: 'Troisième appel sans réponse.' },
+  { statut: 'numero_errone', description: 'Le numéro de téléphone fourni est erroné.' },
+  { statut: 'client_interesse', description: 'Le destinataire confirme son intérêt, livraison à retenter.' },
+];
+
+// `libelle` et `terminal` sont DÉRIVÉS plutôt que recopiés : le catalogue
+// public ne peut donc pas se désaligner du libellé affiché en back-office, ni
+// de STATUTS_TERMINAUX. Une divergence sur ces deux points ne se verrait pas
+// en relisant le code — elle se verrait en production, chez le partenaire.
+export const CATALOGUE_STATUTS_PRESTATAIRE: StatutPrestataire[] = DEFINITIONS_STATUTS_PRESTATAIRE.map(
+  (definition) => ({
+    statut: definition.statut,
+    libelle: LABELS_STATUT_COMMANDE[definition.statut],
+    dateRequise: definition.dateRequise ?? false,
+    terminal: STATUTS_TERMINAUX.includes(definition.statut),
+    description: definition.description,
+  })
+);
+
+export const STATUTS_PRESTATAIRE: StatutCommande[] = CATALOGUE_STATUTS_PRESTATAIRE.map((s) => s.statut);
+
+// Résout une valeur reçue d'un tiers. Renvoie `null` — et non une exception —
+// pour que l'appelant compose son propre message : côté API il doit citer les
+// valeurs acceptées, ce que cette fonction n'a pas à connaître.
+export function statutPrestataire(valeur: unknown): StatutPrestataire | null {
+  if (typeof valeur !== 'string') return null;
+  return CATALOGUE_STATUTS_PRESTATAIRE.find((s) => s.statut === valeur) ?? null;
+}
+
 export const ETATS_PAIEMENT: EtatPaiement[] = ['non_paye', 'facture', 'paye', 'rembourse'];
 
 export const LABELS_ETAT_PAIEMENT: Record<EtatPaiement, string> = {

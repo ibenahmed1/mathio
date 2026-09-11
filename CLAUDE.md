@@ -168,4 +168,7 @@ Longue, à lire à la demande — ne pas en recopier le contenu ici :
   niveaux de test à appliquer pour valider le module. **Implémenté.**
 - `API_PARTENAIRES.md` — flux **SORTANT** : sous-traiter un colis à un transporteur. Une
   spécification, pas une implémentation — ne pas la confondre avec le document ci-dessus
+- `API_SUIVI_PRESTATAIRES.md` — flux **ENTRANT** côté transport : un transporteur sous-traitant
+  nous déclare l'issue des colis qu'on lui a confiés (`/api/v1/livraisons/statut`). Endpoints,
+  catalogue des statuts exposés, garde-fous et scénarios de test. **Implémenté.**
 - `NUMERO_SERIE_QR_CODEBARRE.md` — numérotation des colis, QR et code-barres

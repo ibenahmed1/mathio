@@ -13,6 +13,7 @@ import {
   Store,
   Timer,
   Trash2,
+  Truck,
 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { Modal } from '@/components/admin/Modal';
@@ -36,7 +37,13 @@ import type {
 // divergence est bornée par le test « chaque scope du catalogue porte un
 // libellé » côté serveur, et par le fait qu'un scope inconnu est de toute
 // façon écarté à l'émission (assainirScopes).
-const SCOPES: { cle: string; libelle: string; avertissement?: string }[] = [
+const SCOPES: {
+  cle: string;
+  libelle: string;
+  avertissement?: string;
+  transporteur?: boolean;
+  interditEnTest?: boolean;
+}[] = [
   {
     cle: 'marchands:creation',
     libelle: 'Créer un compte marchand (en attente de validation)',
@@ -47,8 +54,17 @@ const SCOPES: { cle: string; libelle: string; avertissement?: string }[] = [
     libelle: 'Créer un compte marchand déjà validé',
     avertissement:
       'Court-circuite l’approbation par un admin (RF-22). Indisponible sur une clé de test.',
+    interditEnTest: true,
   },
   { cle: 'colis:creation', libelle: 'Déposer des colis' },
+  {
+    cle: 'livraisons:statut',
+    libelle: 'Poser un statut sur un colis confié',
+    avertissement:
+      'Mute des colis RÉELS : « livré » ferme le colis et le rend éligible à la facturation. Indisponible sur une clé de test — il n’y a pas de bac à sable pour ce flux.',
+    transporteur: true,
+    interditEnTest: true,
+  },
 ];
 
 function dateCourte(iso: string | null): string {
@@ -252,9 +268,19 @@ function ListePlateformes({
               <span className="inline-flex items-center gap-1">
                 <KeyRound size={12} /> {p.nbClesActives} clé{p.nbClesActives > 1 ? 's' : ''}
               </span>
-              <span className="inline-flex items-center gap-1">
-                <Store size={12} /> {p.nbMarchands} marchand{p.nbMarchands > 1 ? 's' : ''}
-              </span>
+              {/* La nature du compte se lit d'un coup d'œil : un transporteur
+                  n'a pas de marchands synchronisés, et afficher « 0 marchand »
+                  sur sa carte laisserait croire à une synchronisation en
+                  panne. */}
+              {p.prestataire ? (
+                <span className="inline-flex items-center gap-1">
+                  <Truck size={12} /> {p.prestataire.nom}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1">
+                  <Store size={12} /> {p.nbMarchands} marchand{p.nbMarchands > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
           </button>
         );
@@ -589,8 +615,21 @@ function ModalePlateforme({
 }) {
   const [nom, setNom] = useState('');
   const [code, setCode] = useState('');
+  const [prestataireId, setPrestataireId] = useState('');
+  const [transporteurs, setTransporteurs] = useState<{ id: string; nom: string }[]>([]);
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
+
+  // Les transporteurs qui n'ont pas encore de compte machine. La liste peut
+  // être vide — c'est le cas courant tant qu'aucun prestataire n'est branché —
+  // et le champ disparaît alors, plutôt que d'offrir un choix sans option.
+  useEffect(() => {
+    apiGet<{ id: string; nom: string }[]>('/api/plateformes/transporteurs')
+      .then(setTransporteurs)
+      // Un référentiel indisponible ne doit pas empêcher de créer un canal de
+      // vente, qui n'en a pas besoin : on dégrade en masquant le champ.
+      .catch(() => setTransporteurs([]));
+  }, []);
 
   // Le code est proposé d'après le nom, mais reste modifiable : il finit dans
   // des URL et des journaux, et le deviner mal une fois se paie longtemps.
@@ -613,6 +652,7 @@ function ModalePlateforme({
       const creee = await apiPost<PlateformeResume>('/api/plateformes', {
         nom: nom.trim(),
         code: (code || codePropose).trim(),
+        prestataireId: prestataireId || undefined,
       });
       onCreee(creee);
     } catch (err) {
@@ -639,6 +679,26 @@ function ModalePlateforme({
             placeholder={codePropose || 'shipeh'}
           />
         </Field>
+
+        {transporteurs.length > 0 && (
+          <Field
+            label="Transporteur"
+            hint="Laisser vide pour un canal de vente. Rattaché, ce compte ne dépose plus de colis : il déclare l’issue de ceux qu’on lui confie."
+          >
+            <select
+              className="input-basic"
+              value={prestataireId}
+              onChange={(e) => setPrestataireId(e.target.value)}
+            >
+              <option value="">Aucun — canal de vente</option>
+              {transporteurs.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nom}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
 
         <p className="text-xs text-black/50 dark:text-white/50">
           Un compte de service est créé en même temps. Il ne peut ouvrir de session sur aucun
@@ -669,17 +729,35 @@ function ModaleCle({
   onClose: () => void;
   onCreee: (cleComplete: string) => void;
 }) {
-  const [environnement, setEnvironnement] = useState<EnvironnementApi>('test');
-  const [scopes, setScopes] = useState<string[]>(['colis:creation']);
+  // La nature du compte décide des deux valeurs par défaut. Un transporteur ne
+  // dépose rien, il déclare — et son unique scope étant refusé en `test`, lui
+  // proposer une clé de bac à sable serait lui proposer une clé sans aucun
+  // pouvoir, donc un formulaire qui ne peut pas aboutir.
+  const estTransporteur = plateforme.prestataire !== null;
+  const [environnement, setEnvironnement] = useState<EnvironnementApi>(
+    estTransporteur ? 'live' : 'test'
+  );
+  const [scopes, setScopes] = useState<string[]>(
+    estTransporteur ? ['livraisons:statut'] : ['colis:creation']
+  );
   const [libelle, setLibelle] = useState('');
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
-  // Le refus définitif est côté serveur (lib/plateformes.ts) — ceci n'est que
-  // la version visible de la même règle : une clé de test ne doit jamais
-  // pouvoir ouvrir un compte marchand actif.
+  // Les scopes de l'AUTRE nature ne sont pas grisés mais ABSENTS, et la
+  // distinction est voulue : `marchands:creation_validee` redevient cochable
+  // en passant la clé en `live`, alors qu'un scope de transporteur ne
+  // deviendra jamais accordable sur un canal de vente. Griser ce qui ne peut
+  // pas changer laisse chercher le geste qui l'ouvrirait.
+  const scopesDuCompte = SCOPES.filter((s) => Boolean(s.transporteur) === estTransporteur);
+
+  // Le refus définitif est côté serveur (SCOPES_INTERDITS_EN_TEST,
+  // lib/plateforme-cles.ts) — ceci n'est que la version visible de la même
+  // règle. Contrairement aux scopes de l'autre nature, ceux-ci sont GRISÉS et
+  // non masqués : ils redeviennent cochables en passant la clé en `live`, et
+  // c'est précisément le geste qu'on veut rendre visible.
   const scopeInterdit = (scope: string) =>
-    environnement === 'test' && scope === 'marchands:creation_validee';
+    environnement === 'test' && SCOPES.some((s) => s.cle === scope && s.interditEnTest);
 
   function basculer(scope: string) {
     setScopes((courants) =>
@@ -730,7 +808,7 @@ function ModaleCle({
 
         <Field label="Périmètre" required hint="Une clé ne peut faire que ce qui est coché ici.">
           <div className="flex flex-col gap-2">
-            {SCOPES.map((s) => {
+            {scopesDuCompte.map((s) => {
               const interdit = scopeInterdit(s.cle);
               return (
                 <label
