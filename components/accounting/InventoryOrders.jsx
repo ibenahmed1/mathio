@@ -143,13 +143,15 @@ export default function InventoryOrders() {
 
       {modalOuverte && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
           role="dialog"
           aria-modal="true"
           onClick={() => setModalOuverte(false)}
         >
+          {/* Le formulaire dépasse la hauteur d'un téléphone couché : borné et
+              défilant, sinon son haut et « Créer » sortent d'un calque centré. */}
           <form
-            className="form-section w-full max-w-md bg-white dark:bg-black"
+            className="form-section max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto bg-white dark:bg-black"
             onClick={(e) => e.stopPropagation()}
             onSubmit={soumettre}
           >

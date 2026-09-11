@@ -62,7 +62,7 @@ export function ProduitSelect({
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-40" />
         <input
-          className="input-basic w-full pl-7 pr-7"
+          className="input-basic w-full pl-7 pr-7 pointer-coarse:pr-10"
           placeholder={disabled ? disabledHint ?? 'Indisponible' : 'Rechercher un produit (nom ou référence)…'}
           value={open ? query : selected ? `${selected.nom} (${selected.reference})` : ''}
           onFocus={() => {
@@ -75,7 +75,7 @@ export function ProduitSelect({
         {selected && !open && (
           <button
             type="button"
-            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100"
+            className="absolute right-2 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 pointer-coarse:right-0 pointer-coarse:p-3"
             onClick={() => onSelect(null)}
             aria-label="Retirer le produit sélectionné"
           >

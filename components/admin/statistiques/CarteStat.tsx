@@ -29,7 +29,9 @@ export function CarteStat({
   return (
     <div className="dashboard-card flex flex-col gap-1">
       <p className="text-xs font-semibold uppercase tracking-wide text-black/55 dark:text-white/55">{label}</p>
-      <p className="text-2xl font-black leading-tight tabular-nums text-black dark:text-white">{valeur}</p>
+      <p className="text-xl font-black leading-tight tabular-nums text-black [overflow-wrap:anywhere] sm:text-2xl dark:text-white">
+        {valeur}
+      </p>
       <Variation valeur={variation} hausseEstBonne={hausseEstBonne} precision={precision} />
       {alerte && (
         <p className="mt-0.5 flex items-start gap-1 text-[11px] font-medium leading-snug text-amber-700 dark:text-amber-400">

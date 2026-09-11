@@ -265,7 +265,7 @@ export function FactureEditeur({
   if (!apercu) {
     return (
       <div className="flex flex-col gap-4">
-        <button type="button" onClick={onRetour} className="flex w-fit items-center gap-1.5 text-sm opacity-70">
+        <button type="button" onClick={onRetour} className="flex w-fit items-center gap-1.5 text-sm opacity-70 pointer-coarse:min-h-10">
           <ArrowLeft className="h-4 w-4" />
           {retourLabel}
         </button>
@@ -283,7 +283,7 @@ export function FactureEditeur({
       <button
         type="button"
         onClick={onRetour}
-        className="flex w-fit items-center gap-1.5 text-sm opacity-70 hover:opacity-100"
+        className="flex w-fit items-center gap-1.5 text-sm opacity-70 hover:opacity-100 pointer-coarse:min-h-10"
       >
         <ArrowLeft className="h-4 w-4" />
         {retourLabel}
@@ -297,7 +297,7 @@ export function FactureEditeur({
           </p>
         </div>
         {factureExistante && (
-          <span className="badge badge-warn">
+          <span className="badge badge-warn whitespace-normal leading-tight sm:leading-none">
             Brouillon {factureExistante.numero} — repris pour modification
           </span>
         )}
@@ -335,6 +335,7 @@ export function FactureEditeur({
                     <th className="w-10">
                       <input
                         type="checkbox"
+                        className="check-basic"
                         checked={toutCoche}
                         onChange={basculerTout}
                         aria-label={toutCoche ? 'Tout décocher' : 'Tout cocher'}
@@ -358,6 +359,7 @@ export function FactureEditeur({
                         <td>
                           <input
                             type="checkbox"
+                            className="check-basic"
                             checked={retenu}
                             onChange={() => basculer(c.id)}
                             aria-label={`Inclure ${c.codeSuivi}`}
@@ -380,7 +382,10 @@ export function FactureEditeur({
                             type="button"
                             onClick={() => basculer(c.id)}
                             title={retenu ? 'Retirer de la facture' : 'Remettre dans la facture'}
-                            className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950"
+                            aria-label={
+                              retenu ? `Retirer ${c.codeSuivi} de la facture` : `Remettre ${c.codeSuivi} dans la facture`
+                            }
+                            className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950 pointer-coarse:p-3"
                           >
                             {retenu ? <Trash2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                           </button>
@@ -431,7 +436,7 @@ export function FactureEditeur({
                           type="button"
                           onClick={() => setFrais((prev) => prev.filter((_, j) => j !== i))}
                           aria-label={`Retirer ${f.libelle}`}
-                          className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950"
+                          className="rounded p-1.5 text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950 pointer-coarse:p-3"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -482,7 +487,7 @@ export function FactureEditeur({
                     key={libelle}
                     type="button"
                     onClick={() => setLibelleFrais(libelle)}
-                    className="rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold transition hover:bg-brand/25 dark:bg-white/10"
+                    className="rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold transition hover:bg-brand/25 dark:bg-white/10 pointer-coarse:py-3"
                   >
                     {libelle}
                   </button>
@@ -490,6 +495,29 @@ export function FactureEditeur({
               </div>
             </div>
           </section>
+        </div>
+
+        {/* Sous xl, le récapitulatif passe SOUS la liste des colis et les
+            frais : le net et « Émettre » quittaient l'écran pendant qu'on
+            décoche, ce que le parti pris n° 2 veut précisément éviter. Cette
+            barre collante les garde sous les yeux. Placée entre les deux
+            colonnes, elle reprend sa place dans le flux quand le récapitulatif
+            complet arrive à l'écran, au lieu de le doubler jusqu'en bas. Ses
+            marges négatives valent le padding de la coquille (p-4 sm:p-6). */}
+        <div className="sticky bottom-0 z-20 -mx-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-black/10 bg-white/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:-mx-6 sm:px-6 xl:hidden dark:border-white/10 dark:bg-black/95">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-wide opacity-60">Net à reverser</p>
+            <p className="font-mono text-lg font-black tabular-nums">{montant(totaux.net)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => enregistrer('emise')}
+            disabled={enCours !== null || selection.size === 0}
+            className="btn-primary flex items-center justify-center gap-1.5"
+          >
+            <Check className="h-4 w-4" />
+            {enCours === 'emise' ? 'Émission…' : `Émettre la facture (${selection.size})`}
+          </button>
         </div>
 
         {/* ----------------------------------------------- colonne droite */}
@@ -630,7 +658,7 @@ export function FactureEditeur({
               type="button"
               onClick={() => enregistrer('brouillon')}
               disabled={enCours !== null || selection.size === 0}
-              className="flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold opacity-70 transition hover:bg-black/[0.05] hover:opacity-100 disabled:opacity-40 dark:hover:bg-white/10"
+              className="flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-semibold opacity-70 transition hover:bg-black/[0.05] hover:opacity-100 disabled:opacity-40 dark:hover:bg-white/10 pointer-coarse:min-h-11"
             >
               <Save className="h-4 w-4" />
               {enCours === 'brouillon' ? 'Enregistrement…' : 'Enregistrer en brouillon'}

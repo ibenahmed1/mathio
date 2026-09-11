@@ -50,7 +50,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* dvh après vh : sur mobile, 100vh inclut la zone masquée par la barre
+     d'adresse, et le profil en pied de tiroir passait dessous. Le vh reste en
+     repli pour les navigateurs qui ignorent dvh. */
   height: 100vh;
+  height: 100dvh;
   padding: 18px 12px;
   background-color: var(--mt-surface-2);
   background-image: var(--mt-gradient-soft);
@@ -164,6 +168,10 @@
   font-family: inherit;
 }
 .searchInput::placeholder { color: var(--mt-muted-2); }
+/* Sous 16 px, iOS zoome la page au focus du champ — et le tiroir avec. */
+@media (pointer: coarse) {
+  .searchInput { font-size: 16px; }
+}
 
 /* ---------- Navigation ---------- */
 .nav {
@@ -300,6 +308,14 @@
 .subNavItem:hover { background: rgba(255,209,0,.12); color: var(--mt-ink); }
 .subNavItemActive { color: var(--mt-yellow-ink); background: rgba(255,209,0,.16); font-weight: 800; }
 .subNavItem svg { flex: none; }
+
+/* Sous 1024 px la barre devient un tiroir manipulé au doigt : la croix (28 px)
+   et les sous-entrées (~28 px) y passent à 40 px. Au-delà, la barre est en flux
+   et pilotée à la souris — gabarit d'origine inchangé. */
+@media (max-width: 1023.98px) {
+  .closeBtn { width: 40px; height: 40px; }
+  .subNavItem { min-height: 40px; }
+}
 
 /* Un sous-groupe (troisième niveau : Stock, Bon de retour, Bon de paiement,
    Factures) est un <button> et non un <a> : il lui faut la remise à zéro que

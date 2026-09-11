@@ -5,8 +5,10 @@
 // sens de l'action pour rester lisible sans libellé.
 // Même gabarit que .btn-icon (app/globals.css) : 32px, rayon 10px, anneau de
 // focus jaune — les actions de ligne s'alignent ainsi sur le reste du système.
+// Au doigt, 44 px comme .btn-icon sous `pointer: coarse` : 32 px suffisent à
+// une souris, pas à un pouce qui vise l'une de cinq actions collées.
 const BASE =
-  'inline-grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border bg-white shadow-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-white/5';
+  'inline-grid h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 shrink-0 cursor-pointer place-items-center rounded-lg border bg-white shadow-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-white/5';
 
 const VARIANT = {
   edit: 'border-black/10 text-blue-600 hover:border-blue-600 hover:bg-blue-600 hover:text-white dark:border-white/15 dark:text-blue-400',

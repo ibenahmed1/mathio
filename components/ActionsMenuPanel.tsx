@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 // Panneau des menus « ⋮ » des listes (colis, bons d'envoi, de livraison, de
@@ -31,23 +31,35 @@ export function ActionsMenuPanel({
   width?: number;
   children: ReactNode;
 }) {
+  // Conservé pour reconnaître, dans l'écouteur de défilement, un défilement DU
+  // panneau lui-même — qui doit le laisser ouvert — de celui de la page ou de
+  // la table, qui le ferme.
+  const panneauRef = useRef<HTMLDivElement | null>(null);
+
   // Le placement se fait dans le callback de `ref`, pas dans un effet : il
   // s'exécute au montage du panneau, avant peinture, avec sa hauteur RÉELLE
   // sous la main — donc sans état intermédiaire ni frame où le menu
   // apparaîtrait au mauvais endroit.
   const placer = useCallback(
     (el: HTMLDivElement | null) => {
+      panneauRef.current = el;
       const ancre = anchorRef.current;
       if (!el || !ancre) return;
       const rect = ancre.getBoundingClientRect();
       const hauteur = el.offsetHeight;
       const placeDessous = window.innerHeight - rect.bottom;
       const versLeHaut = placeDessous < hauteur + MARGE && rect.top > placeDessous;
+      const top = versLeHaut ? rect.top - hauteur - 4 : rect.bottom + 4;
 
-      el.style.top = `${versLeHaut ? Math.max(MARGE, rect.top - hauteur - 4) : rect.bottom + 4}px`;
+      // Borné en haut ET en bas : sur un téléphone en paysage, le menu d'un
+      // colis est plus haut que la place disponible d'un côté comme de
+      // l'autre. Il recouvre alors son bouton plutôt que de sortir de l'écran ;
+      // sa hauteur est plafonnée à la fenêtre (max-h) et il défile en dedans.
+      el.style.top = `${Math.max(MARGE, Math.min(top, window.innerHeight - hauteur - MARGE))}px`;
       // Aligné sur le bord DROIT du bouton (les menus de ligne sont en fin de
-      // rangée), sans jamais sortir de la fenêtre.
-      el.style.left = `${Math.min(Math.max(MARGE, rect.right - width), window.innerWidth - width - MARGE)}px`;
+      // rangée), sans jamais sortir de la fenêtre — la marge gauche l'emporte
+      // sur un écran plus étroit que le menu.
+      el.style.left = `${Math.max(MARGE, Math.min(rect.right - width, window.innerWidth - width - MARGE))}px`;
       el.style.visibility = 'visible';
     },
     [anchorRef, width]
@@ -60,7 +72,8 @@ export function ActionsMenuPanel({
     }
     // En capture : la table défile dans son propre conteneur, un écouteur posé
     // sur window ne verrait pas cet évènement autrement.
-    function onScrollOrResize() {
+    function onScrollOrResize(e: Event) {
+      if (e.target instanceof Node && panneauRef.current?.contains(e.target)) return;
       onClose();
     }
     document.addEventListener('keydown', onKey);
@@ -81,8 +94,8 @@ export function ActionsMenuPanel({
       <div
         ref={placer}
         role="menu"
-        className="fixed top-0 left-0 z-[91] flex flex-col overflow-hidden rounded-xl border border-black/[0.07] bg-white py-1 shadow-[0_20px_45px_-15px_rgba(32,32,32,0.35)] dark:border-white/10 dark:bg-neutral-950"
-        style={{ width, visibility: 'hidden' }}
+        className="fixed top-0 left-0 z-[91] flex max-h-[calc(100dvh-16px)] flex-col overflow-y-auto overscroll-contain rounded-xl border border-black/[0.07] bg-white py-1 shadow-[0_20px_45px_-15px_rgba(32,32,32,0.35)] dark:border-white/10 dark:bg-neutral-950"
+        style={{ width, maxWidth: `calc(100vw - ${2 * MARGE}px)`, visibility: 'hidden' }}
       >
         {children}
       </div>

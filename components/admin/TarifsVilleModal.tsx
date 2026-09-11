@@ -144,7 +144,7 @@ export function TarifsVilleModal({
                     type="button"
                     title="Modifier"
                     onClick={() => setEditId(tarif.id)}
-                    className="rounded-md border border-black/15 p-1.5 text-blue-600 transition hover:bg-blue-600 hover:text-white dark:border-white/15 dark:text-blue-400"
+                    className="rounded-md border border-black/15 p-1.5 pointer-coarse:p-2.5 text-blue-600 transition hover:bg-blue-600 hover:text-white dark:border-white/15 dark:text-blue-400"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -152,7 +152,7 @@ export function TarifsVilleModal({
                     type="button"
                     title="Supprimer"
                     onClick={() => supprimer(tarif)}
-                    className="rounded-md border border-black/15 p-1.5 text-red-600 transition hover:bg-red-600 hover:text-white dark:border-white/15 dark:text-red-400"
+                    className="rounded-md border border-black/15 p-1.5 pointer-coarse:p-2.5 text-red-600 transition hover:bg-red-600 hover:text-white dark:border-white/15 dark:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

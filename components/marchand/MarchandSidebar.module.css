@@ -49,7 +49,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* 100vh reste en repli pour un navigateur sans dvh. Sur mobile, 100vh vaut
+     la hauteur barre d'adresse repliée : le bas du tiroir (« Déconnexion »)
+     tombait sous la barre du navigateur. */
   height: 100vh;
+  height: 100dvh;
   padding: 18px 12px;
   background-color: var(--mk-card);
   background-image: var(--mt-gradient-soft);
@@ -112,6 +116,11 @@
 }
 .closeBtn:hover { background: var(--mk-line-soft); color: var(--mk-ink); }
 .closeBtn:focus-visible { outline: 2px solid var(--mk-amber-ink); outline-offset: 2px; }
+/* Au doigt, 28 px est trop petit pour viser à coup sûr la seule sortie du
+   tiroir (l'autre étant le voile, qu'on ne devine pas toujours). */
+@media (pointer: coarse) {
+  .closeBtn { width: 40px; height: 40px; }
+}
 /* La sidebar ne se replie plus en desktop : il ne reste que la fermeture du
    panneau mobile. (Ce module n'est rattaché à aucun layer Tailwind, donc
    `lg:hidden` perdrait la cascade — on masque ici, dans la même feuille.) */

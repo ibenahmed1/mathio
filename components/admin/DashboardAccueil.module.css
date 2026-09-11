@@ -113,6 +113,9 @@
   .sparkCol { flex-direction: column; }
   .trafficLegend { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 480px) {
+/* Seuil à 640 et non 480 : entre les deux, deux cadrans côte à côte laissaient
+   trop peu de place à la valeur COD et à la mini-courbe (58 px), qui
+   débordaient du cadran. */
+@media (max-width: 640px) {
   .kpiRow { grid-template-columns: minmax(0, 1fr); }
 }

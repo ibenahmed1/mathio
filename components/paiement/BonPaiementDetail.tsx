@@ -133,7 +133,7 @@ export function BonPaiementDetail({ bonId, onRetour }: { bonId: string; onRetour
       <button
         type="button"
         onClick={onRetour}
-        className="flex w-fit items-center gap-1.5 text-sm opacity-70 hover:opacity-100"
+        className="flex w-fit items-center gap-1.5 text-sm opacity-70 hover:opacity-100 pointer-coarse:min-h-10"
       >
         <ArrowLeft className="h-4 w-4" />
         Retour au tableau de bord
@@ -141,8 +141,8 @@ export function BonPaiementDetail({ bonId, onRetour }: { bonId: string; onRetour
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="page-title flex items-center gap-2">
-            <span className="font-mono">{bon.numero}</span>
+          <h1 className="page-title flex flex-wrap items-center gap-2">
+            <span className="break-all font-mono">{bon.numero}</span>
             <span className={`badge ${CLASSES_STATUT[bon.statut]}`}>{LIBELLES_STATUT[bon.statut]}</span>
           </h1>
           <p className="text-sm opacity-70">
@@ -373,8 +373,9 @@ export function BonPaiementDetail({ bonId, onRetour }: { bonId: string; onRetour
                           type="button"
                           disabled={enCours}
                           onClick={() => agir(() => apiDelete(`/api/bons-paiement/${bon.id}/ajustements/${a.id}`))}
-                          className="rounded p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950"
+                          className="rounded p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950 pointer-coarse:p-3"
                           title="Retirer"
+                          aria-label={`Retirer l'ajustement ${a.libelle}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

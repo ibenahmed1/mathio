@@ -12,21 +12,51 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
   const dessine = useRef(false);
   const [vierge, setVierge] = useState(true);
 
-  // Le canvas est dimensionné en pixels réels (densité d'écran comprise) une
-  // fois monté : sans ça le trait est flou et décalé du doigt sur mobile.
+  // Le canvas est dimensionné en pixels réels (densité d'écran comprise) :
+  // sans ça le trait est flou et décalé du doigt sur mobile. Un calcul fait
+  // une seule fois au montage ne suffit pas — après une rotation du
+  // téléphone, le tampon garde l'ancienne largeur et le trait tombe à côté du
+  // doigt. D'où le ResizeObserver, qui se déclenche aussi à l'observation
+  // initiale et tient donc lieu de dimensionnement au montage.
+  //
+  // Redimensionner un canvas l'efface : le tracé est donc recopié à la
+  // nouvelle largeur plutôt que perdu. Une barre de défilement qui apparaît
+  // quand la feuille s'allonge (photo ajoutée après la signature) suffit à
+  // faire varier la largeur de quelques pixels — effacer alors ferait
+  // disparaître une preuve de livraison que personne n'a annulée. Le parent
+  // garde l'image déjà reçue : c'est bien celle que le client a tracée.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * ratio;
-    canvas.height = rect.height * ratio;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#111827';
+    let largeurPrecedente: number | null = null;
+    const observer = new ResizeObserver(() => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === largeurPrecedente) return;
+
+      // Copie du tampon AVANT redimensionnement — sauf au premier passage, où
+      // il n'y a encore rien de tracé.
+      let copie: HTMLCanvasElement | null = null;
+      if (largeurPrecedente !== null) {
+        copie = document.createElement('canvas');
+        copie.width = canvas.width;
+        copie.height = canvas.height;
+        copie.getContext('2d')?.drawImage(canvas, 0, 0);
+      }
+      largeurPrecedente = rect.width;
+
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#111827';
+      if (copie) ctx.drawImage(copie, 0, 0, rect.width, rect.height);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
   }, []);
 
   function positionDe(e: React.PointerEvent<HTMLCanvasElement>) {
@@ -81,7 +111,7 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
         onPointerLeave={terminer}
         className="h-36 w-full touch-none rounded-md border border-dashed border-black/25 bg-white dark:border-white/25"
       />
-      <button type="button" onClick={effacer} className="flex items-center gap-1 self-end text-xs font-semibold opacity-70 hover:opacity-100">
+      <button type="button" onClick={effacer} className="flex items-center gap-1 self-end text-xs font-semibold opacity-70 hover:opacity-100 pointer-coarse:min-h-11 pointer-coarse:px-3">
         <Eraser className="h-3.5 w-3.5" />
         Effacer
       </button>

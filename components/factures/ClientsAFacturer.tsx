@@ -141,7 +141,7 @@ export function ClientsAFacturer({
             onChange={(e) => setRecherche(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-1 text-sm">
+        <div className="flex flex-wrap items-center gap-1 text-sm">
           <span className="opacity-60">Trier par</span>
           {(
             [
@@ -154,7 +154,7 @@ export function ClientsAFacturer({
               key={valeur}
               type="button"
               onClick={() => setTri(valeur)}
-              className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+              className={`rounded-full px-3 py-1 text-xs font-bold transition pointer-coarse:py-3 ${
                 tri === valeur
                   ? 'bg-brand text-brand-foreground'
                   : 'bg-black/[0.05] hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20'
