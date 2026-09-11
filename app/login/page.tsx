@@ -63,7 +63,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand p-8">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-brand p-4 sm:p-8">
       <Logo size="lg" />
       <div className="w-full max-w-sm rounded-xl bg-black p-6 shadow-lg">
         <h1 className="mb-4 text-xl font-black text-white">Connexion</h1>
@@ -75,6 +75,10 @@ export default function LoginPage() {
               value={telephone}
               onChange={(e) => setTelephone(e.target.value)}
               placeholder="0000000000 ou email"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
             />
           </label>
@@ -83,6 +87,7 @@ export default function LoginPage() {
             <input
               className="input-basic border-white/20 bg-white/5 text-white"
               type="password"
+              autoComplete="current-password"
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
               required
@@ -94,13 +99,14 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="mt-2 text-xs text-white/50">
-          <a className="font-semibold text-brand underline" href="/mot-de-passe-oublie">
+          {/* inline-block + py-2 élargit la cible au doigt ; -my-2 garde l'interligne. */}
+          <a className="-my-2 inline-block py-2 font-semibold text-brand underline" href="/mot-de-passe-oublie">
             Mot de passe oublié ?
           </a>
         </p>
         <p className="mt-2 text-xs text-white/50">
           Pas de compte ?{' '}
-          <a className="font-semibold text-brand underline" href="/inscription">
+          <a className="-my-2 inline-block py-2 font-semibold text-brand underline" href="/inscription">
             Inscrire ma boutique
           </a>
         </p>

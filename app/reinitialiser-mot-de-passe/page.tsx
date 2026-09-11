@@ -40,7 +40,7 @@ function ReinitialiserMotDePasseContent() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand p-8">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-brand p-4 sm:p-8">
       <Logo size="lg" />
       <div className="w-full max-w-sm rounded-xl bg-black p-6 shadow-lg">
         <h1 className="mb-4 text-xl font-black text-white">Nouveau mot de passe</h1>
