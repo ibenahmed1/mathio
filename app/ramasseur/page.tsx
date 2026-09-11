@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 import type { Commande } from '@/lib/types';
 import { Logo } from '@/components/Logo';
 import { QrScanner } from '@/components/QrScanner';
@@ -85,7 +86,11 @@ export default function RamasseurPage() {
   }
 
   async function handleLogout() {
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 

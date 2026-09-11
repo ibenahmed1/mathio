@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Search, UserRound, X } from 'lucide-react';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
-import { apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 import s from './AdminSidebar.module.css';
 
 const LOGO = '/mathio-logo.png';
@@ -157,7 +157,11 @@ export function AdminSidebar({
 
   async function handleLogout() {
     setProfileMenuOpen(false);
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 
