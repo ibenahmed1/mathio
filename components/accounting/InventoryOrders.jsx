@@ -2,18 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { Box, Plus } from "lucide-react";
-import { apiGet, apiPost } from "@/lib/api-client";
+import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { Modal } from "@/components/admin/Modal";
 import { Affix, Field } from "@/components/form/Field";
 import {
   LABELS_STATUT_COMMANDE_STOCK_HUB,
-  STATUTS_COMMANDE_STOCK_HUB,
+  STATUTS_CREATION_COMMANDE_STOCK_HUB,
+  STATUT_COMMANDE_STOCK_HUB_PAR_DEFAUT,
   formatMontantCommandeStockHub,
   formatNumeroCommandeStockHub,
+  statutsSuivantsCommandeStockHub,
 } from "@/lib/commandes-stock-hub";
 import a from "./Accounting.module.css";
 
-const CHAMPS_VIDES = { titre: "", sousTitre: "", montant: "", statut: "en_attente", modePaiement: "", dateCommande: "" };
+const CHAMPS_VIDES = {
+  titre: "",
+  sousTitre: "",
+  montant: "",
+  statut: STATUT_COMMANDE_STOCK_HUB_PAR_DEFAUT,
+  modePaiement: "",
+  dateCommande: "",
+};
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
@@ -27,6 +36,7 @@ export default function InventoryOrders() {
   const [form, setForm] = useState(CHAMPS_VIDES);
   const [formError, setFormError] = useState(null);
   const [envoi, setEnvoi] = useState(false);
+  const [statutEnCours, setStatutEnCours] = useState(null);
 
   async function charger() {
     setChargement(true);
@@ -94,6 +104,32 @@ export default function InventoryOrders() {
     }
   }
 
+  async function changerStatut(commande, vers) {
+    if (vers === commande.statut) return;
+    const numero = formatNumeroCommandeStockHub(commande.numero);
+    // « Reçue » et « Annulée » sont définitives (lib/commandes-stock-hub.ts) :
+    // une confirmation, parce qu'un menu déroulant se change par mégarde. Si
+    // elle est refusée, le <select> contrôlé revient seul sur le statut actuel.
+    const definitif = statutsSuivantsCommandeStockHub(vers).length === 0;
+    if (
+      definitif &&
+      !window.confirm(`Passer la commande ${numero} à « ${LABELS_STATUT_COMMANDE_STOCK_HUB[vers]} » ? Ce statut est définitif.`)
+    ) {
+      return;
+    }
+
+    setStatutEnCours(commande.id);
+    setError(null);
+    try {
+      const maj = await apiPatch(`/api/commandes-stock-hub/${commande.id}`, { statut: vers });
+      setCommandes((prev) => prev.map((c) => (c.id === commande.id ? { ...c, statut: maj.statut } : c)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setStatutEnCours(null);
+    }
+  }
+
   const listeVide = !chargement && !error && commandes.length === 0;
 
   return (
@@ -130,45 +166,71 @@ export default function InventoryOrders() {
           </div>
         ) : (
           <div className={a.orderList}>
-            {commandes.map((c) => (
-              <article key={c.id} className={a.order}>
-                <header className={a.orderHead}>
-                  <span className={a.orderLabel}>Commande</span>
-                  <span className={a.orderId}>#{formatNumeroCommandeStockHub(c.numero)}</span>
-                  <span className={a.chipDelivered}>{LABELS_STATUT_COMMANDE_STOCK_HUB[c.statut]}</span>
-                </header>
+            {commandes.map((c) => {
+              const numero = formatNumeroCommandeStockHub(c.numero);
+              const suivants = statutsSuivantsCommandeStockHub(c.statut);
+              const teinte = `${a.statutChip} ${a[`statut_${c.statut}`] ?? ""}`;
+              return (
+                <article key={c.id} className={a.order}>
+                  <header className={a.orderHead}>
+                    <span className={a.orderLabel}>Commande</span>
+                    <span className={a.orderId}>#{numero}</span>
+                    {/* Tant qu'une étape suivante existe, la pastille EST le
+                        menu qui fait avancer la commande. Un statut définitif
+                        reste une simple pastille : un menu à une seule option
+                        ferait croire qu'on peut encore agir. */}
+                    {suivants.length > 0 ? (
+                      <select
+                        className={`${teinte} ${a.statutSelect}`}
+                        value={c.statut}
+                        onChange={(e) => changerStatut(c, e.target.value)}
+                        disabled={statutEnCours === c.id}
+                        aria-label={`Statut de la commande ${numero}`}
+                      >
+                        <option value={c.statut}>{LABELS_STATUT_COMMANDE_STOCK_HUB[c.statut]}</option>
+                        {suivants.map((s) => (
+                          <option key={s} value={s}>
+                            {`→ ${LABELS_STATUT_COMMANDE_STOCK_HUB[s]}`}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={teinte}>{LABELS_STATUT_COMMANDE_STOCK_HUB[c.statut]}</span>
+                    )}
+                  </header>
 
-                <div className={a.orderBody}>
-                  <div className={a.orderMain}>
-                    <span className={a.orderThumb}>
-                      <Box className="h-4 w-4" strokeWidth={2} />
-                    </span>
-                    <div className={a.orderText}>
-                      <div className={a.orderItem}>{c.titre}</div>
-                      {c.sousTitre && <div className={a.orderDivision}>{c.sousTitre}</div>}
+                  <div className={a.orderBody}>
+                    <div className={a.orderMain}>
+                      <span className={a.orderThumb}>
+                        <Box className="h-4 w-4" strokeWidth={2} />
+                      </span>
+                      <div className={a.orderText}>
+                        <div className={a.orderItem}>{c.titre}</div>
+                        {c.sousTitre && <div className={a.orderDivision}>{c.sousTitre}</div>}
+                      </div>
+                      <div className={`${a.orderAmount} ${a.amountExpense}`}>
+                        {formatMontantCommandeStockHub(c.montant)}
+                      </div>
                     </div>
-                    <div className={`${a.orderAmount} ${a.amountExpense}`}>
-                      {formatMontantCommandeStockHub(c.montant)}
-                    </div>
+
+                    <dl className={a.orderMeta}>
+                      <div className={a.metaCell}>
+                        <dt className={a.metaKey}>Date</dt>
+                        <dd className={a.metaVal}>{formatDate(c.dateCommande)}</dd>
+                      </div>
+                      <div className={a.metaCell}>
+                        <dt className={a.metaKey}>Par</dt>
+                        <dd className={a.metaVal}>{c.auteur?.nomComplet ?? "—"}</dd>
+                      </div>
+                      <div className={a.metaCell}>
+                        <dt className={a.metaKey}>Paiement</dt>
+                        <dd className={a.metaVal}>{c.modePaiement}</dd>
+                      </div>
+                    </dl>
                   </div>
-
-                  <dl className={a.orderMeta}>
-                    <div className={a.metaCell}>
-                      <dt className={a.metaKey}>Date</dt>
-                      <dd className={a.metaVal}>{formatDate(c.dateCommande)}</dd>
-                    </div>
-                    <div className={a.metaCell}>
-                      <dt className={a.metaKey}>Par</dt>
-                      <dd className={a.metaVal}>{c.auteur?.nomComplet ?? "—"}</dd>
-                    </div>
-                    <div className={a.metaCell}>
-                      <dt className={a.metaKey}>Paiement</dt>
-                      <dd className={a.metaVal}>{c.modePaiement}</dd>
-                    </div>
-                  </dl>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
@@ -212,13 +274,15 @@ export default function InventoryOrders() {
                   />
                 </Affix>
               </Field>
+              {/* « Annulée » n'est pas proposée : elle ne s'atteint qu'en
+                  faisant avancer une commande existante. */}
               <Field label="Statut" required>
                 <select
                   className="input-basic"
                   value={form.statut}
                   onChange={(e) => setForm((f) => ({ ...f, statut: e.target.value }))}
                 >
-                  {STATUTS_COMMANDE_STOCK_HUB.map((s) => (
+                  {STATUTS_CREATION_COMMANDE_STOCK_HUB.map((s) => (
                     <option key={s} value={s}>{LABELS_STATUT_COMMANDE_STOCK_HUB[s]}</option>
                   ))}
                 </select>

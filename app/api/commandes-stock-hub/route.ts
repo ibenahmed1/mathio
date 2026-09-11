@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { StatutCommandeStockHub } from '@/app/generated/prisma/enums';
-import { STATUTS_COMMANDE_STOCK_HUB } from '@/lib/commandes-stock-hub';
+import {
+  STATUTS_COMMANDE_STOCK_HUB,
+  STATUTS_CREATION_COMMANDE_STOCK_HUB,
+  STATUT_COMMANDE_STOCK_HUB_PAR_DEFAUT,
+} from '@/lib/commandes-stock-hub';
 
 // § Comptabilité — même périmètre d'accès que /api/finance (admin/responsable
 // uniquement, cf. app/api/finance/route.ts).
@@ -41,7 +45,9 @@ export async function POST(request: Request) {
     const titre = typeof body.titre === 'string' ? body.titre.trim() : '';
     const sousTitre = typeof body.sousTitre === 'string' && body.sousTitre.trim() ? body.sousTitre.trim() : null;
     const montant = Number(body.montant);
-    const statut = (typeof body.statut === 'string' ? body.statut : 'en_attente') as StatutCommandeStockHub;
+    const statut = (
+      typeof body.statut === 'string' ? body.statut : STATUT_COMMANDE_STOCK_HUB_PAR_DEFAUT
+    ) as StatutCommandeStockHub;
     const modePaiement = typeof body.modePaiement === 'string' ? body.modePaiement.trim() : '';
     const dateCommandeRaw = typeof body.dateCommande === 'string' ? body.dateCommande : null;
 
@@ -51,8 +57,10 @@ export async function POST(request: Request) {
     if (!Number.isFinite(montant) || montant <= 0) {
       throw new ApiError(400, 'Le montant doit être strictement positif');
     }
-    if (!STATUTS_COMMANDE_STOCK_HUB.includes(statut)) {
-      throw new ApiError(400, 'Statut invalide');
+    // « Annulée » est refusée ici : elle ne s'atteint que par PATCH, depuis un
+    // brouillon ou une commande passée (cf. STATUTS_CREATION_COMMANDE_STOCK_HUB).
+    if (!STATUTS_CREATION_COMMANDE_STOCK_HUB.includes(statut)) {
+      throw new ApiError(400, 'Statut invalide à la création');
     }
     const dateCommande = new Date(dateCommandeRaw);
     if (Number.isNaN(dateCommande.getTime())) {
