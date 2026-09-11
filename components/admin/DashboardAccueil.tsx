@@ -14,6 +14,7 @@ import {
   Truck,
   Undo2,
 } from 'lucide-react';
+import type { Feature, MultiPolygon } from 'geojson';
 import s from './DashboardAccueil.module.css';
 
 // Tableau de bord de l'Accueil back-office, porté de la maquette
@@ -25,7 +26,7 @@ import s from './DashboardAccueil.module.css';
 // principales villes.
 //
 // Ce qui reste STATIQUE (repris tel quel de la maquette, en attente d'une
-// source) : la carte du monde, la « Vue d'ensemble » mensuelle et les deux
+// source) : la carte du Maroc, la « Vue d'ensemble » mensuelle et les deux
 // sparklines de la colonne de droite. Chaque bloc concerné le redit sur
 // place — ne pas confondre ces chiffres avec des chiffres de production.
 //
@@ -240,39 +241,55 @@ export function DashboardAccueil({
     let dead = false;
     (async () => {
       try {
-        const [d3, topojson] = await Promise.all([import('d3'), import('topojson-client')]);
-        const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
-        const topo = await res.json();
+        // Silhouette embarquée, générée par scripts/generer-carte-maroc.ts : le
+        // Royaume d'un seul tenant, provinces du Sud comprises. Elle remplace
+        // l'atlas du monde entier que la carte téléchargeait depuis jsDelivr à
+        // chaque affichage — plus de 100 Ko pour un seul pays, et une carte vide
+        // dès que le CDN était lent ou filtré. d3 et la géométrie restent chargés
+        // à part, hors du paquet initial de l'Accueil.
+        const [d3, { default: geometrie }] = await Promise.all([import('d3'), import('./carte-maroc.json')]);
         if (dead || !mapRef.current) return;
-        const countries = topojson.feature(topo, topo.objects.countries) as unknown as {
-          features: { id: string }[];
-        };
+        const maroc = geometrie as unknown as Feature<MultiPolygon>;
         const el = mapRef.current;
         const w = el.clientWidth || 700;
         const h = el.clientHeight || 320;
-        const proj = d3.geoNaturalEarth1().fitSize([w, h], countries as never);
+        // Mercator ajusté à la SEULE emprise du Maroc : c'est le zoom maximal
+        // qui laisse voir tout le territoire, de Tanger à Lagouira. La marge
+        // tient la côte à distance du bord de la carte.
+        const MARGE = 10;
+        const proj = d3.geoMercator().fitExtent(
+          [
+            [MARGE, MARGE],
+            [w - MARGE, h - MARGE],
+          ],
+          maroc
+        );
         const path = d3.geoPath(proj);
-        const colors: Record<string, string> = {
-          '012': '#FFB701',
-          '250': '#219EBC',
-          '504': '#FC8500',
-          '788': '#FC8500',
-          '724': '#023047',
-          '380': '#14526E',
-        };
         const svg = d3
           .create('svg')
           .attr('viewBox', `0 0 ${w} ${h}`)
+          .attr('role', 'img')
+          .attr('aria-label', 'Carte du Maroc')
           .style('width', '100%')
           .style('height', '100%');
+        // Dégradé ambre → orange, du nord-est au sud-ouest : la paire chaude de
+        // la palette P, déjà portée par le Maroc sur l'ancienne carte du monde.
+        // Ni contour ni frontière intérieure, comme sur la carte de référence.
+        const degrade = svg
+          .append('defs')
+          .append('linearGradient')
+          .attr('id', 'carte-maroc-degrade')
+          .attr('x1', '1')
+          .attr('y1', '0')
+          .attr('x2', '0')
+          .attr('y2', '1');
+        degrade.append('stop').attr('offset', '0%').attr('stop-color', P.jaune);
+        degrade.append('stop').attr('offset', '100%').attr('stop-color', P.orange);
         svg
-          .selectAll('path')
-          .data(countries.features)
-          .join('path')
-          .attr('d', path as never)
-          .attr('fill', (f) => colors[f.id] || '#E8E8E5')
-          .attr('stroke', '#FFF')
-          .attr('stroke-width', 0.5);
+          .append('path')
+          .datum(maroc)
+          .attr('d', (d) => path(d))
+          .attr('fill', 'url(#carte-maroc-degrade)');
         el.innerHTML = '';
         el.appendChild(svg.node() as Node);
       } catch {
@@ -830,9 +847,9 @@ export function DashboardAccueil({
             ))}
           </div>
         </div>
-        {/* Carte du monde (d3 + topojson, atlas chargé depuis jsDelivr) : reprise
-            telle quelle de la maquette. Purement décorative — le coloriage des
-            pays est en dur et ne reflète aucune donnée du réseau. */}
+        {/* Carte du Maroc (d3, silhouette embarquée — cf. l'effet `mapRef`
+            plus haut). Purement décorative : elle ne reflète encore aucune
+            donnée du réseau, les zones clients n'ayant pas de coordonnées. */}
         <div className={s.card} style={{ padding: 14, position: 'relative', minHeight: 340 }}>
           <div
             ref={mapRef}
