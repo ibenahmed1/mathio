@@ -201,7 +201,7 @@ export function AppSidebar({
           )}
           <button
             onClick={onCloseMobile}
-            className="rounded p-1 text-black/50 hover:text-brand-ink lg:hidden dark:text-white/60 dark:hover:text-brand"
+            className="-mr-1.5 rounded-lg p-2.5 text-black/50 hover:text-brand-ink lg:hidden dark:text-white/60 dark:hover:text-brand"
             aria-label="Fermer"
           >
             <X className="h-5 w-5" />

@@ -115,7 +115,7 @@ function AdminSuiviColisContent() {
 
       <form onSubmit={handleSearch} className="flex max-w-md gap-2">
         <input
-          className="input-basic flex-1"
+          className="input-basic min-w-0 flex-1"
           placeholder="Code de suivi (ex. PD-000123)"
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -143,30 +143,30 @@ function AdminSuiviColisContent() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
             <p className="opacity-60">Magasin</p>
-            <p className="col-span-3">{commande.marchand?.nomBoutique ?? '—'}</p>
+            <p className="break-words sm:col-span-3">{commande.marchand?.nomBoutique ?? '—'}</p>
             <p className="opacity-60">Marchandise</p>
-            <p className="col-span-3">
+            <p className="break-words sm:col-span-3">
               {commande.marchandise?.nom ?? commande.produitDescription ?? '—'}
               {commande.quantite > 1 ? ` × ${commande.quantite}` : ''}
             </p>
             <p className="opacity-60">Montant</p>
-            <p className="col-span-3">{commande.montantCod} DH</p>
+            <p className="sm:col-span-3">{commande.montantCod} DH</p>
             <p className="opacity-60">Colis à remplacer</p>
-            <p className="col-span-3 font-mono">{commande.colisARemplacer?.codeSuivi ?? '—'}</p>
+            <p className="break-all font-mono sm:col-span-3">{commande.colisARemplacer?.codeSuivi ?? '—'}</p>
             <p className="opacity-60">Options</p>
-            <p className="col-span-3 flex gap-1">
+            <p className="flex flex-wrap gap-1 sm:col-span-3">
               {commande.ouvrir && <span className="badge badge-neutral">Ouvrir</span>}
               {commande.fragile && <span className="badge badge-warn">Fragile</span>}
               {!commande.ouvrir && !commande.fragile && '—'}
             </p>
             <p className="opacity-60">Commentaire</p>
-            <p className="col-span-3">{commande.notes ?? '—'}</p>
+            <p className="break-words sm:col-span-3">{commande.notes ?? '—'}</p>
             <p className="opacity-60">Ramasseur</p>
-            <p className="col-span-3">{commande.ramassage?.ramasseur?.nomComplet ?? '—'}</p>
+            <p className="sm:col-span-3">{commande.ramassage?.ramasseur?.nomComplet ?? '—'}</p>
             <p className="opacity-60">Livreur</p>
-            <p className="col-span-3">{commande.livreur?.nomComplet ?? '— non assigné —'}</p>
+            <p className="sm:col-span-3">{commande.livreur?.nomComplet ?? '— non assigné —'}</p>
           </div>
 
           {/* § Preuve de livraison (RG-02) : photo et signature recueillies

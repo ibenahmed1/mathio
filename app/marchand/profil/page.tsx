@@ -194,8 +194,13 @@ export default function MarchandProfilPage() {
                 />
               </Field>
               <Field label="Site web">
+                {/* `inputMode` et non `type="url"` : le navigateur bloquerait l'envoi
+                    d'une adresse saisie sans « https:// ». */}
                 <input
                   className="input-basic"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   value={marchand.siteWeb ?? ''}
                   onChange={(e) => setMarchand({ ...marchand, siteWeb: e.target.value })}
                 />

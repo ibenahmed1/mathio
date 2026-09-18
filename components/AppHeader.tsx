@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Menu, PanelLeftClose, PanelLeftOpen, ChevronDown, UserRound, LogOut } from 'lucide-react';
-import { apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 
 export function AppHeader({
   title,
@@ -34,7 +34,11 @@ export function AppHeader({
   }, []);
 
   async function handleLogout() {
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 

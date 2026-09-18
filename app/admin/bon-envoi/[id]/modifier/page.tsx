@@ -130,7 +130,7 @@ export default function ModifierBonEnvoiPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href={backLink} className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100">
+      <Link href={backLink} className="flex w-fit items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100 pointer-coarse:min-h-10">
         <ChevronLeft className="h-4 w-4" />
         Retour au bon {bon.numero}
       </Link>

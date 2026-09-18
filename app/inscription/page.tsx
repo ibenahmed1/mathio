@@ -153,7 +153,7 @@ function InscriptionFormulaire() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-6 bg-brand p-8">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-brand p-4 sm:p-8">
       <Logo size="lg" />
       <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-lg sm:p-8">
         <h1 className="mb-6 text-xl font-black text-black">Inscription marchand</h1>
@@ -196,7 +196,16 @@ function InscriptionFormulaire() {
 
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
               Site web
-              <input className="input-underline" value={form.siteWeb} onChange={(e) => update('siteWeb', e.target.value)} />
+              {/* `inputMode` et non `type="url"` : le navigateur bloquerait l'envoi
+                  d'une adresse saisie sans « https:// ». */}
+              <input
+                className="input-underline"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={form.siteWeb}
+                onChange={(e) => update('siteWeb', e.target.value)}
+              />
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
               Adresse electronique *
@@ -220,7 +229,13 @@ function InscriptionFormulaire() {
                   required
                   minLength={8}
                 />
-                <button type="button" onClick={() => setShowSecret((v) => !v)} className="text-black/40" tabIndex={-1}>
+                {/* p-2 pour la cible tactile, -mr-2 pour que l'icône garde sa place. */}
+                <button
+                  type="button"
+                  onClick={() => setShowSecret((v) => !v)}
+                  className="-mr-2 p-2 text-black/40"
+                  tabIndex={-1}
+                >
                   {showSecret ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </span>
@@ -238,7 +253,7 @@ function InscriptionFormulaire() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmSecret((v) => !v)}
-                  className="text-black/40"
+                  className="-mr-2 p-2 text-black/40"
                   tabIndex={-1}
                 >
                   {showConfirmSecret ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -290,11 +305,15 @@ function InscriptionFormulaire() {
 
           <label className="flex flex-col gap-2 text-sm font-medium text-black">
             RIB Photo*
-            <span className="flex items-center gap-3 rounded-md border border-black/20 px-3 py-2 text-sm text-black/60">
-              <span className="rounded border border-black/40 bg-black/5 px-3 py-1 font-semibold text-black">
+            <span className="flex flex-wrap items-center gap-3 rounded-md border border-black/20 px-3 py-2 text-sm text-black/60">
+              <span className="shrink-0 rounded border border-black/40 bg-black/5 px-3 py-1 font-semibold text-black">
                 Choisir un fichier
               </span>
-              {ribPhotoName ?? "Aucun fichier n'a été sélectionné"}
+              {/* Nom de photo souvent insécable (IMG_20260910_101512.jpg) : il se coupe
+                  au besoin, et passe sous le bouton quand la ligne est trop étroite. */}
+              <span className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
+                {ribPhotoName ?? "Aucun fichier n'a été sélectionné"}
+              </span>
               <input type="file" accept="image/*" className="hidden" onChange={handleRibPhotoChange} required />
             </span>
           </label>
@@ -365,7 +384,7 @@ function InscriptionFormulaire() {
         </form>
         <p className="mt-4 text-center text-xs text-black/60">
           Vous avez déjà un compte ?{' '}
-          <a href="/login" className="font-semibold text-brand-foreground underline">
+          <a href="/login" className="-my-2 inline-block py-2 font-semibold text-brand-foreground underline">
             Sign in
           </a>
         </p>

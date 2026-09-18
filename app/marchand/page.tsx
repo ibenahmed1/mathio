@@ -211,7 +211,7 @@ export default function DashboardPage() {
             <button
               onClick={() => decalerDate(-1)}
               aria-label="Jour précédent"
-              className="rounded-md p-1 text-[color:var(--mk-faint)] transition-colors hover:text-[color:var(--mk-ink-2)]"
+              className="rounded-md p-1 text-[color:var(--mk-faint)] transition-colors hover:text-[color:var(--mk-ink-2)] pointer-coarse:p-2.5"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -220,7 +220,7 @@ export default function DashboardPage() {
                 l'input restant superposé en repli si le navigateur ne l'expose pas. */}
             <button
               onClick={() => dateRef.current?.showPicker?.()}
-              className="relative flex items-center gap-2 px-2 text-[12px] font-medium text-[color:var(--mk-ink-2)]"
+              className="relative flex items-center gap-2 px-2 text-[12px] font-medium text-[color:var(--mk-ink-2)] pointer-coarse:self-stretch"
             >
               <CalendarDays className="h-4 w-4 text-[color:var(--mk-muted-2)]" />
               {date
@@ -237,7 +237,7 @@ export default function DashboardPage() {
             <button
               onClick={() => decalerDate(1)}
               aria-label="Jour suivant"
-              className="rounded-md p-1 text-[color:var(--mk-faint)] transition-colors hover:text-[color:var(--mk-ink-2)]"
+              className="rounded-md p-1 text-[color:var(--mk-faint)] transition-colors hover:text-[color:var(--mk-ink-2)] pointer-coarse:p-2.5"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -248,19 +248,20 @@ export default function DashboardPage() {
           {date && (
             <button
               onClick={() => setDate('')}
-              className="px-1 text-[12px] font-normal text-[color:var(--mk-muted-2)] underline underline-offset-2 hover:text-[color:var(--mk-ink-2)]"
+              className="px-1 text-[12px] font-normal text-[color:var(--mk-muted-2)] underline underline-offset-2 hover:text-[color:var(--mk-ink-2)] pointer-coarse:py-3"
             >
               Effacer
             </button>
           )}
 
+          {/* 16 px au doigt (pointer-coarse) : sous ce seuil, iOS zoome la page au focus du champ. */}
           <select
             value={date ? '' : period}
             onChange={(e) => {
               setPeriod(Number(e.target.value));
               setDate('');
             }}
-            className="cursor-pointer rounded-[10px] border border-[color:var(--mk-line)] py-[9px] pl-3.5 pr-9 text-[12px] font-medium text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] outline-none focus-visible:border-[color:var(--mk-amber-ink)]"
+            className="cursor-pointer rounded-[10px] border border-[color:var(--mk-line)] py-[9px] pl-3.5 pr-9 text-[12px] font-medium text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] outline-none focus-visible:border-[color:var(--mk-amber-ink)] pointer-coarse:text-base"
             style={{
               background:
                 // `appearance:none` retire le chevron natif (trop lourd ici) ;
@@ -286,7 +287,9 @@ export default function DashboardPage() {
         <KpiTile icon={XCircle} teinte="rouge" value={data.kpiCards.colisAnnules} label="Colis annulé" />
       </div>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[1.55fr_1fr]">
+      {/* Côte à côte seulement dès 1280 px : à 1024, la carte CRBT n'avait plus que
+          ~230 px et ses trois montants se chevauchaient. */}
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[1.55fr_1fr]">
         <div className={`${CARTE} flex flex-col gap-5 p-6 pb-[18px]`}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -314,7 +317,9 @@ export default function DashboardPage() {
                 {fmtDelta(data.stats.colisLivreDeltaPct)} {deltaLabel}
               </div>
             </div>
-            <div className="border-l border-[color:var(--mk-line)] pl-8 sm:pl-12">
+            {/* Filet seulement à partir de 640 px : plus étroit, ce bloc passe à la
+                ligne et un filet vertical isolé ne séparerait plus rien. */}
+            <div className="border-[color:var(--mk-line)] sm:border-l sm:pl-12">
               <div className="text-[13px] font-medium text-[color:var(--mk-muted)]">Taux de livraison</div>
               <div className="mt-1 text-[28px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[color:var(--mk-ink)]">
                 {data.stats.tauxLivraison} %

@@ -29,6 +29,11 @@ export async function buildCommandesWhere(
   // propres au pipeline colis "stock" (Commande.enStock), cf. lib/hub-stock.ts.
   const enStockParam = searchParams.get('enStock');
   const sansBonPreparationParam = searchParams.get('sansBonPreparation');
+  // § /admin/bon-livraison/creer : colis pas encore rattachés à un bon de
+  // livraison. Pendant exact de sansBonPreparation ci-dessus, pour le pipeline
+  // classique cette fois — c'est le critère d'éligibilité de la sélection que
+  // POST /api/bons-livraison revalidera côté serveur.
+  const sansBonLivraisonParam = searchParams.get('sansBonLivraison');
   // Isolation des vues (bug rapporté : colis stock encore en préparation
   // polluant la liste globale /admin/commandes). Un colis enStock=true tant
   // qu'il n'a pas quitté le picking Hub (statut nouveau_colis ou
@@ -102,6 +107,9 @@ export async function buildCommandesWhere(
   }
   if (sansBonPreparationParam === 'true') {
     where.bonPreparationId = null;
+  }
+  if (sansBonLivraisonParam === 'true') {
+    where.bonLivraisonId = null;
   }
   if (excludeEnPreparationStockParam === 'true') {
     where.NOT = {

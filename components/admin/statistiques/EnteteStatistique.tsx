@@ -43,7 +43,7 @@ export function EnteteStatistique() {
               <Link
                 key={p}
                 href={`${pathname}?periode=${p}`}
-                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition pointer-coarse:py-3 ${
                   actif
                     ? 'bg-brand text-brand-foreground'
                     : 'text-black/55 hover:bg-black/5 dark:text-white/55 dark:hover:bg-white/10'
@@ -56,14 +56,20 @@ export function EnteteStatistique() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-1 border-b border-black/10 dark:border-white/10">
+      {/* Onglets sur UNE ligne qui défile plutôt qu'en retour à la ligne : six
+          onglets repliés sur deux rangées ne se lisent plus comme une barre.
+          Le filet du bas est une ombre interne et non une bordure : avec une
+          bordure, le soulignement actif devait la chevaucher d'un pixel
+          (-mb-px), débordement qu'un conteneur défilant rogne — et qu'il fait
+          défiler verticalement. */}
+      <div className="scrollbar-none flex flex-nowrap gap-1 overflow-x-auto shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.1)]">
         {ONGLETS.map((onglet) => {
           const actif = pathname === onglet.href;
           return (
             <Link
               key={onglet.href}
               href={avecPeriode(onglet.href)}
-              className={`-mb-px border-b-2 px-3 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-semibold transition pointer-coarse:py-3 ${
                 actif
                   ? 'border-brand text-black dark:text-white'
                   : 'border-transparent text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white'

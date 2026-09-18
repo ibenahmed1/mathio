@@ -25,7 +25,10 @@ export default function MesBonsRetourPage() {
   return (
     <div className="shell-surface min-h-dvh">
       <div className="mx-auto flex max-w-md flex-col gap-4 p-4">
-      <Link href="/ramasseur" className="flex w-fit items-center gap-1 text-sm opacity-70">
+      <Link
+        href="/ramasseur"
+        className="-ml-2 flex w-fit items-center gap-1 px-2 text-sm opacity-70 pointer-coarse:min-h-11"
+      >
         <ChevronLeft className="h-4 w-4" />
         Accueil
       </Link>

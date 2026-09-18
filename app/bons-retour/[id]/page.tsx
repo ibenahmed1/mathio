@@ -73,7 +73,12 @@ export default async function BonRetourPrintPage({ params }: { params: Promise<{
   }[bon.statut];
 
   return (
-    <div className="mx-auto max-w-3xl bg-white p-10 text-black">
+    <div className="doc-scroll">
+      {/* Au téléphone, le document garde sa largeur de page et défile dans ce
+          cadre, au lieu d'élargir tout l'écran. À l'impression, le cadre et la
+          largeur minimale s'effacent (cf. .doc-scroll / .doc-page dans
+          globals.css) : la mise en page papier est inchangée. */}
+    <div className="doc-page mx-auto max-w-3xl bg-white p-10 text-black">
       <style>{`
         @media print {
           @page { margin: 12mm; }
@@ -245,6 +250,7 @@ export default async function BonRetourPrintPage({ params }: { params: Promise<{
           />
         </div>
       )}
+    </div>
     </div>
   );
 }

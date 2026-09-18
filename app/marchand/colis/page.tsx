@@ -10,6 +10,7 @@ import { StatutBadge } from '@/components/StatutBadge';
 import { EtatPaiementBadge } from '@/components/EtatPaiementBadge';
 import { STATUTS_COMMANDE, LABELS_STATUT_COMMANDE, ETATS_PAIEMENT, LABELS_ETAT_PAIEMENT } from '@/lib/statuts';
 import { ColisActionsMenu } from '@/components/marchand/ColisActionsMenu';
+import { COLONNE_COLLANTE_CARTE } from '@/components/marchand/colonne-collante';
 import { ColisSubNav } from './ColisSubNav';
 
 function ColisListContent() {
@@ -154,7 +155,7 @@ function ColisListContent() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Colis</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href="/marchand/colis/import" className="btn-outline flex items-center gap-2">
             <FileUp className="h-4 w-4" />
             Importer (CSV/Excel)
@@ -186,8 +187,10 @@ function ColisListContent() {
           </button>
         </div>
 
-        {/* Filtres secondaires : chacun étiqueté pour rester lisible même une fois pliés. */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Filtres secondaires : chacun étiqueté pour rester lisible même une fois pliés.
+            « Période » porte deux champs date côte à côte : à quatre colonnes égales,
+            elle n'avait plus la place de les afficher entiers. */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.8fr)]">
           <label className="flex min-w-0 flex-col gap-1">
             <span className="flex h-4 items-center gap-1 text-xs font-semibold uppercase tracking-wide opacity-60">Statut</span>
             <select className="input-basic w-full py-2.5" value={statutFiltre} onChange={(e) => setStatutFiltre(e.target.value)}>
@@ -233,12 +236,15 @@ function ColisListContent() {
             />
           </label>
 
-          <div className="flex min-w-0 flex-col gap-1">
+          {/* Requête de CONTENEUR et non d'écran : la largeur de cette cellule dépend
+              de la grille (1, 2 ou 4 colonnes) bien plus que de la fenêtre. Sous
+              18rem, les deux dates s'empilent au lieu de se tronquer. */}
+          <div className="@container flex min-w-0 flex-col gap-1">
             <span className="flex h-4 items-center gap-1 text-xs font-semibold uppercase tracking-wide opacity-60">
               <CalendarRange className="h-3 w-3 shrink-0" />
               Période
             </span>
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex min-w-0 flex-col gap-1.5 @min-[18rem]:flex-row @min-[18rem]:items-center">
               <input
                 type="date"
                 className="input-basic w-full min-w-0 py-2.5"
@@ -246,7 +252,7 @@ function ColisListContent() {
                 onChange={(e) => setDateFrom(e.target.value)}
                 aria-label="Du"
               />
-              <span className="shrink-0 opacity-40">→</span>
+              <span className="hidden shrink-0 opacity-40 @min-[18rem]:inline">→</span>
               <input
                 type="date"
                 className="input-basic w-full min-w-0 py-2.5"
@@ -262,7 +268,7 @@ function ColisListContent() {
           <span className="text-xs opacity-60">
             {filtresActifs > 0 ? `${filtresActifs} filtre${filtresActifs > 1 ? 's' : ''} actif${filtresActifs > 1 ? 's' : ''}` : 'Aucun filtre actif'}
           </span>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {filtresActifs > 0 && (
               <button onClick={reinitialiserFiltres} className="btn-outline flex items-center gap-1.5">
                 <X className="h-3.5 w-3.5" />
@@ -304,6 +310,7 @@ function ColisListContent() {
                 <th>
                   <input
                     type="checkbox"
+                    className="check-basic"
                     checked={touteLaSelection}
                     onChange={toggleTout}
                     disabled={idsEligibles.length === 0}
@@ -322,15 +329,16 @@ function ColisListContent() {
                 <th>Livraison</th>
                 <th>Options</th>
                 <th>Notes</th>
-                <th></th>
+                <th className={COLONNE_COLLANTE_CARTE.th}></th>
               </tr>
             </thead>
             <tbody>
               {commandes.map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id} className="group">
                   <td>
                     <input
                       type="checkbox"
+                      className="check-basic"
                       checked={selected.has(c.id)}
                       onChange={() => toggleUn(c.id)}
                       disabled={c.statut !== 'nouveau_colis'}
@@ -376,10 +384,16 @@ function ColisListContent() {
                       {c.enStock && <span className="badge badge-neutral">Stock</span>}
                     </div>
                   </td>
-                  <td className="max-w-[180px] truncate text-xs opacity-70" title={c.notes ?? undefined}>
-                    {c.notes ?? '—'}
+                  <td className="max-w-[180px] text-xs opacity-70" title={c.notes ?? undefined}>
+                    {/* `title` ne s'affiche qu'au survol : au doigt, la note tronquée
+                        resterait illisible, elle court donc sur deux lignes. Le
+                        line-clamp vit dans un <div> : posé sur la cellule, il lui
+                        retirerait son display table-cell. */}
+                    <div className="truncate pointer-coarse:line-clamp-2 pointer-coarse:whitespace-normal pointer-coarse:break-words">
+                      {c.notes ?? '—'}
+                    </div>
                   </td>
-                  <td>
+                  <td className={COLONNE_COLLANTE_CARTE.td}>
                     <ColisActionsMenu commande={c} onChanged={load} />
                   </td>
                 </tr>

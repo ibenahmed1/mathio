@@ -189,7 +189,7 @@ export default function IntegrationsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[minmax(240px,300px)_1fr]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
           <ListePlateformes
             plateformes={plateformes}
             selectionId={selectionId}
@@ -360,11 +360,11 @@ function PanneauDetail({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-black tracking-tight">{detail.nom}</h2>
-          <p className="page-subtitle">
+        <div className="min-w-0">
+          <h2 className="break-words text-xl font-black tracking-tight">{detail.nom}</h2>
+          <p className="page-subtitle [overflow-wrap:anywhere]">
             Créée le {dateCourte(detail.dateCreation)} · code <code>{detail.code}</code>
           </p>
         </div>

@@ -42,7 +42,7 @@ export function BonDistributionListe() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Bons de distribution</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Le référentiel des hubs n'est ouvert qu'à l'admin (§ /admin/hubs,
               roles ADMIN_SEUL dans la nav) : le planner travaille sur SON hub,
               il ne le choisit pas. */}
@@ -65,7 +65,7 @@ export function BonDistributionListe() {
             key={f.cle}
             type="button"
             onClick={() => setFiltre(f.cle)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+            className={`rounded-full px-3 py-1 text-xs font-semibold transition pointer-coarse:py-3 ${
               filtre === f.cle
                 ? 'bg-brand text-brand-ink'
                 : 'bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20'
@@ -123,7 +123,7 @@ export function BonDistributionListe() {
                 <td>
                   <Link
                     href={`/admin/bon-distribution/${b.id}/cloture`}
-                    className="flex items-center gap-1 text-xs font-semibold hover:underline"
+                    className="flex items-center gap-1 text-xs font-semibold hover:underline pointer-coarse:-mx-2 pointer-coarse:min-h-10 pointer-coarse:px-2"
                   >
                     {b.statut === 'cloture' ? <Lock className="h-3.5 w-3.5" /> : <Truck className="h-3.5 w-3.5" />}
                     {b.statut === 'cloture' ? 'Reddition' : 'Clôturer'}

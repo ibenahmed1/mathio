@@ -166,7 +166,7 @@ export default function NouveauProduitPage() {
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
               </label>
               {photoUrl && (
-                <button type="button" onClick={() => setPhotoUrl(null)} className="self-start text-xs font-semibold text-red-600 hover:opacity-70">
+                <button type="button" onClick={() => setPhotoUrl(null)} className="self-start text-xs font-semibold text-red-600 hover:opacity-70 pointer-coarse:py-2">
                   Retirer la photo
                 </button>
               )}
@@ -215,6 +215,7 @@ export default function NouveauProduitPage() {
                 <input
                   className="input-basic"
                   type="number"
+                  inputMode="numeric"
                   min="0"
                   value={variantesActivees ? quantiteTotaleVariantes : quantite}
                   onChange={(e) => setQuantite(e.target.value)}
@@ -234,7 +235,7 @@ export default function NouveauProduitPage() {
           <button
             type="button"
             onClick={() => toggleVariantes(!variantesActivees)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition pointer-coarse:py-3 ${
               variantesActivees ? 'bg-green-600 text-white' : 'bg-black/[0.06] text-black/70 dark:bg-white/10 dark:text-white/70'
             }`}
           >
@@ -278,6 +279,7 @@ export default function NouveauProduitPage() {
                         <input
                           className="input-basic w-24 text-right"
                           type="number"
+                          inputMode="numeric"
                           min="0"
                           value={v.quantite}
                           onChange={(e) => modifierVariante(index, { quantite: e.target.value })}
@@ -287,7 +289,7 @@ export default function NouveauProduitPage() {
                         <button
                           type="button"
                           onClick={() => retirerVariante(index)}
-                          className="text-red-600 transition hover:opacity-70"
+                          className="btn-icon -m-2 text-red-600 hover:opacity-70"
                           aria-label="Retirer cette variante"
                         >
                           <Trash2 className="h-4 w-4" />

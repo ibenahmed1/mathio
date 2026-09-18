@@ -35,7 +35,7 @@ les contourner ni désactiver une règle pour faire passer le build.
 | `npm run lint` / `lint:fix` | eslint 9 (flat config) |
 | `npm run db:migrate` | `prisma migrate deploy` |
 | `npm run db:seed` | `tsx prisma/seed.ts` (déclaré dans `prisma.config.ts`, pas dans `package.json`) — **le compte admin, et rien d'autre** |
-| `npm run db:reseau` | charge le référentiel de sous-traitance (5 prestataires, 17 agences, 341 villes, 238 tarifs) depuis `scripts/import-prestataire-*.ts`. Idempotent : à rejouer sans risque. **Le seed ne le fait pas** — sans cette commande, une base fraîchement migrée n'a ni hub, ni ville, ni tarif |
+| `npm run db:reseau` | charge le référentiel de sous-traitance (5 prestataires, 17 agences, 341 villes, 238 tarifs) depuis `scripts/import-prestataire-*.ts`, puis ajoute à chaque agence sa propre ville d'implantation via `scripts/ajouter-villes-agences.ts` — décision métier tenue hors des imports, qui transcrivent les sources à la lettre (§ `SOUS_TRAITANCE.md` §2.10). Idempotent : à rejouer sans risque. **Le seed ne le fait pas** — sans cette commande, une base fraîchement migrée n'a ni hub, ni ville, ni tarif |
 
 ## Stack
 

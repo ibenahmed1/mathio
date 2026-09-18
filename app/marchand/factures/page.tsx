@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Printer, Receipt } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { Facture } from '@/lib/types';
+import { COLONNE_COLLANTE_PAGE } from '@/components/marchand/colonne-collante';
 import { BonsDocumentsSubNav } from '../BonsDocumentsSubNav';
 
 // § Espace marchand — ses factures. Cette page lisait auparavant les colis
@@ -95,12 +96,12 @@ export default function FacturesPage() {
               <th>Net</th>
               <th>Statut</th>
               <th>Émise le</th>
-              <th></th>
+              <th className={COLONNE_COLLANTE_PAGE.th}></th>
             </tr>
           </thead>
           <tbody>
             {filtrees.map((f) => (
-              <tr key={f.id}>
+              <tr key={f.id} className="group">
                 <td className="font-mono">{f.numero}</td>
                 <td className="tabular-nums">
                   {f.nbColisLivres}
@@ -118,11 +119,12 @@ export default function FacturesPage() {
                   <span className={`badge ${CLASSES[f.statut]}`}>{LIBELLES[f.statut]}</span>
                 </td>
                 <td>{new Date(f.dateEmission).toLocaleDateString('fr-FR')}</td>
-                <td>
+                <td className={COLONNE_COLLANTE_PAGE.td}>
+                  {/* btn-icon : 44 px au doigt ; la marge négative garde la hauteur de ligne. */}
                   <Link
                     href={`/factures/${f.id}`}
                     target="_blank"
-                    className="rounded p-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+                    className="btn-icon -m-2 hover:bg-black/5 dark:hover:bg-white/10"
                     title="Imprimer"
                   >
                     <Printer className="h-4 w-4" />

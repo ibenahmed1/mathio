@@ -70,7 +70,12 @@ function VueFichePreparation({ bon, societe }: { bon: BonAvecDetails; societe: P
   const totalQuantite = bon.commandes.reduce((sum, c) => sum + c.quantite, 0);
 
   return (
-    <div className="mx-auto max-w-3xl bg-white p-10 text-black">
+    <div className="doc-scroll">
+      {/* Au téléphone, le document garde sa largeur de page et défile dans ce
+          cadre, au lieu d'élargir tout l'écran. À l'impression, le cadre et la
+          largeur minimale s'effacent (cf. .doc-scroll / .doc-page dans
+          globals.css) : la mise en page papier est inchangée. */}
+    <div className="doc-page mx-auto max-w-3xl bg-white p-10 text-black">
       <style>{`
         @page { size: A4; margin: 15mm; }
         @media print { html, body { background: white; } }
@@ -161,6 +166,7 @@ function VueFichePreparation({ bon, societe }: { bon: BonAvecDetails; societe: P
         </div>
       </div>
     </div>
+    </div>
   );
 }
 
@@ -221,6 +227,10 @@ async function VueEtiquettes({ bon, societe }: { bon: BonAvecDetails; societe: P
   const labels = await buildParcelLabels(bon.commandes);
 
   return (
+    <div className="doc-scroll">
+      {/* L'étiquette mesure 90 mm (≈ 340 px) : plus large qu'un téléphone de
+          320 px. Elle défile dans ce cadre plutôt que d'élargir la page ; à
+          l'impression le cadre s'efface (cf. .doc-scroll dans globals.css). */}
     <div className="bg-white text-black">
       <style>{`
         @page { size: 100mm 150mm; margin: 5mm; }
@@ -238,6 +248,7 @@ async function VueEtiquettes({ bon, societe }: { bon: BonAvecDetails; societe: P
           nomSociete={societe.raisonSociale}
         />
       ))}
+    </div>
     </div>
   );
 }

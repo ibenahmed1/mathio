@@ -114,7 +114,7 @@ export default function CreerBonEnvoiPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Link href="/admin/bon-envoi" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100">
+        <Link href="/admin/bon-envoi" className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:opacity-100 pointer-coarse:min-h-10">
           <ChevronLeft className="h-4 w-4" />
           Retour
         </Link>
@@ -248,9 +248,9 @@ export default function CreerBonEnvoiPage() {
             <button
               onClick={handleCreer}
               disabled={selectionnes.size === 0 || creating}
-              className="btn-primary flex items-center gap-2 px-5 py-2.5"
+              className="btn-primary flex max-w-full items-center gap-2 whitespace-normal px-5 py-2.5"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4 shrink-0" />
               {creating ? 'Création…' : `Créer le Bon d'Envoi (${selectionnes.size} colis)`}
             </button>
           </div>

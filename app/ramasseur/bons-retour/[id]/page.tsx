@@ -103,7 +103,7 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
       <button
         type="button"
         onClick={() => router.push('/ramasseur/bons-retour')}
-        className="flex w-fit items-center gap-1 text-sm opacity-70"
+        className="-ml-2 flex w-fit items-center gap-1 px-2 text-sm opacity-70 pointer-coarse:min-h-11"
       >
         <ChevronLeft className="h-4 w-4" />
         Mes bons de retour
@@ -114,7 +114,10 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
         <p className="font-mono text-sm opacity-70">{bon.numero}</p>
         {bon.marchand?.adresse && <p className="text-sm opacity-70">{bon.marchand.adresse}</p>}
         {bon.marchand?.utilisateur?.telephone && (
-          <a href={`tel:${bon.marchand.utilisateur.telephone}`} className="text-sm underline">
+          <a
+            href={`tel:${bon.marchand.utilisateur.telephone}`}
+            className="text-sm underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+          >
             {bon.marchand.utilisateur.telephone}
           </a>
         )}
@@ -129,7 +132,7 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
           }`}
         >
           {toast.text}
-          <button type="button" onClick={() => setToast(null)} aria-label="Fermer">
+          <button type="button" onClick={() => setToast(null)} aria-label="Fermer" className="-my-2 -mr-2 shrink-0 rounded-md p-2.5">
             <X className="h-4 w-4" />
           </button>
         </p>
@@ -158,7 +161,7 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
           <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">
             À remettre ({bilan.colisRestants.length})
           </h2>
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2">
             {bilan.colisRestants.map((c) => (
               <li
                 key={c.id}
@@ -217,7 +220,7 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
 
         <SignaturePad onChange={setSignature} />
 
-        <label className="btn-outline flex cursor-pointer items-center justify-center gap-1.5">
+        <label className="btn-outline flex cursor-pointer items-center justify-center gap-1.5 whitespace-normal text-center leading-tight">
           <Camera className="h-4 w-4" />
           {photo ? 'Photo du bon signé ajoutée' : 'Ou photographier le bon papier signé'}
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={chargerPhoto} />

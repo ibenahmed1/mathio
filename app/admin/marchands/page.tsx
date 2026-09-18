@@ -79,7 +79,9 @@ export default function AdminMarchandsPage() {
       <h1 className="page-title">Marchands</h1>
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-      <table className="table-basic">
+      <div className="table-card">
+      <div className="table-scroll">
+      <table className="table-basic min-w-[760px]">
         <thead>
           <tr>
             <th>Boutique</th>
@@ -121,7 +123,8 @@ export default function AdminMarchandsPage() {
               <td>
                 <StatutBadge statut={m.statut} />
               </td>
-              <td className="flex flex-wrap gap-2">
+              <td>
+                <div className="flex flex-wrap gap-2">
                 {m.statut === 'actif' ? (
                   <button
                     onClick={() => accederEspace(m.id)}
@@ -158,6 +161,7 @@ export default function AdminMarchandsPage() {
                 >
                   Supprimer
                 </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -170,6 +174,8 @@ export default function AdminMarchandsPage() {
           )}
         </tbody>
       </table>
+      </div>
+      </div>
     </div>
   );
 }

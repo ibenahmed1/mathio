@@ -642,7 +642,7 @@ export function UserFormModal({
 
         {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <button type="button" className="btn-outline" onClick={onClose} disabled={saving}>
             Annuler
           </button>

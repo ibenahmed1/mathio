@@ -52,7 +52,10 @@ export default async function StatistiqueToutPage({
         qu&apos;ils sont devenus.
       </p>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      {/* Six colonnes seulement à partir de 2xl : à 1280 px, sidebar déduite,
+          une carte sur six laisse ~110 px à « 1 234 567 DH », qui ne se coupe
+          pas (espaces insécables du fr-FR) et débordait de la carte. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6">
         <CarteStat
           label="Colis pris en charge"
           valeur={formatNombre(compteurs.total)}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { deconnecter } from '@/lib/deconnexion';
 import type { Commande } from '@/lib/types';
 import { Logo } from '@/components/Logo';
 import { QrScanner } from '@/components/QrScanner';
@@ -85,19 +86,24 @@ export default function RamasseurPage() {
   }
 
   async function handleLogout() {
-    await apiPost('/api/auth/logout');
+    const erreur = await deconnecter();
+    if (erreur) {
+      window.alert(erreur);
+      return;
+    }
     router.push('/login');
   }
 
   return (
-    <div className="min-h-screen shell-surface">
+    <div className="min-h-dvh shell-surface">
       <nav className="sticky top-0 z-20 flex items-center justify-between bg-black px-4 py-3 sm:px-6">
         <Logo />
         <div className="flex items-center gap-4">
           {user && <span className="hidden text-sm font-semibold text-white/80 sm:block">Bonjour, {user.nomComplet.split(' ')[0]}</span>}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-sm font-semibold text-white/70 transition hover:text-brand"
+            className="-m-2.5 flex items-center gap-1.5 p-2.5 text-sm font-semibold text-white/70 transition hover:text-brand"
+            aria-label="Déconnexion"
           >
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Déconnexion</span>
@@ -164,7 +170,7 @@ export default function RamasseurPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <button
               onClick={() => setView('accueil')}
-              className="flex items-center gap-1.5 text-sm font-semibold opacity-70 transition hover:text-brand-ink hover:opacity-100 dark:hover:text-brand"
+              className="-ml-2 flex items-center gap-1.5 px-2 text-sm font-semibold opacity-70 transition hover:text-brand-ink hover:opacity-100 pointer-coarse:min-h-11 dark:hover:text-brand"
             >
               <ChevronLeft className="h-4 w-4" />
               Retour
@@ -178,12 +184,19 @@ export default function RamasseurPage() {
             </button>
           </div>
 
+          {/* Sous lg, le message flotte en bas de l'écran au lieu de s'insérer
+              au-dessus de la caméra : chaque scan faisait sauter la vidéo et le
+              colis sortait du cadre de visée. Fond opaque puisqu'il passe
+              par-dessus le contenu ; la marge basse du dernier bouton garde le
+              bas de page atteignable sous lui. Sur grand écran, caméra et
+              tableau sont côte à côte, l'insertion ne gêne pas : rendu
+              inchangé. */}
           {toast && (
             <div
-              className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
+              className={`rounded-xl px-4 py-2.5 text-sm font-medium max-lg:fixed max-lg:inset-x-4 max-lg:bottom-[max(1rem,env(safe-area-inset-bottom))] max-lg:z-30 max-lg:shadow-lg ${
                 toast.type === 'success'
-                  ? 'bg-green-500/15 text-green-700 dark:text-green-400'
-                  : 'bg-red-500/15 text-red-700 dark:text-red-400'
+                  ? 'bg-green-500/15 text-green-700 max-lg:bg-green-50 dark:text-green-400 dark:max-lg:bg-green-950'
+                  : 'bg-red-500/15 text-red-700 max-lg:bg-red-50 dark:text-red-400 dark:max-lg:bg-red-950'
               }`}
             >
               {toast.text}
@@ -217,7 +230,7 @@ export default function RamasseurPage() {
 
           <button
             onClick={() => setView('liste')}
-            className="flex items-center justify-center gap-2 rounded-xl border border-black/10 py-3 text-sm font-semibold opacity-80 transition hover:opacity-100 dark:border-white/10 lg:hidden"
+            className="mb-20 flex items-center justify-center gap-2 rounded-xl border border-black/10 py-3 text-sm font-semibold opacity-80 transition hover:opacity-100 dark:border-white/10 lg:hidden"
           >
             <List className="h-4 w-4" />
             Voir les colis scannés ({scannees.length})

@@ -107,7 +107,7 @@ const S = {
     border: "none",
     background: "transparent",
     outline: "none",
-    fontSize: 12,
+    // Pas de fontSize : elle passe à 16 px au doigt, donc vit dans .bd-champ.
     color: C.encre2,
     width: "100%",
     fontFamily: "inherit",
@@ -187,8 +187,10 @@ const css = `
    wizard au lieu de l'écran. */
 .bd-etapes { display: flex; flex-direction: column; gap: 14px; container-type: inline-size; }
 
+.bd-entete { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+
 /* Actions d'en-tête (Réinitialiser / Valider) : collées à droite tant qu'il y
-   a la place, pleine largeur ensuite. */
+   a la place, barre collée au bas de l'écran sur téléphone (voir plus bas). */
 .bd-actions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex: none; }
 
 /* Étape 1 — cartes de zone. Le min() évite qu'une carte de 268px déborde d'un
@@ -202,13 +204,31 @@ const css = `
 /* Poste de travail — colis éligibles à gauche, bon en cours à droite. */
 .bd-workspace { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; align-items: start; min-width: 0; }
 
-.bd-ligne-colis { display: grid; grid-template-columns: 16px minmax(0, 1.15fr) minmax(0, 1fr) auto 30px; gap: 10px; align-items: center; padding: 10px 15px; border-bottom: 1px solid #F5F3EA; cursor: grab; }
+/* La colonne du bouton « + » passe par une variable : le tactile l'élargit
+   (bloc pointer: coarse en fin de feuille) sans redéclarer chacune des
+   grilles qui varient avec la largeur. */
+.bd-ligne-colis { --bd-col-ajout: 30px; display: grid; grid-template-columns: 16px minmax(0, 1.15fr) minmax(0, 1fr) auto var(--bd-col-ajout); gap: 10px; align-items: center; padding: 10px 15px; border-bottom: 1px solid #F5F3EA; cursor: grab; }
+
+/* Ligne du bon en cours. Les boutons ↑/↓ (.bd-ordre) n'existent qu'au doigt. */
+.bd-ligne-bon { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto 28px; gap: 9px; align-items: center; }
+.bd-ordre { display: none; gap: 4px; }
+
+.bd-champ { font-size: 12px; }
 
 /* Le padding de <main> ne peut pas venir d'une @container (une requête de
    conteneur ne peut pas styler son propre conteneur) : il reste sur le
    viewport, où la sidebar ne change rien à la marge à réserver au doigt. */
 @media (max-width: 640px) {
-  .bd-actions { margin-left: 0; width: 100%; }
+  /* « Valider & imprimer » devient une barre collée au bas de l'écran : en
+     tête de page, il disparaissait dès qu'on descendait vers le panier. Un
+     élément collant ne sort jamais de son parent, et l'en-tête n'est haut que
+     d'une ligne : il passe donc en display: contents, les actions deviennent
+     un enfant direct de <main>, et order les renvoie en fin de colonne, d'où
+     elles collent au bas de l'écran sur toute la hauteur du wizard. Les
+     marges négatives valent le padding de la coquille (p-4) : barre bord à
+     bord. */
+  .bd-entete { display: contents; }
+  .bd-actions { order: 1; position: sticky; bottom: 0; z-index: 20; margin: 0 -16px; padding: 10px 16px max(10px, env(safe-area-inset-bottom)); background: rgba(255,255,255,.96); backdrop-filter: blur(8px); border-top: 1px solid #EAE8DE; }
   .bd-actions > button { flex: 1 1 auto; justify-content: center; }
 }
 
@@ -239,7 +259,7 @@ const css = `
    poignée de glisser disparaît : le drag & drop HTML5 ne fonctionne pas au
    doigt, l'ajout se fait par le bouton « + » (ou le double-tap). */
 @container (max-width: 620px) {
-  .bd-ligne-colis { grid-template-columns: minmax(0, 1fr) auto 32px; column-gap: 10px; row-gap: 2px; padding: 10px 12px; }
+  .bd-ligne-colis { grid-template-columns: minmax(0, 1fr) auto max(32px, var(--bd-col-ajout)); column-gap: 10px; row-gap: 2px; padding: 10px 12px; }
   .bd-ligne-colis > .bd-grip { display: none; }
   .bd-ligne-colis > .bd-colis-identite { grid-column: 1; grid-row: 1; }
   .bd-ligne-colis > .bd-colis-lieu { grid-column: 1; grid-row: 2; }
@@ -260,12 +280,51 @@ const css = `
     .bd-livreurs { max-height: 260px; }
   }
   @media (max-width: 660px) {
-    .bd-ligne-colis { grid-template-columns: minmax(0, 1fr) auto 32px; column-gap: 10px; row-gap: 2px; padding: 10px 12px; }
+    .bd-ligne-colis { grid-template-columns: minmax(0, 1fr) auto max(32px, var(--bd-col-ajout)); column-gap: 10px; row-gap: 2px; padding: 10px 12px; }
     .bd-ligne-colis > .bd-grip { display: none; }
     .bd-ligne-colis > .bd-colis-identite { grid-column: 1; grid-row: 1; }
     .bd-ligne-colis > .bd-colis-lieu { grid-column: 1; grid-row: 2; }
     .bd-ligne-colis > .bd-colis-crbt { grid-column: 2; grid-row: 1 / span 2; align-self: center; text-align: right; }
     .bd-ligne-colis > .bd-colis-ajout { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  }
+}
+
+/* Au doigt : cibles portées à 36 px, champs à 16 px (en dessous, iOS zoome la
+   page à la prise de focus). min-width / min-height plutôt que width / height :
+   ces boutons fixent leur taille en style inline, qu'une feuille ne peut pas
+   battre, alors qu'un minimum l'emporte toujours sur une largeur. Ce bloc vient
+   APRÈS les requêtes de largeur : à spécificité égale, l'ordre tranche. */
+@media (pointer: coarse) {
+  .bd-champ { font-size: 16px; }
+  .bd-ligne-colis { --bd-col-ajout: 36px; }
+  .bd-colis-ajout, .bd-retrait { min-width: 36px; min-height: 36px; }
+  .bd-filtre, .bd-scan-ajout, .bd-zone-change, .bd-ajout-filtre { min-height: 36px; }
+
+  /* Le glisser-déposer HTML5 ne se déclenche pas au doigt : sans ↑/↓, l'ordre
+     de la tournée serait figé sur tablette et téléphone. La souris garde le
+     glisser, d'où des boutons réservés au tactile. */
+  .bd-ordre { display: flex; }
+  .bd-ligne-bon { grid-template-columns: 24px minmax(0, 1fr) auto auto 36px; }
+
+  /* Panneau étroit : cinq colonnes ne laissent plus rien au code du colis. Le
+     CRBT passe sous l'identité ; numéro et boutons couvrent les deux rangées. */
+  @container (max-width: 620px) {
+    .bd-ligne-bon { grid-template-columns: 24px minmax(0, 1fr) auto 36px; column-gap: 6px; row-gap: 2px; }
+    .bd-ligne-bon > .bd-bon-num { grid-column: 1; grid-row: 1 / span 2; }
+    .bd-ligne-bon > .bd-bon-identite { grid-column: 2; grid-row: 1; }
+    .bd-ligne-bon > .bd-bon-crbt { grid-column: 2; grid-row: 2; }
+    .bd-ligne-bon > .bd-ordre { grid-column: 3; grid-row: 1 / span 2; }
+    .bd-ligne-bon > .bd-retrait { grid-column: 4; grid-row: 1 / span 2; }
+  }
+  @supports not (container-type: inline-size) {
+    @media (max-width: 660px) {
+      .bd-ligne-bon { grid-template-columns: 24px minmax(0, 1fr) auto 36px; column-gap: 6px; row-gap: 2px; }
+      .bd-ligne-bon > .bd-bon-num { grid-column: 1; grid-row: 1 / span 2; }
+      .bd-ligne-bon > .bd-bon-identite { grid-column: 2; grid-row: 1; }
+      .bd-ligne-bon > .bd-bon-crbt { grid-column: 2; grid-row: 2; }
+      .bd-ligne-bon > .bd-ordre { grid-column: 3; grid-row: 1 / span 2; }
+      .bd-ligne-bon > .bd-retrait { grid-column: 4; grid-row: 1 / span 2; }
+    }
   }
 }
 `;
@@ -359,7 +418,7 @@ export default function BonDistributionCreerUI({
           ne pas s'annoncer comme les autres. La pastille de code et celle de
           statut ont sauté : le code n'est attribué qu'à la création, qui
           enchaîne aussitôt sur la vue d'impression. */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+      <div className="bd-entete">
         <div style={{ minWidth: 0 }}>
           <h1 className="page-title">{L.titre}</h1>
         </div>
@@ -435,6 +494,7 @@ export default function BonDistributionCreerUI({
             <span style={{ fontSize: 14, fontWeight: 800, color: "#FFFFFF" }}>{zone?.nom}</span>
             <button
               type="button"
+              className="bd-zone-change"
               onClick={onZoneChange}
               style={{ marginLeft: "auto", border: "1px solid rgba(255,255,255,.22)", background: "rgba(255,255,255,.06)", color: "#EDEBE2", fontSize: 11.5, fontWeight: 700, borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontFamily: "inherit" }}
             >
@@ -453,6 +513,7 @@ export default function BonDistributionCreerUI({
                 <div style={S.search}>
                   <span style={{ fontSize: 12, color: C.muted3 }}>⌕</span>
                   <input
+                    className="bd-champ"
                     value={rechercheLivreur}
                     onChange={(e) => onRechercheLivreur && onRechercheLivreur(e.target.value)}
                     placeholder={L.etape2Placeholder}
@@ -518,6 +579,7 @@ export default function BonDistributionCreerUI({
                     <div style={S.search}>
                       <span style={{ fontSize: 12, color: C.muted3 }}>⌕</span>
                       <input
+                        className="bd-champ"
                         value={rechercheColis}
                         onChange={(e) => onRechercheColis && onRechercheColis(e.target.value)}
                         placeholder={L.etape3Placeholder}
@@ -529,6 +591,7 @@ export default function BonDistributionCreerUI({
                         <button
                           key={f.id}
                           type="button"
+                          className="bd-filtre"
                           onClick={() => onFiltrePick && onFiltrePick(f.id)}
                           style={{
                             flex: "none",
@@ -575,6 +638,7 @@ export default function BonDistributionCreerUI({
                         <button
                           type="button"
                           className="bd-colis-ajout"
+                          aria-label={`Ajouter ${c.code} au bon`}
                           onClick={() => onColisAdd && onColisAdd(c.id)}
                           style={{ width: 28, height: 28, borderRadius: 9, border: "1px solid rgba(255,209,0,.5)", background: "rgba(255,209,0,.18)", color: "#8a7405", fontSize: 14, fontWeight: 800, cursor: "pointer", lineHeight: 1, fontFamily: "inherit" }}
                         >
@@ -600,6 +664,7 @@ export default function BonDistributionCreerUI({
                   <div style={{ padding: "10px 15px", borderTop: `1px solid ${C.ligne2}`, display: "flex", alignItems: "center", gap: 8 }}>
                     <button
                       type="button"
+                      className="bd-ajout-filtre"
                       onClick={onAjouterFiltre}
                       style={{ border: `1px solid ${C.ligne}`, background: C.surface, color: C.encre2, fontSize: 11.5, fontWeight: 800, borderRadius: 10, padding: "8px 12px", cursor: "pointer", fontFamily: "inherit" }}
                     >
@@ -645,6 +710,7 @@ export default function BonDistributionCreerUI({
                       <div style={{ display: "flex", alignItems: "center", gap: 9, background: C.encre, borderRadius: 13, padding: "9px 11px", animation: "bdPulse 2.4s ease-in-out infinite" }}>
                         <span style={{ fontSize: 14 }}>▮▯▮</span>
                         <input
+                          className="bd-champ"
                           value={scanValue}
                           onChange={(e) => onScanChange && onScanChange(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") onScanSubmit?.(); }}
@@ -653,6 +719,7 @@ export default function BonDistributionCreerUI({
                         />
                         <button
                           type="button"
+                          className="bd-scan-ajout"
                           onClick={onScanSubmit}
                           style={{ border: "none", background: C.grad, color: "#3f2f00", fontSize: 11, fontWeight: 800, borderRadius: 9, padding: "6px 11px", cursor: "pointer", fontFamily: "inherit" }}
                         >
@@ -687,16 +754,42 @@ export default function BonDistributionCreerUI({
                           onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(c.id)); setSource("bon"); }}
                           onDragOver={(e) => { e.preventDefault(); if (indexCible !== i) setIndexCible(i); }}
                           onDragEnd={finDrag}
-                          style={{ display: "grid", gridTemplateColumns: "24px minmax(0,1fr) auto 28px", gap: 9, alignItems: "center", background: C.surface, border: `1px solid ${C.ligne}`, borderRadius: 13, padding: "8px 10px", cursor: "grab", animation: "bdSlide .2s ease both" }}
+                          className="bd-ligne-bon"
+                          style={{ background: C.surface, border: `1px solid ${C.ligne}`, borderRadius: 13, padding: "8px 10px", cursor: "grab", animation: "bdSlide .2s ease both" }}
                         >
-                          <span style={{ width: 24, height: 24, borderRadius: 8, background: C.encre, color: C.jaune, fontSize: 10.5, fontWeight: 800, display: "grid", placeItems: "center", ...S.num }}>{i + 1}</span>
-                          <div style={{ minWidth: 0 }}>
+                          <span className="bd-bon-num" style={{ width: 24, height: 24, borderRadius: 8, background: C.encre, color: C.jaune, fontSize: 10.5, fontWeight: 800, display: "grid", placeItems: "center", ...S.num }}>{i + 1}</span>
+                          <div className="bd-bon-identite" style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 12, fontWeight: 800, ...S.num }}>{c.code}</div>
                             <div style={{ fontSize: 10.5, color: C.muted2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.ligneSecondaire}</div>
                           </div>
-                          <div style={{ fontSize: 11.5, fontWeight: 800, ...S.num }}>{c.crbt}</div>
+                          <div className="bd-bon-crbt" style={{ fontSize: 11.5, fontWeight: 800, ...S.num }}>{c.crbt}</div>
+                          {/* Mêmes appels que le glisser-déposer : onReorder(id, index)
+                              insère AVANT l'index visé, compté avec la ligne encore
+                              en place — d'où i - 1 pour monter et i + 2 pour descendre. */}
+                          <div className="bd-ordre">
+                            <button
+                              type="button"
+                              disabled={i === 0}
+                              onClick={() => onReorder?.(c.id, i - 1)}
+                              aria-label={`Monter ${c.code} dans la tournée`}
+                              style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${C.ligne3}`, background: C.surface2, color: C.encre2, fontSize: 14, fontWeight: 800, cursor: i === 0 ? "default" : "pointer", opacity: i === 0 ? 0.35 : 1, lineHeight: 1, fontFamily: "inherit" }}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              disabled={i === bon.length - 1}
+                              onClick={() => onReorder?.(c.id, i + 2)}
+                              aria-label={`Descendre ${c.code} dans la tournée`}
+                              style={{ width: 36, height: 36, borderRadius: 8, border: `1px solid ${C.ligne3}`, background: C.surface2, color: C.encre2, fontSize: 14, fontWeight: 800, cursor: i === bon.length - 1 ? "default" : "pointer", opacity: i === bon.length - 1 ? 0.35 : 1, lineHeight: 1, fontFamily: "inherit" }}
+                            >
+                              ↓
+                            </button>
+                          </div>
                           <button
                             type="button"
+                            className="bd-retrait"
+                            aria-label={`Retirer ${c.code} du bon`}
                             onClick={() => onColisRemove && onColisRemove(c.id)}
                             style={{ width: 26, height: 26, borderRadius: 8, border: `1px solid ${C.ligne3}`, background: C.surface2, color: "#b04a37", fontSize: 13, fontWeight: 800, cursor: "pointer", lineHeight: 1, fontFamily: "inherit" }}
                           >
@@ -748,11 +841,15 @@ export default function BonDistributionCreerUI({
       {confirmation?.ouverte && (
         <div
           onClick={onAnnuler}
-          style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", padding: "26px 18px", background: "radial-gradient(900px 600px at 50% 40%, rgba(32,32,32,.16), rgba(32,32,32,.36))", backdropFilter: "blur(9px) saturate(115%)", animation: "bdFade .24s ease both" }}
+          style={{ position: "fixed", inset: 0, zIndex: 40, display: "grid", placeItems: "center", overflowY: "auto", padding: "26px 18px", background: "radial-gradient(900px 600px at 50% 40%, rgba(32,32,32,.16), rgba(32,32,32,.36))", backdropFilter: "blur(9px) saturate(115%)", animation: "bdFade .24s ease both" }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: 560, maxWidth: "100%", borderRadius: 24, background: "linear-gradient(160deg, rgba(255,255,255,.86) 0%, rgba(255,255,255,.68) 46%, rgba(255,253,235,.74) 100%)", backdropFilter: "blur(26px) saturate(160%)", border: "1px solid rgba(255,255,255,.9)", boxShadow: "0 40px 90px rgba(32,32,32,.28)", overflow: "hidden", animation: "bdIn .3s cubic-bezier(.2,.8,.25,1) both" }}
+            // Bornée à l'écran moins le padding du calque (2 × 26px) et
+            // défilante : sous ~480px de haut (téléphone couché), « Confirmer &
+            // imprimer » sortait d'une boîte centrée qu'on ne pouvait pas faire
+            // défiler. dvh et non vh : la barre d'adresse mobile est déduite.
+            style={{ width: 560, maxWidth: "100%", maxHeight: "calc(100dvh - 52px)", overflowX: "hidden", overflowY: "auto", borderRadius: 24, background: "linear-gradient(160deg, rgba(255,255,255,.86) 0%, rgba(255,255,255,.68) 46%, rgba(255,253,235,.74) 100%)", backdropFilter: "blur(26px) saturate(160%)", border: "1px solid rgba(255,255,255,.9)", boxShadow: "0 40px 90px rgba(32,32,32,.28)", animation: "bdIn .3s cubic-bezier(.2,.8,.25,1) both" }}
           >
             <div style={{ height: 3, background: "linear-gradient(90deg,#FFEE32,#FFD100 55%, rgba(255,209,0,0))" }} />
             <div style={{ padding: "20px 22px 6px", display: "flex", alignItems: "flex-start", gap: 13 }}>
@@ -774,7 +871,7 @@ export default function BonDistributionCreerUI({
             {confirmation.texte && (
               <div style={{ padding: "14px 22px 0", fontSize: 12.5, color: C.encre3, textWrap: "pretty" }}>{confirmation.texte}</div>
             )}
-            <div style={{ padding: "18px 22px 20px", display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end" }}>
+            <div style={{ padding: "18px 22px 20px", display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button type="button" onClick={onAnnuler} style={{ ...S.btnGhost, border: "1px solid rgba(32,32,32,.12)", background: "rgba(255,255,255,.7)" }}>Annuler</button>
               <button type="button" onClick={onConfirmer} style={{ border: "none", background: C.encre, color: C.jaune, fontSize: 12.5, fontWeight: 800, borderRadius: 12, padding: "11px 18px", cursor: "pointer", fontFamily: "inherit" }}>
                 Confirmer &amp; imprimer

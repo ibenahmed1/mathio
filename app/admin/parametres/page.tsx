@@ -98,7 +98,7 @@ export default function ParametresPage() {
 
         <label className="form-field">
           <span className="form-label">Logo</span>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {valeurs.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element -- data URL
               <img
@@ -110,7 +110,7 @@ export default function ParametresPage() {
             <input
               type="file"
               accept="image/*"
-              className="text-sm"
+              className="min-w-0 max-w-full text-sm"
               onChange={(e) => {
                 const fichier = e.target.files?.[0];
                 if (fichier) chargerLogo(fichier);

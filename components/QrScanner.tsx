@@ -178,7 +178,13 @@ export function QrScanner({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative aspect-square w-full overflow-hidden rounded-3xl bg-black shadow-lg shadow-black/20 sm:aspect-[4/3]">
+      {/* Hauteur plafonnée au doigt : en paysage, le carré occuperait tout
+          l'écran et renverrait les commandes (torche, saisie manuelle) sous le
+          pli. La vidéo est en object-cover, elle remplit le cadre recadré sans
+          se déformer. `dvh` et non `vh` : la barre d'adresse mobile ne compte
+          pas dans l'écran réellement visible. Réservé au tactile pour ne pas
+          rogner les grands scanners du back-office. */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-3xl bg-black shadow-lg shadow-black/20 sm:aspect-[4/3] pointer-coarse:max-h-[65dvh]">
         <video
           ref={videoRef}
           className="h-full w-full object-cover"
@@ -224,7 +230,7 @@ export function QrScanner({
             {/* Cadre de visée + coins accentués thème Mathio */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div
-                className={`relative aspect-square w-[62%] max-w-[280px] transition-all duration-200 ${
+                className={`relative aspect-square w-[62%] max-w-[280px] transition-all duration-200 pointer-coarse:max-w-[min(280px,40dvh)] ${
                   flash ? 'scale-[1.03]' : ''
                 }`}
               >
@@ -265,7 +271,7 @@ export function QrScanner({
                 <button
                   type="button"
                   onClick={toggleTorch}
-                  className="rounded-full bg-black/50 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/70"
+                  className="rounded-full bg-black/50 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/70 pointer-coarse:p-3"
                   aria-label="Torche"
                 >
                   {torchOn ? <FlashlightOff className="h-5 w-5" /> : <Flashlight className="h-5 w-5" />}
@@ -275,7 +281,7 @@ export function QrScanner({
                 <button
                   type="button"
                   onClick={switchCamera}
-                  className="rounded-full bg-black/50 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/70"
+                  className="rounded-full bg-black/50 p-2.5 text-white backdrop-blur-sm transition hover:bg-black/70 pointer-coarse:p-3"
                   aria-label="Changer de caméra"
                 >
                   <RefreshCw className="h-5 w-5" />
@@ -284,7 +290,7 @@ export function QrScanner({
               <button
                 type="button"
                 onClick={() => setManualOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-2.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/70"
+                className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-2.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/70 pointer-coarse:min-h-11"
               >
                 <Keyboard className="h-4 w-4" />
                 Saisie manuelle

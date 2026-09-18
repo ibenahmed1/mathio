@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
+import { coordonneesVille } from '@/lib/coordonnees-villes';
 import type {
   ActiviteRecente,
+  BasePrestataire,
   ColisRecent,
   DashboardAccueilProps,
   FamilleStatut,
@@ -97,6 +99,7 @@ export async function chargerDashboardAccueil(): Promise<DashboardAccueilProps> 
     derniers,
     historique,
     parVille,
+    agences,
   ] = await Promise.all([
     prisma.commande.count(),
     prisma.commande.count({ where: { statut: 'nouveau_colis' } }),
@@ -133,6 +136,15 @@ export async function chargerDashboardAccueil(): Promise<DashboardAccueilProps> 
       _count: { _all: true },
       orderBy: { _count: { ville: 'desc' } },
       take: 6,
+    }),
+    // Agences des prestataires ACTIFS : un prestataire désactivé ne reçoit plus
+    // de colis, ses villes n'ont rien à faire sur la carte. Les hubs internes
+    // (sans prestataire) en sont exclus par la même condition. Trié par nom de
+    // prestataire : c'est l'ordre qui fixe sa couleur sur la carte.
+    prisma.hub.findMany({
+      where: { prestataire: { actif: true } },
+      select: { nom: true, ville: true, prestataire: { select: { nom: true } } },
+      orderBy: [{ prestataire: { nom: 'asc' } }, { ville: 'asc' }],
     }),
   ]);
 
@@ -202,6 +214,25 @@ export async function chargerDashboardAccueil(): Promise<DashboardAccueilProps> 
     part: totalColis === 0 ? 0 : Math.round((v._count._all / totalColis) * 100),
   }));
 
+  // Une ville absente du référentiel de coordonnées n'est pas placée au jugé :
+  // elle remonte à part, et la carte dit combien d'agences lui manquent.
+  const basesPrestataires: BasePrestataire[] = [];
+  const basesNonPlacees: string[] = [];
+  for (const agence of agences) {
+    const position = coordonneesVille(agence.ville);
+    if (!position) {
+      basesNonPlacees.push(agence.nom);
+      continue;
+    }
+    basesPrestataires.push({
+      agence: agence.nom,
+      ville: agence.ville,
+      prestataire: agence.prestataire?.nom ?? '',
+      longitude: position.longitude,
+      latitude: position.latitude,
+    });
+  }
+
   return {
     totalColis,
     colisLivres,
@@ -217,5 +248,7 @@ export async function chargerDashboardAccueil(): Promise<DashboardAccueilProps> 
     colisRecents,
     activites,
     zones,
+    basesPrestataires,
+    basesNonPlacees,
   };
 }

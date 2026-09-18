@@ -26,8 +26,8 @@ export function RepartitionStatuts({ lignes }: { lignes: RepartitionStatut[] }) 
                 ? 'bg-black/25 dark:bg-white/25'
                 : 'bg-black/40 dark:bg-white/40';
         return (
-          <li key={l.statut} className="flex items-center gap-3 text-sm">
-            <span className="w-52 shrink-0 truncate" title={LABELS_STATUT_COMMANDE[l.statut]}>
+          <li key={l.statut} className="flex items-center gap-2 text-sm sm:gap-3">
+            <span className="w-24 min-w-0 shrink-0 truncate sm:w-52" title={LABELS_STATUT_COMMANDE[l.statut]}>
               {LABELS_STATUT_COMMANDE[l.statut]}
             </span>
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-black/[0.06] dark:bg-white/[0.08]">
@@ -36,8 +36,8 @@ export function RepartitionStatuts({ lignes }: { lignes: RepartitionStatut[] }) 
                   autres statuts deviennent des traits invisibles. */}
               <div className={`h-full rounded-full ${couleur}`} style={{ width: `${(l.nb / max) * 100}%` }} />
             </div>
-            <span className="w-16 shrink-0 text-right font-semibold tabular-nums">{formatNombre(l.nb)}</span>
-            <span className="w-14 shrink-0 text-right text-xs tabular-nums opacity-55">
+            <span className="w-12 shrink-0 text-right font-semibold tabular-nums sm:w-16">{formatNombre(l.nb)}</span>
+            <span className="w-12 shrink-0 text-right text-xs tabular-nums opacity-55 sm:w-14">
               {part.toFixed(1).replace('.', ',')} %
             </span>
           </li>

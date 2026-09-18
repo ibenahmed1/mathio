@@ -74,7 +74,7 @@ export function AdminShell({
         />
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           {!hideMobileBarFor(pathname) && (
-            <div className="px-4 pt-4 lg:hidden">
+            <div className="px-4 pt-4 lg:hidden print:hidden">
               <SidebarToggleButtons />
             </div>
           )}

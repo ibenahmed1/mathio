@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronLeft,
@@ -14,6 +14,7 @@ import {
   Truck,
   Undo2,
 } from 'lucide-react';
+import type { Feature, MultiPolygon } from 'geojson';
 import s from './DashboardAccueil.module.css';
 
 // Tableau de bord de l'Accueil back-office, porté de la maquette
@@ -21,11 +22,12 @@ import s from './DashboardAccueil.module.css';
 //
 // Ce qui est BRANCHÉ sur la base (props ci-dessous) : les quatre cadrans, la
 // courbe des 7 derniers jours et ses trois compteurs de pied, le donut de
-// répartition, les activités récentes, la table des derniers colis et les
-// principales villes.
+// répartition, les activités récentes, la table des derniers colis, les
+// principales villes et, sur la carte du Maroc, les villes de base des agences
+// de prestataires.
 //
 // Ce qui reste STATIQUE (repris tel quel de la maquette, en attente d'une
-// source) : la carte du monde, la « Vue d'ensemble » mensuelle et les deux
+// source) : la « Vue d'ensemble » mensuelle et les deux
 // sparklines de la colonne de droite. Chaque bloc concerné le redit sur
 // place — ne pas confondre ces chiffres avec des chiffres de production.
 //
@@ -57,6 +59,14 @@ const P = {
   btnJaune: 'linear-gradient(180deg,#FFE14D,#FFD000)',
   btnNavy: 'linear-gradient(135deg,#209EBB,#023047)',
 };
+
+const BLANC = '#FFFFFF';
+
+// Teintes des prestataires sur la carte : les froides de la palette, qui
+// ressortent sur le dégradé ambre-orange du territoire, attribuées dans l'ordre
+// du nom de prestataire. Le blanc, cerclé de marine, sert de troisième teinte ;
+// navy2, trop proche du marine sur un point de 9 px, ne vient qu'en dernier.
+const TEINTES_PRESTATAIRES = [P.navy, P.teal, BLANC, P.bleuClair, P.navy2];
 
 // Dégradé de la pilule de statut, repris de `GRAD` dans la maquette. Les clés
 // disent le MOMENT DU CYCLE et non une couleur : lib/dashboard-accueil.ts n'a
@@ -126,6 +136,17 @@ export type ZoneClient = {
   part: number;
 };
 
+// Ville de base d'une agence de prestataire, posée sur la carte. Les
+// coordonnées viennent du référentiel de lib/coordonnees-villes.ts : la base ne
+// stocke qu'un nom de ville.
+export type BasePrestataire = {
+  agence: string;
+  ville: string;
+  prestataire: string;
+  longitude: number;
+  latitude: number;
+};
+
 export type DashboardAccueilProps = {
   totalColis: number;
   colisLivres: number;
@@ -139,6 +160,10 @@ export type DashboardAccueilProps = {
   colisRecents: ColisRecent[];
   activites: ActiviteRecente[];
   zones: ZoneClient[];
+  basesPrestataires: BasePrestataire[];
+  // Agences dont la ville n'a pas de coordonnées au référentiel : absentes de la
+  // carte, et c'est l'écran qui le dit plutôt que de les omettre sans un mot.
+  basesNonPlacees: string[];
 };
 
 /* ===== Formats ===== */
@@ -231,48 +256,112 @@ export function DashboardAccueil({
   colisRecents,
   activites,
   zones,
+  basesPrestataires,
+  basesNonPlacees,
   children,
 }: DashboardAccueilProps & { children?: React.ReactNode }) {
   const [tab, setTab] = useState('MOIS');
   const mapRef = useRef<HTMLDivElement>(null);
 
+  // Une entrée par prestataire, dans l'ordre où la requête les livre (par nom) :
+  // c'est cet ordre qui fixe la teinte, stable d'une visite à l'autre tant que la
+  // liste des prestataires ne change pas. Partagée par les points de la carte et
+  // par la légende, pour qu'ils ne puissent pas se contredire.
+  const legende = useMemo(() => {
+    const parPrestataire = new Map<string, { nom: string; couleur: string; villes: string[] }>();
+    for (const base of basesPrestataires) {
+      let entree = parPrestataire.get(base.prestataire);
+      if (!entree) {
+        entree = {
+          nom: base.prestataire,
+          couleur: TEINTES_PRESTATAIRES[parPrestataire.size % TEINTES_PRESTATAIRES.length],
+          villes: [],
+        };
+        parPrestataire.set(base.prestataire, entree);
+      }
+      entree.villes.push(base.ville);
+    }
+    return [...parPrestataire.values()];
+  }, [basesPrestataires]);
+
   useEffect(() => {
     let dead = false;
     (async () => {
       try {
-        const [d3, topojson] = await Promise.all([import('d3'), import('topojson-client')]);
-        const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
-        const topo = await res.json();
+        // Silhouette embarquée, générée par scripts/generer-carte-maroc.ts : le
+        // Royaume d'un seul tenant, provinces du Sud comprises. Elle remplace
+        // l'atlas du monde entier que la carte téléchargeait depuis jsDelivr à
+        // chaque affichage — plus de 100 Ko pour un seul pays, et une carte vide
+        // dès que le CDN était lent ou filtré. d3 et la géométrie restent chargés
+        // à part, hors du paquet initial de l'Accueil.
+        const [d3, { default: geometrie }] = await Promise.all([import('d3'), import('./carte-maroc.json')]);
         if (dead || !mapRef.current) return;
-        const countries = topojson.feature(topo, topo.objects.countries) as unknown as {
-          features: { id: string }[];
-        };
+        const maroc = geometrie as unknown as Feature<MultiPolygon>;
         const el = mapRef.current;
         const w = el.clientWidth || 700;
         const h = el.clientHeight || 320;
-        const proj = d3.geoNaturalEarth1().fitSize([w, h], countries as never);
+        // Mercator ajusté à la SEULE emprise du Maroc : c'est le zoom maximal
+        // qui laisse voir tout le territoire, de Tanger à Lagouira. La marge
+        // tient la côte à distance du bord de la carte.
+        const MARGE = 10;
+        const proj = d3.geoMercator().fitExtent(
+          [
+            [MARGE, MARGE],
+            [w - MARGE, h - MARGE],
+          ],
+          maroc
+        );
         const path = d3.geoPath(proj);
-        const colors: Record<string, string> = {
-          '012': '#FFB701',
-          '250': '#219EBC',
-          '504': '#FC8500',
-          '788': '#FC8500',
-          '724': '#023047',
-          '380': '#14526E',
-        };
+        const villesPlacees = basesPrestataires.map((b) => b.ville).join(', ');
         const svg = d3
           .create('svg')
           .attr('viewBox', `0 0 ${w} ${h}`)
+          .attr('role', 'img')
+          .attr(
+            'aria-label',
+            villesPlacees ? `Carte du Maroc — villes de base des prestataires : ${villesPlacees}` : 'Carte du Maroc'
+          )
           .style('width', '100%')
           .style('height', '100%');
+        // Dégradé ambre → orange, du nord-est au sud-ouest : la paire chaude de
+        // la palette P, déjà portée par le Maroc sur l'ancienne carte du monde.
+        // Ni contour ni frontière intérieure, comme sur la carte de référence.
+        const degrade = svg
+          .append('defs')
+          .append('linearGradient')
+          .attr('id', 'carte-maroc-degrade')
+          .attr('x1', '1')
+          .attr('y1', '0')
+          .attr('x2', '0')
+          .attr('y2', '1');
+        degrade.append('stop').attr('offset', '0%').attr('stop-color', P.jaune);
+        degrade.append('stop').attr('offset', '100%').attr('stop-color', P.orange);
         svg
-          .selectAll('path')
-          .data(countries.features)
-          .join('path')
-          .attr('d', path as never)
-          .attr('fill', (f) => colors[f.id] || '#E8E8E5')
-          .attr('stroke', '#FFF')
-          .attr('stroke-width', 0.5);
+          .append('path')
+          .datum(maroc)
+          .attr('d', (d) => path(d))
+          .attr('fill', 'url(#carte-maroc-degrade)');
+
+        // Villes de base des prestataires : un point par agence, à la teinte de
+        // son prestataire (cf. `legende`). Le nom passe en info-bulle plutôt
+        // qu'en étiquette : neuf agences Meta tiennent dans 150 km autour de
+        // Fès, leurs noms se chevaucheraient à cette échelle.
+        const couleurDe = new Map(legende.map((l) => [l.nom, l.couleur]));
+        svg
+          .append('g')
+          .selectAll('circle')
+          .data(basesPrestataires)
+          .join('circle')
+          .attr('cx', (b) => proj([b.longitude, b.latitude])?.[0] ?? 0)
+          .attr('cy', (b) => proj([b.longitude, b.latitude])?.[1] ?? 0)
+          .attr('r', 4.5)
+          .attr('fill', (b) => couleurDe.get(b.prestataire) ?? P.navy)
+          // Le blanc est cerclé de marine, les autres teintes de blanc : chaque
+          // point se détache du dégradé comme de ses voisins.
+          .attr('stroke', (b) => (couleurDe.get(b.prestataire) === BLANC ? P.navy : BLANC))
+          .attr('stroke-width', 1.5)
+          .append('title')
+          .text((b) => `${b.ville} — ${b.agence} (${b.prestataire})`);
         el.innerHTML = '';
         el.appendChild(svg.node() as Node);
       } catch {
@@ -282,7 +371,7 @@ export function DashboardAccueil({
     return () => {
       dead = true;
     };
-  }, []);
+  }, [basesPrestataires, legende]);
 
   const tabStyle = (t: string): React.CSSProperties => ({
     border: 'none',
@@ -744,6 +833,7 @@ export function DashboardAccueil({
           <div
             style={{
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 12,
@@ -829,14 +919,36 @@ export function DashboardAccueil({
             ))}
           </div>
         </div>
-        {/* Carte du monde (d3 + topojson, atlas chargé depuis jsDelivr) : reprise
-            telle quelle de la maquette. Purement décorative — le coloriage des
-            pays est en dur et ne reflète aucune donnée du réseau. */}
-        <div className={s.card} style={{ padding: 14, position: 'relative', minHeight: 340 }}>
-          <div
-            ref={mapRef}
-            style={{ position: 'absolute', inset: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          />
+        {/* Carte du Maroc (d3, silhouette embarquée — cf. l'effet `mapRef`
+            plus haut), avec les villes de base des agences de prestataires. */}
+        <div className={`${s.card} ${s.carteCadre}`}>
+          <div ref={mapRef} className={s.carteZone} />
+          {(legende.length > 0 || basesNonPlacees.length > 0) && (
+            <div className={s.carteLegende}>
+              <span className={s.carteLegendeTitre}>Bases des prestataires</span>
+              <ul className={s.carteLegendeListe}>
+                {legende.map((l) => (
+                  <li key={l.nom} className={s.carteLegendeLigne} title={l.villes.join(', ')}>
+                    <span
+                      className={s.carteLegendePastille}
+                      style={{
+                        background: l.couleur,
+                        boxShadow: l.couleur === BLANC ? `inset 0 0 0 1.5px ${P.navy}` : undefined,
+                      }}
+                    />
+                    <span className={s.carteLegendeNom}>{l.nom}</span>
+                    <span className={s.carteLegendeCompte}>{l.villes.length}</span>
+                  </li>
+                ))}
+              </ul>
+              {basesNonPlacees.length > 0 && (
+                <span className={s.carteLegendeManque} title={basesNonPlacees.join(', ')}>
+                  {basesNonPlacees.length === 1 ? '1 agence non placée' : `${basesNonPlacees.length} agences non placées`}{' '}
+                  (ville sans coordonnées)
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
