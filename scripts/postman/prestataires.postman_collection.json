@@ -1,0 +1,671 @@
+{
+  "info": {
+    "name": "Mathio — API suivi prestataires",
+    "description": "Tests manuels de l'API que consomment les TRANSPORTEURS sous-traitants : ils déclarent l'issue des colis qu'on leur a confiés.\n\nÀ ne pas confondre avec la collection « API plateformes partenaires (Shipeh) », qui couvre le flux inverse — une plateforme de vente qui nous DÉPOSE des colis.\n\nPRÉREQUIS\n1. `npm run db:migrate` puis `npm run dev`\n2. `.env` contient `HOST_API=127.0.0.1:3000` — indispensable : Windows ne résout pas `api.localhost`, Postman échouerait en ENOTFOUND. Redémarrer `npm run dev` après l'avoir ajouté.\n3. Depuis /admin/integrations : créer une plateforme EN CHOISISSANT UN TRANSPORTEUR dans le sélecteur, puis émettre une clé `live` avec le scope `livraisons:statut`. La clé n'est affichée qu'une fois.\n\n⚠️ POURQUOI UNE CLÉ `live` ET NON `test` : `livraisons:statut` est refusé à l'émission sur une clé de bac à sable. Cet endpoint ne CRÉE rien, il MUTE des colis réels — il n'y a rien à marquer ni à purger derrière, contrairement aux marchands créés en test. Un bac à sable qui écrit en production n'en est pas un. La répétition se fait donc sur de vrais colis d'un marchand de démonstration.\n\n4. Onglet « Variables » de cette collection, colonne CURRENT VALUE : coller la clé dans `cleLive`, et trois codes de suivi de colis RÉELLEMENT confiés à ce transporteur dans `colisA`, `colisB`, `colisC`.\n\nCOMMENT SAVOIR QU'UN COLIS EST « CONFIÉ » ? Son hub actuel doit être une agence de ce transporteur. Sinon la réponse est 404, même si le code existe — c'est le périmètre, pas un bug.\n\nORDRE\nLancer les dossiers dans l'ordre avec le Collection Runner : le dossier 1 ferme `colisA` (statut « livré »), et le test 1.9 vérifie justement qu'un colis clos refuse tout nouveau statut.\n\nREJOUABLE\nLa collection peut être relancée autant de fois que voulu : les assertions acceptent `applique` comme `inchange`, puisque rejouer une déclaration est un cas normal et non une erreur.\n\nCHAQUE REQUÊTE PORTE SES ASSERTIONS : l'onglet « Test Results » dit vert ou rouge, il n'y a rien à lire à l'œil.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "b7c41f92-3d58-4a17-9e02-5d6c8ab41f30"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{cleLive}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Garde-fou : une variable de colis non renseignée produirait un 404",
+          "// `colis_introuvable` — indiscernable d'un vrai problème de périmètre,",
+          "// puisque l'API confond volontairement « inconnu » et « pas à toi ».",
+          "// Le piège classique de Postman est de coller la valeur dans la colonne",
+          "// « Initial value » : ce n'est PAS celle qui part, c'est « Current value ».",
+          "const sansColis = /^(0\\.|2\\.2)/.test(pm.info.requestName);",
+          "if (!sansColis) {",
+          "  ['colisA', 'colisB', 'colisC'].forEach(function (nom) {",
+          "    const valeur = pm.variables.get(nom);",
+          "    if (!valeur) {",
+          "      throw new Error(",
+          "        'Variable ' + nom + ' vide. Onglet Variables de la collection, colonne ' +",
+          "        'CURRENT VALUE (l\\'Initial value ne part pas). Pour trouver des codes ' +",
+          "        'valides : npx tsx scripts/colis-confies.ts'",
+          "      );",
+          "    }",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000",
+      "type": "string"
+    },
+    {
+      "key": "cleLive",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "colisA",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "colisB",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "colisC",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "colisInconnu",
+      "value": "PD-999999",
+      "type": "string"
+    },
+    {
+      "key": "dateReport",
+      "value": "2026-09-15",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 — Branchement",
+      "description": "Trois requêtes qui n'écrivent rien. Si l'une échoue, inutile d'aller plus loin : le problème est la clé, le scope ou le rattachement du compte.",
+      "item": [
+        {
+          "name": "0.1 Sans clé → 401 cle_absente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('code = cle_absente', () => pm.expect(pm.response.json().code).to.eql('cle_absente'));",
+                  "pm.test('la reponse est du JSON, pas une page HTML', () =>",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth"]
+            },
+            "description": "Aucun en-tête Authorization. Vérifie aussi le Content-Type : si la réponse est du HTML, la route n'existe pas dans le serveur qui tourne — relancer `npm run dev`."
+          },
+          "response": []
+        },
+        {
+          "name": "0.2 Clé valide → 200 + scope livraisons:statut",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const corps = pm.response.json();",
+                  "pm.test('valide', () => pm.expect(corps.valide).to.eql(true));",
+                  "pm.test('le scope livraisons:statut est accorde', () =>",
+                  "  pm.expect(corps.scopes).to.include('livraisons:statut'));",
+                  "console.log('Compte machine : ' + corps.plateforme + ' (' + corps.environnement + ')');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth"]
+            },
+            "description": "Pas de corps. N'exige aucun scope : c'est ce qui permet de distinguer « ma clé est mauvaise » (401) de « on ne m'a pas ouvert cet endpoint » (403).\n\nSi `scopes` ne contient pas `livraisons:statut`, tout le reste répondra 403."
+          },
+          "response": []
+        },
+        {
+          "name": "0.3 Catalogue → 200, 12 statuts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const statuts = pm.response.json().statuts;",
+                  "pm.test('12 statuts exposes', () => pm.expect(statuts).to.have.lengthOf(12));",
+                  "const valeurs = statuts.map((s) => s.statut);",
+                  "pm.test('livre est terminal', () =>",
+                  "  pm.expect(statuts.find((s) => s.statut === 'livre').terminal).to.eql(true));",
+                  "pm.test('reporte exige une date', () =>",
+                  "  pm.expect(statuts.find((s) => s.statut === 'reporte').dateRequise).to.eql(true));",
+                  "pm.test('aucun statut interne n est expose', () => {",
+                  "  ['recu_au_hub', 'en_transit', 'mise_en_distribution', 'retourne'].forEach((s) =>",
+                  "    pm.expect(valeurs).to.not.include(s));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/statuts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "statuts"]
+            },
+            "description": "Le contrat public. Exige le scope d'écriture : ce catalogue est la liste de ce que CETTE clé peut poser, il n'a pas de sens pour une clé qui ne peut rien poser."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1 — Déclarer un colis",
+      "description": "L'appel principal. Attention : 1.1 FERME `colisA` (livré). C'est voulu — 1.9 vérifie ensuite qu'un colis clos refuse tout nouveau statut.",
+      "item": [
+        {
+          "name": "1.1 Livré → applique",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const corps = pm.response.json();",
+                  "pm.test('applique ou inchange', () =>",
+                  "  pm.expect(['applique', 'inchange']).to.include(corps.issue));",
+                  "pm.test('statut = livre', () => pm.expect(corps.statut).to.eql('livre'));",
+                  "",
+                  "// 404 ici ne veut pas dire « le code n'existe pas » : il veut dire",
+                  "// « ce colis ne vous est pas confié ». Voir la description.",
+                  "if (pm.response.code === 404) {",
+                  "  console.warn('colisA n est pas a une agence de ce transporteur — voir le perimetre.');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisA}}\",\n  \"statut\": \"livre\",\n  \"note\": \"Remis en main propre\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "Écriture d'ARGENT : « livré » ferme le colis, le rend facturable au marchand et fait naître une dette COD du transporteur.\n\nUn 404 signifie que le colis n'est pas à une agence de ce transporteur — pas nécessairement que le code n'existe pas. Les deux cas donnent volontairement la même réponse, pour ne pas révéler quels codes existent."
+          },
+          "response": []
+        },
+        {
+          "name": "1.2 Rejeu du même statut → inchange",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — un rejeu n est jamais une erreur', () => pm.response.to.have.status(200));",
+                  "pm.test('issue = inchange', () =>",
+                  "  pm.expect(pm.response.json().issue).to.eql('inchange'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisA}}\",\n  \"statut\": \"livre\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "Exactement la même déclaration qu'en 1.1. Une reprise après coupure réseau est un cas NORMAL : la réponse est un succès, et AUCUNE nouvelle ligne d'historique n'est écrite sur le colis — sans quoi l'historique laisserait croire à une seconde tentative de livraison."
+          },
+          "response": []
+        },
+        {
+          "name": "1.3 Report daté → applique",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const corps = pm.response.json();",
+                  "pm.test('applique ou inchange', () =>",
+                  "  pm.expect(['applique', 'inchange']).to.include(corps.issue));",
+                  "pm.test('statut = reporte', () => pm.expect(corps.statut).to.eql('reporte'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisB}}\",\n  \"statut\": \"reporte\",\n  \"date\": \"{{dateReport}}\",\n  \"note\": \"Client absent, repasse mardi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "La date atterrit dans `Commande.dateNouvelleLivraison`, donc dans la file de relance. La note atterrit en commentaire sur le colis."
+          },
+          "response": []
+        },
+        {
+          "name": "1.4 Report sans date → 400 date_requise",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = date_requise', () =>",
+                  "  pm.expect(pm.response.json().code).to.eql('date_requise'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisB}}\",\n  \"statut\": \"reporte\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "`reporte` et `programme` sont les deux seuls statuts qui exigent une date. Le catalogue le dit par son champ `dateRequise`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.5 Date ambiguë → 400, jamais devinée",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = date_requise', () =>",
+                  "  pm.expect(pm.response.json().code).to.eql('date_requise'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisB}}\",\n  \"statut\": \"reporte\",\n  \"date\": \"12/09/2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "`new Date('12/09/2026')` vaut le 9 DÉCEMBRE pour un partenaire qui écrivait le 12 septembre. La date partant dans la file de relance, l'erreur ne se verrait qu'au moment où le colis ne serait pas retenté. Seul l'ISO 8601 est accepté."
+          },
+          "response": []
+        },
+        {
+          "name": "1.6 Statut d'une autre plateforme → 400 statut_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "const corps = pm.response.json();",
+                  "pm.test('code = statut_invalide', () => pm.expect(corps.code).to.eql('statut_invalide'));",
+                  "pm.test('le message cite les valeurs acceptees', () =>",
+                  "  pm.expect(corps.message).to.include('livre'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisB}}\",\n  \"statut\": \"DELIVERED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "Le vocabulaire anglais des confrères n'est pas accepté tel quel — mais le message d'erreur cite les valeurs acceptées, pour qu'un intégrateur trouve la correspondance sans rouvrir la documentation. `DELIVERED` correspond à `livre`."
+          },
+          "response": []
+        },
+        {
+          "name": "1.7 Statut interne → 400 statut_invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = statut_invalide', () =>",
+                  "  pm.expect(pm.response.json().code).to.eql('statut_invalide'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisB}}\",\n  \"statut\": \"recu_au_hub\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "`recu_au_hub` est un statut BIEN RÉEL de notre enum — il est refusé parce qu'il décrit notre logistique interne, qu'un transporteur n'a aucun moyen d'observer. C'est la distinction que ce test protège : refusé pour appartenance au catalogue, pas pour inexistence."
+          },
+          "response": []
+        },
+        {
+          "name": "1.8 Colis inconnu → 404 colis_introuvable",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));",
+                  "pm.test('code = colis_introuvable', () =>",
+                  "  pm.expect(pm.response.json().code).to.eql('colis_introuvable'));",
+                  "pm.test('ce n est jamais un 403', () => pm.expect(pm.response.code).to.not.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisInconnu}}\",\n  \"statut\": \"livre\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "Un code inexistant et un colis confié à UN AUTRE transporteur donnent exactement la même réponse. Un 403 sur le second confirmerait que le code existe — c'est-à-dire dirait à qui sonde quels codes de suivi sont en circulation chez nous."
+          },
+          "response": []
+        },
+        {
+          "name": "1.9 Colis clos → 409 colis_clos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = colis_clos', () =>",
+                  "  pm.expect(pm.response.json().code).to.eql('colis_clos'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codeSuivi\": \"{{colisA}}\",\n  \"statut\": \"reporte\",\n  \"date\": \"{{dateReport}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut"]
+            },
+            "description": "`colisA` a été livré en 1.1. Un colis livré ne redevient pas « reporté » parce qu'un fichier est renvoyé deux fois ou qu'un lot part d'un export périmé — sans quoi un rejeu pourrait rouvrir un colis déjà facturé.\n\nÀ ne pas confondre avec 1.2 : rejouer le MÊME statut reste neutre (200 inchange). L'idempotence passe avant la clôture."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 — Déclarer un lot",
+      "description": "Ce qu'un livreur envoie en rentrant de tournée. Cent lignes maximum.",
+      "item": [
+        {
+          "name": "2.1 Lot mixte → 200, une ligne refusée sur trois",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 meme avec une ligne fautive', () => pm.response.to.have.status(200));",
+                  "const corps = pm.response.json();",
+                  "pm.test('2 lignes traitees', () => pm.expect(corps.totalTraite).to.eql(2));",
+                  "pm.test('1 ligne refusee', () => pm.expect(corps.totalRefuse).to.eql(1));",
+                  "pm.test('3 resultats, un par ligne envoyee', () =>",
+                  "  pm.expect(corps.resultats).to.have.lengthOf(3));",
+                  "pm.test('la ligne fautive porte son propre code d erreur', () => {",
+                  "  const refusee = corps.resultats.find((r) => r.issue === 'refuse');",
+                  "  pm.expect(refusee.code).to.eql('colis_introuvable');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"livraisons\": [\n    { \"codeSuivi\": \"{{colisB}}\", \"statut\": \"injoignable\", \"note\": \"Trois tentatives\" },\n    { \"codeSuivi\": \"{{colisC}}\", \"statut\": \"refuse\" },\n    { \"codeSuivi\": \"{{colisInconnu}}\", \"statut\": \"livre\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut/lot",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut", "lot"]
+            },
+            "description": "Le lot n'est VOLONTAIREMENT pas atomique. Trente colis rentrent d'une tournée, un seul porte un code erroné : refuser les vingt-neuf autres obligerait le partenaire à trouver la ligne fautive avant de pouvoir déclarer quoi que ce soit, donc à retarder de vraies livraisons pour une faute de frappe.\n\nLa réponse est toujours 200 — le lot A ÉTÉ traité, c'est son contenu qui porte le détail ligne par ligne."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Lot vide → 400 champ_requis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = champ_requis', () =>",
+                  "  pm.expect(pm.response.json().code).to.eql('champ_requis'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"livraisons\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/livraisons/statut/lot",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "livraisons", "statut", "lot"]
+            },
+            "description": "Un lot vide est refusé en ERREUR HTTP, pas en résultat vide : il n'y a rien à traiter, donc rien à rapporter ligne par ligne. C'est la limite entre « le lot est mal formé » et « le lot a été traité, voici le détail »."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

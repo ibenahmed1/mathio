@@ -33,9 +33,65 @@ export const CATALOGUE_SCOPES: Record<string, string> = {
   'marchands:creation_validee': 'Créer un compte marchand déjà validé',
   // Déposer des colis, à l'unité ou par lot.
   'colis:creation': 'Déposer des colis',
+  // Poser un statut sur un colis CONFIÉ à un transporteur sous-traitant
+  // (§ POST /api/v1/livraisons/statut). C'est le scope des clés de
+  // PRESTATAIRE, et il n'a rien à faire sur une clé de plateforme de vente :
+  // les deux audiences partagent la mécanique de clés, jamais le périmètre.
+  //
+  // À manier avec la même prudence que `marchands:creation_validee` : `livre`
+  // est une écriture d'ARGENT — elle ferme le colis, déclenche sa facturation
+  // au marchand et fait naître une dette COD du transporteur. Une clé qui
+  // porte ce scope peut donc facturer.
+  'livraisons:statut': 'Poser un statut sur un colis confié',
 };
 
 export const SCOPES_PLATEFORME = Object.keys(CATALOGUE_SCOPES);
+
+// Scopes réservés aux comptes machine rattachés à un TRANSPORTEUR
+// (PlateformePartenaire.prestataireId). Le partage s'arrête à la mécanique de
+// clés : un canal de vente dépose des colis, un transporteur en déclare
+// l'issue, et aucun des deux n'a rien à faire du métier de l'autre.
+//
+// La règle est appliquée à l'ÉMISSION de la clé (creerCleApi, lib/plateformes.ts)
+// plutôt que dans les handlers : une clé qui ne détient pas le scope ne peut
+// pas l'exercer, quoi qu'il arrive ensuite au code — même raisonnement que le
+// refus de `marchands:creation_validee` sur une clé de test.
+export const SCOPES_TRANSPORTEUR = ['livraisons:statut'];
+
+// Scopes qu'une clé de BAC À SABLE ne peut pas recevoir. Deux entrées, deux
+// raisons distinctes — et c'est la seconde qui dit la vraie limite du bac à
+// sable de ce dépôt.
+//
+//   marchands:creation_validee  court-circuite l'approbation par un admin
+//                               (RF-22). Le propre d'un environnement de test
+//                               est qu'on y essaie tout ; y ouvrir un compte
+//                               marchand ACTIF n'est pas un essai.
+//
+//   livraisons:statut           l'endpoint ne CRÉE rien, il MUTE des colis
+//                               réels. Rien à marquer, rien à purger : on ne
+//                               « dé-livre » pas un colis, et sa sortie des
+//                               files de relance comme son entrée dans le
+//                               périmètre de la facturation sont
+//                               irréversibles.
+//
+// La distinction est structurelle. Pour une plateforme de VENTE, l'isolation
+// tient parce qu'une clé `test` crée des artefacts marqués et purgeables
+// (CompteMarchandExterne.environnement, § purgerDonneesTest). Pour un
+// TRANSPORTEUR, il n'y a pas d'artefact : un bac à sable qui écrit en
+// production n'en est pas un, et le nommer ainsi est plus dangereux que de ne
+// pas en avoir.
+//
+// Ce que le partenaire garde en `test` : sa clé, ses en-têtes, le catalogue,
+// et TOUS les refus (statut inconnu, date absente, date ambiguë, note trop
+// longue, colis inconnu, lot trop grand). Ce qu'il perd : le `200 applique`.
+// La répétition du chemin de succès se fait sur de vrais colis d'un marchand
+// de démonstration, en `live`, sous notre contrôle.
+export const SCOPES_INTERDITS_EN_TEST = ['marchands:creation_validee', 'livraisons:statut'];
+
+// Le complément, par construction : ajouter un scope au catalogue le range du
+// côté « vente » sans qu'on ait à y penser, et l'oubli irait donc toujours
+// vers le moins permissif pour un transporteur.
+export const SCOPES_VENTE = SCOPES_PLATEFORME.filter((s) => !SCOPES_TRANSPORTEUR.includes(s));
 
 export type EnvironnementCle = 'live' | 'test';
 

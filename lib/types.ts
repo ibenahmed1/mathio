@@ -1037,6 +1037,12 @@ export interface PlateformeResume {
   dateCreation: string;
   nbClesActives: number;
   nbMarchands: number;
+  /**
+   * Transporteur derrière ce compte machine, ou `null` pour un canal de vente.
+   * C'est ce champ — et lui seul — qui dit la NATURE du compte : rempli, il
+   * déclare des issues de livraison ; vide, il dépose des colis.
+   */
+  prestataire: { id: string; nom: string } | null;
 }
 
 export interface CleApi {

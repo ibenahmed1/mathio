@@ -43,6 +43,11 @@ next-env.d.ts
 
 /app/generated/prisma
 
+# Grilles exportées depuis la base (scripts/exporter-grilles-prestataires.ts) :
+# un instantané pour relire un fichier fournisseur à côté, jamais une source.
+# Ce sont les scripts d'import qui font foi (cf. SOUS_TRAITANCE.md).
+/exports-grilles
+
 # outils / assistants IA locaux (config personnelle, pas du code applicatif)
 /.claude
 /.agents

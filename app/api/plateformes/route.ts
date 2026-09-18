@@ -32,7 +32,12 @@ export async function POST(request: Request) {
 
     const code = normaliserCodePlateforme(body.code);
 
-    const creee = await creerPlateforme(code, nom);
+    // Rattachement facultatif à un transporteur : c'est lui, et lui seul, qui
+    // fait de ce compte machine un compte de PRESTATAIRE plutôt qu'un canal de
+    // vente. Absent par défaut — le cas historique reste Shipeh.
+    const prestataireId = typeof body.prestataireId === 'string' ? body.prestataireId.trim() : '';
+
+    const creee = await creerPlateforme(code, nom, prestataireId || null);
 
     // Créer une plateforme crée aussi un compte de service en base. C'est le
     // point de départ de tout accès machine — il a sa place au journal d'audit,

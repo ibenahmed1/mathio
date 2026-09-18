@@ -1281,6 +1281,10 @@ model Prestataire {
 
   agences Hub[]
   tarifs  TarifPrestataireVille[]
+  // Compte machine du prestataire (§ PlateformePartenaire.prestataireId) —
+  // absent tant qu'aucune clé d'API ne lui a été ouverte, ce qui est le cas
+  // des transporteurs qui nous renvoient leurs statuts par fichier.
+  compteMachine PlateformePartenaire?
 
   @@map("prestataires")
 }
@@ -2126,6 +2130,33 @@ model PlateformePartenaire {
   // l'accepter — garantie structurelle, indépendante de `actif`.
   utilisateurTechniqueId String      @unique @map("utilisateur_technique_id")
   utilisateurTechnique   Utilisateur @relation("PlateformeUtilisateurTechnique", fields: [utilisateurTechniqueId], references: [id])
+
+  // Transporteur sous-traitant derrière ce compte machine, quand il y en a un.
+  //
+  // Un compte machine sert désormais DEUX audiences qui n'ont en commun que la
+  // mécanique de clés : une plateforme de VENTE (Shipeh) dépose des colis chez
+  // nous, un TRANSPORTEUR remonte des statuts sur ceux qu'on lui a confiés.
+  // Elles partagent le format de clé, les scopes, le quota et le journal —
+  // jamais le périmètre de données.
+  //
+  // Colonne nullable plutôt qu'un enum `type` à côté : la nature du compte se
+  // DÉDUIT du lien (rempli = transporteur, vide = plateforme de vente). Deux
+  // sources pour un même fait finissent toujours par diverger, et c'est la
+  // divergence qui serait dangereuse ici — un compte marqué « vente » mais lié
+  // à un prestataire, ou l'inverse, ouvrirait un périmètre au mauvais tiers.
+  //
+  // Unique : un prestataire n'a qu'un compte machine. Deux comptes pour le
+  // même transporteur voudraient dire deux jeux de clés au même périmètre,
+  // donc deux endroits à révoquer le jour d'une fuite — et un oublié.
+  //
+  // Ce lien ne PORTE pas le périmètre, il le résout seulement. Le périmètre
+  // lui-même reste dérivé du référentiel existant : un colis appartient à ce
+  // transporteur quand son hub actuel est l'une de ses agences
+  // (Commande.hubActuelId → Hub.prestataireId), ce qui est exactement la
+  // sémantique du modèle plat Hub↔Ville. Aucune table de remise n'est donc
+  // nécessaire pour répondre « ce colis est-il à toi ? ».
+  prestataireId String?      @unique @map("prestataire_id")
+  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id])
 
   dateCreation DateTime @default(now()) @map("date_creation")
 
