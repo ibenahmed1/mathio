@@ -101,6 +101,47 @@ const AGENCES: AgenceImport[] = [
       ['Lahraouyine', 20],
     ],
   },
+  // LES MÊMES TREIZE VILLES, UNE SECONDE FOIS, SOUS UNE AGENCE POWER.
+  //
+  // Ce n'est pas un doublon accidentel : c'est la seule façon d'exprimer que
+  // Power livre aussi Casablanca SANS nous en déposséder.
+  //
+  //   · le hub interne les garde  →  `meilleurHub` fait primer l'interne, donc
+  //     le ROUTAGE ne bouge pas : nos livreurs continuent de les desservir, et
+  //     les tarifs Power sur le hub interne restent une comparaison ;
+  //   · l'agence Power les annonce →  elles entrent dans les villes desservies
+  //     par Power, donc il peut DÉCLARER le statut de ces colis par l'API
+  //     (§ API_SUIVI_PRESTATAIRES.md §5.1, le périmètre est la ville).
+  //
+  // C'est exactement le régime des quatre villes déjà revendiquées par deux
+  // réseaux — Aknoul, Bouhlou, Tahla, Taourirt : `Ville` étant unique par
+  // (hub, nom), les deux lignes cohabitent, `villesPartagees()` les expose sur
+  // /admin/hubs, et l'arbitrage de routage reste visible.
+  //
+  // Conséquence à connaître : Power porte alors deux tarifs par ville, l'un sur
+  // la ligne interne, l'autre sur la sienne. Ils sont identiques et le second
+  // n'est jamais lu tant que le routage reste interne — le coût d'un colis se
+  // lit via le prestataire du hub qui couvre SA ville.
+  {
+    hub: 'Agence Casablanca',
+    ville: 'Casablanca',
+    interne: false,
+    villes: [
+      ['Casablanca', 15],
+      ['Bouskoura', 20],
+      ['TIT MELIL', 20],
+      ['Dar bouazza', 20],
+      ['Deroua', 20],
+      ['NOUACER', 20],
+      ['TAMARIS', 20],
+      ['MEDIOUNA', 20],
+      ['Berrechid', 20],
+      ['SIDI HAJAJ', 20],
+      ['SETTAT', 20],
+      ['Ben ahmed', 20],
+      ['Lahraouyine', 20],
+    ],
+  },
   {
     hub: 'Agence El Jadida',
     ville: 'El Jadida',
