@@ -736,12 +736,29 @@ Deux conséquences du choix, à connaître :
 Écartée : **une exception de chemin dans le proxy** — c'est le raisonnement par exception que le
 cloisonnement d'hôte a été écrit pour éviter.
 
-### Vérification après déploiement
+### Vérifié, pas déduit
 
-```bash
-curl -i https://mathio.ma/MpLLAwOb3Nkr2xXW.html
+Le mécanisme a été exercé pour de vrai, sur trois hôtes :
+
+| Hôte annoncé | `/mathio-logo.png` | `/<jeton>.html` |
+|---|---|---|
+| `marchand.localhost:3000` | 200 | **200** |
+| `admin.localhost:3000` | 200 | **200** |
+| `localhost:3000` (hôte inconnu) | 200 | **404** |
+
+Deux enseignements, et le second est une bonne surprise :
+
+1. la page est bien servie sur un hôte d'espace — le `.html` traverse le proxy et arrive au fichier
+   statique ;
+2. **elle est inaccessible depuis un hôte non reconnu**, là où une image l'est. L'image est exclue
+   du `matcher` : le proxy ne la voit jamais. Le `.html`, lui, y passe — donc le contrôle d'hôte
+   s'applique. La page hérite ainsi du cloisonnement sans qu'on ait rien eu à écrire pour elle.
+
+En production, le lien à envoyer :
+
+```
+https://mathio.ma/MpLLAwOb3Nkr2xXW.html
 ```
 
-Attendu : `200` et du HTML. Ce chemin n'a pas été exercé par une requête réelle — seulement déduit
-de la lecture du proxy. Si la réponse est une redirection vers `/login`, basculer sur un
-hébergement statique externe.
+À confirmer d'un `curl -i` après le déploiement, `mathio.ma` devant être configuré comme hôte de
+l'espace marchand pour que le proxy le reconnaisse.
