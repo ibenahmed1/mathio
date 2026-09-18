@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer"><title>API Livraisons Mathio</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground:    #FFFFFF;
+    --panel:     #F4F4F0;
+    --panel-2:   #EAEAE4;
+    --ink:       #0A0A0A;
+    --ink-soft:  #3C3C37;
+    --muted:     #6B6B63;
+    --rule:      #E3E2DB;
+    --brand:     #FFD100;
+    --brand-ink: #7A6000;
+    --on-brand:  #0A0A0A;
+    --code-bg:   #0F0F0E;
+    --code-ink:  #EDEDE6;
+    --code-dim:  #8C8C82;
+    --code-key:  #FFD100;
+    --ok:        #1F7A43;
+    --warn:      #9A6B00;
+    --bad:       #B3261E;
+
+    --f-display: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+    --f-body:    "Inter Tight", "Segoe UI", system-ui, sans-serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0B0B0A; --panel: #151513; --panel-2: #1D1D1A;
+      --ink: #F3F2EC; --ink-soft: #C9C8C0; --muted: #9A998F; --rule: #2A2A26;
+      --brand-ink: #FFD100; --code-bg: #050505; --code-ink: #EDEDE6; --code-dim: #807F76;
+      --ok: #5FC587; --warn: #E2B544; --bad: #F08A80;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0B0B0A; --panel: #151513; --panel-2: #1D1D1A;
+    --ink: #F3F2EC; --ink-soft: #C9C8C0; --muted: #9A998F; --rule: #2A2A26;
+    --brand-ink: #FFD100; --code-bg: #050505; --code-ink: #EDEDE6; --code-dim: #807F76;
+    --ok: #5FC587; --warn: #E2B544; --bad: #F08A80;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 16.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- barre ---------- */
+  .bar { border-bottom: 1px solid var(--rule); }
+  .bar .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 62px; }
+  .mark { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
+  .mark-sq { width: 22px; height: 22px; background: var(--brand); border-radius: 5px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.18); }
+  .mark small { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: 0; }
+  .bar nav { display: flex; gap: 22px; font-size: 14px; font-weight: 500; color: var(--ink-soft); }
+  .bar nav a { text-decoration: none; }
+  .bar nav a:hover { color: var(--ink); }
+  @media (max-width: 760px) { .bar nav { display: none; } }
+
+  /* ---------- alerte de configuration ---------- */
+  .config {
+    background: var(--bad); color: #fff; font-size: 14px; font-weight: 600;
+    text-align: center; padding: 10px 16px;
+  }
+
+  /* ---------- héros ---------- */
+  .hero { padding: 64px 0 56px; }
+  .hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 44px; align-items: center; }
+  @media (min-width: 960px) { .hero .wrap { grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr); } }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--f-mono); font-size: 11.5px; font-weight: 500; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--ink-soft);
+    border: 1px solid var(--rule); border-radius: 999px; padding: 5px 12px 5px 8px;
+    margin-bottom: 22px;
+  }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px rgba(255, 209, 0, .25); }
+
+  h1 {
+    font-family: var(--f-display); font-weight: 800;
+    font-size: clamp(2.3rem, 5.4vw, 3.9rem); line-height: 1.02; letter-spacing: -0.035em;
+    text-wrap: balance; margin: 0 0 22px;
+  }
+  h1 mark {
+    background: linear-gradient(transparent 58%, var(--brand) 58%, var(--brand) 92%, transparent 92%);
+    color: inherit; padding: 0 .06em;
+  }
+  .lede { font-size: 1.14rem; color: var(--ink-soft); max-width: 44ch; margin: 0 0 30px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    font-family: var(--f-display); font-weight: 700; font-size: 15px;
+    padding: 12px 20px; border-radius: 10px; border: 1px solid transparent;
+  }
+  .btn-brand { background: var(--brand); color: var(--on-brand); box-shadow: 0 10px 22px rgba(255, 209, 0, .32); }
+  .btn-ghost { border-color: var(--rule); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--ink-soft); }
+
+  /* La carte requête / réponse : l'objet exact que le partenaire va construire. */
+  .demo {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 16px; overflow: hidden;
+    box-shadow: 0 30px 60px -28px rgba(0, 0, 0, .55);
+    font-family: var(--f-mono); font-size: 12.8px; line-height: 1.7;
+  }
+  .demo-tape {
+    height: 12px;
+    background: repeating-linear-gradient(-45deg, var(--brand) 0 14px, #0A0A0A 14px 28px);
+  }
+  .demo-head { display: flex; gap: 8px; align-items: center; padding: 14px 18px 0; color: var(--code-dim); font-size: 11.5px; }
+  .demo-head b { color: var(--code-key); font-weight: 700; }
+  .demo pre { margin: 0; padding: 10px 18px 16px; overflow-x: auto; }
+  .demo .sep { border-top: 1px dashed #2B2B28; margin: 0 18px; }
+  .demo .k { color: var(--code-key); }
+  .demo .d { color: var(--code-dim); }
+  .demo .ok { color: #5FC587; }
+
+  /* ---------- sections ---------- */
+  section { padding: 72px 0; border-top: 1px solid var(--rule); scroll-margin-top: 10px; }
+  .eyebrow {
+    font-family: var(--f-mono); font-size: 11.5px; font-weight: 500; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--brand-ink); margin: 0 0 12px;
+  }
+  h2 {
+    font-family: var(--f-display); font-weight: 800; font-size: clamp(1.7rem, 3.4vw, 2.35rem);
+    letter-spacing: -0.025em; line-height: 1.1; text-wrap: balance; margin: 0 0 14px; max-width: 24ch;
+  }
+  .intro { color: var(--ink-soft); max-width: 62ch; margin: 0 0 36px; }
+  h3 { font-family: var(--f-display); font-weight: 700; font-size: 1.12rem; letter-spacing: -0.01em; margin: 0 0 8px; }
+  p { margin: 0 0 14px; }
+  code {
+    font-family: var(--f-mono); font-size: .86em; background: var(--panel-2);
+    padding: .1em .38em; border-radius: 5px; overflow-wrap: break-word;
+  }
+
+  /* étapes : une vraie séquence, d'où la numérotation */
+  .steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; counter-reset: s; }
+  @media (min-width: 860px) { .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .step { background: var(--panel); border-radius: 14px; padding: 24px; counter-increment: s; }
+  .step::before {
+    content: counter(s); display: grid; place-items: center;
+    width: 34px; height: 34px; border-radius: 9px; background: var(--brand); color: var(--on-brand);
+    font-family: var(--f-display); font-weight: 800; margin-bottom: 16px;
+  }
+  .step p { color: var(--ink-soft); margin: 0; font-size: 15.5px; }
+
+  /* blocs de code */
+  .code { position: relative; margin: 0 0 18px; }
+  .code pre {
+    margin: 0; background: var(--code-bg); color: var(--code-ink); border-radius: 12px;
+    padding: 16px 70px 16px 18px; overflow-x: auto;
+    font-family: var(--f-mono); font-size: 13px; line-height: 1.68;
+  }
+  .code .d { color: var(--code-dim); }
+  .copy {
+    position: absolute; top: 10px; right: 10px; cursor: pointer;
+    font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    background: #242421; color: #D8D7CF; border: 1px solid #34342F; border-radius: 6px; padding: 5px 9px;
+  }
+  .copy:hover { border-color: var(--brand); color: var(--brand); }
+  .copy[data-ok="1"] { border-color: #5FC587; color: #5FC587; }
+
+  /* en-têtes */
+  .kv { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 0 0 20px; }
+  .kv th {
+    text-align: left; font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding: 0 16px 10px 0; border-bottom: 1px solid var(--ink);
+  }
+  .kv td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; color: var(--ink-soft); }
+  .kv td:first-child { color: var(--ink); font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
+  .tw { overflow-x: auto; }
+
+  /* endpoints */
+  .ep { border: 1px solid var(--rule); border-radius: 16px; overflow: hidden; margin: 0 0 22px; }
+  .ep-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 22px; background: var(--panel); }
+  .verb { font-family: var(--f-mono); font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 6px; letter-spacing: .04em; }
+  .verb-post { background: var(--brand); color: var(--on-brand); }
+  .verb-get { background: var(--ink); color: var(--ground); }
+  .path { font-family: var(--f-mono); font-size: 14.5px; font-weight: 500; overflow-wrap: break-word; min-width: 0; }
+  .ep-when { margin-left: auto; font-size: 13px; color: var(--muted); }
+  .ep-body { padding: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  @media (min-width: 900px) { .ep-body.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  .ep-body h4 {
+    font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 10px;
+  }
+  .ep-body > div > p { color: var(--ink-soft); font-size: 15px; }
+  .fields { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .fields li { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr); gap: 10px; font-size: 14.5px; color: var(--ink-soft); }
+  .fields code { background: none; padding: 0; font-weight: 700; color: var(--ink); }
+  .req { font-family: var(--f-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--bad); margin-left: 4px; }
+
+  /* statuts */
+  .groups { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  @media (min-width: 860px) { .groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .group { border: 1px solid var(--rule); border-radius: 14px; padding: 20px 22px; }
+  .group h3 { display: flex; align-items: center; gap: 10px; }
+  .group h3 span { font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .group > p { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+  .st { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 9px; }
+  .st li { display: grid; grid-template-columns: minmax(0, 15.5rem) minmax(0, 1fr); gap: 12px; font-size: 14.5px; color: var(--ink-soft); align-items: baseline; }
+  @media (max-width: 600px) { .st li { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+  .st code { background: var(--panel-2); color: var(--ink); overflow-wrap: break-word; justify-self: start; }
+  .group.close { border-color: var(--ink); }
+
+  .map { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-top: 8px; }
+  .map div { display: flex; justify-content: space-between; gap: 10px; background: var(--panel); border-radius: 9px; padding: 9px 12px; font-family: var(--f-mono); font-size: 12.5px; }
+  .map span { color: var(--muted); }
+  .map b { font-weight: 500; overflow-wrap: break-word; text-align: right; }
+
+  /* erreurs */
+  .errs { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  .errs th {
+    text-align: left; font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding: 0 16px 10px 0; border-bottom: 1px solid var(--ink);
+  }
+  .errs td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; color: var(--ink-soft); }
+  .errs td.c { font-family: var(--f-mono); font-size: 13px; color: var(--ink); overflow-wrap: break-word; }
+  .http { font-family: var(--f-mono); font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .h2xx { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+  .h4xx { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+  .h5xx { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+
+  /* règles */
+  .rules { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  @media (min-width: 860px) { .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .rule { background: var(--panel); border-radius: 14px; padding: 22px; }
+  .rule p { color: var(--ink-soft); margin: 0; font-size: 15px; }
+
+  .notice {
+    border-radius: 16px; padding: 28px; background: var(--ink); color: var(--ground);
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px;
+  }
+  @media (min-width: 860px) { .notice { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; } }
+  .notice h3 { color: var(--ground); font-size: 1.25rem; }
+  .notice p { opacity: .82; margin: 0 0 10px; }
+  .notice .eyebrow { color: var(--brand); }
+  .notice code { background: rgba(255,255,255,.12); color: inherit; }
+
+  footer { border-top: 1px solid var(--rule); padding: 36px 0 56px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+  footer b { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="config" id="alerte-config" hidden>
+  URL de l'API non configurée — ne pas envoyer cette page en l'état.
+</div>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="mark"><span class="mark-sq" aria-hidden="true"></span>Mathio Delivery <small>· API partenaires</small></div>
+    <nav aria-label="Sommaire">
+      <a href="#demarrer">Démarrer</a>
+      <a href="#endpoints">Endpoints</a>
+      <a href="#statuts">Statuts</a>
+      <a href="#erreurs">Erreurs</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <p class="pill"><i></i> Pour nos partenaires de livraison</p>
+      <h1>Déclarez l'issue de chaque colis, <mark>en une requête.</mark></h1>
+      <p class="lede">
+        Vous livrez les colis que nous vous confions. Cette API vous permet de nous dire, au fil de
+        vos tournées, ce qu'ils deviennent : livré, reporté, refusé, injoignable.
+      </p>
+      <div class="cta">
+        <a class="btn btn-brand" href="#demarrer">Démarrer l'intégration</a>
+        <a class="btn btn-ghost" href="#statuts">Voir les 12 statuts</a>
+      </div>
+    </div>
+
+    <div class="demo" aria-label="Exemple de requête et de réponse">
+      <div class="demo-tape" aria-hidden="true"></div>
+      <div class="demo-head"><b>POST</b> /api/v1/livraisons/statut</div>
+      <pre><span class="d">Authorization:</span> Bearer mtk_live_••••••••
+<span class="d">Content-Type:</span>  application/json
+
+{
+  <span class="k">"codeSuivi"</span>: "PD-000123",
+  <span class="k">"statut"</span>:    "reporte",
+  <span class="k">"date"</span>:      "2026-09-15",
+  <span class="k">"note"</span>:      "Client absent, repasse mardi"
+}</pre>
+      <div class="sep"></div>
+      <div class="demo-head"><span class="ok">200 OK</span></div>
+      <pre>{
+  <span class="k">"issue"</span>:     "applique",
+  <span class="k">"codeSuivi"</span>: "PD-000123",
+  <span class="k">"statut"</span>:    "reporte"
+}</pre>
+    </div>
+  </div>
+</div>
+
+<section id="demarrer">
+  <div class="wrap">
+    <p class="eyebrow">Démarrer</p>
+    <h2>Trois étapes jusqu'à votre première déclaration</h2>
+    <p class="intro">
+      Vous pouvez développer toute l'intégration avant de recevoir votre clé : les formats, les
+      statuts et les erreurs sont décrits intégralement ci-dessous.
+    </p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Recevoir votre clé</h3>
+        <p>
+          Nous vous la transmettons <strong>en privé</strong>, personnellement. Elle commence par
+          <code>mtk_live_</code> et n'est communiquée qu'une seule fois : conservez-la dans un
+          gestionnaire de secrets.
+        </p>
+      </div>
+      <div class="step">
+        <h3>Vérifier le branchement</h3>
+        <p>
+          Appelez <code>POST /api/v1/auth</code>. Une réponse <code>200</code> confirme que la clé
+          est valide et ouverte au suivi des livraisons. Cet appel ne modifie aucun colis.
+        </p>
+      </div>
+      <div class="step">
+        <h3>Déclarer vos statuts</h3>
+        <p>
+          À chaque événement de tournée, ou en lot en fin de journée, envoyez le statut de chaque
+          colis avec son code de suivi.
+        </p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:48px">Adresse de l'API</h3>
+    <div class="code">
+      <button class="copy" type="button">Copier</button>
+      <pre data-api>{{API}}/api/v1</pre>
+    </div>
+
+    <h3 style="margin-top:32px">En-têtes</h3>
+    <div class="tw">
+      <table class="kv">
+        <thead><tr><th>En-tête</th><th>Valeur</th><th>Quand</th></tr></thead>
+        <tbody>
+          <tr><td>Authorization</td><td><code>Bearer &lt;votre clé&gt;</code></td><td>toujours</td></tr>
+          <tr><td>Content-Type</td><td><code>application/json</code></td><td>requêtes avec un corps</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--ink-soft);max-width:62ch">
+      Si votre outil ne permet pas de poser <code>Authorization</code>, l'en-tête
+      <code>X-Mathio-Api-Key: &lt;votre clé&gt;</code> est accepté à la place.
+    </p>
+  </div>
+</section>
+
+<section id="endpoints">
+  <div class="wrap">
+    <p class="eyebrow">Référence</p>
+    <h2>Quatre endpoints, c'est tout</h2>
+    <p class="intro">
+      Toutes les réponses sont en JSON. Les champs sont en français, comme les valeurs de statut.
+    </p>
+
+    <!-- AUTH -->
+    <div class="ep">
+      <div class="ep-top">
+        <span class="verb verb-post">POST</span>
+        <span class="path">/api/v1/auth</span>
+        <span class="ep-when">une fois, au branchement</span>
+      </div>
+      <div class="ep-body two">
+        <div>
+          <h4>Rôle</h4>
+          <p>Vérifier que votre clé est valide. Sans corps, sans effet sur les colis.</p>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre data-api>curl -X POST {{API}}/api/v1/auth \
+  -H "Authorization: Bearer $CLE"</pre>
+          </div>
+        </div>
+        <div>
+          <h4>Réponse 200</h4>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre>{
+  "valide": true,
+  "plateforme": "votre-code",
+  "environnement": "live",
+  "scopes": ["livraisons:statut"]
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUTS -->
+    <div class="ep">
+      <div class="ep-top">
+        <span class="verb verb-get">GET</span>
+        <span class="path">/api/v1/statuts</span>
+        <span class="ep-when">au démarrage, puis en cache</span>
+      </div>
+      <div class="ep-body two">
+        <div>
+          <h4>Rôle</h4>
+          <p>
+            La liste des statuts que votre clé peut envoyer, avec leur libellé et leurs contraintes.
+            Le catalogue évolue rarement : lisez-le au démarrage de votre service.
+          </p>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre data-api>curl {{API}}/api/v1/statuts \
+  -H "Authorization: Bearer $CLE"</pre>
+          </div>
+        </div>
+        <div>
+          <h4>Réponse 200 — extrait</h4>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre>{
+  "statuts": [
+    {
+      "statut": "reporte",
+      "libelle": "Reporté",
+      "dateRequise": true,
+      "terminal": false,
+      "description": "Livraison reportée : indiquer
+                      la date de la prochaine tentative."
+    }
+  ]
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- UNITAIRE -->
+    <div class="ep">
+      <div class="ep-top">
+        <span class="verb verb-post">POST</span>
+        <span class="path">/api/v1/livraisons/statut</span>
+        <span class="ep-when">à chaque événement de tournée</span>
+      </div>
+      <div class="ep-body two">
+        <div>
+          <h4>Corps</h4>
+          <ul class="fields">
+            <li><code>codeSuivi<span class="req">requis</span></code><span>le code de suivi du colis, ex. <code>PD-000123</code>. La casse est indifférente. Vous pouvez déclarer tout colis dont la <strong>ville de destination</strong> fait partie de celles que vous desservez ; les autres répondent <code>404</code>.</span></li>
+            <li><code>statut<span class="req">requis</span></code><span>l'une des 12 valeurs du <a href="#statuts">catalogue</a>.</span></li>
+            <li><code>date</code><span>ISO 8601 — <code>2026-09-15</code> ou <code>2026-09-15T14:30:00Z</code>. <strong>Obligatoire</strong> pour <code>reporte</code> et <code>programme</code>, ignorée pour les autres.</span></li>
+            <li><code>note</code><span>facultative, 150 caractères maximum.</span></li>
+          </ul>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre>{
+  "codeSuivi": "PD-000123",
+  "statut": "reporte",
+  "date": "2026-09-15",
+  "note": "Client absent, repasse mardi"
+}</pre>
+          </div>
+        </div>
+        <div>
+          <h4>Réponse 200</h4>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre>{
+  "issue": "applique",
+  "codeSuivi": "PD-000123",
+  "statut": "reporte"
+}</pre>
+          </div>
+          <p>
+            <code>issue</code> vaut <code>applique</code> quand le statut a été enregistré, ou
+            <code>inchange</code> quand le colis portait déjà ce statut. Renvoyer une déclaration
+            déjà faite n'est <strong>jamais une erreur</strong> : vous pouvez rejouer sans risque
+            après une coupure réseau.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOT -->
+    <div class="ep">
+      <div class="ep-top">
+        <span class="verb verb-post">POST</span>
+        <span class="path">/api/v1/livraisons/statut/lot</span>
+        <span class="ep-when">en fin de tournée</span>
+      </div>
+      <div class="ep-body two">
+        <div>
+          <h4>Corps — 100 lignes maximum</h4>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre>{
+  "livraisons": [
+    { "codeSuivi": "PD-000123", "statut": "livre" },
+    { "codeSuivi": "PD-000124", "statut": "reporte",
+      "date": "2026-09-15" },
+    { "codeSuivi": "PD-000125", "statut": "refuse",
+      "note": "Refusé à la porte" }
+  ]
+}</pre>
+          </div>
+          <p>Chaque ligne suit exactement les règles de l'endpoint unitaire.</p>
+        </div>
+        <div>
+          <h4>Réponse 200</h4>
+          <div class="code">
+            <button class="copy" type="button">Copier</button>
+            <pre>{
+  "totalTraite": 2,
+  "totalRefuse": 1,
+  "resultats": [
+    { "issue": "applique", "codeSuivi": "PD-000123", "statut": "livre" },
+    { "issue": "applique", "codeSuivi": "PD-000124", "statut": "reporte" },
+    { "issue": "refuse", "codeSuivi": "PD-000125",
+      "code": "colis_introuvable",
+      "message": "Aucun colis déclarable ne correspond à ce code de suivi" }
+  ]
+}</pre>
+          </div>
+          <p>
+            <strong>Une ligne en erreur n'empêche pas les autres d'être enregistrées.</strong> La
+            réponse est <code>200</code> dès que le lot a pu être lu ; le détail ligne par ligne est
+            dans <code>resultats</code>, dans l'ordre d'envoi.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="statuts">
+  <div class="wrap">
+    <p class="eyebrow">Catalogue</p>
+    <h2>Les 12 statuts que vous pouvez envoyer</h2>
+    <p class="intro">
+      Toute autre valeur est refusée. Envoyez la valeur exacte de la colonne de gauche.
+    </p>
+
+    <div class="groups">
+      <div class="group close">
+        <h3>Clôturent le colis <span>définitif</span></h3>
+        <p>Après ces statuts, plus aucun changement n'est accepté sur le colis.</p>
+        <ul class="st">
+          <li><code>livre</code><span>colis remis au destinataire</span></li>
+          <li><code>annule</code><span>livraison annulée à la demande du destinataire</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <h3>Exigent une date <span>champ date</span></h3>
+        <p>Indiquez la date de la prochaine tentative, au format ISO 8601.</p>
+        <ul class="st">
+          <li><code>reporte</code><span>livraison reportée à une date ultérieure</span></li>
+          <li><code>programme</code><span>livraison programmée à une date convenue</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <h3>Échec de livraison</h3>
+        <p>La livraison n'a pas pu se faire.</p>
+        <ul class="st">
+          <li><code>refuse</code><span>le destinataire a refusé le colis</span></li>
+          <li><code>hors_zone</code><span>l'adresse est hors de la zone desservie</span></li>
+          <li><code>numero_errone</code><span>le numéro de téléphone est erroné</span></li>
+        </ul>
+      </div>
+
+      <div class="group">
+        <h3>Contact avec le destinataire</h3>
+        <p>Suivi des tentatives d'appel avant livraison.</p>
+        <ul class="st">
+          <li><code>injoignable</code><span>destinataire injoignable</span></li>
+          <li><code>boite_vocale</code><span>appel tombé sur la boîte vocale</span></li>
+          <li><code>deuxieme_appel_pas_reponse</code><span>deuxième appel sans réponse</span></li>
+          <li><code>troisieme_appel_pas_reponse</code><span>troisième appel sans réponse</span></li>
+          <li><code>client_interesse</code><span>confirme son intérêt, livraison à retenter</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top:44px">Votre système utilise d'autres libellés ?</h3>
+    <p style="color:var(--ink-soft);max-width:62ch">Correspondance avec le vocabulaire courant des outils de livraison :</p>
+    <div class="map">
+      <div><span>DELIVERED</span><b>livre</b></div>
+      <div><span>POSTPONED</span><b>reporte</b></div>
+      <div><span>PROGRAMMED</span><b>programme</b></div>
+      <div><span>NOANSWER</span><b>injoignable</b></div>
+      <div><span>UNREACHABLE</span><b>hors_zone</b></div>
+      <div><span>REFUSE</span><b>refuse</b></div>
+      <div><span>CANCELLED</span><b>annule</b></div>
+      <div><span>INTERESTED</span><b>client_interesse</b></div>
+      <div><span>DEUXIEME</span><b>deuxieme_appel_pas_reponse</b></div>
+      <div><span>TROISIEME</span><b>troisieme_appel_pas_reponse</b></div>
+    </div>
+  </div>
+</section>
+
+<section id="erreurs">
+  <div class="wrap">
+    <p class="eyebrow">Erreurs</p>
+    <h2>Lire une erreur</h2>
+    <p class="intro">
+      Toutes les erreurs ont la même forme. Basez votre traitement sur <code>code</code>, qui ne
+      change pas ; <code>message</code> est écrit pour un humain et peut être reformulé.
+    </p>
+    <div class="code" style="max-width:640px">
+      <button class="copy" type="button">Copier</button>
+      <pre>{ "code": "date_requise", "message": "Le statut « reporte » exige une date…" }</pre>
+    </div>
+
+    <div class="tw">
+      <table class="errs">
+        <thead><tr><th>HTTP</th><th>code</th><th>Signification et action</th></tr></thead>
+        <tbody>
+          <tr><td><span class="http h4xx">400</span></td><td class="c">json_invalide<br>corps_invalide</td><td>Le corps n'est pas un JSON valide, ou pas un objet.</td></tr>
+          <tr><td><span class="http h4xx">400</span></td><td class="c">champ_requis</td><td><code>codeSuivi</code> absent, ou lot vide.</td></tr>
+          <tr><td><span class="http h4xx">400</span></td><td class="c">statut_invalide</td><td>Valeur hors catalogue. Le message liste les valeurs acceptées.</td></tr>
+          <tr><td><span class="http h4xx">400</span></td><td class="c">date_requise</td><td>Date absente, ou pas au format ISO 8601, pour <code>reporte</code> ou <code>programme</code>.</td></tr>
+          <tr><td><span class="http h4xx">400</span></td><td class="c">note_trop_longue<br>lot_trop_grand</td><td>Note au-delà de 150 caractères, ou lot au-delà de 100 lignes.</td></tr>
+          <tr><td><span class="http h4xx">401</span></td><td class="c">cle_absente<br>cle_invalide</td><td>En-tête d'authentification manquant, ou clé incorrecte.</td></tr>
+          <tr><td><span class="http h4xx">401</span></td><td class="c">cle_expiree<br>cle_revoquee</td><td>Votre clé n'est plus valide. Contactez-nous pour en recevoir une nouvelle.</td></tr>
+          <tr><td><span class="http h4xx">403</span></td><td class="c">scope_manquant<br>compte_sans_prestataire<br>plateforme_desactivee</td><td>Votre accès n'est pas ouvert à cet usage. Contactez-nous.</td></tr>
+          <tr><td><span class="http h4xx">404</span></td><td class="c">colis_introuvable</td><td>Ce code ne correspond à aucun colis que vous pouvez déclarer — soit le code est erroné, soit sa ville de destination n’est pas dans votre zone.</td></tr>
+          <tr><td><span class="http h4xx">409</span></td><td class="c">colis_clos</td><td>Le colis est déjà clôturé. Aucun autre statut ne peut être posé.</td></tr>
+          <tr><td><span class="http h4xx">409</span></td><td class="c">conflit_concurrent</td><td>Le colis a changé de statut pendant votre requête. Réessayez.</td></tr>
+          <tr><td><span class="http h4xx">429</span></td><td class="c">quota_depasse</td><td>Trop de requêtes. Le message indique le délai avant de réessayer.</td></tr>
+          <tr><td><span class="http h5xx">500</span></td><td class="c">erreur_interne</td><td>Incident de notre côté. Contactez-nous en précisant l'heure de l'appel.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="regles">
+  <div class="wrap">
+    <p class="eyebrow">Bonnes pratiques</p>
+    <h2>Ce qu'il faut savoir avant la mise en production</h2>
+    <p class="intro">Quatre règles qui évitent l'essentiel des incidents d'intégration.</p>
+
+    <div class="rules">
+      <div class="rule">
+        <h3>Rejouer est toujours sûr</h3>
+        <p>
+          Après un délai dépassé ou une coupure, renvoyez la même déclaration : si elle était déjà
+          passée, vous recevez <code>inchange</code>, sans doublon de notre côté.
+        </p>
+      </div>
+      <div class="rule">
+        <h3>Préférez le lot</h3>
+        <p>
+          Trente colis rentrés de tournée tiennent en une requête sur
+          <code>/livraisons/statut/lot</code>. Au-delà de 100, découpez en plusieurs lots.
+        </p>
+      </div>
+      <div class="rule">
+        <h3>Des dates au format ISO</h3>
+        <p>
+          <code>2026-09-15</code>, jamais <code>15/09/2026</code> : une date ambiguë est refusée
+          plutôt que devinée, pour qu'un colis ne soit jamais relancé au mauvais jour.
+        </p>
+      </div>
+      <div class="rule">
+        <h3>Surveillez l'expiration de la clé</h3>
+        <p>
+          Quand une date d'expiration est programmée sur votre clé, les réponses réussies des sept
+          derniers jours portent l'en-tête <code>mathio-key-deprecation</code>, avec cette date.
+          Surveillez-le : une nouvelle clé vous est transmise avant l'échéance, sans interruption
+          de service.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="essais">
+  <div class="wrap">
+    <div class="notice">
+      <div>
+        <p class="eyebrow">Premiers essais</p>
+        <h3>Il n'y a pas d'environnement de test</h3>
+        <p>
+          Chaque statut envoyé s'applique à un colis réel. Pour vos premiers essais, nous vous
+          confierons quelques <strong>colis de démonstration</strong> et vous communiquerons leurs
+          codes de suivi.
+        </p>
+        <p>
+          D'ici là, vous pouvez tout développer : formats, correspondance des statuts, traitement
+          des erreurs.
+        </p>
+      </div>
+      <div>
+        <p class="eyebrow">Votre clé</p>
+        <h3>Elle est personnelle</h3>
+        <p>
+          Ne la placez jamais dans une URL, dans un dépôt de code, dans un journal ou dans une
+          application exécutée chez vos livreurs : elle doit rester côté serveur.
+        </p>
+        <p>
+          En cas de doute sur une fuite, prévenez-nous : elle est révoquée immédiatement et une
+          nouvelle vous est transmise.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span><b>Mathio Delivery</b> — API de suivi des livraisons, version 1</span>
+    <span>Une question, une nouvelle clé : <b data-contact>{{CONTACT}}</b></span>
+  </div>
+</footer>
+
+<script>
+  // À RENSEIGNER AVANT D'ENVOYER LA PAGE — c'est le seul endroit à modifier.
+  var CONFIG = {
+    api: 'https://api.mathio.ma',
+    contact: '06 30 19 13 74'
+  };
+
+  document.querySelectorAll('[data-api]').forEach(function (el) {
+    el.textContent = el.textContent.split('{{API}}').join(CONFIG.api);
+  });
+  document.querySelectorAll('[data-contact]').forEach(function (el) {
+    el.textContent = CONFIG.contact;
+  });
+  if (CONFIG.api.indexOf('VOTRE-DOMAINE') !== -1) {
+    document.getElementById('alerte-config').hidden = false;
+  }
+
+  document.querySelectorAll('.copy').forEach(function (bouton) {
+    bouton.addEventListener('click', function () {
+      var bloc = bouton.parentElement.querySelector('pre');
+      if (!bloc) return;
+      function confirme() {
+        bouton.textContent = 'Copié';
+        bouton.setAttribute('data-ok', '1');
+        setTimeout(function () { bouton.textContent = 'Copier'; bouton.removeAttribute('data-ok'); }, 1500);
+      }
+      function selectionne() {
+        var plage = document.createRange();
+        plage.selectNodeContents(bloc);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(plage);
+      }
+      try {
+        navigator.clipboard.writeText(bloc.innerText).then(confirme, selectionne);
+      } catch (e) {
+        selectionne();
+      }
+    });
+  });
+</script>
+</body>
+</html>

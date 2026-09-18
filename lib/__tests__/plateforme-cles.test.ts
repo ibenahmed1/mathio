@@ -5,7 +5,10 @@ import {
   CATALOGUE_SCOPES,
   ENTETE_CLE_REPLI,
   FENETRE_DEPRECIATION_MS,
+  SCOPES_INTERDITS_EN_TEST,
   SCOPES_PLATEFORME,
+  SCOPES_TRANSPORTEUR,
+  SCOPES_VENTE,
   analyserCle,
   assainirScopes,
   depreciationImminente,
@@ -215,4 +218,58 @@ test('la dépréciation ne s’annonce que dans la fenêtre de grâce', () => {
   // `requirePlateforme` qui le prononce.
   assert.equal(depreciationImminente(dans(-1000), maintenant), false);
   assert.equal(depreciationImminente(maintenant, maintenant), false);
+});
+
+// ------------------------------------------------------------
+// Partition vente / transporteur
+// ------------------------------------------------------------
+
+test('les deux natures de compte partitionnent le catalogue, sans trou ni recouvrement', () => {
+  // C'est cette partition que `creerCleApi` applique dans les deux sens. Un
+  // scope qui tomberait dans les deux ensembles serait accordable partout ;
+  // un scope qui ne serait dans aucun ne serait accordable nulle part, et
+  // l'écran l'afficherait sans qu'aucune case ne puisse le cocher.
+  const recouvrement = SCOPES_TRANSPORTEUR.filter((s) => SCOPES_VENTE.includes(s));
+  assert.deepEqual(recouvrement, []);
+
+  assert.deepEqual(
+    [...SCOPES_TRANSPORTEUR, ...SCOPES_VENTE].sort(),
+    [...SCOPES_PLATEFORME].sort()
+  );
+});
+
+test('tout scope de transporteur existe bien au catalogue', () => {
+  // Sans ce contrôle, une faute de frappe dans SCOPES_TRANSPORTEUR le sortirait
+  // silencieusement de la partition : le scope basculerait côté vente, et une
+  // clé de canal de vente pourrait le recevoir.
+  for (const scope of SCOPES_TRANSPORTEUR) {
+    assert.ok(CATALOGUE_SCOPES[scope]?.length > 0, `scope hors catalogue : ${scope}`);
+  }
+});
+
+// ------------------------------------------------------------
+// Ce qu'une clé de bac à sable ne peut pas recevoir
+// ------------------------------------------------------------
+
+test('les scopes interdits en test existent au catalogue', () => {
+  // Une faute de frappe ici serait silencieuse : le scope sortirait de la
+  // liste des interdits, et une clé de test pourrait le recevoir.
+  for (const scope of SCOPES_INTERDITS_EN_TEST) {
+    assert.ok(CATALOGUE_SCOPES[scope]?.length > 0, `scope hors catalogue : ${scope}`);
+  }
+});
+
+test('les deux écritures irréversibles sont fermées au bac à sable', () => {
+  // `marchands:creation_validee` court-circuite l'approbation d'un admin.
+  // `livraisons:statut` mute des colis RÉELS : rien à marquer ni à purger
+  // derrière, contrairement aux marchands créés en test. Deux raisons
+  // différentes, une même conséquence.
+  assert.ok(SCOPES_INTERDITS_EN_TEST.includes('marchands:creation_validee'));
+  assert.ok(SCOPES_INTERDITS_EN_TEST.includes('livraisons:statut'));
+});
+
+test('le dépôt de colis reste ouvert au bac à sable', () => {
+  // Le contre-exemple qui donne son sens à la règle : déposer un colis en test
+  // crée un artefact marqué et purgeable, donc réversible.
+  assert.ok(!SCOPES_INTERDITS_EN_TEST.includes('colis:creation'));
 });
