@@ -7,6 +7,7 @@ import {
   analyserEntreeStatut,
   analyserLotStatuts,
   deciderTransition,
+  villeDesservie,
 } from '../livraison-statut';
 import { ErreurPlateforme } from '../plateforme-auth';
 import { statutPrestataire } from '../statuts';
@@ -218,6 +219,52 @@ test('un colis clos ne peut plus changer de statut', () => {
 
   assert.equal(decision.issue, 'refuse');
   assert.ok(decision.issue === 'refuse' && decision.code === 'colis_clos');
+});
+
+// ------------------------------------------------------------
+// Périmètre — la ville de destination, et elle seule
+// ------------------------------------------------------------
+
+// Villes telles que le référentiel les écrit : la graphie du fournisseur est
+// rendue au document (§ SOUS_TRAITANCE.md), donc accents, casse et espaces
+// varient d'une ligne à l'autre. C'est exactement ce que la normalisation doit
+// absorber.
+const VILLES = new Set(['meknes', 'taza', 'azrou', 'l jadida', 'sidi 3llal lbahraoui kamoni']);
+
+test('une ville desservie est reconnue quelle que soit sa graphie', () => {
+  // `Commande.ville` est saisie à la main par un marchand : « Meknès »,
+  // « MEKNES » et « meknes » désignent la même ville, et refuser le colis pour
+  // un accent enverrait le transporteur chercher une panne inexistante.
+  for (const saisie of ['Meknès', 'MEKNES', ' meknes ', 'Meknes']) {
+    assert.ok(villeDesservie(VILLES, saisie), `refusée à tort : « ${saisie} »`);
+  }
+});
+
+test('une ville hors du réseau du transporteur est refusée', () => {
+  for (const saisie of ['Casablanca', 'Rabat', 'Agadir']) {
+    assert.ok(!villeDesservie(VILLES, saisie), `acceptée à tort : « ${saisie} »`);
+  }
+});
+
+test('un transporteur sans aucune ville ne peut rien déclarer', () => {
+  // Le cas d'un compte machine créé avant que son réseau ne soit chargé : il
+  // doit tout refuser, jamais tout accepter.
+  assert.equal(villeDesservie(new Set(), 'Meknès'), false);
+});
+
+test('la comparaison ne se fait pas sur un préfixe', () => {
+  // « Taza » est desservie, « Tazarine » ne l'est pas — et ce sont deux villes
+  // distinctes, à 500 km l'une de l'autre.
+  assert.ok(villeDesservie(VILLES, 'Taza'));
+  assert.ok(!villeDesservie(VILLES, 'Tazarine'));
+  assert.ok(!villeDesservie(VILLES, 'Taz'));
+});
+
+test('les graphies non standard du référentiel restent reconnues', () => {
+  // Le référentiel recopie les fichiers fournisseurs sans les corriger : le
+  // chiffre 3 de l'alphabet de discussion et les minuscules sont conservés.
+  assert.ok(villeDesservie(VILLES, 'L Jadida'));
+  assert.ok(villeDesservie(VILLES, 'Sidi 3llal Lbahraoui Kamoni'));
 });
 
 test('rejouer le statut d’un colis clos reste neutre', () => {

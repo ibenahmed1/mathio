@@ -3,7 +3,7 @@ import { ApiError } from '@/lib/api-utils';
 import {
   analyserEntreeStatut,
   appliquerStatut,
-  prestataireDeLaCle,
+  perimetreDuTransporteur,
 } from '@/lib/livraison-statut';
 import {
   avecEntetesPlateforme,
@@ -35,12 +35,12 @@ export async function POST(request: Request) {
 
   try {
     contexte = await requirePlateforme(request, ['livraisons:statut']);
-    const prestataireId = await prestataireDeLaCle(contexte);
+    const perimetre = await perimetreDuTransporteur(contexte);
 
     const entree = analyserEntreeStatut(await lireCorpsJson(request));
     reference = entree.codeSuivi;
 
-    const resultat = await appliquerStatut(contexte, prestataireId, entree);
+    const resultat = await appliquerStatut(contexte, perimetre, entree);
 
     await journaliserAppel({
       plateformeId: contexte.plateformeId,

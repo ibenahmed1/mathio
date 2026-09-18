@@ -1,6 +1,7 @@
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
+import { normaliserVille } from '@/lib/hub-stock';
 import {
   STATUTS_PRESTATAIRE,
   STATUTS_TERMINAUX,
@@ -20,10 +21,28 @@ import {
 // LE PÉRIMÈTRE EST LA PREMIÈRE GARANTIE, avant même l'authentification. Une
 // clé authentifiée mais sans périmètre pourrait poser `livre` sur le colis
 // d'un confrère — et `livre` est une écriture d'argent : elle ferme le colis,
-// le rend facturable au marchand et fait naître une dette COD. Le périmètre
-// n'est pas porté par une table de remise mais DÉRIVÉ du référentiel existant
-// (Commande.hubActuelId → Hub.prestataireId), qui dit déjà à quelle agence le
-// colis se trouve.
+// le rend facturable au marchand et fait naître une dette COD.
+//
+// LE SEUL CRITÈRE est la VILLE DE DESTINATION du colis : un transporteur peut
+// déclarer un colis dès lors que `Commande.ville` figure parmi les villes que
+// ses agences desservent (table `Ville`, § /admin/hubs).
+//
+// Le critère précédent — « le colis est physiquement dans une de ses agences »
+// (Commande.hubActuelId → Hub.prestataireId) — a été RETIRÉ : il ne devenait
+// vrai qu'au scan de réception, alors que le transporteur a le colis en main
+// bien avant et n'avait donc rien à déclarer entre-temps.
+//
+// Deux conséquences à connaître, et elles sont assumées :
+//
+//   - LE MOMENT N'EST PLUS BORNÉ. Un colis destiné à sa zone est déclarable
+//     avant même de lui être remis, et le reste après son retour chez nous.
+//   - UNE VILLE PARTAGÉE EST PARTAGÉE. Quand deux réseaux annoncent la même
+//     ville — Aknoul, Bouhlou, Tahla, Taourirt (§ SOUS_TRAITANCE.md) — les
+//     DEUX transporteurs peuvent déclarer le colis. `meilleurHub` tranche le
+//     routage, pas le périmètre de cette API.
+//
+// Seule une table de remise explicite refermerait les deux
+// (§10 d'API_SUIVI_PRESTATAIRES.md).
 
 // Plafond d'un lot. Cent lignes couvrent largement une tournée, et bornent une
 // requête dont chaque ligne fait sa propre transaction — le lot n'est
@@ -200,7 +219,7 @@ export function deciderTransition(
 // Le transporteur derrière la clé. Une clé de plateforme de VENTE n'en a pas :
 // elle dépose des colis, elle n'en livre aucun. Le 403 est donc la réponse
 // juste — la clé est valide, elle n'a simplement rien à faire ici.
-export async function prestataireDeLaCle(contexte: ContextePlateforme): Promise<string> {
+async function prestataireDeLaCle(contexte: ContextePlateforme): Promise<string> {
   const plateforme = await prisma.plateformePartenaire.findUnique({
     where: { id: contexte.plateformeId },
     select: { prestataireId: true },
@@ -215,27 +234,75 @@ export async function prestataireDeLaCle(contexte: ContextePlateforme): Promise<
   return plateforme.prestataireId;
 }
 
+/**
+ * Les villes desservies par un transporteur, NORMALISÉES.
+ *
+ * Toutes les villes de toutes ses agences, sans arbitrage : `getVilleHubIndex()`
+ * (lib/hub-envoi.ts) n'en retient qu'une par nom pour décider du ROUTAGE, ce
+ * qui écarterait le second réseau sur une ville partagée. Ici la question est
+ * différente — « ce transporteur annonce-t-il cette ville ? » —, et deux
+ * transporteurs peuvent y répondre oui.
+ */
+export async function villesDesserviesPar(prestataireId: string): Promise<Set<string>> {
+  const villes = await prisma.ville.findMany({
+    where: { hub: { prestataireId } },
+    select: { nom: true },
+  });
+  return new Set(villes.map((v) => normaliserVille(v.nom)));
+}
+
+export interface PerimetreTransporteur {
+  prestataireId: string;
+  /** Noms normalisés — comparer avec `villeDesservie`, jamais en direct. */
+  villes: ReadonlySet<string>;
+}
+
+/**
+ * Résout, en une fois par requête, ce que la clé a le droit de toucher.
+ *
+ * Chargé au niveau de la REQUÊTE et non de la ligne : un lot de cent
+ * déclarations ne doit pas relire cent fois la liste des villes.
+ */
+export async function perimetreDuTransporteur(
+  contexte: ContextePlateforme
+): Promise<PerimetreTransporteur> {
+  const prestataireId = await prestataireDeLaCle(contexte);
+  return { prestataireId, villes: await villesDesserviesPar(prestataireId) };
+}
+
+/**
+ * `Commande.ville` est du TEXTE LIBRE saisi par un marchand : la comparaison
+ * se fait sur le nom normalisé (casse et accents repliés, `normaliserVille`),
+ * jamais sur la chaîne brute. Sans ça, « Meknès » ne retrouverait pas
+ * « meknes » et le colis serait refusé à un transporteur qui le dessert.
+ *
+ * Fonction PURE — c'est ce qui rend la règle testable sans base.
+ */
+export function villeDesservie(villes: ReadonlySet<string>, ville: string): boolean {
+  return villes.has(normaliserVille(ville));
+}
+
 // --- Application ------------------------------------------------------------
 
 export async function appliquerStatut(
   contexte: ContextePlateforme,
-  prestataireId: string,
+  perimetre: PerimetreTransporteur,
   entree: EntreeStatut
 ): Promise<ResultatStatut> {
   const commande = await prisma.commande.findUnique({
     where: { codeSuivi: entree.codeSuivi },
-    select: { id: true, statut: true, hubActuel: { select: { prestataireId: true } } },
+    select: { id: true, statut: true, ville: true },
   });
 
-  // UN SEUL code de refus pour « inconnu » et « pas à toi », et c'est
+  // UN SEUL code de refus pour « inconnu » et « hors de vos villes », et c'est
   // délibéré : distinguer les deux dirait à qui sonde quels codes de suivi
   // existent chez nous. Même raisonnement que le message unique d'échec de clé
   // (lib/plateforme-auth.ts).
-  if (!commande || commande.hubActuel?.prestataireId !== prestataireId) {
+  if (!commande || !villeDesservie(perimetre.villes, commande.ville)) {
     throw new ErreurPlateforme(
       404,
       'colis_introuvable',
-      'Aucun colis ne vous est confié sous ce code de suivi'
+      'Aucun colis déclarable ne correspond à ce code de suivi'
     );
   }
 
@@ -352,7 +419,7 @@ function noteHistorique(plateformeCode: string, entree: EntreeStatut): string {
 // exactement laquelle est passée.
 export async function appliquerLotStatuts(
   contexte: ContextePlateforme,
-  prestataireId: string,
+  perimetre: PerimetreTransporteur,
   lignes: unknown[]
 ): Promise<ResultatLotStatuts> {
   const resultats: (ResultatStatut | LigneRefusee)[] = [];
@@ -364,7 +431,7 @@ export async function appliquerLotStatuts(
     try {
       const entree = analyserEntreeStatut(ligne);
       codeSuivi = entree.codeSuivi;
-      resultats.push(await appliquerStatut(contexte, prestataireId, entree));
+      resultats.push(await appliquerStatut(contexte, perimetre, entree));
       totalTraite += 1;
     } catch (error) {
       totalRefuse += 1;

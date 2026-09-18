@@ -1,32 +1,55 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { villeDesservie, villesDesserviesPar } from '../lib/livraison-statut';
+import { normaliserVille } from '../lib/hub-stock';
 import { STATUTS_PRESTATAIRE, STATUTS_TERMINAUX } from '../lib/statuts';
 
 /**
- * Quels colis un transporteur peut-il actuellement déclarer ?
+ * Quels colis un transporteur peut-il déclarer, et pourquoi pas les autres ?
  *
- *   npx tsx scripts/colis-confies.ts
+ *   npm run colis:confies              tous les comptes, les colis déclarables
+ *   npm run colis:confies PD-101686    le verdict sur UN colis
  *
  * LECTURE SEULE. Sert à une question qui n'a pas d'écran : l'API de suivi
  * (§ API_SUIVI_PRESTATAIRES.md) répond `404 colis_introuvable` aussi bien pour
- * un code inexistant que pour un colis qui n'est pas dans le périmètre de la
- * clé — c'est délibéré, distinguer les deux dirait à qui sonde quels codes
- * existent. Mais côté INTERNE, cette confusion coûte cher : un intégrateur qui
- * essaie l'API avec un code au hasard ne peut pas savoir s'il s'est trompé de
- * code ou de transporteur.
+ * un code inexistant que pour un colis hors des villes du transporteur — c'est
+ * délibéré, distinguer les deux dirait à qui sonde quels codes existent. Mais
+ * côté INTERNE, cette confusion coûte cher : un intégrateur qui essaie l'API ne
+ * peut pas savoir s'il s'est trompé de code ou de transporteur.
  *
- * Ce script lève l'ambiguïté depuis notre côté du guichet : pour chaque compte
- * machine rattaché à un transporteur, il liste les colis réellement déclarables
- * — ceux dont le hub actuel est une agence de CE transporteur, et dont le
- * statut n'est pas terminal.
+ * LE CRITÈRE EST LA VILLE DE DESTINATION, et lui seul : `Commande.ville`
+ * doit figurer parmi les villes desservies par les agences du transporteur.
+ * Ni le hub où le colis se trouve, ni une remise enregistrée n'entrent en
+ * compte — il n'en existe pas.
  */
 
-/**
- * Verdict sur UN colis : l'API l'acceptera-t-elle, et de qui ?
- *
- * Reproduit le contrôle de `appliquerStatut` (lib/livraison-statut.ts) en
- * disant, lui, POURQUOI — ce que l'API ne fait jamais côté partenaire.
- */
+// Les colis sont filtrés en MÉMOIRE et non par la requête : `Commande.ville`
+// est du texte libre et le rapprochement se fait sur le nom normalisé (casse
+// et accents repliés). Le `mode: 'insensitive'` de PostgreSQL ignore la casse
+// mais PAS les accents — chercher « Sale » n'y retrouve pas « Salé » (cf.
+// SOUS_TRAITANCE.md §2.2). D'où ce plafond, qui borne la lecture.
+const COLIS_EXAMINES = 500;
+
+async function colisDeclarables(prestataireId: string, codesDemandes: string[]) {
+  const villes = await villesDesserviesPar(prestataireId);
+
+  const candidats = await prisma.commande.findMany({
+    where: {
+      statut: { notIn: STATUTS_TERMINAUX },
+      ...(codesDemandes.length > 0 ? { codeSuivi: { in: codesDemandes } } : {}),
+    },
+    select: { codeSuivi: true, statut: true, ville: true },
+    orderBy: { dateCreation: 'desc' },
+    take: COLIS_EXAMINES,
+  });
+
+  return {
+    nbVilles: villes.size,
+    colis: candidats.filter((c) => villeDesservie(villes, c.ville)),
+  };
+}
+
+/** Verdict sur UN colis : qui peut le déclarer, et pourquoi pas les autres. */
 async function expliquerColis(codeBrut: string): Promise<void> {
   const codeSuivi = codeBrut.trim().toUpperCase();
   console.log(`\n${'='.repeat(72)}`);
@@ -39,9 +62,7 @@ async function expliquerColis(codeBrut: string): Promise<void> {
       ville: true,
       clientNom: true,
       marchand: { select: { nomBoutique: true } },
-      hubActuel: {
-        select: { id: true, nom: true, prestataire: { select: { id: true, nom: true } } },
-      },
+      hubActuel: { select: { nom: true } },
     },
   });
 
@@ -51,53 +72,80 @@ async function expliquerColis(codeBrut: string): Promise<void> {
     return;
   }
 
-  console.log(`  Marchand    ${colis.marchand.nomBoutique}`);
+  console.log(`  Marchand     ${colis.marchand.nomBoutique}`);
   console.log(`  Destinataire ${colis.clientNom} — ${colis.ville}`);
-  console.log(`  Statut      ${colis.statut}`);
-  console.log(`  Hub actuel  ${colis.hubActuel?.nom ?? '— aucun'}`);
+  console.log(`  Statut       ${colis.statut}`);
+  // Affiché pour le diagnostic logistique seulement : le hub n'entre PLUS dans
+  // le périmètre de l'API.
+  console.log(`  Hub actuel   ${colis.hubActuel?.nom ?? '— aucun'}  (sans effet sur l’API)`);
 
-  if (!colis.hubActuel) {
-    console.log('\n✗ NON DÉCLARABLE : le colis n’est rattaché à aucun hub.');
-    console.log('  Il n’a pas encore été réceptionné à un quai. L’API répondra 404.');
-    return;
-  }
-
-  const prestataire = colis.hubActuel.prestataire;
-  if (!prestataire) {
-    console.log(`\n✗ NON DÉCLARABLE : « ${colis.hubActuel.nom} » est un hub INTERNE.`);
-    console.log('  Ce colis est livré par nos propres livreurs, aucun transporteur ne le porte.');
-    console.log('  Pour le confier : /admin/bon-envoi vers une agence de sous-traitance.');
-    return;
-  }
-
-  const compte = await prisma.plateformePartenaire.findFirst({
-    where: { prestataireId: prestataire.id },
-    select: {
-      code: true,
-      actif: true,
-      cles: {
-        where: { revoqueeLe: null },
-        select: { prefixe: true, environnement: true, scopes: true },
-      },
-    },
+  // On part du RÉFÉRENTIEL, pas des comptes machine : un transporteur peut
+  // parfaitement desservir cette ville sans être encore branché à l'API. Les
+  // confondre ferait dire « personne ne dessert cette ville » là où il fallait
+  // lire « personne n'est branché » — deux diagnostics opposés.
+  const villes = await prisma.ville.findMany({
+    where: { hub: { prestataireId: { not: null } } },
+    select: { nom: true, hub: { select: { prestataire: { select: { id: true, nom: true } } } } },
   });
 
-  console.log(`\n✓ DÉCLARABLE par « ${prestataire.nom} ».`);
+  const cible = normaliserVille(colis.ville);
+  const desservants = new Map<string, string>();
+  for (const v of villes) {
+    if (normaliserVille(v.nom) !== cible) continue;
+    const p = v.hub.prestataire!;
+    desservants.set(p.id, p.nom);
+  }
 
-  if (!compte) {
-    console.log('✗ Mais ce transporteur n’a AUCUN compte machine : personne ne peut appeler l’API.');
+  if (desservants.size === 0) {
+    console.log(`\n✗ NON DÉCLARABLE : aucun transporteur ne dessert « ${colis.ville} ».`);
+    console.log('  Soit la ville est absente du référentiel, soit elle y est écrite autrement.');
+    console.log('  Vérifier dans /admin/hubs.');
     return;
   }
-  const utilisables = compte.cles.filter((c) => c.scopes.includes('livraisons:statut'));
-  if (utilisables.length === 0) {
-    console.log(`✗ Mais aucune clé active du compte « ${compte.code} » ne porte « livraisons:statut ».`);
-    return;
+
+  console.log(`\nDesservie par ${desservants.size} transporteur(s) :`);
+  let branches = 0;
+  for (const [id, nom] of desservants) {
+    const compte = await prisma.plateformePartenaire.findFirst({
+      where: { prestataireId: id },
+      select: {
+        code: true,
+        actif: true,
+        cles: {
+          where: { revoqueeLe: null },
+          select: { prefixe: true, environnement: true, scopes: true },
+        },
+      },
+    });
+
+    if (!compte) {
+      console.log(`  · ${nom} — ⚠ aucun compte machine : pas branché à l'API`);
+      continue;
+    }
+    const utilisables = compte.cles.filter((c) => c.scopes.includes('livraisons:statut'));
+    if (utilisables.length === 0) {
+      console.log(`  · ${nom} (compte « ${compte.code} ») — ⚠ aucune clé active avec le scope`);
+      continue;
+    }
+    branches += 1;
+    console.log(
+      `  · ${nom} (compte « ${compte.code} »${compte.actif ? '' : ', DÉSACTIVÉ'}) — ` +
+        utilisables.map((c) => `${c.environnement}/${c.prefixe.slice(0, 8)}…`).join(', ')
+    );
   }
+
   console.log(
-    `  Compte « ${compte.code} », clé(s) : ${utilisables
-      .map((c) => `${c.environnement}/${c.prefixe.slice(0, 8)}…`)
-      .join(', ')}`
+    branches === 0
+      ? '\n✗ NON DÉCLARABLE AUJOURD’HUI : la ville est desservie, mais aucun de ces transporteurs n’a de clé utilisable.'
+      : `\n✓ DÉCLARABLE par ${branches} transporteur(s) branché(s).`
   );
+
+  // Une ville annoncée par deux réseaux rend le colis déclarable par les DEUX.
+  // C'est la conséquence assumée du critère « ville » : voir l'en-tête de
+  // lib/livraison-statut.ts.
+  if (desservants.size > 1) {
+    console.log('\n⚠ Ville partagée : chacun de ces transporteurs peut clore ce colis.');
+  }
 
   if (STATUTS_TERMINAUX.includes(colis.statut)) {
     console.log(`\n⚠ Le colis est CLOS (« ${colis.statut} ») : tout nouveau statut répondra`);
@@ -140,85 +188,32 @@ async function main(): Promise<void> {
     console.log(`Transporteur : ${prestataire.nom}`);
 
     const avecScope = compte.cles.filter((c) => c.scopes.includes('livraisons:statut'));
-    if (avecScope.length === 0) {
-      console.log('⚠ Aucune clé active ne porte le scope « livraisons:statut ».');
-    } else {
-      console.log(
-        `Clés utilisables : ${avecScope.map((c) => `${c.environnement}/${c.prefixe.slice(0, 8)}…`).join(', ')}`
-      );
+    console.log(
+      avecScope.length === 0
+        ? '⚠ Aucune clé active ne porte le scope « livraisons:statut ».'
+        : `Clés utilisables : ${avecScope.map((c) => `${c.environnement}/${c.prefixe.slice(0, 8)}…`).join(', ')}`
+    );
+
+    const { nbVilles, colis } = await colisDeclarables(prestataire.id, []);
+    console.log(`Villes desservies : ${nbVilles}`);
+
+    if (nbVilles === 0) {
+      console.log('\n⚠ Ce transporteur n’a AUCUNE ville : il ne peut rien déclarer.');
+      console.log('  Charger son réseau (npm run db:reseau) ou lui rattacher des villes.');
+      continue;
     }
 
-    const agences = await prisma.hub.findMany({
-      where: { prestataireId: prestataire.id },
-      select: { id: true, nom: true },
-      orderBy: { nom: 'asc' },
-    });
-    console.log(`Agences : ${agences.length ? agences.map((a) => a.nom).join(', ') : 'aucune'}`);
-
-    // Le périmètre exact de l'API, reproduit à l'identique : hub actuel du
-    // colis appartenant à ce transporteur. Les statuts terminaux sont écartés
-    // parce qu'ils seraient refusés en 409 colis_clos, pas en succès.
-    const colis = await prisma.commande.findMany({
-      where: {
-        hubActuel: { prestataireId: prestataire.id },
-        statut: { notIn: STATUTS_TERMINAUX },
-      },
-      select: {
-        codeSuivi: true,
-        statut: true,
-        ville: true,
-        hubActuel: { select: { nom: true } },
-      },
-      orderBy: { dateCreation: 'desc' },
-      take: 15,
-    });
-
     if (colis.length === 0) {
-      console.log('\n⚠ AUCUN colis déclarable.');
-      console.log(
-        '  Un colis ne devient déclarable que lorsqu’il arrive à une agence de ce\n' +
-          '  transporteur — par le circuit normal du bon d’envoi (§ /admin/bon-envoi),\n' +
-          '  qui pose son hub actuel. Tant qu’aucun colis n’y est, l’API répondra\n' +
-          '  404 sur tout, ce qui est correct.'
-      );
+      console.log(`\n⚠ AUCUN colis déclarable parmi les ${COLIS_EXAMINES} derniers colis en cours.`);
+      console.log('  Aucun colis en circulation n’est destiné à l’une de ses villes.');
       continue;
     }
 
     console.log(`\n${colis.length} colis déclarable(s) — les 3 premiers pour la collection Postman :\n`);
-    for (const [i, c] of colis.entries()) {
+    for (const [i, c] of colis.slice(0, 15).entries()) {
       const marque = i < 3 ? ['colisA', 'colisB', 'colisC'][i].padEnd(7) : '       ';
-      console.log(
-        `  ${marque} ${c.codeSuivi.padEnd(14)} ${c.statut.padEnd(24)} ${c.hubActuel?.nom ?? '—'} — ${c.ville}`
-      );
+      console.log(`  ${marque} ${c.codeSuivi.padEnd(14)} ${c.statut.padEnd(24)} ${c.ville}`);
     }
-  }
-
-  // Vue d'ensemble : sans elle, un « aucun colis déclarable » ne dit pas s'il
-  // n'y a aucun colis du tout, ou s'ils sont simplement ailleurs — et les deux
-  // appellent des gestes opposés.
-  console.log(`\n${'='.repeat(72)}`);
-  console.log('OÙ SONT LES COLIS EN COURS (statut non terminal)\n');
-
-  const hubs = await prisma.hub.findMany({
-    select: { id: true, nom: true, prestataire: { select: { nom: true } } },
-  });
-  const parHub = new Map(hubs.map((h) => [h.id, h]));
-
-  const groupes = await prisma.commande.groupBy({
-    by: ['hubActuelId'],
-    where: { statut: { notIn: STATUTS_TERMINAUX } },
-    _count: { _all: true },
-  });
-
-  if (groupes.length === 0) {
-    console.log('  Aucun colis en cours dans toute la base.');
-  }
-  for (const g of groupes.sort((a, b) => b._count._all - a._count._all)) {
-    const hub = g.hubActuelId ? parHub.get(g.hubActuelId) : null;
-    const ou = hub
-      ? `${hub.nom}${hub.prestataire ? ` (${hub.prestataire.nom})` : ' (interne)'}`
-      : 'aucun hub — pas encore réceptionné';
-    console.log(`  ${String(g._count._all).padStart(5)}  ${ou}`);
   }
 
   console.log(`\n${'='.repeat(72)}`);

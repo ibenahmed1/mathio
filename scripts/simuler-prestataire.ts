@@ -4,6 +4,7 @@ import { ApiError } from '../lib/api-utils';
 import { HOST_API } from '../lib/spaces';
 import { genererCle } from '../lib/plateforme-cles';
 import { creerCleApi } from '../lib/plateformes';
+import { villeDesservie, villesDesserviesPar } from '../lib/livraison-statut';
 import { STATUTS_TERMINAUX } from '../lib/statuts';
 import { creerClient, type Reponse } from './audit-http';
 
@@ -132,6 +133,7 @@ interface Amorce {
   concurrent: {
     cle: string;
     cleId: string;
+    prestataireId: string;
     prestataireNom: string;
     plateformeCreee: string | null;
   } | null;
@@ -187,7 +189,13 @@ async function amorcerConcurrent(
 
   if (autre.compteMachine) {
     const { cleComplete, id } = await poserCle(autre.compteMachine.id, 'test');
-    return { cle: cleComplete, cleId: id, prestataireNom: autre.nom, plateformeCreee: null };
+    return {
+      cle: cleComplete,
+      cleId: id,
+      prestataireId: autre.id,
+      prestataireNom: autre.nom,
+      plateformeCreee: null,
+    };
   }
 
   const technique = await prisma.utilisateur.create({
@@ -207,7 +215,13 @@ async function amorcerConcurrent(
     },
   });
   const { cleComplete, id } = await poserCle(plateforme.id, 'test');
-  return { cle: cleComplete, cleId: id, prestataireNom: autre.nom, plateformeCreee: plateforme.id };
+  return {
+    cle: cleComplete,
+    cleId: id,
+    prestataireId: autre.id,
+    prestataireNom: autre.nom,
+    plateformeCreee: plateforme.id,
+  };
 }
 
 async function amorcer(codesDemandes: string[]): Promise<Amorce> {
@@ -229,24 +243,29 @@ async function amorcer(codesDemandes: string[]): Promise<Amorce> {
     );
   }
 
-  // Le périmètre de l'API, reproduit à l'identique.
-  const declarables = await prisma.commande.findMany({
+  // Le périmètre de l'API, reproduit à l'identique : la VILLE de destination,
+  // et elle seule. Le filtre se fait en mémoire parce que `Commande.ville` est
+  // du texte libre rapproché par normalisation — le `mode: 'insensitive'` de
+  // PostgreSQL ignorerait la casse mais pas les accents.
+  const villes = await villesDesserviesPar(compte.prestataireId!);
+  const candidats = await prisma.commande.findMany({
     where: {
-      hubActuel: { prestataireId: compte.prestataireId! },
       statut: { notIn: STATUTS_TERMINAUX },
       ...(codesDemandes.length > 0 ? { codeSuivi: { in: codesDemandes } } : {}),
     },
-    select: { codeSuivi: true },
+    select: { codeSuivi: true, ville: true },
     orderBy: { dateCreation: 'desc' },
-    take: 3,
+    take: 500,
   });
+  const declarables = candidats.filter((c) => villeDesservie(villes, c.ville)).slice(0, 3);
 
   if (declarables.length < 3) {
     const trouves = declarables.map((c) => c.codeSuivi).join(', ') || 'aucun';
     throw new Error(
       `Il faut TROIS colis déclarables chez « ${compte.prestataire!.nom} », ${declarables.length} trouvé(s) : ${trouves}.\n` +
-        '       Un colis est déclarable quand son hub actuel est une agence de ce transporteur\n' +
-        '       et que son statut n’est pas terminal. Pour en trouver : npx tsx scripts/colis-confies.ts'
+        '       Un colis est déclarable quand sa VILLE DE DESTINATION est desservie par ce\n' +
+        '       transporteur et que son statut n’est pas terminal.\n' +
+        '       Pour en trouver : npm run colis:confies'
     );
   }
 
@@ -530,20 +549,37 @@ async function main(): Promise<void> {
     if (!a.concurrent) {
       console.log('  --   ignoré : le référentiel ne contient qu’un transporteur avec des agences.');
     } else {
-      await verifie(
-        `« ${a.concurrent.prestataireNom} » ne peut pas toucher un colis de « ${a.prestataireNom} »`,
-        async () => {
-          // LA vérification du module. Une clé authentifiée, valide, avec le bon
-          // scope, sur un colis qui EXISTE — et qui doit malgré tout se voir
-          // opposer le même 404 qu'un code inventé. Le 403 serait une fuite : il
-          // confirmerait que ce code de suivi est en circulation chez nous.
-          const r = await appel('POST', '/api/v1/livraisons/statut', a.concurrent!.cle, {
-            codeSuivi: colisB,
-            statut: 'livre',
-          });
-          attendu(r, 404, 'colis_introuvable');
-        }
-      );
+      // Le critère étant la VILLE, l'isolation ne tient que si le concurrent ne
+      // dessert pas celle du colis. On vérifie la prémisse au lieu de la
+      // supposer : sur une ville partagée, les deux transporteurs sont
+      // légitimes et l'assertion serait fausse.
+      const villeB = (
+        await prisma.commande.findUnique({ where: { codeSuivi: colisB }, select: { ville: true } })
+      )?.ville;
+      const villesConcurrent = await villesDesserviesPar(a.concurrent.prestataireId);
+      const partagee = villeB ? villeDesservie(villesConcurrent, villeB) : false;
+
+      if (partagee) {
+        console.log(
+          `  --   ignoré : « ${a.concurrent.prestataireNom} » dessert aussi « ${villeB} » — ville partagée, les deux sont légitimes.`
+        );
+      } else {
+        await verifie(
+          `« ${a.concurrent.prestataireNom} » ne dessert pas « ${villeB} » et se voit refuser le colis`,
+          async () => {
+            // LA vérification du module. Une clé authentifiée, valide, avec le
+            // bon scope, sur un colis qui EXISTE — et qui doit malgré tout se
+            // voir opposer le même 404 qu'un code inventé. Le 403 serait une
+            // fuite : il confirmerait que ce code de suivi est en circulation
+            // chez nous.
+            const r = await appel('POST', '/api/v1/livraisons/statut', a.concurrent!.cle, {
+              codeSuivi: colisB,
+              statut: 'livre',
+            });
+            attendu(r, 404, 'colis_introuvable');
+          }
+        );
+      }
 
       await verifie('le colis du concurrent n’a pas bougé', async () => {
         const c = await prisma.commande.findUnique({

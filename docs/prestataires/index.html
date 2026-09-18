@@ -463,7 +463,7 @@
         <div>
           <h4>Corps</h4>
           <ul class="fields">
-            <li><code>codeSuivi<span class="req">requis</span></code><span>le code de suivi du colis, ex. <code>PD-000123</code>. La casse est indifférente.</span></li>
+            <li><code>codeSuivi<span class="req">requis</span></code><span>le code de suivi du colis, ex. <code>PD-000123</code>. La casse est indifférente. Vous pouvez déclarer tout colis dont la <strong>ville de destination</strong> fait partie de celles que vous desservez ; les autres répondent <code>404</code>.</span></li>
             <li><code>statut<span class="req">requis</span></code><span>l'une des 12 valeurs du <a href="#statuts">catalogue</a>.</span></li>
             <li><code>date</code><span>ISO 8601 — <code>2026-09-15</code> ou <code>2026-09-15T14:30:00Z</code>. <strong>Obligatoire</strong> pour <code>reporte</code> et <code>programme</code>, ignorée pour les autres.</span></li>
             <li><code>note</code><span>facultative, 150 caractères maximum.</span></li>
@@ -534,7 +534,7 @@
     { "issue": "applique", "codeSuivi": "PD-000124", "statut": "reporte" },
     { "issue": "refuse", "codeSuivi": "PD-000125",
       "code": "colis_introuvable",
-      "message": "Aucun colis ne vous est confié sous ce code de suivi" }
+      "message": "Aucun colis déclarable ne correspond à ce code de suivi" }
   ]
 }</pre>
           </div>
@@ -641,7 +641,7 @@
           <tr><td><span class="http h4xx">401</span></td><td class="c">cle_absente<br>cle_invalide</td><td>En-tête d'authentification manquant, ou clé incorrecte.</td></tr>
           <tr><td><span class="http h4xx">401</span></td><td class="c">cle_expiree<br>cle_revoquee</td><td>Votre clé n'est plus valide. Contactez-nous pour en recevoir une nouvelle.</td></tr>
           <tr><td><span class="http h4xx">403</span></td><td class="c">scope_manquant<br>compte_sans_prestataire<br>plateforme_desactivee</td><td>Votre accès n'est pas ouvert à cet usage. Contactez-nous.</td></tr>
-          <tr><td><span class="http h4xx">404</span></td><td class="c">colis_introuvable</td><td>Aucun colis ne vous est confié sous ce code. Vérifiez le code de suivi.</td></tr>
+          <tr><td><span class="http h4xx">404</span></td><td class="c">colis_introuvable</td><td>Ce code ne correspond à aucun colis que vous pouvez déclarer — soit le code est erroné, soit sa ville de destination n’est pas dans votre zone.</td></tr>
           <tr><td><span class="http h4xx">409</span></td><td class="c">colis_clos</td><td>Le colis est déjà clôturé. Aucun autre statut ne peut être posé.</td></tr>
           <tr><td><span class="http h4xx">409</span></td><td class="c">conflit_concurrent</td><td>Le colis a changé de statut pendant votre requête. Réessayez.</td></tr>
           <tr><td><span class="http h4xx">429</span></td><td class="c">quota_depasse</td><td>Trop de requêtes. Le message indique le délai avant de réessayer.</td></tr>

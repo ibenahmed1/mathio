@@ -233,19 +233,38 @@ Une clé authentifiée mais sans périmètre pourrait poser `livre` sur le colis
 **`livre` est une écriture d'argent** : elle ferme le colis, le rend facturable au marchand et fait
 naître une dette COD du transporteur.
 
-Le périmètre n'est **pas porté par une table de remise** mais dérivé du référentiel existant :
+Le périmètre n'est **pas porté par une table de remise** mais dérivé du référentiel existant. **Le
+seul critère est la VILLE DE DESTINATION du colis** :
 
 ```
-Commande.hubActuelId → Hub.prestataireId === PlateformePartenaire.prestataireId
+Commande.ville  ──(normaliserVille)──►  Ville.nom  ──►  Hub.prestataireId
 ```
 
-Un colis appartient à ce transporteur quand son hub actuel est l'une de ses agences — ce qui est
-déjà la sémantique du modèle plat Hub↔Ville. Aucune table nouvelle n'est nécessaire pour répondre
-« ce colis est-il à toi ? ».
+Un colis est déclarable par un transporteur dès lors que sa ville figure parmi celles que ses
+agences desservent. Le rapprochement se fait sur le nom **normalisé** — casse et accents repliés —
+parce que `Commande.ville` est du texte libre saisi par un marchand : sans ça, « Meknès » ne
+retrouverait pas « meknes » et le colis serait refusé à un transporteur qui le dessert.
 
-**Un seul code de refus pour « inconnu » et « pas à toi »** : `colis_introuvable`, 404. Distinguer
-les deux dirait à qui sonde quels codes de suivi existent chez nous — même raisonnement que le
-message unique d'échec de clé.
+**Un seul code de refus pour « inconnu » et « hors de vos villes »** : `colis_introuvable`, 404.
+Distinguer les deux dirait à qui sonde quels codes de suivi existent chez nous — même raisonnement
+que le message unique d'échec de clé.
+
+#### Ce que ce critère a remplacé, et ce qu'il coûte
+
+Le critère précédent était « le colis est physiquement dans une de ses agences »
+(`Commande.hubActuelId → Hub.prestataireId`). Il a été **retiré** : il ne devenait vrai qu'au scan
+de réception, alors que le transporteur a le colis en main bien avant et n'avait donc rien à
+déclarer entre-temps.
+
+Deux conséquences, assumées :
+
+- **Le moment n'est plus borné.** Un colis destiné à sa zone est déclarable avant même de lui être
+  remis, et le reste après son retour chez nous.
+- **Une ville partagée est partagée.** Quand deux réseaux annoncent la même ville — `Aknoul`,
+  `Bouhlou`, `Tahla`, `Taourirt` (§ `SOUS_TRAITANCE.md` §2.9) — **les deux** transporteurs peuvent
+  déclarer le colis. `meilleurHub()` tranche le routage, pas le périmètre de cette API.
+
+Seule une table de remise explicite refermerait les deux (§10).
 
 ### 5.2 Idempotence, et son ordre par rapport à la clôture
 
@@ -377,7 +396,7 @@ chose. C'est aussi ce qui lève l'ambiguïté du `NOANSWER` ci-dessus.
 | 403 | `scope_manquant` | clé valide, `livraisons:statut` absent |
 | 403 | `plateforme_desactivee` | compte machine suspendu |
 | 403 | `compte_sans_prestataire` | clé de canal de vente sur un endpoint de transporteur |
-| 404 | `colis_introuvable` | inconnu **ou** hors périmètre |
+| 404 | `colis_introuvable` | code inconnu **ou** ville hors de celles qu'il dessert |
 | 409 | `colis_clos` | colis déjà terminal |
 | 409 | `conflit_concurrent` | le colis a changé de statut pendant le traitement — réessayer |
 | 429 | `quota_depasse` | quota par clé ou plafond par IP |
@@ -509,7 +528,7 @@ Ce qu'il couvre et que Postman ne peut pas couvrir :
 | `hubId` reste nul sur cette ligne | la colonne ne se renseigne qu'aux transitions posées à un quai |
 | La note est devenue un commentaire, pas un `motifRetour` | ce champ porte une liste fermée |
 | `dateNouvelleLivraison` renseignée | c'est elle qui met le colis dans la file de relance |
-| **Un vrai colis d'un vrai concurrent → 404** | demande deux comptes machine, impossible depuis une collection |
+| **Un vrai colis hors des villes d'un concurrent → 404** | demande deux comptes machine, impossible depuis une collection |
 | **Cinq déclarations simultanées → une ligne** | teste le verrou optimiste sous charge réelle |
 | Clé révoquée, expirée, quota dépassé | demandent des clés fabriquées pour l'occasion |
 
@@ -527,7 +546,7 @@ garantie tient sous cinq requêtes parallèles.
 | 3.1 | Appel sans en-tête d'autorisation | `401 cle_absente` |
 | 3.2 | Clé d'un **canal de vente** sur `/livraisons/statut` | `403 compte_sans_prestataire` |
 | 3.3 | Clé valide **sans** `livraisons:statut` | `403 scope_manquant` |
-| 3.4 | Colis d'un **autre** prestataire | `404 colis_introuvable`, jamais 403 |
+| 3.4 | Colis dont la ville **n'est pas desservie** par ce transporteur | `404 colis_introuvable`, jamais 403 |
 | 3.5 | Code de suivi inexistant | `404 colis_introuvable` — **message identique à 3.4** |
 | 3.6 | `codeSuivi` en minuscules | accepté, le colis est trouvé |
 | 3.7 | `statut: "DELIVERED"` | `400 statut_invalide`, message citant les 12 valeurs |
@@ -676,7 +695,7 @@ alors sur le **contenu** : la page publique est un sous-ensemble réduit de ce d
 |---|---|
 | les 4 endpoints, en-têtes, corps, réponses | la carte des fichiers |
 | le catalogue des 12 statuts et sa correspondance | la liste des statuts internes exclus |
-| les codes d'erreur et ce qu'ils veulent dire | le mécanisme du périmètre (`hubActuel → prestataireId`) |
+| les codes d'erreur et ce qu'ils veulent dire | le mécanisme exact du périmètre et la liste de ses villes |
 | les jeux de données d'essai | les arbitrages, les points ouverts, le déploiement |
 
 Le mécanisme du périmètre en particulier : dire *comment* le 404 est calculé apprend à sonder. Il
