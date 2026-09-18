@@ -174,8 +174,21 @@ script, où elle reste visible et réversible.
   le second réseau chargé se voyait refuser les villes du premier, en silence.
 - **Un coût inconnu vaut `null`, jamais `0`.** Sauf chez EST, où **0 est une valeur** : la grille
   annonce le retour gratuit. « Gratuit » et « on ne sait pas » ne se confondent pas.
-- **Les tarifs Power sont chargés aussi sur les 13 villes de Casablanca**, livrées en interne. Ce
-  n'est pas un coût mais une comparaison : ce que ces villes coûteraient en sous-traitance.
+- **Les 13 villes de Casablanca sont annoncées DEUX FOIS** — par `Hub Casablanca`, interne, et par
+  `Agence Casablanca`, rattachée à Power Delivery. Ce n'est pas un doublon accidentel :
+  - le **routage ne bouge pas** — `meilleurHub()` fait primer l'interne, nos livreurs continuent de
+    desservir la zone, et les tarifs Power restent une **comparaison**, pas un coût ;
+  - mais Power **peut déclarer le statut** de ces colis par l'API partenaires, son périmètre étant
+    la ville de destination (§ `API_SUIVI_PRESTATAIRES.md` §5.1).
+
+  C'est le régime déjà appliqué aux quatre villes revendiquées par deux réseaux (§2.9) : `Ville`
+  étant unique par `(hub, nom)`, les deux lignes cohabitent et `villesPartagees()` expose
+  l'arbitrage sur `/admin/hubs`. Conséquence assumée : Power porte deux tarifs identiques par
+  ville, et le second n'est jamais lu tant que le routage reste interne.
+
+  ⚠️ **Le déplacer** — retirer ces villes du hub interne — basculerait tout Casablanca en
+  sous-traitance : les 15 et 20 DH deviendraient une charge réelle et la marge changerait d'autant.
+  C'est une autre décision, qui n'a pas été prise.
 - **Les programmes hebdomadaires (Meta) et les délais (EST) ne sont pas stockés** — le modèle n'a
   pas de calendrier de desserte. Ils sont transcrits dans les scripts pour ne pas être perdus.
 - **Marge** : brouillons de facture exclus (montants encore modifiables) et frais annexes exclus

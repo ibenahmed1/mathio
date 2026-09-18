@@ -707,15 +707,58 @@ Deux balises pour que le lien reste difficile à atteindre :
 - `<meta name="referrer" content="no-referrer">` — sans elle, chaque ressource externe chargée par
   la page (une police, par exemple) reçoit l'URL complète, jeton compris, dans l'en-tête `Referer`.
 
-### Où l'héberger
+### Où elle est hébergée
 
-Le `matcher` de `proxy.ts` exclut les images, polices, `.txt` et `.xml`, **pas le `.html`**. D'après
-la lecture du proxy — non vérifié par une requête —, un fichier `.html` placé dans `public/` passerait
-par lui et serait servi sur les hôtes admin, marchand et terrain (étape « pages publiques »), mais
-répondrait 404 sur l'hôte d'API.
+**Décidé : dans `public/`, servie avec l'application.**
 
-1. **Hors application** (page statique hébergée ailleurs) — aucun impact sur le proxy. Recommandé.
-2. **`public/<jeton>/index.html`** — fonctionne sans toucher au proxy, joignable sur les trois hôtes
-   d'espace. Le jeton est versionné dans git : le changer demande un commit.
-3. **Une exception de chemin dans le proxy** — à écarter : c'est le raisonnement par exception que
-   le cloisonnement d'hôte a été écrit pour éviter.
+```
+public/MpLLAwOb3Nkr2xXW.html   →   https://mathio.ma/MpLLAwOb3Nkr2xXW.html
+```
+
+Le `matcher` de `proxy.ts` exclut les images, polices, `.txt` et `.xml`, **pas le `.html`** : le
+fichier passe donc par le proxy et est servi à l'étape « pages publiques », sur les trois hôtes
+d'espace — et répond 404 sur l'hôte d'API. Aucune modification du cloisonnement, aucun hébergement
+séparé, et la page est toujours à la version déployée de l'API.
+
+**Un fichier plat, pas un dossier** : `public/<jeton>.html` et non `public/<jeton>/index.html`. Next
+sert les fichiers de `public/` un pour un ; rien ne garantit qu'un chemin de dossier résolve vers
+son `index.html`, et la promesse « le lien marche » compte plus que l'absence de `.html` dans l'URL.
+
+**Le lien se donne sur le domaine marchand**, jamais sur celui du back-office : un commit dédié
+existe pour ne pas divulguer ce dernier, autant ne pas l'annuler en l'envoyant à des transporteurs.
+
+Deux conséquences du choix, à connaître :
+
+- le jeton est **versionné dans git** — le changer demande un commit et un déploiement ;
+- toute personne ayant accès au dépôt connaît le lien. Acceptable : la page ne contient aucun
+  secret, et les clés ne transitent jamais par elle.
+
+Écartée : **une exception de chemin dans le proxy** — c'est le raisonnement par exception que le
+cloisonnement d'hôte a été écrit pour éviter.
+
+### Vérifié, pas déduit
+
+Le mécanisme a été exercé pour de vrai, sur trois hôtes :
+
+| Hôte annoncé | `/mathio-logo.png` | `/<jeton>.html` |
+|---|---|---|
+| `marchand.localhost:3000` | 200 | **200** |
+| `admin.localhost:3000` | 200 | **200** |
+| `localhost:3000` (hôte inconnu) | 200 | **404** |
+
+Deux enseignements, et le second est une bonne surprise :
+
+1. la page est bien servie sur un hôte d'espace — le `.html` traverse le proxy et arrive au fichier
+   statique ;
+2. **elle est inaccessible depuis un hôte non reconnu**, là où une image l'est. L'image est exclue
+   du `matcher` : le proxy ne la voit jamais. Le `.html`, lui, y passe — donc le contrôle d'hôte
+   s'applique. La page hérite ainsi du cloisonnement sans qu'on ait rien eu à écrire pour elle.
+
+En production, le lien à envoyer :
+
+```
+https://mathio.ma/MpLLAwOb3Nkr2xXW.html
+```
+
+À confirmer d'un `curl -i` après le déploiement, `mathio.ma` devant être configuré comme hôte de
+l'espace marchand pour que le proxy le reconnaisse.
