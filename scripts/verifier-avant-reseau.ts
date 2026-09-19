@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { normaliserVille } from '../lib/hub-stock';
 
 /**
@@ -58,7 +59,18 @@ const HUBS_ATTENDUS: { nom: string; ville: string; prestataire: string | null }[
   { nom: 'Agence Oujda', ville: 'Oujda', prestataire: 'EST Livraison' },
 ];
 
-async function main() {
+// UNE seule fonction pour le rapport lu par un humain et pour le garde-fou
+// automatique du seed, plutôt qu'une détection dupliquée de chaque côté : deux
+// copies auraient divergé, et c'est justement la copie silencieuse — celle du
+// seed — qui aurait cessé de voir ce que le rapport signale.
+//
+// `afficher` ne change QUE la sortie console. Les contrôles, eux, tournent à
+// l'identique dans les deux cas.
+async function rapport(afficher: boolean): Promise<string[]> {
+  const trace = (...lignes: unknown[]): void => {
+    if (afficher) console.log(...lignes);
+  };
+
   const [hubs, prestataires, nbVilles, nbTarifs] = await Promise.all([
     prisma.hub.findMany({
       orderBy: { nom: 'asc' },
@@ -75,22 +87,22 @@ async function main() {
     prisma.tarifPrestataireVille.count(),
   ]);
 
-  console.log('═══ CE QU’IL Y A DÉJÀ ═══\n');
+  trace('═══ CE QU’IL Y A DÉJÀ ═══\n');
   if (hubs.length === 0) {
-    console.log('   Aucun hub. Base vierge : l’import créera tout, sans risque.');
+    trace('   Aucun hub. Base vierge : l’import créera tout, sans risque.');
   }
   for (const h of hubs) {
-    console.log(
+    trace(
       `   "${h.nom}"${h.isCentral ? ' [CENTRAL]' : ''} — ville ${h.ville} · ` +
         `${h.prestataire ? 'agence ' + h.prestataire.nom : 'interne'} · ` +
         `${h._count.villes} villes · ${h._count.agentsHub} utilisateurs · ${h._count.commandesActuelles} colis`
     );
   }
-  console.log(
+  trace(
     `\n   ${prestataires.length} prestataire(s), ${nbVilles} ville(s), ${nbTarifs} tarif(s) en base.`
   );
 
-  console.log('\n═══ CE QUE `db:reseau` FERAIT ═══\n');
+  trace('\n═══ CE QUE `db:reseau` FERAIT ═══\n');
 
   let reutilises = 0;
   let crees = 0;
@@ -108,14 +120,14 @@ async function main() {
 
     if (!existant) {
       crees += 1;
-      console.log(`   + créé      "${attendu.nom}"`);
+      trace(`   + créé      "${attendu.nom}"`);
       continue;
     }
 
     reutilises += 1;
     const graphie =
       existant.nom === attendu.nom ? '' : `  → sera RENOMMÉ depuis "${existant.nom}" (libellé seul)`;
-    console.log(`   = réutilisé "${attendu.nom}"${graphie}`);
+    trace(`   = réutilisé "${attendu.nom}"${graphie}`);
 
     // Ce qui est déjà accroché à ce hub. Rien de tout cela n'est modifié :
     // l'import ne fait que LIRE le hub et y rattacher de nouvelles villes. Son
@@ -124,7 +136,7 @@ async function main() {
     // l'historique des colis, pointent toujours au même endroit.
     const { agentsHub, commandesActuelles, villes } = existant._count;
     if (agentsHub + commandesActuelles + villes > 0) {
-      console.log(
+      trace(
         `               déjà rattachés : ${agentsHub} utilisateur(s), ${commandesActuelles} colis, ` +
           `${villes} ville(s) — INTACTS, l'import n'écrit rien sur ce hub`
       );
@@ -141,7 +153,7 @@ async function main() {
     }
   }
 
-  console.log(`\n   ${crees} hub(s) créé(s), ${reutilises} réutilisé(s).`);
+  trace(`\n   ${crees} hub(s) créé(s), ${reutilises} réutilisé(s).`);
 
   // Hubs présents en base que l'import ne connaît pas : ils ne sont ni touchés
   // ni supprimés, mais ils resteront à l'écran.
@@ -149,18 +161,18 @@ async function main() {
     (h) => !HUBS_ATTENDUS.some((a) => a.nom.toLowerCase() === h.nom.toLowerCase())
   );
   if (inconnus.length > 0) {
-    console.log('\n   Hubs que l’import ne touche pas (ils resteront tels quels) :');
-    for (const h of inconnus) console.log(`      "${h.nom}" — ${h._count.villes} villes`);
+    trace('\n   Hubs que l’import ne touche pas (ils resteront tels quels) :');
+    for (const h of inconnus) trace(`      "${h.nom}" — ${h._count.villes} villes`);
   }
 
-  console.log('\n═══ HUB CENTRAL ═══\n');
+  trace('\n═══ HUB CENTRAL ═══\n');
   const central = hubs.find((h) => h.isCentral);
   if (central) {
-    console.log(`   "${central.nom}" est central. L’import n’y touchera pas.`);
+    trace(`   "${central.nom}" est central. L’import n’y touchera pas.`);
   } else if (hubs.length === 0) {
-    console.log('   Aucun. L’import marquera "Hub Casablanca" central à sa création.');
+    trace('   Aucun. L’import marquera "Hub Casablanca" central à sa création.');
   } else {
-    console.log(
+    trace(
       '   ⚠ AUCUN hub central, et des hubs existent déjà.\n' +
         '     L’import NE LE POSERA PAS : marquer central un hub en service changerait le\n' +
         '     comportement du système sur la foi d’un script. À cocher à la main depuis\n' +
@@ -184,17 +196,29 @@ async function main() {
   }
 
   if (alertes.length > 0) {
-    console.log('\n═══ À RÉGLER AVANT DE LANCER ═══\n');
-    for (const a of alertes) console.log(`   ⚠ ${a}`);
+    trace('\n═══ À RÉGLER AVANT DE LANCER ═══\n');
+    for (const a of alertes) trace(`   ⚠ ${a}`);
   } else {
-    console.log('\n✔ Rien ne bloque : `npm run db:reseau` peut être lancé.');
+    trace('\n✔ Rien ne bloque : `npm run db:reseau` peut être lancé.');
   }
 
-  await prisma.$disconnect();
+  return alertes;
 }
 
-main().catch(async (e) => {
-  console.error(e);
-  await prisma.$disconnect();
-  process.exit(1);
-});
+/**
+ * Les seuls constats qui doivent ARRÊTER un chargement du référentiel, sans rien
+ * afficher : un quai attendu chez un prestataire mais rattaché à un autre, et des
+ * hubs déjà en double à la casse près. Le reste du rapport est informatif.
+ *
+ * Lu par `chargerReferentiel()`, qui refuse de lancer les imports si la liste
+ * revient non vide.
+ */
+export async function detecterBlocages(): Promise<string[]> {
+  return rapport(false);
+}
+
+if (lanceDirectement('verifier-avant-reseau')) {
+  lancerEnCli(async () => {
+    await rapport(true);
+  });
+}

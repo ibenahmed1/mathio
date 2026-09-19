@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { resoudreVilleImport } from '../lib/prestataires';
 import { normaliserVille } from '../lib/hub-envoi';
 
@@ -40,9 +41,12 @@ import { normaliserVille } from '../lib/hub-envoi';
  * C'est un arbitrage distinct, qui n'a pas été rendu.
  */
 
-const simulation = process.argv.includes('--simuler');
-
-async function main(): Promise<void> {
+// `simulation` est un paramètre et non une lecture de `process.argv` faite au
+// chargement du module : cette étape est aussi appelée par le seed, dont l'`argv`
+// est celui de Prisma. Un drapeau lu globalement se serait retrouvé à `false` là
+// où l'appelant ne peut pas le poser, et sensible à la ligne de commande d'un
+// script tiers qui aurait porté le même mot.
+export async function ajouterVillesAgences(simulation = false): Promise<void> {
   // Agences uniquement : `prestataireId` non nul (cf. en-tête).
   const agences = await prisma.hub.findMany({
     where: { prestataireId: { not: null } },
@@ -98,9 +102,6 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .catch((erreur) => {
-    console.error(erreur);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+if (lanceDirectement('ajouter-villes-agences')) {
+  lancerEnCli(() => ajouterVillesAgences(process.argv.includes('--simuler')));
+}

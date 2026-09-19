@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { lanceDirectement, lancerEnCli } from './cli-etape';
 
 /**
  * Rend aux villes la graphie de leur document d'origine —
@@ -87,7 +88,7 @@ async function hubParNom(nom: string) {
   return prisma.hub.findUnique({ where: { nom }, select: { id: true } });
 }
 
-async function main() {
+export async function alignerNomsSurSources(): Promise<void> {
   console.log('--- Graphies rendues au document ---');
   let renommees = 0;
   for (const { agence, de, vers, motif } of RENOMMAGES) {
@@ -144,12 +145,8 @@ async function main() {
       (agadir?._count.villes === 51 ? '  ✔ conforme aux messages' : '  ⚠ 51 attendues')
   );
   console.log('\nLa casse n’est pas traitée ici : elle reste normalisée sur Power, Meta et Sahario.');
-
-  await prisma.$disconnect();
 }
 
-main().catch(async (e) => {
-  console.error(e);
-  await prisma.$disconnect();
-  process.exit(1);
-});
+if (lanceDirectement('aligner-noms-sur-sources')) {
+  lancerEnCli(alignerNomsSurSources);
+}
