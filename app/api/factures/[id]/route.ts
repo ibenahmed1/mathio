@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 import {
   ecrireSelection,
   getColisFacturables,
@@ -29,12 +29,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const facture = session.role === 'marchand' ? await getFacturePourMarchand(id) : await getFacture(id);
 
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
+      // § Inscription progressive : refus explicite avant le cloisonnement.
+      const marchand = await exigerMarchandOperationnel(session.sub);
       // 404 et non 403 : un marchand n'a pas à apprendre qu'une facture
       // existe chez un autre, même par la négative. Un brouillon lui est
       // invisible pour la même raison qu'il n'apparaît pas dans sa liste —
       // il n'a pas encore été arrêté.
-      if (!marchand || marchand.id !== facture.marchandId || facture.statut === 'brouillon') {
+      if (marchand.id !== facture.marchandId || facture.statut === 'brouillon') {
         throw new ApiError(404, 'Facture introuvable');
       }
     }

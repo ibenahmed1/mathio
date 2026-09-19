@@ -3,9 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { LogOut, X } from 'lucide-react';
+import { Lock, LogOut, X } from 'lucide-react';
 import { deconnecter } from '@/lib/deconnexion';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
+import { useActivationMarchand } from './activation-context';
+import { CHEMINS_VERROUILLES } from './nav';
 import s from './MarchandSidebar.module.css';
 
 const LOGO = '/mathio-logo.png';
@@ -49,6 +51,8 @@ export function MarchandSidebar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  // § Inscription progressive : cadenas sur les sections encore fermées.
+  const activation = useActivationMarchand();
 
   async function handleLogout() {
     const erreur = await deconnecter();
@@ -62,18 +66,20 @@ export function MarchandSidebar({
   function renderLeaf(item: Extract<NavItem, { href: string }>) {
     const Icon = item.icon;
     const active = isActiveHref(pathname, item.href);
+    const verrouille = !activation.operationnel && CHEMINS_VERROUILLES.includes(item.href);
     return (
       <li key={item.href}>
         <Link
           href={item.href}
           onClick={onCloseMobile}
           className={`${s.navItem} ${active ? s.navItemActive : ''}`}
-          title={item.label}
+          title={verrouille ? `${item.label} — à débloquer en finalisant votre inscription` : item.label}
         >
           <span className={s.navIcon}>
             <Icon className="h-4 w-4" />
           </span>
           <span className={s.navLabel}>{item.label}</span>
+          {verrouille && <Lock className="ml-auto h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />}
         </Link>
       </li>
     );

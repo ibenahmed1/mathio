@@ -23,11 +23,24 @@ function optionalString(body: Record<string, unknown>, key: string): string | nu
   return value || null;
 }
 
-// Endpoint public : auto-inscription d'un marchand (formulaire complet, cf.
-// maquette). Le compte est créé désactivé (Utilisateur.actif = false) et le
-// profil marchand en `en_attente_validation` (RF-22) — aucun accès tant
-// qu'un admin n'a pas approuvé (dette technique corrigée : pas de compte
-// "invité").
+// Endpoint public : auto-inscription d'un marchand.
+//
+// § Inscription progressive. Trois champs suffisent — email, mot de passe,
+// nom de boutique — et le compte est ACTIF immédiatement : le marchand entre
+// dans son espace, saisit ses colis et invite son équipe sans attendre. Le
+// reste du dossier (téléphone, CIN, ville, adresse, RIB + justificatif) se
+// complète depuis son profil, et conditionne l'ouverture des bons, des
+// ramassages et des factures (lib/marchand-activation.ts).
+//
+// RF-22 n'a pas disparu : le profil reste `en_attente_validation` et l'admin
+// approuve toujours (PATCH /api/marchands/[id]/statut). Ce qui change, c'est
+// que cette approbation ne barre plus la PORTE — elle barre les fonctions qui
+// engagent de la marchandise ou de l'argent. Un compte non validé ne peut donc
+// ni faire circuler un colis, ni être payé.
+//
+// Les champs du dossier restent acceptés ici quand ils sont fournis : un
+// appelant qui a déjà tout sous la main (reprise d'un marchand connu, outil
+// interne) crée un dossier complet d'un coup, sans passer par le profil.
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request) ?? 'unknown';
@@ -38,27 +51,39 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    const nomComplet = requiredString(body, 'nomComplet');
-    const cin = requiredString(body, 'cin');
-    const nomBoutique = requiredString(body, 'nomBoutique');
-    const telephoneRaw = requiredString(body, 'telephone');
-    const telephone = normalizePhoneMaroc(telephoneRaw);
-    if (!telephone) {
-      throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
-    }
+    // --- Les trois champs demandés à l'inscription -------------------------
     const email = requiredString(body, 'email').toLowerCase();
     const secret = typeof body.secret === 'string' ? body.secret : '';
-    const ville = requiredString(body, 'ville');
-    const adresse = requiredString(body, 'adresse');
-    const rib = requiredString(body, 'rib');
-    const ribPhotoUrl = requiredString(body, 'ribPhotoUrl');
+    const nomBoutique = requiredString(body, 'nomBoutique');
 
+    // --- Le reste : facultatif, complété plus tard depuis le profil --------
+    const nomCompletSaisi = optionalString(body, 'nomComplet');
+    const telephoneSaisi = optionalString(body, 'telephone');
+    const cin = optionalString(body, 'cin');
+    const ville = optionalString(body, 'ville');
+    const adresse = optionalString(body, 'adresse');
+    const rib = optionalString(body, 'rib');
+    const ribPhotoUrl = optionalString(body, 'ribPhotoUrl');
     const siteWeb = optionalString(body, 'siteWeb');
     const nomBanque = optionalString(body, 'nomBanque');
     const registreCommerce = optionalString(body, 'registreCommerce');
     const villeRamassage = optionalString(body, 'villeRamassage');
     const raisonSociale = optionalString(body, 'raisonSociale');
     const iceRc = optionalString(body, 'iceRc');
+
+    // Utilisateur.nomComplet est NOT NULL : à défaut de nom de personne, le
+    // nom de boutique est ce que le marchand nous a donné de plus proche.
+    // Il le corrige depuis son profil ; ce champ ne bloque aucune fonction,
+    // justement parce qu'une valeur de repli ne se distingue pas d'une saisie.
+    const nomComplet = nomCompletSaisi ?? nomBoutique;
+
+    let telephone: string | null = null;
+    if (telephoneSaisi) {
+      telephone = normalizePhoneMaroc(telephoneSaisi);
+      if (!telephone) {
+        throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+      }
+    }
 
     const typeCompteRaw = typeof body.typeCompte === 'string' ? body.typeCompte : 'marchand';
     if (!TYPES_COMPTE.includes(typeCompteRaw as TypeCompteMarchand)) {
@@ -73,12 +98,16 @@ export async function POST(request: Request) {
     if (passwordError) {
       throw new ApiError(400, passwordError);
     }
-    if (!RIB_REGEX.test(rib)) {
+    // Facultatif, mais pas relâché : un RIB fourni est un RIB valide, sinon le
+    // dossier serait « complet » avec un numéro qui ne paie personne.
+    if (rib && !RIB_REGEX.test(rib)) {
       throw new ApiError(400, 'Le RIB doit contenir exactement 24 chiffres');
     }
 
     const [existingTelephone, existingEmail] = await Promise.all([
-      prisma.utilisateur.findUnique({ where: { telephone } }),
+      // Postgres autorise plusieurs NULL sous une contrainte unique : sans
+      // téléphone, il n'y a rien à vérifier.
+      telephone ? prisma.utilisateur.findUnique({ where: { telephone } }) : Promise.resolve(null),
       prisma.utilisateur.findUnique({ where: { email } }),
     ]);
     if (existingTelephone) {
@@ -98,7 +127,10 @@ export async function POST(request: Request) {
           email,
           motDePasseHash,
           role: 'marchand',
-          actif: false,
+          // Actif dès l'inscription : c'est ce qui ouvre la connexion et le
+          // dashboard. Ce qu'il peut y FAIRE reste borné par le statut du
+          // marchand ci-dessous et par la complétude de son dossier.
+          actif: true,
         },
       });
       return tx.marchand.create({
@@ -123,7 +155,12 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(
-      { id: marchand.id, statut: marchand.statut, message: 'Compte créé, en attente de validation par un administrateur.' },
+      {
+        id: marchand.id,
+        statut: marchand.statut,
+        message:
+          'Compte créé. Connectez-vous pour accéder à votre espace : il reste à compléter votre profil pour débloquer les bons, les ramassages et les factures.',
+      },
       { status: 201 }
     );
   } catch (error) {

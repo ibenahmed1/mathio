@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Plus } from "lucide-react";
+import { Box, Paperclip, Plus } from "lucide-react";
 import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { Modal } from "@/components/admin/Modal";
 import { Affix, Field } from "@/components/form/Field";
+import { ChampPreuve, ModalePreuve, usePreuveComptable } from "./PreuveComptable";
 import {
   LABELS_STATUT_COMMANDE_STOCK_HUB,
   STATUTS_CREATION_COMMANDE_STOCK_HUB,
@@ -37,6 +38,13 @@ export default function InventoryOrders() {
   const [formError, setFormError] = useState(null);
   const [envoi, setEnvoi] = useState(false);
   const [statutEnCours, setStatutEnCours] = useState(null);
+  // Justificatif de la commande en cours de saisie : facultatif — la facture du
+  // fournisseur arrive rarement en même temps que la commande.
+  const preuve = usePreuveComptable();
+  // Commande dont on regarde le justificatif. La photo n'est PAS dans la liste :
+  // ce qu'on ouvre est la route de contenu
+  // (§ /api/commandes-stock-hub/[id]/preuve).
+  const [apercu, setApercu] = useState(null);
 
   async function charger() {
     setChargement(true);
@@ -93,9 +101,11 @@ export default function InventoryOrders() {
         statut: form.statut,
         modePaiement: form.modePaiement.trim(),
         dateCommande: new Date(form.dateCommande).toISOString(),
+        preuveUrl: preuve.corps,
       });
       setModalOuverte(false);
       setForm(CHAMPS_VIDES);
+      preuve.reinitialiser();
       charger();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Erreur");
@@ -175,6 +185,22 @@ export default function InventoryOrders() {
                   <header className={a.orderHead}>
                     <span className={a.orderLabel}>Commande</span>
                     <span className={a.orderId}>#{numero}</span>
+                    {/* Le trombone est posé contre la référence du bordereau, et
+                        pas dans le pied de la carte : c'est de CE document qu'il
+                        est la pièce. `c.preuve` est un chemin vers la route de
+                        contenu, pas l'image — la liste ne transporte pas les
+                        photos (§ GET /api/commandes-stock-hub). */}
+                    {c.preuve && (
+                      <button
+                        type="button"
+                        className={a.preuveBtn}
+                        onClick={() => setApercu(c)}
+                        title="Voir le justificatif"
+                        aria-label={`Voir le justificatif de la commande ${numero}`}
+                      >
+                        <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    )}
                     {/* Tant qu'une étape suivante existe, la pastille EST le
                         menu qui fait avancer la commande. Un statut définitif
                         reste une simple pastille : un menu à une seule option
@@ -303,6 +329,15 @@ export default function InventoryOrders() {
                   onChange={(e) => setForm((f) => ({ ...f, dateCommande: e.target.value }))}
                 />
               </Field>
+
+              {/* Facture du fournisseur ou bon de livraison signé : le même
+                  champ que sur les écritures du journal, avec l'invite du
+                  document qu'on cherche vraiment ici. */}
+              <ChampPreuve
+                etat={preuve}
+                libelle="Justificatif (facture, bon de livraison)"
+                invite="Photographier ou déposer la facture"
+              />
             </div>
 
             {formError && <p className="form-error">{formError}</p>}
@@ -317,6 +352,16 @@ export default function InventoryOrders() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Visionneuse du justificatif d'une commande déjà enregistrée. Hors de la
+          carte, comme le formulaire ci-dessus. */}
+      {apercu && (
+        <ModalePreuve
+          url={apercu.preuve}
+          legende={`Commande #${formatNumeroCommandeStockHub(apercu.numero)} · ${apercu.titre} · ${formatMontantCommandeStockHub(apercu.montant)}`}
+          onClose={() => setApercu(null)}
+        />
       )}
     </>
   );

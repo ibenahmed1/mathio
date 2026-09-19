@@ -1,5 +1,6 @@
 ﻿import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
@@ -150,7 +151,7 @@ const ZONES: Zone[] = [
   },
 ];
 
-async function main() {
+export async function importerEstLivraison(): Promise<void> {
   const prestataire = await prisma.prestataire.upsert({
     where: { nom: PRESTATAIRE },
     update: {},
@@ -203,12 +204,8 @@ async function main() {
     for (const p of partagees) console.log(`   ${p}`);
     console.log('   → offres comparables ; bascule = déplacer la ville vers cette agence dans /admin/hubs.');
   }
-
-  await prisma.$disconnect();
 }
 
-main().catch(async (e) => {
-  console.error(e);
-  await prisma.$disconnect();
-  process.exit(1);
-});
+if (lanceDirectement('import-prestataire-est-livraison')) {
+  lancerEnCli(importerEstLivraison);
+}

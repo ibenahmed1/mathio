@@ -6,8 +6,17 @@ import type { StatutMarchand } from '@/app/generated/prisma/enums';
 const STATUTS_VALIDES: StatutMarchand[] = ['en_attente_validation', 'actif', 'suspendu'];
 
 // RF-22 : approbation/refus/suspension d'un compte marchand par l'admin.
-// Synchronise Utilisateur.actif : un marchand ne peut se connecter que si
-// son statut est "actif" (RG-12 — pas de compte "invité").
+//
+// Synchronise Utilisateur.actif, qui gouverne la CONNEXION — et seulement
+// elle. Depuis l'inscription progressive, `en_attente_validation` n'est plus
+// une porte fermée : le marchand se connecte, voit son dashboard, saisit ses
+// colis. Seule la suspension coupe l'accès, parce qu'elle est une décision
+// prise contre le compte. Ce que l'approbation ouvre vraiment, ce sont les
+// bons, les ramassages et les factures (lib/marchand-activation.ts), fermés
+// tant que le statut n'est pas "actif".
+//
+// Remettre un marchand approuvé en `en_attente_validation` referme donc ces
+// fonctions sans l'expulser de son espace — c'est voulu.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireUser(['admin']);
@@ -28,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const result = await tx.marchand.update({ where: { id }, data: { statut } });
       await tx.utilisateur.update({
         where: { id: marchand.utilisateurId },
-        data: { actif: statut === 'actif' },
+        data: { actif: statut !== 'suspendu' },
       });
       return result;
     });

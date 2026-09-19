@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { etatActivationMarchand, messageBlocage } from '@/lib/marchand-activation';
 import { isValidEmail, normalizePhoneMaroc } from '@/lib/auth';
 
 async function getOwnMarchand(utilisateurId: string) {
@@ -29,6 +30,26 @@ export async function GET() {
   } catch (error) {
     return jsonError(error);
   }
+}
+
+// Le téléphone du titulaire tel qu'il sera après cette requête : celui du
+// body s'il est en train d'être changé par le titulaire lui-même, celui de la
+// base sinon. Sert à juger la complétude du dossier sur son état d'arrivée
+// (§ inscription progressive) — le téléphone est le seul des six champs à
+// finaliser qui ne vive pas sur Marchand.
+async function telephoneApresMiseAJour(
+  marchand: { utilisateurId: string },
+  utilisateurConnecteId: string,
+  body: Record<string, unknown>
+): Promise<string | null> {
+  const estTitulaire = marchand.utilisateurId === utilisateurConnecteId;
+  if (estTitulaire && typeof body.telephone === 'string' && body.telephone.trim()) {
+    // Un numéro mal formé sera de toute façon rejeté plus bas : ici, il ne
+    // compte simplement pas comme renseigné.
+    return normalizePhoneMaroc(body.telephone);
+  }
+  const titulaire = await chargerUtilisateurTitulaire(marchand.utilisateurId);
+  return titulaire?.telephone ?? null;
 }
 
 // RF-24 : configuration du profil boutique et du créneau de ramassage récurrent.
@@ -72,6 +93,33 @@ export async function PATCH(request: Request) {
     if (typeof body.ramassageJours === 'string') data.ramassageJours = body.ramassageJours.trim() || null;
     if (typeof body.ramassageCreneauHoraire === 'string') {
       data.ramassageCreneauHoraire = body.ramassageCreneauHoraire.trim() || null;
+    }
+
+    // § Inscription progressive : activer le ramassage récurrent, c'est
+    // programmer des passages chez le marchand — la même chose qu'une demande
+    // de ramassage, verrouillée par POST /api/ramassages. Le désactiver reste
+    // toujours possible : on n'enferme personne dans une planification.
+    //
+    // L'état est évalué sur le dossier TEL QU'IL SERA après cet
+    // enregistrement, et non tel qu'il est : le marchand qui remplit ses
+    // derniers champs et coche la planification d'un même geste se verrait
+    // sinon tout refuser — y compris les champs qu'il venait justement de
+    // saisir, puisque rien n'est écrit quand on lève ici.
+    if (data.ramassageRecurrentActif && !marchand.ramassageRecurrentActif) {
+      const etat = etatActivationMarchand({
+        profil: {
+          telephone: await telephoneApresMiseAJour(marchand, session.sub, body),
+          cin: data.cin !== undefined ? data.cin : marchand.cin,
+          ville: data.ville !== undefined ? data.ville : marchand.ville,
+          adresse: data.adresse !== undefined ? data.adresse : marchand.adresse,
+          rib: data.rib !== undefined ? data.rib : marchand.rib,
+          ribPhotoUrl: data.ribPhotoUrl !== undefined ? data.ribPhotoUrl : marchand.ribPhotoUrl,
+        },
+        statut: marchand.statut,
+      });
+      if (!etat.operationnel) {
+        throw new ApiError(403, messageBlocage(etat));
+      }
     }
 
     const updated = await prisma.marchand.update({ where: { id: marchand.id }, data });

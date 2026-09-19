@@ -1094,9 +1094,27 @@ export interface VolumeTestPlateforme {
   colisConserves: number;
 }
 
+/**
+ * Ce qui reste modifiable ou supprimable sur un compte machine, et pourquoi le
+ * reste ne l'est plus. Calculé côté serveur (lib/plateformes.ts) : l'écran
+ * grise en DISANT la raison, au lieu de masquer un champ et de laisser
+ * chercher le geste qui l'ouvrirait.
+ */
+export interface ModifiablesPlateforme {
+  /** Le compte n'a jamais servi : ni clé émise, ni appel reçu. */
+  code: boolean;
+  /** Aucune clé active : déplacer le rattachement ne peut surprendre personne. */
+  prestataire: boolean;
+  /** Ni écriture signée, ni marchand `live`, ni donnée de bac à sable. */
+  suppression: boolean;
+  /** Ce qui empêche la suppression, en clair. `null` quand elle est possible. */
+  raisonSuppression: string | null;
+}
+
 export interface PlateformeDetail extends PlateformeResume {
   cles: CleApi[];
   marchands: MarchandLiePlateforme[];
   appels: AppelPlateforme[];
   volumeTest: VolumeTestPlateforme;
+  modifiables: ModifiablesPlateforme;
 }

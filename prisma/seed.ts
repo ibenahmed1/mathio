@@ -1,20 +1,31 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { getPasswordPolicyError, hashSecret, isValidEmail } from '../lib/auth';
+import { chargerReferentiel } from '../scripts/charger-referentiel';
 
 /**
- * Seed = le compte administrateur initial, et rien d'autre.
+ * Seed = le compte administrateur initial, puis le référentiel de
+ * sous-traitance sur une base qui ne l’a pas encore.
  *
- * Tout le reste — hubs et villes couvertes, pôles du Kanban, utilisateurs,
- * marchands, produits, tarifs livreur/ville — se crée depuis l'application
- * (/admin/hubs, /admin/tasks, /admin/utilisateurs) au fur et à mesure des
- * besoins, et vit donc uniquement en base de données. Ce sont des données
- * d'exploitation qui évoluent : les figer dans le dépôt ferait diverger le
- * fichier de la réalité dès la première modification faite depuis l'app.
+ * Le référentiel y a été ajouté pour une raison d’exploitation, pas de
+ * conception : il vivait dans sept scripts enchaînés par un `&&` dans
+ * `package.json`, dont un à lancer en `npx tsx scripts/…`. Personne
+ * d’extérieur au dépôt ne pouvait déployer une base neuve sans cette liste
+ * sous les yeux, et une base migrée sans elle n’a ni hub, ni ville, ni tarif —
+ * donc aucun colis créable. Le déploiement tient maintenant en deux commandes :
+ * `npm run db:deploy` puis `npm run build`.
+ *
+ * LE RESTE ne s’y trouve toujours pas — pôles du Kanban, utilisateurs,
+ * marchands, produits, tarifs livreur/ville : ce sont des données
+ * d’exploitation qui se créent depuis l’application (/admin/hubs,
+ * /admin/tasks, /admin/utilisateurs) et n’existent qu’en base. Les figer dans
+ * le dépôt ferait diverger le fichier de la réalité dès la première
+ * modification faite depuis l’app.
  *
  * Exécuté à chaque déploiement (`npm run db:deploy`, après les migrations).
- * Le script est idempotent et non destructif : si un compte porte déjà cet
- * email, il n'est ni recréé ni modifié.
+ * Idempotent et non destructif dans les deux moitiés : un compte qui porte
+ * déjà cet email n’est ni recréé ni modifié, et le référentiel n’est pas
+ * rechargé sur une base qui en a déjà un (voir `seedReferentiel` plus bas).
  */
 
 // Identifiants d'amorçage du tout premier compte : ils servent uniquement à
@@ -65,17 +76,56 @@ async function seedAdmin() {
   return { compte, cree: true };
 }
 
-seedAdmin()
-  .then(async ({ compte, cree }) => {
+/**
+ * Le référentiel n’est chargé que sur une base qui n’a AUCUN prestataire.
+ *
+ * La raison est dans les imports eux-mêmes : « un second passage ne fait que
+ * réaligner les tarifs ». Autrement dit, ils réécrivent les tarifs avec les
+ * valeurs des fichiers sources. Or ce seed tourne à CHAQUE déploiement : sans
+ * cette condition, un tarif corrigé depuis /admin/prestataires serait annulé au
+ * déploiement suivant, silencieusement, et la correction reviendrait à faire
+ * tant que personne ne comprendrait d’où vient le retour en arrière.
+ *
+ * Le rechargement reste possible, mais il doit être VOULU :
+ *   npm run db:reseau                 — rejoue les imports
+ *   SEED_RESEAU_FORCER=1 npm run db:deploy
+ */
+async function seedReferentiel(): Promise<void> {
+  const forcer = process.env.SEED_RESEAU_FORCER === '1';
+  const deja = await prisma.prestataire.count();
+
+  if (deja > 0 && !forcer) {
     console.log(
-      cree
-        ? `Compte administrateur créé : ${compte.email} — changez son mot de passe dès la première connexion.`
-        : `Compte administrateur déjà existant, inchangé : ${compte.email}`
+      `Référentiel déjà en base (${deja} prestataire(s)) — laissé intact. ` +
+        'Pour le recharger : npm run db:reseau'
     );
-    await prisma.$disconnect();
+    return;
+  }
+
+  if (deja > 0) {
+    console.log(
+      'SEED_RESEAU_FORCER=1 — rechargement du référentiel demandé. Les tarifs saisis ' +
+        'depuis /admin/prestataires vont être réalignés sur les fichiers sources.'
+    );
+  }
+
+  await chargerReferentiel();
+}
+
+async function main(): Promise<void> {
+  const { compte, cree } = await seedAdmin();
+  console.log(
+    cree
+      ? `Compte administrateur créé : ${compte.email} — changez son mot de passe dès la première connexion.`
+      : `Compte administrateur déjà existant, inchangé : ${compte.email}`
+  );
+
+  await seedReferentiel();
+}
+
+main()
+  .catch((erreur) => {
+    console.error(erreur);
+    process.exitCode = 1;
   })
-  .catch(async (e) => {
-    console.error(e);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+  .finally(() => prisma.$disconnect());

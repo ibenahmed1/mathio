@@ -21,7 +21,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await request.json().catch(() => ({}));
     const motif = typeof body.motif === 'string' && body.motif.trim() ? body.motif.trim() : null;
 
-    const original = await prisma.transaction.findUnique({ where: { id } });
+    // `omit` sur le justificatif : l'annulation n'a besoin que du montant, du
+    // type et de la catégorie de l'écriture d'origine. Sans ce retrait, chaque
+    // annulation ferait remonter la photo en base64 jusqu'à Node pour ne rien
+    // en faire (§ Transaction.preuveUrl).
+    const original = await prisma.transaction.findUnique({ where: { id }, omit: { preuveUrl: true } });
     if (!original) {
       throw new ApiError(404, 'Transaction introuvable');
     }
@@ -39,8 +43,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           dateEffet: new Date(),
           description: motif ? `Annulation de la transaction ${original.id} — ${motif}` : `Annulation de la transaction ${original.id}`,
           auteurId: session.sub,
+          // Pas de `preuveUrl` ici, volontairement : le justificatif
+          // photographié appartient à l'écriture d'origine, qui reste en base.
+          // Le recopier sur la compensation ferait croire à un second
+          // document, et le même base64 pèserait deux fois dans les
+          // sauvegardes. Le motif d'annulation suffit à faire le lien.
           transactionOrigineId: original.id,
         },
+        omit: { preuveUrl: true },
         include: { auteur: { select: { nomComplet: true, role: true } } },
       }),
     ]);

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeftRight, Plus, Search } from "lucide-react";
+import { ArrowLeftRight, Paperclip, Plus, Search } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { Modal } from "@/components/admin/Modal";
 import { Affix, Field } from "@/components/form/Field";
+import { ChampPreuve, ModalePreuve, usePreuveComptable } from "./PreuveComptable";
 import {
   CATEGORIES_TRANSACTION,
   LABELS_CATEGORIE_TRANSACTION,
@@ -30,6 +31,13 @@ export default function TransactionsTable({ onMutate } = {}) {
   const [formError, setFormError] = useState(null);
   const [envoi, setEnvoi] = useState(false);
   const [annulationEnCours, setAnnulationEnCours] = useState(null);
+  // Justificatif de l'écriture en cours de saisie : facultatif, tenu hors du
+  // formulaire parce qu'il vit dans un état différent (lecture du fichier en
+  // cours, refus du format) et qu'il ne se remet pas à zéro au même moment.
+  const preuve = usePreuveComptable();
+  // Écriture dont on regarde le justificatif. La photo n'est PAS dans le
+  // journal : ce qu'on ouvre est la route de contenu (§ /api/finance/[id]/preuve).
+  const [apercu, setApercu] = useState(null);
 
   async function charger() {
     setChargement(true);
@@ -92,9 +100,11 @@ export default function TransactionsTable({ onMutate } = {}) {
         categorie: form.categorie,
         dateEffet: new Date(form.dateEffet).toISOString(),
         description: form.description || undefined,
+        preuveUrl: preuve.corps,
       });
       setModalOuverte(false);
       setForm(CHAMPS_VIDES);
+      preuve.reinitialiser();
       charger();
       onMutate?.();
     } catch (err) {
@@ -154,7 +164,7 @@ export default function TransactionsTable({ onMutate } = {}) {
         {error && <p className="form-error mt-3">{error}</p>}
 
         {/* Les états vides sont rendus HORS du conteneur défilant : posés
-            dans .tableInner (620 px minimum), ils se retrouvaient décentrés et
+            dans .tableInner (750 px minimum), ils se retrouvaient décentrés et
             à moitié hors écran sur mobile, sous un en-tête de colonnes qui
             n'annonçait rien. */}
         {chargement && transactions.length === 0 ? (
@@ -186,6 +196,7 @@ export default function TransactionsTable({ onMutate } = {}) {
                 <div className={a.th}>Montant</div>
                 <div className={a.th}>Type</div>
                 <div className={a.th}>Statut</div>
+                <div className={a.th}>Preuve</div>
                 <div className={a.thEnd}></div>
               </div>
 
@@ -209,6 +220,26 @@ export default function TransactionsTable({ onMutate } = {}) {
                       ) : t.transactionOrigineId ? (
                         <span className={a.chipAnnulee}>Compensation</span>
                       ) : null}
+                    </div>
+                    {/* `t.preuve` est un CHEMIN vers la route de contenu, pas
+                        l'image : le journal ne transporte pas les photos
+                        (§ GET /api/finance). Rien à afficher quand l'écriture
+                        n'a pas de justificatif — c'est le cas courant, la
+                        preuve étant facultative. */}
+                    <div>
+                      {t.preuve ? (
+                        <button
+                          type="button"
+                          className={a.preuveBtn}
+                          onClick={() => setApercu(t)}
+                          title="Voir le justificatif"
+                          aria-label={`Voir le justificatif de l'écriture du ${formatDate(t.dateEffet)}`}
+                        >
+                          <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                        </button>
+                      ) : (
+                        <span className={a.preuveVide} aria-hidden>—</span>
+                      )}
                     </div>
                     <button
                       className={a.rowMenu}
@@ -291,6 +322,8 @@ export default function TransactionsTable({ onMutate } = {}) {
                   placeholder="Référence, justificatif, contexte…"
                 />
               </Field>
+
+              <ChampPreuve etat={preuve} />
             </div>
 
             {formError && <p className="form-error">{formError}</p>}
@@ -305,6 +338,17 @@ export default function TransactionsTable({ onMutate } = {}) {
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Visionneuse du justificatif d'une écriture déjà enregistrée. Rendue
+          hors de la carte pour la même raison que le formulaire ci-dessus (le
+          `backdrop-filter` de .card confine le `position: fixed`). */}
+      {apercu && (
+        <ModalePreuve
+          url={apercu.preuve}
+          legende={`${LABELS_CATEGORIE_TRANSACTION[apercu.categorie]} · ${formatDate(apercu.dateEffet)} · ${formatMontantTransaction(apercu.montant, apercu.type)}`}
+          onClose={() => setApercu(null)}
+        />
       )}
     </>
   );

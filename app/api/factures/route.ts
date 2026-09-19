@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 import {
   creerFacture,
   FACTURE_OMIT_COUTS,
@@ -44,8 +44,9 @@ export async function GET(request: NextRequest) {
     // client (cf. resolveMarchandForUser, qui couvre aussi les membres
     // d'équipe invités).
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
-      if (!marchand) throw new ApiError(403, 'Aucune boutique rattachée à ce compte');
+      // § Inscription progressive : une facture se règle sur un RIB, et un
+      // dossier incomplet n'en a pas encore (cf. lib/marchand-activation.ts).
+      const marchand = await exigerMarchandOperationnel(session.sub);
       where.marchandId = marchand.id;
       where.statut = { in: STATUTS_VISIBLES_MARCHAND };
     } else {

@@ -1,5 +1,6 @@
 ﻿import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
@@ -181,7 +182,7 @@ const AGENCES: AgenceImport[] = [
   },
 ];
 
-async function main() {
+export async function importerMetaLivraison(): Promise<void> {
   const prestataire = await prisma.prestataire.upsert({
     where: { nom: PRESTATAIRE },
     update: {},
@@ -232,12 +233,8 @@ async function main() {
     console.log('\nCONFLITS À ARBITRER :');
     for (const c of conflits) console.log(`   ${c}`);
   }
-
-  await prisma.$disconnect();
 }
 
-main().catch(async (e) => {
-  console.error(e);
-  await prisma.$disconnect();
-  process.exit(1);
-});
+if (lanceDirectement('import-prestataire-meta-livraison')) {
+  lancerEnCli(importerMetaLivraison);
+}

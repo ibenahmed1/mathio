@@ -315,12 +315,12 @@
 
 /* défilement horizontal : les colonnes ne sont jamais rognées */
 .tableScroll { overflow-x: auto; margin-top: 2px; }
-.tableInner { min-width: 620px; }
+.tableInner { min-width: 750px; }
 
 .thead,
 .tr {
   display: grid;
-  grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 34px;
+  grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 56px 34px;
   gap: 8px;
   align-items: center;
 }
@@ -436,6 +436,35 @@
      page à l'ouverture — même raison que la recherche ci-dessous. */
   .statutSelect { min-height: 36px; font-size: 16px; padding: 4px 28px 4px 12px; background-size: 12px; background-position: right 10px center; }
   .thead,
-  .tr { grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 40px; }
+  .tr { grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 56px 40px; }
   .searchInput { font-size: 16px; }
+}
+
+/* ---------- Colonne « Preuve » ----------
+   Le justificatif d'une écriture (§ Transaction.preuveUrl) n'est pas dans le
+   journal : la cellule ne porte qu'un déclencheur vers la visionneuse, qui
+   charge l'image depuis /api/finance/[id]/preuve. D'où une colonne étroite, de
+   la largeur du bouton — et un tiret quand l'écriture n'a pas de preuve, pour
+   que la colonne reste lisible comme une colonne plutôt que comme un trou. */
+.preuveBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--mt-line-3);
+  border-radius: var(--mt-r-sm);
+  background: transparent;
+  color: var(--mt-muted);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.preuveBtn:hover { border-color: var(--mt-yellow); background: rgba(255,209,0,.18); color: var(--mt-ink); }
+.preuveBtn:focus-visible { outline: 2px solid var(--mt-yellow); outline-offset: 1px; }
+.preuveVide { font-size: 11px; color: var(--mt-muted-3); }
+
+@media (pointer: coarse) {
+  /* Même cible tactile que le bouton d'annulation de ligne : 26 px se rate au
+     doigt, et une preuve qu'on n'arrive pas à ouvrir ne prouve rien. */
+  .preuveBtn { width: 36px; height: 36px; }
 }

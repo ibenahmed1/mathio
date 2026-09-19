@@ -5,52 +5,37 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import { Logo } from '@/components/Logo';
-import { VILLES_RAMASSAGE, BANQUES_MAROC, LABELS_TYPE_COMPTE, TYPES_COMPTE } from '@/lib/marchand-form-options';
-import { readFileAsDataUrl } from '@/lib/read-file';
-import type { TypeCompteMarchand } from '@/app/generated/prisma/enums';
 
-const RIB_MAX_LENGTH = 24;
+// § Inscription progressive.
+//
+// Ce formulaire demandait autrefois tout le dossier d'un coup — CIN, adresse,
+// RIB, justificatif bancaire — avant même de laisser entrer. Il ne demande
+// plus que de quoi ouvrir un compte : une adresse électronique, un mot de
+// passe et le nom de la boutique. Le nom du responsable et le téléphone sont
+// proposés, mais facultatifs.
+//
+// Le reste du dossier se complète depuis /marchand/profil, et c'est lui qui
+// ouvre les bons, les ramassages et les factures (lib/marchand-activation.ts).
+// Le marchand peut donc, dès la minute qui suit, saisir ses colis et inviter
+// son équipe — ce qu'il ne pouvait pas faire tant que cette page exigeait une
+// photo de RIB.
 
 interface InscriptionForm {
   nomComplet: string;
-  cin: string;
-  nomBoutique: string;
-  telephone: string;
-  siteWeb: string;
   email: string;
+  telephone: string;
+  nomBoutique: string;
   secret: string;
   confirmSecret: string;
-  ville: string;
-  adresse: string;
-  nomBanque: string;
-  rib: string;
-  ribPhotoUrl: string;
-  typeCompte: TypeCompteMarchand;
-  registreCommerce: string;
-  villeRamassage: string;
-  raisonSociale: string;
-  iceRc: string;
 }
 
 const INITIAL_FORM: InscriptionForm = {
   nomComplet: '',
-  cin: '',
-  nomBoutique: '',
-  telephone: '',
-  siteWeb: '',
   email: '',
+  telephone: '',
+  nomBoutique: '',
   secret: '',
   confirmSecret: '',
-  ville: '',
-  adresse: '',
-  nomBanque: '',
-  rib: '',
-  ribPhotoUrl: '',
-  typeCompte: 'marchand',
-  registreCommerce: '',
-  villeRamassage: VILLES_RAMASSAGE[0],
-  raisonSociale: '',
-  iceRc: '',
 };
 
 export default function InscriptionPage() {
@@ -76,7 +61,6 @@ function InscriptionFormulaire() {
     email: emailPrefill,
     telephone: telephonePrefill,
   }));
-  const [ribPhotoName, setRibPhotoName] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
   const [showConfirmSecret, setShowConfirmSecret] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -85,17 +69,6 @@ function InscriptionFormulaire() {
 
   function update<K extends keyof InscriptionForm>(key: K, value: InscriptionForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleRibPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) {
-      setRibPhotoName(null);
-      update('ribPhotoUrl', '');
-      return;
-    }
-    setRibPhotoName(file.name);
-    update('ribPhotoUrl', await readFileAsDataUrl(file));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -107,35 +80,15 @@ function InscriptionFormulaire() {
       setError('Les mots de passe ne correspondent pas');
       return;
     }
-    if (!/^\d{24}$/.test(form.rib)) {
-      setError('Le RIB doit contenir exactement 24 chiffres');
-      return;
-    }
-    if (!form.ribPhotoUrl) {
-      setError('La photo du RIB est requise');
-      return;
-    }
 
     setLoading(true);
     try {
       const payload = {
         nomComplet: form.nomComplet,
-        cin: form.cin,
-        nomBoutique: form.nomBoutique,
-        telephone: form.telephone,
-        siteWeb: form.siteWeb,
         email: form.email,
+        telephone: form.telephone,
+        nomBoutique: form.nomBoutique,
         secret: form.secret,
-        ville: form.ville,
-        adresse: form.adresse,
-        nomBanque: form.nomBanque,
-        rib: form.rib,
-        ribPhotoUrl: form.ribPhotoUrl,
-        typeCompte: form.typeCompte,
-        registreCommerce: form.registreCommerce,
-        villeRamassage: form.villeRamassage,
-        raisonSociale: form.raisonSociale,
-        iceRc: form.iceRc,
       };
       const res = await apiPost<{ message: string }>('/api/marchands/inscription', payload);
       if (returnTo) {
@@ -144,7 +97,6 @@ function InscriptionFormulaire() {
       }
       setMessage(res.message);
       setForm(INITIAL_FORM);
-      setRibPhotoName(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -155,58 +107,35 @@ function InscriptionFormulaire() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-brand p-4 sm:p-8">
       <Logo size="lg" />
-      <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-lg sm:p-8">
-        <h1 className="mb-6 text-xl font-black text-black">Inscription marchand</h1>
+      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-lg sm:p-8">
+        <h1 className="text-xl font-black text-black">Inscription marchand</h1>
+        <p className="mb-6 mt-2 text-sm text-black/60">
+          Créez votre compte en une minute. Vous compléterez vos informations (téléphone, CIN, adresse, RIB) depuis
+          votre espace, quand vous voudrez : ce sont elles qui débloquent les bons, les ramassages et les factures.
+        </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Nom complet *
+              Nom complet
               <input
                 className="input-underline"
                 value={form.nomComplet}
                 onChange={(e) => update('nomComplet', e.target.value)}
-                required
+                autoComplete="name"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              CIN *
-              <input className="input-underline" value={form.cin} onChange={(e) => update('cin', e.target.value)} required />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Nom du magasin *
-              <input
-                className="input-underline"
-                value={form.nomBoutique}
-                onChange={(e) => update('nomBoutique', e.target.value)}
-                required
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Numéro de téléphone *
+              Numéro de téléphone
               <input
                 className="input-underline"
                 type="tel"
                 placeholder="06XXXXXXXX"
                 value={form.telephone}
                 onChange={(e) => update('telephone', e.target.value)}
-                required
+                autoComplete="tel"
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Site web
-              {/* `inputMode` et non `type="url"` : le navigateur bloquerait l'envoi
-                  d'une adresse saisie sans « https:// ». */}
-              <input
-                className="input-underline"
-                inputMode="url"
-                autoCapitalize="none"
-                autoCorrect="off"
-                value={form.siteWeb}
-                onChange={(e) => update('siteWeb', e.target.value)}
-              />
-            </label>
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
               Adresse electronique *
               <input
@@ -214,6 +143,18 @@ function InscriptionFormulaire() {
                 className="input-underline"
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                required
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
+              Nom du magasin *
+              <input
+                className="input-underline"
+                value={form.nomBoutique}
+                onChange={(e) => update('nomBoutique', e.target.value)}
                 required
               />
             </label>
@@ -226,6 +167,7 @@ function InscriptionFormulaire() {
                   className="input-underline border-0"
                   value={form.secret}
                   onChange={(e) => update('secret', e.target.value)}
+                  autoComplete="new-password"
                   required
                   minLength={8}
                 />
@@ -241,13 +183,14 @@ function InscriptionFormulaire() {
               </span>
             </label>
             <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Confirmation de mot de passe
+              Confirmation de mot de passe *
               <span className="flex items-center gap-2 border-b border-black/20 focus-within:border-brand">
                 <input
                   type={showConfirmSecret ? 'text' : 'password'}
                   className="input-underline border-0"
                   value={form.confirmSecret}
                   onChange={(e) => update('confirmSecret', e.target.value)}
+                  autoComplete="new-password"
                   required
                 />
                 <button
@@ -260,126 +203,13 @@ function InscriptionFormulaire() {
                 </button>
               </span>
             </label>
-
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Ville *
-              <input className="input-underline" value={form.ville} onChange={(e) => update('ville', e.target.value)} required />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Adresse *
-              <input
-                className="input-underline"
-                value={form.adresse}
-                onChange={(e) => update('adresse', e.target.value)}
-                required
-              />
-            </label>
-
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Nom du banque
-              <select
-                className="input-underline"
-                value={form.nomBanque}
-                onChange={(e) => update('nomBanque', e.target.value)}
-              >
-                <option value="">Nom du banque</option>
-                {BANQUES_MAROC.map((banque) => (
-                  <option key={banque} value={banque}>
-                    {banque}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Le Rib ({RIB_MAX_LENGTH} chiffre) *
-              <input
-                className="input-underline"
-                value={form.rib}
-                onChange={(e) => update('rib', e.target.value.replace(/\D/g, '').slice(0, RIB_MAX_LENGTH))}
-                inputMode="numeric"
-                maxLength={RIB_MAX_LENGTH}
-                required
-              />
-            </label>
           </div>
-
-          <label className="flex flex-col gap-2 text-sm font-medium text-black">
-            RIB Photo*
-            <span className="flex flex-wrap items-center gap-3 rounded-md border border-black/20 px-3 py-2 text-sm text-black/60">
-              <span className="shrink-0 rounded border border-black/40 bg-black/5 px-3 py-1 font-semibold text-black">
-                Choisir un fichier
-              </span>
-              {/* Nom de photo souvent insécable (IMG_20260910_101512.jpg) : il se coupe
-                  au besoin, et passe sous le bouton quand la ligne est trop étroite. */}
-              <span className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
-                {ribPhotoName ?? "Aucun fichier n'a été sélectionné"}
-              </span>
-              <input type="file" accept="image/*" className="hidden" onChange={handleRibPhotoChange} required />
-            </span>
-          </label>
-
-          <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Type d&apos;entreprise
-              <select
-                className="input-underline"
-                value={form.typeCompte}
-                onChange={(e) => update('typeCompte', e.target.value as TypeCompteMarchand)}
-              >
-                {TYPES_COMPTE.map((type) => (
-                  <option key={type} value={type}>
-                    {LABELS_TYPE_COMPTE[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-              Registre de commerce
-              <input
-                className="input-underline"
-                value={form.registreCommerce}
-                onChange={(e) => update('registreCommerce', e.target.value)}
-              />
-            </label>
-          </div>
-
-          {form.typeCompte === 'entreprise' && (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2">
-              <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-                Raison sociale
-                <input
-                  className="input-underline"
-                  value={form.raisonSociale}
-                  onChange={(e) => update('raisonSociale', e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-                ICE / RC
-                <input className="input-underline" value={form.iceRc} onChange={(e) => update('iceRc', e.target.value)} />
-              </label>
-            </div>
-          )}
-
-          <label className="flex flex-col gap-1 text-sm font-medium text-black/70">
-            Ville de ramassage
-            <select
-              className="input-underline"
-              value={form.villeRamassage}
-              onChange={(e) => update('villeRamassage', e.target.value)}
-            >
-              {VILLES_RAMASSAGE.map((ville) => (
-                <option key={ville} value={ville}>
-                  {ville}
-                </option>
-              ))}
-            </select>
-          </label>
 
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           {message && <p className="text-sm font-medium text-green-700">{message}</p>}
 
           <button type="submit" disabled={loading} className="btn-gradient">
-            {loading ? 'Envoi…' : 'Envoyer la demande'}
+            {loading ? 'Envoi…' : 'Créer mon compte'}
           </button>
         </form>
         <p className="mt-4 text-center text-xs text-black/60">

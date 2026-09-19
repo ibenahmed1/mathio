@@ -6,6 +6,7 @@ import { ExternalLink } from 'lucide-react';
 import { apiGet, apiPatch, apiDelete, apiPost } from '@/lib/api-client';
 import type { Marchand } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { LABELS_CHAMP_PROFIL, champsProfilManquants } from '@/lib/marchand-activation';
 import { ReinitialiserMotDePasse } from '@/components/ReinitialiserMotDePasse';
 
 export default function AdminMarchandsPage() {
@@ -122,6 +123,12 @@ export default function AdminMarchandsPage() {
               <td>{m.ville ?? '—'}</td>
               <td>
                 <StatutBadge statut={m.statut} />
+                {/* § Inscription progressive : un marchand s'inscrit désormais
+                    avec trois champs et complète son dossier ensuite. Sans
+                    cette pastille, l'admin approuverait un compte dont il ne
+                    voit pas qu'il n'a ni adresse ni RIB — et l'approbation
+                    n'ouvrirait rien, le second verrou tenant toujours. */}
+                <ProfilIncompletBadge marchand={m} />
               </td>
               <td>
                 <div className="flex flex-wrap gap-2">
@@ -177,5 +184,30 @@ export default function AdminMarchandsPage() {
       </div>
       </div>
     </div>
+  );
+}
+
+// Pastille « dossier incomplet », posée à côté du statut administratif : les
+// deux verrous sont indépendants (cf. lib/marchand-activation.ts), l'écran
+// doit donc montrer les deux.
+function ProfilIncompletBadge({ marchand }: { marchand: Marchand }) {
+  const manquants = champsProfilManquants({
+    telephone: marchand.utilisateur?.telephone ?? null,
+    cin: marchand.cin,
+    ville: marchand.ville,
+    adresse: marchand.adresse,
+    rib: marchand.rib,
+    ribPhotoUrl: marchand.ribPhotoUrl,
+  });
+
+  if (manquants.length === 0) return null;
+
+  return (
+    <span
+      className="badge badge-warn ml-2"
+      title={`Dossier incomplet : ${manquants.map((c) => LABELS_CHAMP_PROFIL[c]).join(', ')}`}
+    >
+      dossier incomplet ({manquants.length})
+    </span>
   );
 }

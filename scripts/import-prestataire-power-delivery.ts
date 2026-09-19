@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
 
 /**
@@ -257,7 +258,7 @@ const AGENCES: AgenceImport[] = [
   },
 ];
 
-async function main() {
+export async function importerPowerDelivery(): Promise<void> {
   const prestataire = await prisma.prestataire.upsert({
     where: { nom: PRESTATAIRE.nom },
     // Ne réécrit pas les coordonnées si le prestataire a déjà été complété
@@ -337,11 +338,8 @@ async function main() {
   console.log(
     `\nTerminé — ${tarifs} tarifs ${prestataire.nom} en base, ${villesCreees} villes créées.`
   );
-  await prisma.$disconnect();
 }
 
-main().catch(async (e) => {
-  console.error(e);
-  await prisma.$disconnect();
-  process.exit(1);
-});
+if (lanceDirectement('import-prestataire-power-delivery')) {
+  lancerEnCli(importerPowerDelivery);
+}
