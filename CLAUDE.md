@@ -34,8 +34,10 @@ les contourner ni désactiver une règle pour faire passer le build.
 | `npm test` | `tsx --test lib/__tests__/*.test.ts` — **pas Jest, pas Vitest**. Seul `lib/` est testé |
 | `npm run lint` / `lint:fix` | eslint 9 (flat config) |
 | `npm run db:migrate` | `prisma migrate deploy` |
-| `npm run db:seed` | `tsx prisma/seed.ts` (déclaré dans `prisma.config.ts`, pas dans `package.json`) — **le compte admin, et rien d'autre** |
-| `npm run db:reseau` | charge le référentiel de sous-traitance (5 prestataires, 17 agences, 341 villes, 238 tarifs) depuis `scripts/import-prestataire-*.ts`, puis ajoute à chaque agence sa propre ville d'implantation via `scripts/ajouter-villes-agences.ts` — décision métier tenue hors des imports, qui transcrivent les sources à la lettre (§ `SOUS_TRAITANCE.md` §2.10). Idempotent : à rejouer sans risque. **Le seed ne le fait pas** — sans cette commande, une base fraîchement migrée n'a ni hub, ni ville, ni tarif |
+| `npm run db:seed` | `tsx prisma/seed.ts` (déclaré dans `prisma.config.ts`, pas dans `package.json`) — le compte admin, **puis le référentiel si la base n'a aucun prestataire**. Sur une base qui en a déjà un, le référentiel est laissé intact : le recharger réaligne les tarifs sur les fichiers sources et écraserait une correction faite depuis `/admin/prestataires`. Forcer : `SEED_RESEAU_FORCER=1` |
+| `npm run db:deploy` | `db:migrate` puis `db:seed` — **le point d'entrée d'un déploiement**. Sur une base neuve : migrations, compte admin et référentiel complet. Avec `npm run build`, c'est tout ce qu'il y a à lancer |
+| `npm run db:reseau` | recharge le référentiel de sous-traitance (5 prestataires, 17 agences, 341 villes, 238 tarifs) **sans condition**, via `scripts/charger-referentiel.ts` qui enchaîne les 7 étapes dans un ordre qui compte (documenté en tête du fichier). Idempotent, mais réaligne les tarifs sur les sources. Refuse de tourner si `detecterBlocages()` trouve un conflit — `-- --ignorer-blocages` pour passer outre |
+| `npx tsx scripts/verifier-avant-reseau.ts` | **lecture seule** : ce que le chargement ferait, avant qu'il le fasse. Sa détection de conflits est celle que `db:reseau` applique — même code, pas une copie |
 
 ## Stack
 
