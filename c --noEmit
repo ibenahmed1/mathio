@@ -1,7 +1,0 @@
-[33mdee60cb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeat/suivi-prestataires[m[33m, [m[1;31morigin/feat/suivi-prestataires[m[33m)[m Déclarer Casablanca aussi sous une agence Power Delivery
-[33m832e887[m Consigner la vérification du service de la page prestataires
-[33m07f655c[m Publier la documentation prestataires sous public, configurée pour mathio.ma
-[33m919e702[m Rattacher un colis à un transporteur par sa ville de destination
-[33m1f477b4[m Merge remote-tracking branch 'origin/dev' into feat/suivi-prestataires
-[33md92a76d[m Outiller les essais de l'API de suivi prestataires
-[33maeba024[m Ouvrir l'API de suivi aux transporteurs sous-traitants
