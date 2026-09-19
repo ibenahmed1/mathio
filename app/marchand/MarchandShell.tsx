@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Menu, ShieldAlert } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
+import { BandeauFinalisation } from '@/components/marchand/BandeauFinalisation';
 import { MarchandSidebar } from '@/components/marchand/MarchandSidebar';
 import { NAV_MARCHAND_MENU, NAV_MARCHAND_AUTRE } from '@/components/marchand/nav';
 
@@ -81,6 +82,9 @@ export function MarchandShell({
             <Menu className="h-5 w-5" />
           </button>
         </div>
+        {/* § Inscription progressive : rappel de finalisation, hors des
+            écrans déjà verrouillés (cf. BandeauFinalisation). */}
+        <BandeauFinalisation />
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>

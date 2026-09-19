@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { CheckCircle2 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
+import { LABELS_CHAMP_PROFIL, type ChampProfilMarchand } from '@/lib/marchand-activation';
+import { useActivationMarchand } from '@/components/marchand/activation-context';
 import type { AdresseMarchand, Marchand } from '@/lib/types';
 import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
 import { readFileAsDataUrl } from '@/lib/read-file';
@@ -10,6 +14,10 @@ import { SupportProfilSubNav } from '../SupportProfilSubNav';
 import { EquipeSection } from './EquipeSection';
 
 export default function MarchandProfilPage() {
+  const router = useRouter();
+  // § Inscription progressive : c'est ICI que le marchand lève son verrou —
+  // la page lui dit donc ce qui manque encore, et non l'inverse.
+  const activation = useActivationMarchand();
   const [marchand, setMarchand] = useState<Marchand | null>(null);
   const [adresses, setAdresses] = useState<AdresseMarchand[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +80,12 @@ export default function MarchandProfilPage() {
       setNouvelleRibPhoto(null);
       setNouvelleRibPhotoName(null);
       setSaved(true);
+      // L'état d'activation est calculé côté serveur dans le layout de
+      // l'espace : sans ce rafraîchissement, le marchand vient de saisir son
+      // RIB et verrait toujours ses écrans floutés jusqu'à un rechargement
+      // complet. C'est la seule façon de faire tomber le verrou à la seconde
+      // où il est levé.
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     }
@@ -109,6 +123,7 @@ export default function MarchandProfilPage() {
 
       <div>
         <h2 className="mb-4 text-lg font-black">Profil boutique</h2>
+        <RappelFinalisation champsManquants={activation.champsManquants} />
         <form onSubmit={handleSave} className="flex max-w-2xl flex-col gap-4">
           <FormSection title="Boutique">
             <div className="form-grid">
@@ -353,6 +368,36 @@ export default function MarchandProfilPage() {
       </div>
 
       {estTitulaire && <EquipeSection />}
+    </div>
+  );
+}
+
+// § Inscription progressive : le récapitulatif de ce qu'il reste à remplir,
+// affiché au-dessus du formulaire qui le remplit. Disparaît de lui-même une
+// fois le dossier complet — et cède la place à la confirmation, parce qu'un
+// marchand qui a fini de saisir doit savoir qu'il a fini.
+function RappelFinalisation({ champsManquants }: { champsManquants: readonly ChampProfilMarchand[] }) {
+  if (champsManquants.length === 0) {
+    return (
+      <p className="mb-4 flex items-center gap-2 text-xs font-semibold text-green-700 dark:text-green-400">
+        <CheckCircle2 className="h-4 w-4" />
+        Dossier complet.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mb-4 max-w-2xl rounded-xl border border-[color:var(--mk-amber-line)] bg-[color:var(--mk-amber-soft)] px-4 py-3 text-[color:var(--mk-amber-ink)]">
+      <p className="text-[13px] font-semibold">
+        À compléter pour débloquer les bons, les ramassages et les factures :
+      </p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {champsManquants.map((champ) => (
+          <li key={champ} className="rounded-full bg-white/60 px-3 py-1 text-xs font-bold">
+            {LABELS_CHAMP_PROFIL[champ]}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
 import { resolveHubPlanification } from '@/lib/bon-distribution';
 import { resolveUserHub } from '@/lib/hub-envoi';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 import { getColisEligiblesRetour } from '@/lib/bon-retour';
 import { nextBonRetourNumero } from '@/lib/codes';
 import type { Prisma } from '@/app/generated/prisma/client';
@@ -32,8 +32,9 @@ export async function GET(request: NextRequest) {
     // Trois cloisonnements, tous résolus côté serveur — aucun identifiant de
     // périmètre n'est accepté depuis le client.
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
-      if (!marchand) throw new ApiError(403, 'Aucune boutique rattachée à ce compte');
+      // § Inscription progressive : bons fermés tant que le dossier n'est pas
+      // complet ET validé (cf. lib/marchand-activation.ts).
+      const marchand = await exigerMarchandOperationnel(session.sub);
       // Un bon encore `nouveau` n'a pas quitté le hub : le marchand n'a pas à
       // le voir avant qu'un ramasseur soit en route avec ses colis.
       where = { marchandId: marchand.id, statut: { in: ['en_cours', 'remis'] } };

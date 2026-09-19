@@ -482,7 +482,19 @@ model Marchand {
   ville         String?
   rib           String?
 
-  // Champs collectés lors de l'inscription marchand (formulaire complet)
+  // § Inscription progressive (lib/marchand-activation.ts).
+  //
+  // Ces champs étaient exigés au formulaire d'inscription ; ils sont désormais
+  // saisis APRÈS, depuis /marchand/profil. Ils restent donc nullable, et leur
+  // absence a un sens précis : le dossier n'est pas fini. Tant que cin, ville,
+  // adresse, rib, ribPhotoUrl (et Utilisateur.telephone) ne sont pas tous
+  // renseignés, le marchand garde l'accès à son espace, à ses colis et à son
+  // équipe, mais ni bons, ni ramassages, ni factures — on ne fait pas circuler
+  // de la marchandise vers une adresse inconnue, et on n'encaisse pas du COD
+  // pour quelqu'un qu'on ne sait pas rembourser.
+  //
+  // Les nullifier après coup REFERME ces fonctions : c'est la même règle, lue
+  // au même endroit, et c'est voulu.
   cin              String?        @map("cin")
   siteWeb          String?        @map("site_web")
   adresse          String?
@@ -491,8 +503,14 @@ model Marchand {
   villeRamassage   String?        @map("ville_ramassage")
   registreCommerce String?        @map("registre_commerce")
   // RF-22 : un compte marchand créé par auto-inscription reste en attente
-  // tant que l'admin ne l'a pas approuvé (dette technique : pas de compte
-  // "invité" — voir aussi Utilisateur.actif, synchronisé lors de l'approbation).
+  // tant que l'admin ne l'a pas approuvé.
+  //
+  // Ce que cette attente bloque a changé avec l'inscription progressive : plus
+  // la CONNEXION (Utilisateur.actif vaut true dès l'inscription, et n'est mis
+  // à false que par une suspension), mais les bons, les ramassages et les
+  // factures — le SECOND verrou, à côté de la complétude du dossier ci-dessus.
+  // Les deux doivent tomber pour que le marchand opère : un dossier complet
+  // n'approuve pas, une approbation ne complète pas.
   statut           StatutMarchand @default(en_attente_validation)
 
   // Ramassage récurrent (modèle hybride, §5.6 / RG-15 / RG-16)
@@ -1516,6 +1534,27 @@ model Transaction {
   dateEffet   DateTime             @map("date_effet")
   description String?
 
+  // Justificatif photo de l'écriture (reçu, bordereau de versement, capture
+  // d'un virement) — FACULTATIF, et ce n'est pas un oubli. La pièce papier
+  // n'est presque jamais sous la main au moment où l'écriture est saisie :
+  // l'exiger ferait remettre la saisie à plus tard, c'est-à-dire à jamais, et
+  // un journal incomplet coûte plus cher qu'un justificatif manquant. Une
+  // preuve absente vaut `null`, jamais une chaîne vide.
+  //
+  // Stockée en data URL (« data:<mime>;base64,… »), même convention que les
+  // preuves de livraison (Commande.photoPreuveUrl) et les pièces jointes de
+  // tâche : ce projet n'a pas d'infrastructure de stockage objet. Le plafond
+  // de poids et la liste blanche de formats vivent dans lib/finance.ts
+  // (analyserPreuveTransaction) ; le SVG en est écarté, servi depuis notre
+  // origine il s'exécuterait avec le cookie de session du comptable.
+  //
+  // CONSÉQUENCE : ne JAMAIS sélectionner cette colonne pour dresser le
+  // journal. Un findMany naïf rapatrierait le base64 de chaque écriture à
+  // chaque ouverture de /admin/comptabilite — d'où le `omit` de
+  // GET /api/finance, qui n'expose qu'un pointeur vers la route de contenu
+  // (GET /api/finance/[id]/preuve), laquelle sert l'octet à la demande.
+  preuveUrl   String?              @map("preuve_url")
+
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
 
@@ -1591,6 +1630,18 @@ model CommandeStockHub {
   statut       StatutCommandeStockHub @default(brouillon)
   modePaiement String                 @map("mode_paiement")
   dateCommande DateTime               @map("date_commande")
+
+  // Justificatif photo de la commande (facture du fournisseur, bon de
+  // livraison signé, reçu de virement) — FACULTATIF, exactement comme
+  // Transaction.preuveUrl : voir ce champ pour la règle complète, la convention
+  // de stockage en data URL et la liste blanche de formats (lib/finance.ts,
+  // analyserPreuveComptable, partagée entre les deux cartes de
+  // /admin/comptabilite).
+  //
+  // CONSÉQUENCE, identique : ne JAMAIS sélectionner cette colonne pour dresser
+  // la liste des commandes. GET /api/commandes-stock-hub l'écarte par `omit` et
+  // n'expose qu'un pointeur vers sa route de contenu.
+  preuveUrl    String?                @map("preuve_url")
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("CommandeStockHubAuteur", fields: [auteurId], references: [id])

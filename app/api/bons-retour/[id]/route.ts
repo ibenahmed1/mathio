@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 import { bilanBonRetour, getBonRetour } from '@/lib/bon-retour';
 
 // Détail d'un bon de retour, avec son bilan de remise (colis déjà rendus /
@@ -18,10 +18,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(404, 'Bon de retour introuvable');
     }
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
+      // § Inscription progressive : refus explicite (403 nommant ce qui
+      // manque) avant même de regarder à qui ce bon appartient.
+      const marchand = await exigerMarchandOperationnel(session.sub);
       // 404 plutôt que 403, comme pour les factures : ne rien révéler de
       // l'existence d'un bon destiné à une autre boutique.
-      if (!marchand || marchand.id !== bon.marchandId || bon.statut === 'nouveau') {
+      if (marchand.id !== bon.marchandId || bon.statut === 'nouveau') {
         throw new ApiError(404, 'Bon de retour introuvable');
       }
     }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getPageSession, roleMatches } from '@/lib/auth';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 import { creerBonsDeLivraison, type BonDeLivraisonGenere } from '@/lib/bons-livraison';
 
 // Server Action : regroupe des colis "nouveau_colis" du marchand connecté dans
@@ -24,10 +24,12 @@ export async function creerBonDeLivraison(colisIds: string[]): Promise<BonDeLivr
     throw new Error('Authentification requise');
   }
 
-  const marchand = await resolveMarchandForUser(session.sub);
-  if (!marchand) {
-    throw new Error('Profil marchand introuvable');
-  }
+  // § Inscription progressive : même verrou que GET /api/bons-livraison. Une
+  // Server Action ne passe pas par le proxy et n'est pas une route API — elle
+  // reste pourtant une porte d'entrée vers la génération d'un bon, donc elle
+  // pose le garde-fou elle-même. Lève une ApiError dont le message nomme les
+  // champs manquants ; le client l'affiche tel quel.
+  const marchand = await exigerMarchandOperationnel(session.sub);
 
   // Périmètre borné à sa propre boutique : la sélection ne peut donc produire
   // qu'un seul bon, d'où le dépliage du tableau.

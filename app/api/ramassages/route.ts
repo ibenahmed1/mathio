@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,9 +14,12 @@ export async function GET(request: NextRequest) {
     }
 
     // RG-07 / RNF-02 : un marchand ne voit que ses propres tournées.
+    //
+    // § Inscription progressive : et seulement s'il est opérationnel — un
+    // dossier incomplet n'a ni adresse de collecte ni RIB, demander un
+    // ramassage n'y mène nulle part (cf. lib/marchand-activation.ts).
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
-      if (!marchand) throw new ApiError(403, 'Profil marchand introuvable');
+      const marchand = await exigerMarchandOperationnel(session.sub);
       where.marchandId = marchand.id;
     }
 
@@ -43,8 +46,7 @@ export async function POST(request: Request) {
     const session = await requireUser(['marchand']);
     const body = await request.json();
 
-    const marchand = await resolveMarchandForUser(session.sub);
-    if (!marchand) throw new ApiError(403, 'Profil marchand introuvable');
+    const marchand = await exigerMarchandOperationnel(session.sub);
 
     const adresseId = typeof body.adresseId === 'string' ? body.adresseId : '';
     const datePrevue = typeof body.datePrevue === 'string' ? new Date(body.datePrevue) : null;

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,10 +20,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     if (!bon) throw new ApiError(404, 'Bon de livraison introuvable');
 
-    // RG-07 / RNF-02 : cloisonnement des données par rôle.
+    // RG-07 / RNF-02 : cloisonnement des données par rôle, et § inscription
+    // progressive : un dossier incomplet n'ouvre aucun bon, même le sien.
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
-      if (!marchand || marchand.id !== bon.marchandId) throw new ApiError(403, 'Accès refusé');
+      const marchand = await exigerMarchandOperationnel(session.sub);
+      if (marchand.id !== bon.marchandId) throw new ApiError(403, 'Accès refusé');
     }
 
     return NextResponse.json(bon);

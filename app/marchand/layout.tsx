@@ -1,6 +1,20 @@
 import { redirect } from 'next/navigation';
 import { getPageSession, roleMatches, spaceOrigin } from '@/lib/auth';
+import { resolveMarchandAvecEtat } from '@/lib/marchand-scope';
+import { CHAMPS_A_FINALISER, type EtatActivationMarchand } from '@/lib/marchand-activation';
+import { ActivationMarchandProvider } from '@/components/marchand/activation-context';
 import { MarchandShell } from './MarchandShell';
+
+// Aucun Marchand rattaché à cette session : anomalie (le rôle existe, le
+// dossier non). On le traite comme un dossier entièrement vide plutôt que
+// comme un compte opérationnel — c'est la lecture la plus fidèle, et les
+// routes verrouillées répondront de toute façon 403.
+const ETAT_SANS_DOSSIER: EtatActivationMarchand = {
+  profilComplet: false,
+  champsManquants: [...CHAMPS_A_FINALISER],
+  blocage: 'profil_incomplet',
+  operationnel: false,
+};
 
 // Le proxy (proxy.ts) protège déjà /marchand/:path* et refuse ces pages sur
 // tout autre hôte, mais on revérifie ici indépendamment : défense en
@@ -30,12 +44,22 @@ export default async function MarchandLayout({ children }: { children: React.Rea
   //
   // Le seul usage de cette URL est le bouton « Retour à l'administration » du
   // bandeau d'impersonation, qui n'existe pas hors de ce cas.
+
+  // § Inscription progressive : l'état d'activation est résolu ICI, une fois
+  // par rendu de l'espace, puis distribué par contexte aux écrans qui se
+  // verrouillent (VerrouProfil) et à la barre latérale qui les signale. Le
+  // calculer par page ferait clignoter chaque écran déverrouillé le temps de
+  // la requête ; le calculer ici le rend vrai dès le premier octet.
+  const resolu = await resolveMarchandAvecEtat(session.sub);
+
   return (
-    <MarchandShell
-      impersonation={session.impersonated}
-      retourBackOffice={session.impersonated ? `${spaceOrigin('admin')}/admin/marchands` : undefined}
-    >
-      {children}
-    </MarchandShell>
+    <ActivationMarchandProvider etat={resolu?.etat ?? ETAT_SANS_DOSSIER}>
+      <MarchandShell
+        impersonation={session.impersonated}
+        retourBackOffice={session.impersonated ? `${spaceOrigin('admin')}/admin/marchands` : undefined}
+      >
+        {children}
+      </MarchandShell>
+    </ActivationMarchandProvider>
   );
 }

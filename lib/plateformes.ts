@@ -85,11 +85,52 @@ export interface PlateformeDetail extends PlateformeResume {
   appels: AppelJournalise[];
   /** Ce que le bac à sable a laissé dans les vraies tables. Voir §purge. */
   volumeTest: VolumeTest;
+  /**
+   * Ce qui est encore modifiable ou supprimable sur ce compte, et pourquoi le
+   * reste ne l'est plus. Porté par le détail plutôt que par un endpoint à part :
+   * l'écran a besoin des deux en même temps, et deux appels séparés pourraient
+   * décrire deux états différents du même compte.
+   */
+  modifiables: ModifiablesPlateforme;
 }
 
 function cleEstActive(cle: { expireLe: Date | null; revoqueeLe: Date | null }, maintenant = new Date()): boolean {
   if (cle.revoqueeLe) return false;
   return !cle.expireLe || cle.expireLe > maintenant;
+}
+
+// Sérialisation d'une ligne de clé vers le résumé rendu au back-office. Les
+// six fonctions qui renvoient une clé écrivaient toutes le même bloc de douze
+// champs : une seule oubliée lors d'un ajout de colonne et l'écran affiche un
+// état muet, sans que rien ne casse. Le type de sortie est le contrat, ce
+// helper le tient en un seul endroit.
+type LigneCle = Parameters<typeof cleEstActive>[0] & {
+  id: string;
+  prefixe: string;
+  environnement: EnvironnementApi;
+  scopes: string[];
+  libelle: string | null;
+  quotaParMinute: number;
+  creeeLe: Date;
+  derniereUtilisationLe: Date | null;
+  nbAppels: number;
+};
+
+function versCleResume(cle: LigneCle, maintenant = new Date()): CleResume {
+  return {
+    id: cle.id,
+    prefixe: cle.prefixe,
+    environnement: cle.environnement,
+    scopes: cle.scopes,
+    libelle: cle.libelle,
+    quotaParMinute: cle.quotaParMinute,
+    creeeLe: cle.creeeLe,
+    expireLe: cle.expireLe,
+    revoqueeLe: cle.revoqueeLe,
+    derniereUtilisationLe: cle.derniereUtilisationLe,
+    nbAppels: cle.nbAppels,
+    active: cleEstActive(cle, maintenant),
+  };
 }
 
 // Le code d'une plateforme sert dans les URL d'administration et dans les
@@ -182,20 +223,7 @@ export async function detaillerPlateforme(id: string): Promise<PlateformeDetail 
     nbClesActives: p.cles.filter((c) => cleEstActive(c, maintenant)).length,
     nbMarchands: p._count.comptesMarchands,
     prestataire: p.prestataire,
-    cles: p.cles.map((c) => ({
-      id: c.id,
-      prefixe: c.prefixe,
-      environnement: c.environnement,
-      scopes: c.scopes,
-      libelle: c.libelle,
-      quotaParMinute: c.quotaParMinute,
-      creeeLe: c.creeeLe,
-      expireLe: c.expireLe,
-      revoqueeLe: c.revoqueeLe,
-      derniereUtilisationLe: c.derniereUtilisationLe,
-      nbAppels: c.nbAppels,
-      active: cleEstActive(c, maintenant),
-    })),
+    cles: p.cles.map((c) => versCleResume(c, maintenant)),
     marchands: p.comptesMarchands.map((m) => ({
       id: m.id,
       idExterne: m.idExterne,
@@ -216,6 +244,7 @@ export async function detaillerPlateforme(id: string): Promise<PlateformeDetail 
       horodatage: a.horodatage,
     })),
     volumeTest: await compterDonneesTest(id),
+    modifiables: await modifiablesPlateforme(id),
   };
 }
 
@@ -292,42 +321,219 @@ export async function creerPlateforme(
   }
 }
 
-export async function majPlateforme(
+export interface ChampsPlateforme {
+  nom?: string;
+  actif?: boolean;
+  /** Voir la fenêtre de modification ci-dessous : corrigeable, pas renommable. */
+  code?: string;
+  /** `null` détache, une chaîne rattache ou déplace. Voir la garde ci-dessous. */
+  prestataireId?: string | null;
+}
+
+/**
+ * Ce qui reste modifiable sur un compte machine, et POURQUOI le reste ne l'est
+ * plus. Le back-office s'en sert pour griser un champ en disant la raison
+ * plutôt que de le masquer : un champ absent laisse chercher le geste qui
+ * l'ouvrirait, un champ grisé et motivé ferme la question.
+ */
+export interface ModifiablesPlateforme {
+  /** Le compte n'a jamais servi : ni clé émise, ni appel reçu. */
+  code: boolean;
+  /** Aucune clé active : déplacer le rattachement ne peut surprendre personne. */
+  prestataire: boolean;
+  /** Ni écriture signée, ni marchand `live`, ni donnée de bac à sable. */
+  suppression: boolean;
+  /** Ce qui empêche la suppression, en clair. `null` quand elle est possible. */
+  raisonSuppression: string | null;
+}
+
+/**
+ * Traces laissées par un compte machine AILLEURS que dans sa propre
+ * configuration. C'est la seule question qui compte pour savoir ce qu'on a
+ * encore le droit de lui faire : une ligne de configuration se corrige, une
+ * trace partie chez un tiers ou inscrite dans l'historique d'un colis, non.
+ */
+async function tracesPlateforme(
   id: string,
-  champs: { nom?: string; actif?: boolean }
-): Promise<PlateformeResume> {
+  utilisateurTechniqueId: string
+): Promise<{
+  nbClesEmises: number;
+  nbClesActives: number;
+  nbAppels: number;
+  nbEcrituresSignees: number;
+  nbMarchandsLive: number;
+  nbMarchandsTest: number;
+}> {
+  const [nbClesEmises, nbClesActives, nbAppels, nbEcrituresSignees, nbMarchandsLive, nbMarchandsTest] =
+    await Promise.all([
+      prisma.cleApiPlateforme.count({ where: { plateformeId: id } }),
+      compterClesActives(id),
+      prisma.journalAppelApi.count({ where: { plateformeId: id } }),
+      // Le compte de service signe CHAQUE écriture faite au nom de la
+      // plateforme — le dépôt d'un colis comme la déclaration d'un statut
+      // (lib/plateforme-colis.ts, lib/livraison-statut.ts). Ce compteur est
+      // donc la mesure exacte de « ce compte a touché de vrais colis », et la
+      // FK non nullable qui le porte est ce qui rend la suppression
+      // impossible — pas une règle de confort.
+      prisma.historiqueStatutCommande.count({ where: { utilisateurId: utilisateurTechniqueId } }),
+      prisma.compteMarchandExterne.count({ where: { plateformeId: id, environnement: 'live' } }),
+      prisma.compteMarchandExterne.count({ where: { plateformeId: id, environnement: 'test' } }),
+    ]);
+
+  return { nbClesEmises, nbClesActives, nbAppels, nbEcrituresSignees, nbMarchandsLive, nbMarchandsTest };
+}
+
+// Ce qui interdit la suppression, formulé pour être LU par l'admin : chaque
+// message dit ce qui bloque et quel geste prendre à la place. Fonction pure,
+// pour que `modifiablesPlateforme` (qui prépare l'écran) et
+// `supprimerPlateforme` (qui refuse) ne puissent pas diverger.
+export function raisonSuppression(traces: {
+  nbEcrituresSignees: number;
+  nbMarchandsLive: number;
+  nbMarchandsTest: number;
+}): string | null {
+  if (traces.nbEcrituresSignees > 0) {
+    return (
+      `Ce compte a signé ${traces.nbEcrituresSignees} écriture(s) dans l’historique de colis réels : ` +
+      'son compte de service ne peut pas partir sans les emporter. Le suspendre coupe toutes ses clés ' +
+      'et garde la trace.'
+    );
+  }
+  if (traces.nbMarchandsLive > 0) {
+    return (
+      `${traces.nbMarchandsLive} marchand(s) de production lui sont rattachés : les délier romprait le ` +
+      'lien entre nos boutiques et leurs identifiants chez le partenaire. Suspendre plutôt que supprimer.'
+    );
+  }
+  if (traces.nbMarchandsTest > 0) {
+    return (
+      'Des données de bac à sable subsistent. Utiliser « Purger » d’abord : supprimer le compte ' +
+      'emporterait les liens sans emporter les marchands ni les colis qu’ils ont créés.'
+    );
+  }
+  return null;
+}
+
+/**
+ * L'état des verrous d'un compte, pour que l'écran grise en DISANT pourquoi.
+ * Calculé côté serveur et non deviné côté client : ce sont les mêmes compteurs
+ * qui servent à refuser, donc l'écran ne peut pas proposer un geste que la
+ * route rejettera.
+ */
+export async function modifiablesPlateforme(id: string): Promise<ModifiablesPlateforme> {
+  const p = await prisma.plateformePartenaire.findUnique({
+    where: { id },
+    select: { utilisateurTechniqueId: true },
+  });
+  if (!p) throw new ApiError(404, 'Plateforme introuvable');
+
+  const traces = await tracesPlateforme(id, p.utilisateurTechniqueId);
+  const raison = raisonSuppression(traces);
+
+  return {
+    code: traces.nbClesEmises === 0 && traces.nbAppels === 0,
+    prestataire: traces.nbClesActives === 0,
+    suppression: raison === null,
+    raisonSuppression: raison,
+  };
+}
+
+export async function majPlateforme(id: string, champs: ChampsPlateforme): Promise<PlateformeResume> {
   const existante = await prisma.plateformePartenaire.findUnique({ where: { id } });
   if (!existante) throw new ApiError(404, 'Plateforme introuvable');
 
-  const misAJour = await prisma.$transaction(async (tx) => {
-    const p = await tx.plateformePartenaire.update({
-      where: { id },
-      data: {
-        ...(champs.nom !== undefined ? { nom: champs.nom } : {}),
-        ...(champs.actif !== undefined ? { actif: champs.actif } : {}),
-      },
-    });
-    // Le compte de service porte le nom de la plateforme : c'est lui qui
-    // s'affiche comme auteur dans l'historique des colis. Le laisser diverger
-    // ferait apparaître l'ancien nom sur les colis ingérés après le
-    // changement.
-    if (champs.nom !== undefined) {
-      await tx.utilisateur.update({
-        where: { id: p.utilisateurTechniqueId },
-        data: { nomComplet: champs.nom },
-      });
+  const changeCode = champs.code !== undefined && champs.code !== existante.code;
+  const changeRattachement =
+    champs.prestataireId !== undefined && (champs.prestataireId || null) !== existante.prestataireId;
+
+  // Les deux gardes ci-dessous ne comptent que si le champ concerné bouge
+  // vraiment : un simple renommage ne doit pas payer six `count`.
+  if (changeCode || changeRattachement) {
+    const traces = await tracesPlateforme(id, existante.utilisateurTechniqueId);
+
+    // Le code n'est pas une étiquette : il part dans la réponse de
+    // /api/v1/auth et s'inscrit EN CLAIR dans HistoriqueStatutCommande.note
+    // (« Colis déposé par shipeh », lib/plateforme-colis.ts). Le changer une
+    // fois le compte en service fait mentir les notes déjà écrites et casse le
+    // partenaire qui s'y fie. La fenêtre laissée ouverte est donc celle de la
+    // faute de frappe : tant qu'aucune clé n'a été émise et qu'aucun appel
+    // n'est arrivé, rien ne porte encore l'ancien code.
+    if (changeCode && (traces.nbClesEmises > 0 || traces.nbAppels > 0)) {
+      throw new ApiError(
+        409,
+        'Le code ne peut plus changer : ce compte a déjà émis une clé ou reçu un appel, et son code ' +
+          'figure tel quel dans l’historique des colis. Le nom affiché, lui, reste modifiable.'
+      );
     }
-    return p;
-  });
+
+    // Le rattachement décide du PÉRIMÈTRE des clés : lié à un transporteur, le
+    // compte déclare des statuts sur les colis de ses agences ; libre, il
+    // dépose des colis. Le déplacer pendant qu'une clé tourne changerait ce
+    // périmètre chez un tiers sans qu'il l'ait demandé ni même su. Aucune clé
+    // active, aucune surprise possible — les clés mortes gardent des scopes
+    // devenus incohérents avec la nouvelle nature, mais elles ne peuvent plus
+    // rien exercer.
+    if (changeRattachement && traces.nbClesActives > 0) {
+      throw new ApiError(
+        409,
+        `Ce compte a ${traces.nbClesActives} clé(s) active(s) : les révoquer ou les expirer avant de ` +
+          'changer son rattachement. Déplacer le périmètre sous une clé déjà déployée chez un tiers ' +
+          'changerait ce qu’elle peut faire sans qu’il en soit averti.'
+      );
+    }
+  }
+
+  // Même raison qu'à la création : un identifiant inconnu finirait en violation
+  // de clé étrangère, donc en 500 — « le problème est chez nous » pour une
+  // valeur que l'appelant a mal choisie.
+  if (changeRattachement && champs.prestataireId) {
+    const trouve = await prisma.prestataire.findUnique({
+      where: { id: champs.prestataireId },
+      select: { id: true, nom: true, actif: true },
+    });
+    if (!trouve) throw new ApiError(404, 'Transporteur introuvable');
+    if (!trouve.actif) throw new ApiError(400, `Le transporteur « ${trouve.nom} » est désactivé`);
+  }
+
+  let misAJour;
+  try {
+    misAJour = await prisma.$transaction(async (tx) => {
+      const p = await tx.plateformePartenaire.update({
+        where: { id },
+        data: {
+          ...(champs.nom !== undefined ? { nom: champs.nom } : {}),
+          ...(champs.actif !== undefined ? { actif: champs.actif } : {}),
+          ...(changeCode ? { code: champs.code } : {}),
+          ...(changeRattachement ? { prestataireId: champs.prestataireId || null } : {}),
+        },
+      });
+      // Le compte de service porte le nom de la plateforme : c'est lui qui
+      // s'affiche comme auteur dans l'historique des colis. Le laisser diverger
+      // ferait apparaître l'ancien nom sur les colis ingérés après le
+      // changement.
+      if (champs.nom !== undefined) {
+        await tx.utilisateur.update({
+          where: { id: p.utilisateurTechniqueId },
+          data: { nomComplet: champs.nom },
+        });
+      }
+      return p;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      // Mêmes deux unicités qu'à la création, et les confondre enverrait
+      // toujours chercher la panne du mauvais côté.
+      if (String(error.meta?.target ?? '').includes('prestataire')) {
+        throw new ApiError(409, 'Ce transporteur a déjà un compte machine');
+      }
+      throw new ApiError(409, `Une plateforme porte déjà le code « ${champs.code} »`);
+    }
+    throw error;
+  }
 
   const [nbClesActives, nbMarchands, prestataire] = await Promise.all([
     compterClesActives(id),
     prisma.compteMarchandExterne.count({ where: { plateformeId: id } }),
-    // Le rattachement ne se modifie pas ici — c'est un choix de création, pas
-    // un réglage : le déplacer d'un transporteur à l'autre changerait le
-    // périmètre de clés déjà émises et déjà déployées chez un tiers. On le
-    // relit seulement, pour que la réponse porte le même résumé complet que
-    // les autres.
     prisma.prestataire.findFirst({
       where: { compteMachine: { id } },
       select: { id: true, nom: true },
@@ -344,6 +550,35 @@ export async function majPlateforme(
     nbMarchands,
     prestataire,
   };
+}
+
+/**
+ * Suppression d'un compte machine, avec son compte de service. Clés, liens
+ * marchands et journal tombent en cascade (§ prisma/schema.prisma).
+ *
+ * Réservée au compte qui n'a JAMAIS servi, exactement comme
+ * DELETE /api/prestataires/[id] l'est au prestataire sans agence. Ce n'est pas
+ * une prudence de confort : `HistoriqueStatutCommande.utilisateurId` est non
+ * nullable, donc un compte de service ayant signé la moindre écriture ne PEUT
+ * pas partir sans emporter l'historique d'un colis réel. Pour tout le reste, le
+ * geste est « Suspendre » — il coupe toutes les clés d'un coup et garde la
+ * trace.
+ */
+export async function supprimerPlateforme(id: string): Promise<void> {
+  const plateforme = await prisma.plateformePartenaire.findUnique({ where: { id } });
+  if (!plateforme) throw new ApiError(404, 'Plateforme introuvable');
+
+  const traces = await tracesPlateforme(id, plateforme.utilisateurTechniqueId);
+  const raison = raisonSuppression(traces);
+  if (raison) throw new ApiError(409, raison);
+
+  await prisma.$transaction(async (tx) => {
+    // L'ordre compte : la plateforme d'abord, parce que c'est elle qui
+    // référence le compte de service. Ses clés, ses liens marchands et son
+    // journal partent avec elle, par cascade.
+    await tx.plateformePartenaire.delete({ where: { id } });
+    await tx.utilisateur.delete({ where: { id: plateforme.utilisateurTechniqueId } });
+  });
 }
 
 async function compterClesActives(plateformeId: string, environnement?: EnvironnementApi): Promise<number> {
@@ -450,23 +685,7 @@ export async function creerCleApi(
     },
   });
 
-  return {
-    cleComplete,
-    cle: {
-      id: creee.id,
-      prefixe: creee.prefixe,
-      environnement: creee.environnement,
-      scopes: creee.scopes,
-      libelle: creee.libelle,
-      quotaParMinute: creee.quotaParMinute,
-      creeeLe: creee.creeeLe,
-      expireLe: creee.expireLe,
-      revoqueeLe: creee.revoqueeLe,
-      derniereUtilisationLe: creee.derniereUtilisationLe,
-      nbAppels: creee.nbAppels,
-      active: true,
-    },
-  };
+  return { cleComplete, cle: versCleResume(creee) };
 }
 
 // --- Données de bac à sable -------------------------------------------------
@@ -678,20 +897,7 @@ export async function revoquerCleApi(plateformeId: string, cleId: string): Promi
     data: { revoqueeLe: new Date() },
   });
 
-  return {
-    id: misAJour.id,
-    prefixe: misAJour.prefixe,
-    environnement: misAJour.environnement,
-    scopes: misAJour.scopes,
-    libelle: misAJour.libelle,
-    quotaParMinute: misAJour.quotaParMinute,
-    creeeLe: misAJour.creeeLe,
-    expireLe: misAJour.expireLe,
-    revoqueeLe: misAJour.revoqueeLe,
-    derniereUtilisationLe: misAJour.derniereUtilisationLe,
-    nbAppels: misAJour.nbAppels,
-    active: false,
-  };
+  return versCleResume(misAJour);
 }
 
 // Expiration programmée : refus DOUX à l'échéance, précédé d'un en-tête de
@@ -711,18 +917,137 @@ export async function programmerExpiration(
     data: { expireLe },
   });
 
-  return {
-    id: misAJour.id,
-    prefixe: misAJour.prefixe,
-    environnement: misAJour.environnement,
-    scopes: misAJour.scopes,
-    libelle: misAJour.libelle,
-    quotaParMinute: misAJour.quotaParMinute,
-    creeeLe: misAJour.creeeLe,
-    expireLe: misAJour.expireLe,
-    revoqueeLe: misAJour.revoqueeLe,
-    derniereUtilisationLe: misAJour.derniereUtilisationLe,
-    nbAppels: misAJour.nbAppels,
-    active: cleEstActive(misAJour),
-  };
+  return versCleResume(misAJour);
+}
+
+/**
+ * Réglages d'une clé DÉJÀ ÉMISE. Volontairement limités au libellé et au
+ * quota : ni les scopes, ni l'environnement.
+ *
+ * Élargir les scopes d'une clé déjà déployée chez un tiers lui donnerait un
+ * pouvoir qu'il n'a pas demandé, sans que rien ne le lui signale — la clé qu'il
+ * a en main ne change pas, seul ce qu'elle ouvre change. Le geste honnête est
+ * « émettre une nouvelle clé, expirer l'ancienne » : le partenaire voit passer
+ * la rotation. Le libellé n'est qu'une étiquette pour nous, et le quota se
+ * corrige justement à chaud, quand une intégration s'emballe.
+ */
+export async function modifierCleApi(
+  plateformeId: string,
+  cleId: string,
+  champs: { libelle?: string | null; quotaParMinute?: number }
+): Promise<CleResume> {
+  const cle = await prisma.cleApiPlateforme.findUnique({ where: { id: cleId } });
+  if (!cle || cle.plateformeId !== plateformeId) throw new ApiError(404, 'Clé introuvable');
+
+  const data: { libelle?: string | null; quotaParMinute?: number } = {};
+  if (champs.libelle !== undefined) data.libelle = champs.libelle?.trim() || null;
+  if (champs.quotaParMinute !== undefined) {
+    if (!Number.isInteger(champs.quotaParMinute) || champs.quotaParMinute <= 0) {
+      throw new ApiError(400, 'quotaParMinute doit être un entier positif');
+    }
+    data.quotaParMinute = champs.quotaParMinute;
+  }
+  if (Object.keys(data).length === 0) {
+    throw new ApiError(400, 'Rien à modifier : fournir libelle et/ou quotaParMinute');
+  }
+
+  return versCleResume(await prisma.cleApiPlateforme.update({ where: { id: cleId }, data }));
+}
+
+/**
+ * Rotation abandonnée : on remet l'échéance à `null`, la clé redevient sans
+ * date de fin.
+ *
+ * Refusé sur une clé DÉJÀ échue, et ce n'est pas un détail : son échéance est
+ * passée, donc le partenaire a vu les en-têtes de dépréciation puis des refus,
+ * et a pu la considérer comme morte. La ressusciter remettrait en service un
+ * secret que son porteur croit hors d'usage. Réémettre, dans ce cas.
+ */
+export async function annulerExpiration(plateformeId: string, cleId: string): Promise<CleResume> {
+  const cle = await prisma.cleApiPlateforme.findUnique({ where: { id: cleId } });
+  if (!cle || cle.plateformeId !== plateformeId) throw new ApiError(404, 'Clé introuvable');
+  if (cle.revoqueeLe) throw new ApiError(409, 'Cette clé est révoquée : la révocation ne s’annule pas');
+  if (!cle.expireLe) throw new ApiError(409, 'Cette clé n’a pas d’expiration programmée');
+  if (cle.expireLe <= new Date()) {
+    throw new ApiError(
+      409,
+      'Cette clé est déjà échue : le partenaire l’a vue refuser des appels et peut la croire morte. ' +
+        'Émettre une nouvelle clé plutôt que de remettre celle-ci en service.'
+    );
+  }
+
+  return versCleResume(
+    await prisma.cleApiPlateforme.update({ where: { id: cleId }, data: { expireLe: null } })
+  );
+}
+
+/**
+ * Suppression d'une clé, réservée à celle qui n'a JAMAIS servi.
+ *
+ * Le schéma pose qu'une ligne de clé n'est jamais supprimée
+ * (§ CleApiPlateforme) : `derniereUtilisationLe` et `nbAppels` sont la seule
+ * matière d'une analyse post-incident — quand la clé fuitée a-t-elle servi, et
+ * combien de fois. Une clé à zéro appel n'en porte aucune : c'est une clé
+ * émise par erreur, et la garder encombre l'écran là où elle devrait
+ * disparaître. Dès le premier appel, le geste redevient « révoquer ».
+ *
+ * Les lignes de journal qui la citeraient survivent de toute façon : leur
+ * `cleId` est en `SetNull`.
+ */
+export async function supprimerCleApi(plateformeId: string, cleId: string): Promise<void> {
+  const cle = await prisma.cleApiPlateforme.findUnique({ where: { id: cleId } });
+  if (!cle || cle.plateformeId !== plateformeId) throw new ApiError(404, 'Clé introuvable');
+
+  if (cle.nbAppels > 0) {
+    throw new ApiError(
+      409,
+      `Cette clé a servi ${cle.nbAppels} fois : ses compteurs sont la seule trace exploitable en cas ` +
+        'de fuite. La révoquer la coupe immédiatement et garde cette trace.'
+    );
+  }
+
+  await prisma.cleApiPlateforme.delete({ where: { id: cleId } });
+}
+
+/**
+ * Crée un transporteur au référentiel depuis l'écran des intégrations.
+ *
+ * Le référentiel de sous-traitance se charge normalement en masse
+ * (`npm run db:reseau`, § SOUS_TRAITANCE.md) et s'administre sous
+ * /admin/prestataires. Mais un transporteur qui n'y figure pas encore bloquait
+ * net l'ouverture de son compte machine : il fallait quitter l'écran, trouver
+ * l'autre, revenir. Cette porte-là existe pour ce cas et pour lui seul — d'où
+ * le nom seul, sans agences ni tarifs, qui restent l'affaire du référentiel.
+ *
+ * Gouvernée par `integrations:manage` et non par `hubs:manage` : même raison
+ * qu'au GET voisin (app/api/plateformes/transporteurs/route.ts) — cet écran ne
+ * doit exiger qu'une permission, la sienne.
+ */
+export async function creerTransporteur(nom: string): Promise<{ id: string; nom: string }> {
+  try {
+    return await prisma.prestataire.create({ data: { nom }, select: { id: true, nom: true } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      // « Existe déjà » tout court enverrait chercher dans une liste où il ne
+      // FIGURE pas : le formulaire ne propose que les transporteurs actifs et
+      // encore libres (listerTransporteursDisponibles). Les deux causes de son
+      // absence se corrigent ailleurs, et à deux endroits différents.
+      const existant = await prisma.prestataire.findUnique({
+        where: { nom },
+        select: { actif: true, compteMachine: { select: { id: true } } },
+      });
+      if (existant && !existant.actif) {
+        throw new ApiError(
+          409,
+          `Le transporteur « ${nom} » existe déjà mais il est désactivé — le réactiver depuis ` +
+            '/admin/prestataires avant de lui ouvrir un compte machine.'
+        );
+      }
+      if (existant?.compteMachine) {
+        throw new ApiError(409, `Le transporteur « ${nom} » a déjà un compte machine`);
+      }
+      throw new ApiError(409, `Le transporteur « ${nom} » existe déjà`);
+    }
+    throw error;
+  }
 }

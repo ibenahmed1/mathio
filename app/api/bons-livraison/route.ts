@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
 import { creerBonsDeLivraison } from '@/lib/bons-livraison';
-import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
 import type { Prisma } from '@/app/generated/prisma/client';
 
 export async function GET(request: NextRequest) {
@@ -16,9 +16,11 @@ export async function GET(request: NextRequest) {
     const where: Prisma.BonDeLivraisonWhereInput = {};
 
     // RG-07 / RNF-02 : cloisonnement des données par rôle.
+    //
+    // § Inscription progressive : les bons restent fermés tant que le dossier
+    // du marchand n'est pas complet ET validé (cf. lib/marchand-activation.ts).
     if (session.role === 'marchand') {
-      const marchand = await resolveMarchandForUser(session.sub);
-      if (!marchand) throw new ApiError(403, 'Profil marchand introuvable');
+      const marchand = await exigerMarchandOperationnel(session.sub);
       where.marchandId = marchand.id;
     }
 
