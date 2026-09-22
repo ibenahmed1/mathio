@@ -15,7 +15,7 @@ export function Modal({
   title: string;
   onClose: () => void;
   children: ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
   // Échap ferme, et le fond de page ne défile plus derrière la fenêtre :
   // sans ça, la molette faisait glisser la liste sous la boîte ouverte.
@@ -32,7 +32,10 @@ export function Modal({
     };
   }, [onClose]);
 
-  const width = size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : 'max-w-lg';
+  // `xl` : fenêtres de travail qui portent un formulaire complet ou une fiche
+  // détaillée avec justificatif et historique (§ /admin/comptabilite).
+  const width =
+    size === 'sm' ? 'max-w-md' : size === 'lg' ? 'max-w-3xl' : size === 'xl' ? 'max-w-5xl' : 'max-w-lg';
 
   return (
     <div
