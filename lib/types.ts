@@ -547,18 +547,24 @@ export interface MembreTache {
 
 export interface Transaction {
   id: string;
-  montant: string;
+  titre: string;
+  montant: number;
   type: 'revenu' | 'depense';
-  categorie: 'paiement_client' | 'frais_livraison' | 'abonnement_outil' | 'salaire' | 'remboursement' | 'autre';
+  // Tenue en base depuis le 21/09/2026 (§ CategorieComptable), plus un enum.
+  categorie: { id: string; nom: string };
   dateEffet: string;
   description: string | null;
-  auteurId: string;
   estAnnulee: boolean;
   transactionOrigineId: string | null;
   dateCreation: string;
   auteur?: { nomComplet: string; role: string };
-  transactionOrigine?: { id: string; categorie: string } | null;
-  annulation?: { id: string } | null;
+  // Non-null = écriture automatique (tournée, facture, paie).
+  origine: { type: 'tournee' | 'facture' | 'paie'; numero: string } | null;
+  // Pointeur vers la route de contenu, jamais l'image.
+  preuve: string | null;
+  // Renseignés dans la corbeille seulement (`?supprimees=1`).
+  supprimeLe: string | null;
+  supprimePar: { nomComplet: string } | null;
 }
 
 // ============================================================

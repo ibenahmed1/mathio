@@ -165,6 +165,21 @@ export const PERMISSION_CATALOG: PermissionCategory[] = [
         label: 'Comptabilité (écritures)',
         description: 'Saisir une écriture ou une dépense, et en annuler.',
       },
+      // Détachées de `comptabilite:write` : saisir et annuler laissent une
+      // trace DANS le journal (l'écriture, sa compensation) ; modifier ou
+      // supprimer réécrit ce que le journal affiche. L'historique garde
+      // l'avant/après, mais le geste reste celui qui permet de maquiller une
+      // caisse — il n'est accordé par défaut qu'à l'admin.
+      {
+        key: 'comptabilite:edit',
+        label: 'Comptabilité (modification)',
+        description: 'Modifier une écriture ou une commande d’inventaire, et gérer les catégories.',
+      },
+      {
+        key: 'comptabilite:delete',
+        label: 'Comptabilité (suppression)',
+        description: 'Supprimer et restaurer une écriture, une commande d’inventaire ou une catégorie.',
+      },
     ],
   },
   {

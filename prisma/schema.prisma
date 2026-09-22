@@ -227,16 +227,26 @@ enum TypeTransaction {
   depense
 }
 
-// Catégorie d'origine ou de destination de l'argent — liste fermée pour
-// garder des totaux comparables d'une écriture à l'autre (cf. lib/finance.ts
-// pour les libellés affichés).
-enum CategorieTransaction {
-  paiement_client
-  frais_livraison
-  abonnement_outil
-  salaire
-  remboursement
-  autre
+// À quelle carte de /admin/comptabilite une CategorieComptable s'applique. Les
+// deux listes sont tenues séparément : « Salaire » n'a pas de sens pour une
+// commande de rayonnage, « Mobilier » n'en a pas pour une écriture de caisse.
+enum PorteeCategorieComptable {
+  transaction
+  commande_stock_hub
+}
+
+// Objet visé par une ligne d'HistoriqueComptable.
+enum CibleHistoriqueComptable {
+  transaction
+  commande_stock_hub
+  categorie
+}
+
+enum ActionHistoriqueComptable {
+  creation
+  modification
+  suppression
+  restauration
 }
 
 // ============================================================
@@ -347,8 +357,13 @@ model Utilisateur {
   piecesJointesTaches     PieceJointeTache[]      @relation("PieceJointeTacheAuteur")
 
   // Comptabilité (§ /admin/comptabilite) : auteur des écritures qu'il a saisies.
-  transactions      Transaction[]      @relation("TransactionAuteur")
-  commandesStockHub CommandeStockHub[] @relation("CommandeStockHubAuteur")
+  transactions                Transaction[]         @relation("TransactionAuteur")
+  commandesStockHub           CommandeStockHub[]    @relation("CommandeStockHubAuteur")
+  // … et celles qu'il a supprimées (suppression logique), plus la trace de
+  // toutes ses modifications — voir HistoriqueComptable.
+  transactionsSupprimees      Transaction[]         @relation("TransactionSupprimeePar")
+  commandesStockHubSupprimees CommandeStockHub[]    @relation("CommandeStockHubSupprimeePar")
+  historiqueComptable         HistoriqueComptable[] @relation("HistoriqueComptableAuteur")
 
   // § Gestion de stock (/admin/stock/**) : admin ayant validé la préparation d'un bon.
   bonsPreparationValidees BonDePreparation[]
@@ -1522,16 +1537,40 @@ model CommentaireTache {
 // Écriture comptable unique (revenu ou dépense) — accès restreint à
 // admin/responsable (cf. requireUser dans app/api/finance/**). Montant
 // toujours positif ; le signe affiché côté UI dépend uniquement de `type`.
-// Immuable une fois créée : pas de PATCH/DELETE, seule une transaction de
-// compensation (annulation) peut neutraliser une écriture — cf. estAnnulee /
-// transactionOrigineId, qui portent la traçabilité d'audit plutôt qu'une
-// suppression physique.
+//
+// MODIFIABLE ET SUPPRIMABLE depuis le 21/09/2026, par décision métier : elle
+// était immuable jusque-là (seule l'annulation par compensation existait), et
+// le comptable ne pouvait corriger ni une faute de frappe ni un doublon. Deux
+// garde-fous remplacent l'immuabilité :
+//   - toute modification, suppression ou restauration est tracée, avant/après,
+//     dans HistoriqueComptable ;
+//   - la suppression est LOGIQUE (supprimeLe) : la ligne sort du journal et
+//     des totaux mais reste en base, restaurable.
+// Réservé aux permissions comptabilite:edit / comptabilite:delete (admin par
+// défaut) ; le responsable garde saisie et annulation. Les règles de
+// cohérence avec l'annulation vivent dans lib/journal-comptable.ts.
+//
+// Les écritures AUTOMATIQUES (remise de tournée, règlement de facture, paie
+// livreur — cf. les relations plus bas) sont modifiables elles aussi, par
+// choix explicite : le document d'origine n'est PAS recalculé. Corriger le
+// montant d'une remise de caisse ne change pas BonDistribution.montantRemis ;
+// l'écart devient visible entre les deux, c'est le prix de ce contrôle total.
 model Transaction {
-  id          String               @id @default(uuid())
-  montant     Decimal              @db.Decimal(10, 2)
+  id          String             @id @default(uuid())
+  // Libellé court affiché en tête de ligne du journal. Obligatoire : c'est
+  // lui qu'on cherche et qu'on lit, la description porte le détail. Les
+  // écritures antérieures à la colonne ont reçu un titre dérivé de leur
+  // origine (migration 20260921120000).
+  titre       String
+  montant     Decimal            @db.Decimal(10, 2)
   type        TypeTransaction
-  categorie   CategorieTransaction
-  dateEffet   DateTime             @map("date_effet")
+  // Catégorie tenue en base (CategorieComptable, portée `transaction`) — elle
+  // était un enum figé jusqu'au 21/09/2026. `onDelete: Restrict` : une
+  // catégorie encore portée par une écriture, même supprimée logiquement, ne
+  // se supprime pas (la restaurer la laisserait sans catégorie).
+  categorieId String             @map("categorie_id")
+  categorie   CategorieComptable @relation("CategorieTransaction", fields: [categorieId], references: [id], onDelete: Restrict)
+  dateEffet   DateTime           @map("date_effet")
   description String?
 
   // Justificatif photo de l'écriture (reçu, bordereau de versement, capture
@@ -1553,7 +1592,7 @@ model Transaction {
   // chaque ouverture de /admin/comptabilite — d'où le `omit` de
   // GET /api/finance, qui n'expose qu'un pointeur vers la route de contenu
   // (GET /api/finance/[id]/preuve), laquelle sert l'octet à la demande.
-  preuveUrl   String?              @map("preuve_url")
+  preuveUrl String? @map("preuve_url")
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
@@ -1577,12 +1616,73 @@ model Transaction {
   factureReglee Facture?     @relation("TransactionReglementMarchand")
   bonPaiement   BonPaiement? @relation("TransactionReglementLivreur")
 
+  // Suppression LOGIQUE : non-null = la ligne est hors du journal et des
+  // totaux. Toute lecture du journal filtre `supprimeLe: null`. Supprimer une
+  // écriture annulée supprime avec elle sa compensation, AU MÊME INSTANT —
+  // c'est cette égalité qui permet de les restaurer ensemble.
+  supprimeLe    DateTime?    @map("supprime_le")
+  supprimeParId String?      @map("supprime_par_id")
+  supprimePar   Utilisateur? @relation("TransactionSupprimeePar", fields: [supprimeParId], references: [id])
+
   dateCreation DateTime @default(now()) @map("date_creation")
 
   @@index([type])
-  @@index([categorie])
+  @@index([categorieId])
   @@index([dateEffet])
+  @@index([supprimeLe])
   @@map("transactions")
+}
+
+// Catégories des deux cartes de /admin/comptabilite, tenues en base et
+// gérées depuis l'écran — même démarche qu'EtiquetteTache : ajouter une
+// catégorie ne demande plus un déploiement.
+//
+// `code` n'est renseigné que sur les catégories que le CODE référence : les
+// écritures automatiques s'y rattachent par code (paiement_client pour la
+// remise de tournée et le règlement de facture, salaire pour la paie
+// livreur, cf. CODES_CATEGORIE_SYSTEME dans lib/finance.ts). Une catégorie à
+// code se renomme mais ne se supprime pas : sans elle, clôturer une tournée
+// échouerait. Les catégories créées depuis l'écran ont un code `null`.
+model CategorieComptable {
+  id     String                   @id @default(uuid())
+  nom    String
+  portee PorteeCategorieComptable
+  code   String?                  @unique
+
+  transactions      Transaction[]      @relation("CategorieTransaction")
+  commandesStockHub CommandeStockHub[] @relation("CategorieCommandeStockHub")
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  // Unicité par carte, et sensible à la casse côté base : le doublon
+  // « salaire » / « Salaire » est refusé par l'application (lib/journal-comptable.ts).
+  @@unique([portee, nom])
+  @@map("categories_comptables")
+}
+
+// Trace de chaque manipulation d'une pièce comptable depuis l'écran :
+// modification, suppression, restauration (et création pour les catégories,
+// qui n'ont pas d'auteur propre). `avant` / `apres` portent un INSTANTANÉ des
+// champs métier, sans le justificatif : on note sa présence (`preuve: true`),
+// jamais son base64 — l'historique d'une écriture n'a pas à peser trois fois
+// sa photo.
+//
+// `cibleId` n'est pas une clé étrangère : la cible peut être une transaction,
+// une commande ou une catégorie, et la trace d'une catégorie supprimée doit
+// survivre à sa ligne.
+model HistoriqueComptable {
+  id         String                    @id @default(uuid())
+  cibleType  CibleHistoriqueComptable  @map("cible_type")
+  cibleId    String                    @map("cible_id")
+  action     ActionHistoriqueComptable
+  avant      Json?
+  apres      Json?
+  auteurId   String                    @map("auteur_id")
+  auteur     Utilisateur               @relation("HistoriqueComptableAuteur", fields: [auteurId], references: [id])
+  dateAction DateTime                  @default(now()) @map("date_action")
+
+  @@index([cibleType, cibleId])
+  @@map("historique_comptable")
 }
 
 // ============================================================
@@ -1641,14 +1741,30 @@ model CommandeStockHub {
   // CONSÉQUENCE, identique : ne JAMAIS sélectionner cette colonne pour dresser
   // la liste des commandes. GET /api/commandes-stock-hub l'écarte par `omit` et
   // n'expose qu'un pointeur vers sa route de contenu.
-  preuveUrl    String?                @map("preuve_url")
+  preuveUrl String? @map("preuve_url")
+
+  // Catégorie de l'achat (CategorieComptable, portée `commande_stock_hub`).
+  // FACULTATIVE : les commandes saisies avant le 21/09/2026 n'en ont pas, et
+  // leur en inventer une fausserait les regroupements.
+  categorieId String?             @map("categorie_id")
+  categorie   CategorieComptable? @relation("CategorieCommandeStockHub", fields: [categorieId], references: [id], onDelete: Restrict)
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("CommandeStockHubAuteur", fields: [auteurId], references: [id])
 
+  // Suppression LOGIQUE, même règle que Transaction.supprimeLe : la commande
+  // sort de la liste, reste en base, et se restaure. Titre, montant, date et
+  // le reste se modifient depuis l'écran (comptabilite:edit), traces dans
+  // HistoriqueComptable ; le STATUT, lui, continue de suivre son cycle
+  // (lib/commandes-stock-hub.ts) par sa propre route.
+  supprimeLe    DateTime?    @map("supprime_le")
+  supprimeParId String?      @map("supprime_par_id")
+  supprimePar   Utilisateur? @relation("CommandeStockHubSupprimeePar", fields: [supprimeParId], references: [id])
+
   dateCreation DateTime @default(now()) @map("date_creation")
 
   @@index([statut])
+  @@index([supprimeLe])
   @@map("commandes_stock_hub")
 }
 

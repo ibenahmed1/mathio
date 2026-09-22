@@ -172,6 +172,13 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/marchandises/**', permission: 'stock:inventory' },
   // Colis en stock au hub : servi par la comptabilité (admin + responsable),
   // pas par le module stock — on garde ce périmètre.
+  // Faire avancer le statut reste un geste de saisie (`comptabilite:write`) ;
+  // réécrire la commande ou la supprimer demande les clés dédiées. Les
+  // sous-routes nommées d'abord : `/*` seul happerait `/statut`.
+  { pattern: '/api/commandes-stock-hub/*/statut', permission: 'comptabilite:write' },
+  { pattern: '/api/commandes-stock-hub/*/restaurer', permission: 'comptabilite:delete' },
+  { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite:edit', methods: ['PATCH'] },
+  { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
   { pattern: '/api/commandes-stock-hub/**', permission: 'comptabilite:read', methods: SAFE_METHODS },
   { pattern: '/api/commandes-stock-hub/**', permission: 'comptabilite:write' },
 
@@ -204,6 +211,16 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/factures/*/annuler', permission: 'facture:issue' },
   { pattern: '/api/factures/**', permission: 'facture:read', methods: SAFE_METHODS },
   { pattern: '/api/factures/**', permission: 'facture:create' },
+  // Modifier, supprimer, restaurer, et gérer les catégories : clés distinctes
+  // de la saisie (cf. lib/permissions.ts). La lecture des catégories et de
+  // l'historique reste sous `comptabilite:read` (règle générique ci-dessous).
+  // `/api/finance/categories` AVANT `/api/finance/*`, qui le happerait.
+  { pattern: '/api/finance/categories', permission: 'comptabilite:edit', methods: ['POST'] },
+  { pattern: '/api/finance/categories/*', permission: 'comptabilite:edit', methods: ['PATCH'] },
+  { pattern: '/api/finance/categories/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
+  { pattern: '/api/finance/*/restaurer', permission: 'comptabilite:delete' },
+  { pattern: '/api/finance/*', permission: 'comptabilite:edit', methods: ['PATCH'] },
+  { pattern: '/api/finance/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
   { pattern: '/api/finance/**', permission: 'comptabilite:read', methods: SAFE_METHODS },
   { pattern: '/api/finance/**', permission: 'comptabilite:write' },
 

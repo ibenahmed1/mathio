@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { ModeReglementLivreur } from '@/app/generated/prisma/enums';
+import { idCategorieSysteme } from '@/lib/journal-comptable';
 
 const ROLES_PAIEMENT = ['admin', 'responsable'] as const;
 
@@ -62,7 +63,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         data: {
           montant: Number(bon.montantTotal),
           type: 'depense',
-          categorie: 'salaire',
+          titre: `Paie ${bon.numero}`,
+          categorieId: await idCategorieSysteme(tx, 'salaire'),
           dateEffet: now,
           description: `Paie ${periode} — ${bon.numero} — ${bon.livreur.nomComplet} (${bon.nbTournees} tournée(s), ${bon.nbColisLivres} livré(s)${bon.hub ? `, Hub ${bon.hub.nom}` : ''})`,
           auteurId: session.sub,

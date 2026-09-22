@@ -1,4 +1,12 @@
 import type { StatutCommandeStockHub } from '@/app/generated/prisma/enums';
+import {
+  analyserDate,
+  analyserMontant,
+  analyserPreuveModifiee,
+  analyserTitre,
+  texteFacultatif,
+  type ResultatAnalyse,
+} from '@/lib/finance';
 
 // Source unique pour l'ordre, les libellés, les transitions et le formatage des
 // commandes de stock des hubs (§ /admin/comptabilite, carte « Commandes
@@ -58,4 +66,72 @@ export function formatNumeroCommandeStockHub(numero: number): string {
 
 export function formatMontantCommandeStockHub(montant: number | string): string {
   return `- ${Math.abs(Number(montant)).toFixed(2)} DH`;
+}
+
+// Ce qu'un PATCH /api/commandes-stock-hub/[id] peut changer. Le STATUT n'en
+// fait pas partie : il suit son cycle par sa propre route (…/[id]/statut),
+// sous `comptabilite:write`, là où réécrire la commande demande
+// `comptabilite:edit`. Toute clé absente = inchangée.
+export interface ModificationCommandeStockHub {
+  titre?: string;
+  sousTitre?: string | null;
+  montant?: number;
+  modePaiement?: string;
+  dateCommande?: Date;
+  // `null` = retirer la catégorie : elle est facultative sur une commande.
+  categorieId?: string | null;
+  preuveUrl?: string | null;
+}
+
+export function analyserModificationCommandeStockHub(
+  body: unknown
+): ResultatAnalyse<ModificationCommandeStockHub> {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { statut: 'refus', message: 'Corps de requête invalide' };
+  }
+  const corps = body as Record<string, unknown>;
+  if ('statut' in corps) {
+    return { statut: 'refus', message: 'Le statut se change depuis son propre menu, pas en modifiant la commande' };
+  }
+
+  const champs: ModificationCommandeStockHub = {};
+
+  if ('titre' in corps) {
+    const r = analyserTitre(corps.titre);
+    if (r.statut === 'refus') return r;
+    champs.titre = r.valeur;
+  }
+  if ('sousTitre' in corps) champs.sousTitre = texteFacultatif(corps.sousTitre);
+  if ('montant' in corps) {
+    const r = analyserMontant(corps.montant);
+    if (r.statut === 'refus') return r;
+    champs.montant = r.valeur;
+  }
+  if ('modePaiement' in corps) {
+    const mode = texteFacultatif(corps.modePaiement);
+    if (!mode) return { statut: 'refus', message: 'Le mode de paiement est requis' };
+    champs.modePaiement = mode;
+  }
+  if ('dateCommande' in corps) {
+    const r = analyserDate(corps.dateCommande, 'Date de commande');
+    if (r.statut === 'refus') return r;
+    champs.dateCommande = r.valeur;
+  }
+  if ('categorieId' in corps) {
+    if (corps.categorieId === null || corps.categorieId === '') {
+      champs.categorieId = null;
+    } else if (typeof corps.categorieId === 'string' && corps.categorieId.trim()) {
+      champs.categorieId = corps.categorieId.trim();
+    } else {
+      return { statut: 'refus', message: 'Catégorie invalide' };
+    }
+  }
+  if ('preuveUrl' in corps) {
+    const r = analyserPreuveModifiee(corps.preuveUrl);
+    if (r.statut === 'refus') return r;
+    champs.preuveUrl = r.valeur;
+  }
+
+  if (Object.keys(champs).length === 0) return { statut: 'refus', message: 'Aucun champ à modifier' };
+  return { statut: 'ok', valeur: champs };
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { getBilanTournee } from '@/lib/bon-distribution';
+import { idCategorieSysteme } from '@/lib/journal-comptable';
 
 // § Clôture de tournée (/admin/bon-distribution/[id]/cloture), dernière
 // étape : le Planner a scanné tous les retours, il compte l'argent et ferme.
@@ -93,7 +94,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         data: {
           montant: montantRemis,
           type: 'revenu',
-          categorie: 'paiement_client',
+          titre: `Remise de caisse ${bilan.numero}`,
+          categorieId: await idCategorieSysteme(tx, 'paiement_client'),
           dateEffet: now,
           description: `Remise de caisse tournée ${bilan.numero} — ${bilan.livreur.nomComplet} (${bilan.colisLivres.length} colis livrés, Hub ${bilan.hub.nom})`,
           auteurId: session.sub,
