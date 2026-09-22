@@ -21,7 +21,15 @@
 //     notes libres. Le leur donner, c'est leur donner notre client
 //     (construireColisPower, plus bas, n'a même pas accès au marchand).
 
-const BASE_URL = 'https://elog.ma/apiclient';
+// Surchargeable par POWERDELIVERY_BASE_URL, et uniquement pour les TESTS : c'est
+// ce qui permet d'exercer toute la chaîne contre un faux serveur local, sans
+// créer un seul vrai colis chez eux — chaque appel réel à `addparcelsnew`
+// déclenche un ramassage. Lue à chaque appel, pas au chargement du module.
+const BASE_URL_PAR_DEFAUT = 'https://elog.ma/apiclient';
+
+function baseUrl(): string {
+  return (process.env.POWERDELIVERY_BASE_URL?.trim() || BASE_URL_PAR_DEFAUT).replace(/\/+$/, '');
+}
 // Un appel qui ne répond pas en 20 s ne répondra pas mieux en 60, et l'appelant
 // est souvent un humain qui attend devant un bouton.
 const DELAI_MS = 20_000;
@@ -70,7 +78,7 @@ async function appeler(
   const token = lireToken();
   let reponse: Response;
   try {
-    reponse = await fetch(`${BASE_URL}${chemin}`, {
+    reponse = await fetch(`${baseUrl()}${chemin}`, {
       method: methode,
       // Le token BRUT, sans « Bearer » : c'est ce que leur API attend.
       headers: { Authorization: token, 'Content-Type': 'application/json', Accept: 'application/json' },
