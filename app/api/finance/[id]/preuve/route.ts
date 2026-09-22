@@ -46,10 +46,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         // `inline` : la visionneuse du journal affiche l'image sans la
         // télécharger. Le nom ne sert qu'au téléchargement explicite.
         'Content-Disposition': `inline; filename="${nomFichierPreuve(transaction.id, analyse.preuve.mime)}"`,
-        // Un justificatif ne se modifie pas : l'écriture qui le porte est
-        // immuable (on l'annule, on ne la corrige pas). Cache privé et non
-        // partagé — le contenu est soumis aux droits de la comptabilité.
-        'Cache-Control': 'private, max-age=31536000, immutable',
+        // `no-cache` et non plus `immutable` : depuis le 21/09/2026 un
+        // justificatif se remplace à la MÊME adresse (PATCH /api/finance/[id]).
+        // Un an de cache aurait continué d'afficher l'ancienne photo sous la
+        // nouvelle écriture. Privé et non partagé — le contenu est soumis aux
+        // droits de la comptabilité.
+        'Cache-Control': 'private, no-cache',
         // Ceinture et bretelles avec la liste blanche de formats : rien de ce
         // qui sort d'ici ne doit être deviné ni exécuté par le navigateur.
         'X-Content-Type-Options': 'nosniff',
