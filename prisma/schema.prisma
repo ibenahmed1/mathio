@@ -350,6 +350,9 @@ model Utilisateur {
   transactions      Transaction[]      @relation("TransactionAuteur")
   commandesStockHub CommandeStockHub[] @relation("CommandeStockHubAuteur")
 
+  // § Power Delivery : remises de colis qu'il a déclenchées.
+  remisesPrestataire RemisePrestataire[] @relation("RemisePrestataireAuteur")
+
   // § Gestion de stock (/admin/stock/**) : admin ayant validé la préparation d'un bon.
   bonsPreparationValidees BonDePreparation[]
 
@@ -857,6 +860,10 @@ model Commande {
   // anti-double-facturation.
   ligneFacture LigneFacture?
 
+  // § Sous-traitance par API : les remises de ce colis à un prestataire, dont
+  // une seule active à la fois (cf. RemisePrestataire).
+  remisesPrestataire RemisePrestataire[]
+
   // Garde-fou anti-doublon import (bug rapporté : réimporter le même fichier
   // ne remonte aucune erreur et duplique les colis) — un même marchand ne
   // peut pas avoir deux commandes avec la même référence partenaire. NULL
@@ -964,7 +971,10 @@ model BonEnvoi {
   receptionnaireId String?        @map("receptionnaire_id")
   receptionnaire   Utilisateur?   @relation("BonEnvoiReceptionnaire", fields: [receptionnaireId], references: [id])
 
-  commandes Commande[]
+  commandes          Commande[]
+  // Colis de ce bon remis au prestataire de l'agence par son API — à la place
+  // de l'export Excel, pour les villes qui ont un identifiant chez lui.
+  remisesPrestataire RemisePrestataire[]
 
   @@index([hubDestinationId])
   @@map("bons_envoi")
@@ -1297,12 +1307,15 @@ model Prestataire {
   // reste porteur de l'historique tarifaire des colis déjà livrés.
   actif     Boolean @default(true)
 
-  agences Hub[]
-  tarifs  TarifPrestataireVille[]
+  agences       Hub[]
+  tarifs        TarifPrestataireVille[]
   // Compte machine du prestataire (§ PlateformePartenaire.prestataireId) —
   // absent tant qu'aucune clé d'API ne lui a été ouverte, ce qui est le cas
   // des transporteurs qui nous renvoient leurs statuts par fichier.
   compteMachine PlateformePartenaire?
+  // Colis confiés par son API, et ce qu'il nous en a dit (§ Power Delivery).
+  remises       RemisePrestataire[]
+  evenements    EvenementPrestataire[]
 
   @@map("prestataires")
 }
@@ -1333,6 +1346,157 @@ model TarifPrestataireVille {
   @@unique([prestataireId, villeId])
   @@index([villeId])
   @@map("tarifs_prestataire_ville")
+}
+
+// ============================================================
+// Remise d'un colis à un prestataire PAR SON API (§ Power Delivery)
+// ============================================================
+
+// État de la REMISE elle-même — la relation avec le transporteur — et non du
+// colis : Commande.statut reste la vérité métier, visible du marchand. Les deux
+// avancent séparément : une remise `acceptee` porte un colis qui peut être
+// livré, reporté ou en retour.
+enum EtatRemisePrestataire {
+  // Le prestataire a accepté le colis ; son suivi arrive par webhook.
+  acceptee
+  // L'appel a été refusé (ville inconnue d'eux, code en double, champ
+  // invalide…). Rien n'existe chez eux : la remise n'est pas active, et le
+  // colis peut être remis de nouveau une fois la cause corrigée.
+  refusee
+  // L'appel n'a pas répondu à temps : on ne sait PAS si le colis existe chez
+  // eux. La remise reste active — un nouvel essai avec le même code se ferait
+  // refuser comme doublon, ce qui prouverait qu'il existe — et c'est le suivi
+  // (trackparcel) qui tranche vers `acceptee` ou `refusee`.
+  a_confirmer
+  // Retirée par nous : le colis n'est plus chez ce prestataire.
+  annulee
+}
+
+// Un colis à nous, confié à un prestataire par son API. Remplace, pour les
+// villes qui ont un identifiant chez lui, l'export Excel du Bon d'Envoi
+// (GET /api/bons-envoi/[id]/export) — qui reste la voie des villes mises de
+// côté (lib/power-delivery-villes.ts).
+//
+// Aucune colonne n'est ajoutée à `commandes` : toute la relation avec le
+// transporteur vit ici, et abandonner l'intégration reviendrait à supprimer
+// deux tables, jamais à défaire des colonnes sur la table la plus chaude du
+// schéma (cf. API_PARTENAIRES.md §1.2).
+//
+// Une commande peut avoir PLUSIEURS remises au fil du temps (un refus puis un
+// nouvel essai, un retour puis une seconde remise), d'où l'absence de
+// @@unique([commandeId]). `active` est vraie sur UNE ligne au plus par
+// commande : garantie par un index unique PARTIEL posé à la main dans la
+// migration (… WHERE active), que Prisma ne sait pas écrire ici. Sans lui, deux
+// clics simultanés sur « Remettre » confieraient deux fois le même colis.
+model RemisePrestataire {
+  id            String      @id @default(uuid())
+  commandeId    String      @map("commande_id")
+  commande      Commande    @relation(fields: [commandeId], references: [id])
+  prestataireId String      @map("prestataire_id")
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id])
+  // Bon d'Envoi depuis lequel la remise a été faite — c'est lui qui porte
+  // l'agence de destination, donc la ville à résoudre.
+  bonEnvoiId    String?     @map("bon_envoi_id")
+  bonEnvoi      BonEnvoi?   @relation(fields: [bonEnvoiId], references: [id])
+  // Personne qui a déclenché la remise. Un statut reçu ensuite est signé du
+  // compte de service du prestataire, pas d'elle (HistoriqueStatutCommande).
+  remisParId    String      @map("remis_par_id")
+  remisPar      Utilisateur @relation("RemisePrestataireAuteur", fields: [remisParId], references: [id])
+
+  etat   EtatRemisePrestataire
+  active Boolean               @default(true)
+
+  // Code sous lequel NOUS avons déclaré le colis chez eux (`MTH-PD-000123`,
+  // cf. PREFIXE_CODE_POWER, lib/power-delivery.ts). C'est lui que leurs
+  // webhooks citent tant qu'ils n'attribuent pas leur propre code.
+  codeEnvoye  String  @map("code_envoye")
+  // Code attribué par LEUR système, s'il en attribue un — leur documentation
+  // ne montre pas la réponse de création. Null tant qu'on ne l'a pas lu.
+  codeExterne String? @map("code_externe")
+  // Identifiant de ville envoyé (lib/power-delivery-villes.ts), figé : si la
+  // correspondance change ensuite, ce qui a été envoyé ne change pas.
+  cityId      Int     @map("city_id")
+
+  // COD demandé au prestataire, FIGÉ à la remise (copie de Commande.montantCod
+  // à cet instant). C'est ce qu'il doit nous reverser : si le marchand corrige
+  // le montant ensuite, la dette du transporteur ne bouge pas rétroactivement.
+  montantCodConfie Decimal @map("montant_cod_confie") @db.Decimal(10, 2)
+
+  // Réponse BRUTE de leur API à la création, et erreur lisible en cas de refus.
+  // Gardées telles quelles : quand un marchand conteste, il faut montrer ce que
+  // le transporteur a réellement répondu, pas notre interprétation.
+  reponseCreation Json?   @map("reponse_creation")
+  erreur          String?
+
+  // Dernier état reçu d'eux, tel quel, avant traduction — y compris les
+  // statuts de leur logistique interne, qu'on ne pose jamais sur le colis
+  // (lib/power-delivery-statuts.ts). `dernierPaiementExterne` (NOT_PAID, PAID,
+  // INVOICED) dit s'ils nous ont reversé le COD ; il ne touche JAMAIS
+  // Commande.etatPaiement, qui décrit notre règlement AU MARCHAND.
+  dernierStatutExterne   String?   @map("dernier_statut_externe")
+  dernierPaiementExterne String?   @map("dernier_paiement_externe")
+  dernierEvenementLe     DateTime? @map("dernier_evenement_le")
+
+  // Demandes soumises à leur équipe, qui les accepte ou les refuse de son côté.
+  demandeRetourLe      DateTime? @map("demande_retour_le")
+  demandeRelivraisonLe DateTime? @map("demande_relivraison_le")
+
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  evenements EvenementPrestataire[]
+
+  @@index([commandeId])
+  @@index([prestataireId, etat])
+  @@index([codeEnvoye])
+  @@index([codeExterne])
+  @@index([bonEnvoiId])
+  @@map("remises_prestataire")
+}
+
+// Journal de CHAQUE information reçue d'un prestataire sur ses colis — webhook
+// ou suivi — y compris celles qu'on a refusées ou ignorées.
+//
+// Il est indispensable, pas décoratif : leurs webhooks n'ont AUCUN identifiant
+// d'événement, ne sont réessayés que trois fois et arrivent dans un ordre non
+// garanti. Sans ce journal, « qu'ont-ils dit, et quand ? » n'a pas de réponse,
+// et une signature invalide — tentative de falsification ou secret mal
+// configuré — passerait inaperçue.
+//
+// ⚠️ `charge` contient des données personnelles (téléphone, adresse du
+// destinataire) : à purger sur une fenêtre glissante, comme JournalAppelApi.
+model EvenementPrestataire {
+  id            String             @id @default(uuid())
+  prestataireId String             @map("prestataire_id")
+  prestataire   Prestataire        @relation(fields: [prestataireId], references: [id])
+  // Null quand aucun colis confié ne correspond au code reçu.
+  remiseId      String?            @map("remise_id")
+  remise        RemisePrestataire? @relation(fields: [remiseId], references: [id])
+
+  // 'webhook' | 'suivi' — texte plutôt qu'enum : une source nouvelle (import
+  // Excel de retour, par exemple) ne doit pas exiger de migration.
+  source String
+
+  codeColis       String? @map("code_colis")
+  statutExterne   String? @map("statut_externe")
+  statutSecond    String? @map("statut_second")
+  paiementExterne String? @map("paiement_externe")
+
+  // Corps reçu, tel quel.
+  charge          Json
+  // Null pour un suivi (appel sortant, rien à vérifier).
+  signatureValide Boolean? @map("signature_valide")
+
+  // Ce qui a été fait, et pourquoi : applique, inchange, memorise, inconnu,
+  // refuse, colis_introuvable, signature_invalide, perime. Texte pour la même
+  // raison que `source`.
+  issue  String
+  detail String?
+
+  recuLe DateTime @default(now()) @map("recu_le")
+
+  @@index([prestataireId, recuLe])
+  @@index([remiseId])
+  @@map("evenements_prestataire")
 }
 
 // Surcharge des frais de livraison/refus d'un livreur pour une ville donnée

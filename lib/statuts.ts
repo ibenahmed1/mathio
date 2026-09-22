@@ -56,7 +56,13 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   recu_au_hub: 'Reçu au Hub',
   en_transit: 'En transit',
   expedie: 'Expédié',
-  expedier_par_amana: 'Expédier par AMANA',
+  // Les deux statuts « AMANA » sont GÉNÉRALISÉS à tout transporteur
+  // sous-traitant (décision du 22/09/2026, cf. API_PARTENAIRES.md §2.1) : le
+  // nom du transporteur n'a jamais eu sa place dans un enum de statut, il est
+  // porté par la remise (RemisePrestataire). Les valeurs d'enum restent, pour
+  // qu'aucune migration ne réécrive l'historique des colis déjà passés par
+  // AMANA.
+  expedier_par_amana: 'Remis à un transporteur',
   en_voyage: 'En Voyage',
   mise_en_distribution: 'Mise en distribution',
   livre: 'Livré',
@@ -76,7 +82,7 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   refuse: 'Refusé',
   retourne: 'Retourné',
   retourne_au_hub: 'Retourné au Hub',
-  en_retour_par_amana: 'En retour par AMANA',
+  en_retour_par_amana: 'En retour par un transporteur',
   annule: 'Annulé',
   annule_par_vendeur: 'Annulé par Vendeur',
 };

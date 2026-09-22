@@ -272,7 +272,9 @@ export interface BonEnvoi {
   dateReception: string | null;
   receptionnaireId: string | null;
   commandes?: Commande[];
-  hubDestination?: { nom: string };
+  // `prestataire` n'est renseigné que par GET /api/bons-envoi/[id] : null pour
+  // un hub interne, le transporteur pour une agence sous-traitée.
+  hubDestination?: { nom: string; prestataire?: { nom: string } | null };
   receptionnaire?: { nomComplet: string } | null;
 }
 
