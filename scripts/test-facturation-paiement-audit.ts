@@ -339,12 +339,12 @@ async function main() {
 
       const f = await prisma.facture.findUniqueOrThrow({
         where: { id: factureId },
-        include: { transaction: true },
+        include: { transaction: { include: { categorie: { select: { code: true } } } } },
       });
       egal(f.statut, 'payee', 'statut');
       attendu(f.transaction !== null, 'aucune écriture comptable créée');
       egal(f.transaction!.type, 'depense', 'type de transaction');
-      egal(f.transaction!.categorie, 'paiement_client', 'catégorie');
+      egal(f.transaction!.categorie.code, 'paiement_client', 'catégorie');
       egal(Number(f.transaction!.montant), 575, 'montant de la transaction');
 
       const payes = await prisma.commande.count({
@@ -407,7 +407,7 @@ async function main() {
 
       const f = await prisma.facture.findUniqueOrThrow({
         where: { id: String(r.json?.id) },
-        include: { transaction: true },
+        include: { transaction: { include: { categorie: { select: { code: true } } } } },
       });
       egal(Number(f.netAPayer), -500, 'netAPayer');
       attendu(f.transaction !== null, 'aucune écriture comptable créée');
@@ -490,7 +490,7 @@ async function main() {
 
       const bon = await prisma.bonPaiement.findUniqueOrThrow({
         where: { id: bonId },
-        include: { transaction: true },
+        include: { transaction: { include: { categorie: { select: { code: true } } } } },
       });
       egal(bon.statut, 'paye', 'statut');
       attendu(bon.transaction !== null, 'aucune écriture comptable créée');
