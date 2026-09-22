@@ -5,7 +5,9 @@ import { getColisEligiblesEnvoi, resolveUserHub, type CommandeEligibleEnvoi } fr
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 
 const bonEnvoiInclude = {
-  hubDestination: { select: { nom: true } },
+  // Le prestataire de l'agence de destination : c'est lui qui dit si le bon
+  // peut être remis par une API de transporteur (§ Power Delivery).
+  hubDestination: { select: { nom: true, prestataire: { select: { nom: true } } } },
   receptionnaire: { select: { nomComplet: true } },
   commandes: { include: { marchand: { select: { nomBoutique: true } } }, orderBy: { codeSuivi: 'asc' as const } },
 };
