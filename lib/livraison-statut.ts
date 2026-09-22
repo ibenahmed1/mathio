@@ -201,7 +201,18 @@ export function deciderTransition(
   statutActuel: StatutCommande,
   demande: StatutPrestataire
 ): DecisionTransition {
-  if (statutActuel === demande.statut) {
+  return deciderTransitionStatut(statutActuel, demande.statut);
+}
+
+// Même décision, sur n'importe quel statut de colis et non sur les seuls douze
+// du catalogue public. C'est la porte des transporteurs branchés par LEUR API
+// (lib/suivi-power-delivery.ts), qui posent aussi la mise en distribution et le
+// retour : une règle, deux portes — jamais deux règles qui divergeraient.
+export function deciderTransitionStatut(
+  statutActuel: StatutCommande,
+  demande: StatutCommande
+): DecisionTransition {
+  if (statutActuel === demande) {
     return { issue: 'inchange' };
   }
   if (STATUTS_TERMINAUX.includes(statutActuel)) {
@@ -314,10 +325,42 @@ export async function appliquerStatut(
     return { issue: 'inchange', codeSuivi: entree.codeSuivi, statut: commande.statut };
   }
 
-  const maintenant = new Date();
   const nouveauStatut = entree.statut.statut;
+  const issue = await ecrireTransition({
+    commandeId: commande.id,
+    statutActuel: commande.statut,
+    nouveauStatut,
+    auteurId: contexte.utilisateurTechniqueId,
+    noteHistorique: noteHistorique(contexte.plateformeCode, entree),
+    dateNouvelleLivraison: entree.date,
+    commentaire: entree.note,
+  });
 
-  const issue = await prisma.$transaction<IssueStatut>(async (tx) => {
+  return { issue, codeSuivi: entree.codeSuivi, statut: nouveauStatut };
+}
+
+export interface TransitionColis {
+  commandeId: string;
+  // Statut LU avant la décision : c'est sur lui que porte le verrou optimiste.
+  statutActuel: StatutCommande;
+  nouveauStatut: StatutCommande;
+  // Compte de service du transporteur : la colonne d'auteur est non nullable,
+  // et un colis mis à jour par une machine n'a pas d'auteur humain.
+  auteurId: string;
+  noteHistorique: string;
+  dateNouvelleLivraison: Date | null;
+  commentaire: string | null;
+}
+
+// L'écriture d'une transition déjà DÉCIDÉE (deciderTransitionStatut), partagée
+// par toutes les portes machine. Lève ErreurPlateforme(409) si le colis a
+// changé sous nos pieds — `colis_clos` ou `conflit_concurrent`.
+export async function ecrireTransition(t: TransitionColis): Promise<IssueStatut> {
+  const maintenant = new Date();
+  const { nouveauStatut } = t;
+  const commande = { id: t.commandeId, statut: t.statutActuel };
+
+  return prisma.$transaction<IssueStatut>(async (tx) => {
     // VERROU OPTIMISTE : la mise à jour n'aboutit que si le statut n'a pas
     // bougé depuis la lecture ci-dessus.
     //
@@ -338,7 +381,7 @@ export async function appliquerStatut(
       data: {
         statut: nouveauStatut,
         ...(nouveauStatut === 'livre' && { dateLivraison: maintenant }),
-        ...(entree.date && { dateNouvelleLivraison: entree.date }),
+        ...(t.dateNouvelleLivraison && { dateNouvelleLivraison: t.dateNouvelleLivraison }),
       },
     });
 
@@ -353,7 +396,7 @@ export async function appliquerStatut(
       });
       if (actuel?.statut === nouveauStatut) return 'inchange';
 
-      const seconde = deciderTransition(actuel!.statut, entree.statut);
+      const seconde = deciderTransitionStatut(actuel!.statut, nouveauStatut);
       if (seconde.issue === 'refuse') {
         throw new ErreurPlateforme(409, seconde.code, seconde.message);
       }
@@ -378,8 +421,8 @@ export async function appliquerStatut(
         commandeId: commande.id,
         ancienStatut: commande.statut,
         nouveauStatut,
-        utilisateurId: contexte.utilisateurTechniqueId,
-        note: noteHistorique(contexte.plateformeCode, entree),
+        utilisateurId: t.auteurId,
+        note: t.noteHistorique,
       },
     });
 
@@ -387,20 +430,18 @@ export async function appliquerStatut(
     // `motifRetour` : ce champ porte un motif d'une liste FERMÉE
     // (MOTIFS_REPORT_LIVREUR, lib/types.ts), et y verser du texte libre venu
     // d'un tiers casserait les écrans qui le lisent comme une valeur connue.
-    if (entree.note) {
+    if (t.commentaire) {
       await tx.commentaireCommande.create({
         data: {
           commandeId: commande.id,
-          utilisateurId: contexte.utilisateurTechniqueId,
-          texte: entree.note,
+          utilisateurId: t.auteurId,
+          texte: t.commentaire,
         },
       });
     }
 
     return 'applique';
   });
-
-  return { issue, codeSuivi: entree.codeSuivi, statut: nouveauStatut };
 }
 
 function noteHistorique(plateformeCode: string, entree: EntreeStatut): string {
