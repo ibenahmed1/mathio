@@ -138,6 +138,25 @@ test('la lecture et l’écriture d’un même chemin ne demandent pas la même 
   assert.equal(apiPermissionFor('/api/finance', 'GET'), 'comptabilite:read');
   assert.equal(apiPermissionFor('/api/finance', 'POST'), 'comptabilite:write');
   assert.equal(apiPermissionFor('/api/finance/abc-123/annuler', 'POST'), 'comptabilite:write');
+  // Modifier et supprimer ont leurs propres clés (admin par défaut) : le
+  // responsable, qui saisit et annule, ne réécrit pas le journal.
+  assert.equal(apiPermissionFor('/api/finance/abc-123', 'PATCH'), 'comptabilite:edit');
+  assert.equal(apiPermissionFor('/api/finance/abc-123', 'DELETE'), 'comptabilite:delete');
+  assert.equal(apiPermissionFor('/api/finance/abc-123/restaurer', 'POST'), 'comptabilite:delete');
+  assert.equal(apiPermissionFor('/api/finance/historique', 'GET'), 'comptabilite:read');
+  // `/api/finance/categories` ne doit pas tomber sous `/api/finance/*`.
+  assert.equal(apiPermissionFor('/api/finance/categories', 'GET'), 'comptabilite:read');
+  assert.equal(apiPermissionFor('/api/finance/categories', 'POST'), 'comptabilite:edit');
+  assert.equal(apiPermissionFor('/api/finance/categories/xyz', 'PATCH'), 'comptabilite:edit');
+  assert.equal(apiPermissionFor('/api/finance/categories/xyz', 'DELETE'), 'comptabilite:delete');
+  // Faire avancer le statut d'une commande reste un geste de saisie.
+  assert.equal(apiPermissionFor('/api/commandes-stock-hub/abc/statut', 'PATCH'), 'comptabilite:write');
+  assert.equal(apiPermissionFor('/api/commandes-stock-hub/abc', 'PATCH'), 'comptabilite:edit');
+  assert.equal(apiPermissionFor('/api/commandes-stock-hub/abc', 'DELETE'), 'comptabilite:delete');
+  assert.equal(apiPermissionFor('/api/commandes-stock-hub/abc/restaurer', 'POST'), 'comptabilite:delete');
+  assert.equal(apiPermissionFor('/api/commandes-stock-hub', 'POST'), 'comptabilite:write');
+  assert.ok(!ROLE_PERMISSIONS.responsable.includes('comptabilite:edit'));
+  assert.ok(!ROLE_PERMISSIONS.responsable.includes('comptabilite:delete'));
 });
 
 test('l’encaissement COD a sa propre clé', () => {
@@ -302,6 +321,7 @@ const MIGRATIONS_PERMISSIONS = [
   '20260828120000_permissions_back_office',
   '20260828140000_permissions_complements',
   '20260902103100_permission_integrations',
+  '20260921120000_comptabilite_crud_categories',
 ];
 
 test('le remplissage SQL des migrations correspond à ROLE_PERMISSIONS', () => {
