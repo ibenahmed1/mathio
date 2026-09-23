@@ -58,6 +58,24 @@ function lireToken(): string {
   return token;
 }
 
+// Leur API n'est pas homogène sur l'autorisation, et ce n'est pas une
+// supposition : vérifié le 23/09/2026 contre LEUR PRODUCTION, avec le même
+// token, les deux formes sur trois chemins.
+//
+//   /listcities          token nu → 200          « Bearer … » → 200
+//   /trackparcel         token nu → 404 « colis non trouvé » (donc authentifié)
+//   /files/webhook.php   token nu → 401 « Missing or invalid authorization
+//                        header »                « Bearer … » → 200
+//
+// Les chemins `/files/*` sont servis par un autre morceau de leur code, qui
+// n'accepte que le schéma standard. On suit ce découpage plutôt que de
+// l'uniformiser : les routes colis portent les vraies remises, elles
+// fonctionnent telles quelles, et les changer sur une inférence serait le seul
+// vrai risque de cette correction.
+function entete(chemin: string, token: string): string {
+  return chemin.startsWith('/files/') ? `Bearer ${token}` : token;
+}
+
 // Leurs messages d'erreur sont lisibles par un humain : on les remonte, faute
 // de codes structurés. Un corps HTML de proxy, lui, ne dirait rien d'utile.
 function messageDe(brut: unknown): string | null {
@@ -80,8 +98,13 @@ async function appeler(
   try {
     reponse = await fetch(`${baseUrl()}${chemin}`, {
       method: methode,
-      // Le token BRUT, sans « Bearer » : c'est ce que leur API attend.
-      headers: { Authorization: token, 'Content-Type': 'application/json', Accept: 'application/json' },
+      // Le token nu, sauf sur `/files/*` où ils exigent « Bearer » (voir
+      // `entete` : leurs deux moitiés d'API ne lisent pas l'en-tête pareil).
+      headers: {
+        Authorization: entete(chemin, token),
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
       body: corps === undefined ? undefined : JSON.stringify(corps),
       signal: AbortSignal.timeout(DELAI_MS),
     });

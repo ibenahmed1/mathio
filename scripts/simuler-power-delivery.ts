@@ -49,7 +49,13 @@ function fauxPower(): Promise<Server> {
         res.writeHead(statut, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(o));
       };
-      if (req.headers.authorization !== 'faux-token') return repondre(401, { success: false, message: 'Token invalide' });
+      // Leur vraie API ne lit pas l'autorisation de la même façon des deux
+      // côtés : `/files/*` n'accepte que « Bearer … », le reste prend le token
+      // nu (vérifié le 23/09/2026 contre leur production). Ce faux serveur
+      // reproduit l'écart — sinon il confirme notre client au lieu de le mettre
+      // à l'épreuve, ce qui est précisément ce qui a laissé passer l'erreur.
+      const attendu = url.pathname.startsWith('/files/') ? 'Bearer faux-token' : 'faux-token';
+      if (req.headers.authorization !== attendu) return repondre(401, { success: false, message: 'Token invalide' });
       if (url.pathname === '/addparcelsnew') {
         if (json.parcel_receiver === 'REFUS') return repondre(422, { success: false, message: 'Ville invalide' });
         etatsFaux.set(json.parcel_code, 'NEW_PARCEL');
