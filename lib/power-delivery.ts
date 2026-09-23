@@ -70,18 +70,36 @@ function messageDe(brut: unknown): string | null {
   return null;
 }
 
+// LEURS DEUX ENDPOINTS N'AUTHENTIFIENT PAS PAREIL, et leur documentation
+// annonce le token brut pour les deux — c'est faux, vérifié par appel réel le
+// 23/09/2026 :
+//
+//   · les endpoints colis (addparcelsnew, trackparcel…) veulent le token BRUT ;
+//     avec « Bearer », ils répondent 401 ;
+//   · files/webhook.php veut « Bearer <token> » ; avec le token brut, il
+//     répond 401 « Missing or invalid authorization header ».
+//
+// D'où ce drapeau plutôt qu'un en-tête unique : envoyer la mauvaise forme ne
+// donne pas un message clair, mais le même 401 qu'une clé invalide — on
+// chercherait un problème de token là où il n'y en a pas.
+type FormeAuth = 'brut' | 'bearer';
+
 async function appeler(
   methode: 'GET' | 'POST' | 'PUT' | 'DELETE',
   chemin: string,
-  corps?: unknown
+  corps?: unknown,
+  auth: FormeAuth = 'brut'
 ): Promise<unknown> {
   const token = lireToken();
   let reponse: Response;
   try {
     reponse = await fetch(`${baseUrl()}${chemin}`, {
       method: methode,
-      // Le token BRUT, sans « Bearer » : c'est ce que leur API attend.
-      headers: { Authorization: token, 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        Authorization: auth === 'bearer' ? `Bearer ${token}` : token,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
       body: corps === undefined ? undefined : JSON.stringify(corps),
       signal: AbortSignal.timeout(DELAI_MS),
     });
@@ -292,6 +310,9 @@ export async function demanderRelivraisonPower(code: string, relivraison: Relivr
 // --- Configuration du webhook -------------------------------------------------
 // Un geste unique, fait par scripts/configurer-webhook-power-delivery.ts : pas
 // d'écran pour une opération qu'on fait une fois par environnement.
+//
+// SEULS ENDPOINTS EN « Bearer » (cf. FormeAuth plus haut) : leur PHP de webhook
+// n'authentifie pas comme le reste de leur API.
 
 export interface ConfigurationWebhook {
   url: string;
@@ -302,13 +323,13 @@ export interface ConfigurationWebhook {
 }
 
 export async function lireWebhookPower(): Promise<unknown> {
-  return appeler('GET', '/files/webhook.php');
+  return appeler('GET', '/files/webhook.php', undefined, 'bearer');
 }
 
 export async function configurerWebhookPower(configuration: ConfigurationWebhook): Promise<unknown> {
-  return appeler('POST', '/files/webhook.php', configuration);
+  return appeler('POST', '/files/webhook.php', configuration, 'bearer');
 }
 
 export async function supprimerWebhookPower(): Promise<unknown> {
-  return appeler('DELETE', '/files/webhook.php');
+  return appeler('DELETE', '/files/webhook.php', undefined, 'bearer');
 }

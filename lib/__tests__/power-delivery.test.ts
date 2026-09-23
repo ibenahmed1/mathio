@@ -7,6 +7,7 @@ import {
   construireColisPower,
   creerColisPower,
   lireSuivi,
+  lireWebhookPower,
   suivreColisPower,
   type ColisAConfier,
 } from '../power-delivery';
@@ -137,6 +138,21 @@ test('le token part brut dans Authorization, sans Bearer', async () => {
   const entetes = dernierAppel!.init.headers as Record<string, string>;
   assert.equal(entetes.Authorization, TOKEN);
   assert.equal(dernierAppel!.url, 'https://elog.ma/apiclient/addparcelsnew');
+});
+
+// Leur PHP de webhook n'authentifie PAS comme le reste de leur API : sans le
+// préfixe « Bearer », il répond 401 « Missing or invalid authorization header »
+// (vérifié le 23/09/2026, alors que leur documentation annonce le token brut
+// partout). L'inverse est vrai sur les endpoints colis : « Bearer » y est
+// refusé. Les deux formes coexistent donc, et ce test les fige.
+test('la configuration du webhook part en Bearer, les colis en token brut', async () => {
+  repondre(200, { success: true, webhook: null });
+  await lireWebhookPower();
+  assert.equal((dernierAppel!.init.headers as Record<string, string>).Authorization, `Bearer ${TOKEN}`);
+
+  repondre(200, { success: true, parcel: { delivery_status: 'DELIVERED' } });
+  await suivreColisPower('MTH-PD-1');
+  assert.equal((dernierAppel!.init.headers as Record<string, string>).Authorization, TOKEN);
 });
 
 test('une erreur HTTP ne cite jamais le token', async () => {

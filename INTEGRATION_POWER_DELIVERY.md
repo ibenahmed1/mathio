@@ -75,6 +75,11 @@ Vérifié par de vrais appels le 21/09/2026 — **ne jamais écrire une correspo
   `ENVG`. Les deux graphies sont acceptées ;
 - la réponse de `addparcelsnew` n'est **pas documentée** : elle est lue de façon défensive et
   conservée brute sur la remise ;
+- **l'authentification n'est pas la même partout**, alors que leur doc annonce le token brut
+  pour tout : `files/webhook.php` exige `Authorization: Bearer <token>` et répond sinon 401
+  « Missing or invalid authorization header », tandis que les endpoints colis refusent ce même
+  préfixe. Les deux formes coexistent donc dans `lib/power-delivery.ts`, figées par un test —
+  se tromper de forme ne donne pas un message clair, mais le 401 d'une clé invalide ;
 - trois vocabulaires coexistent (codes de suivi, `status` + `status_second` des webhooks, noms
   d'événements en français). On ne lit que les codes.
 
