@@ -28,7 +28,7 @@ export default function AdminEquipePage() {
   const [recherche, setRecherche] = useState('');
   const [filtreRole, setFiltreRole] = useState<string>('tous');
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatut>('tous');
-  const [resetId, setResetId] = useState<string | null>(null);
+  const [resetPour, setResetPour] = useState<Utilisateur | null>(null);
   const [tarifsPourUtilisateur, setTarifsPourUtilisateur] = useState<Utilisateur | null>(null);
   const [formMode, setFormMode] = useState<UserFormMode | null>(null);
 
@@ -200,18 +200,13 @@ export default function AdminEquipePage() {
                       <Wallet className="h-4 w-4" />
                     </IconButton>
                   )}
-                  <IconButton variant="key" label="Réinitialiser le mot de passe" onClick={() => setResetId(u.id)}>
+                  <IconButton variant="key" label="Réinitialiser le mot de passe" onClick={() => setResetPour(u)}>
                     <Key className="h-4 w-4" />
                   </IconButton>
                   <IconButton variant="delete" label="Supprimer" onClick={() => supprimer(u)}>
                     <Trash2 className="h-4 w-4" />
                   </IconButton>
                 </div>
-                {resetId === u.id && (
-                  <div className="mt-2">
-                    <ReinitialiserMotDePasse utilisateurId={u.id} onDone={() => setResetId(null)} />
-                  </div>
-                )}
               </td>
             </tr>
           ))}
@@ -226,6 +221,14 @@ export default function AdminEquipePage() {
       </table>
       </div>
       </div>
+
+      {resetPour && (
+        <ReinitialiserMotDePasse
+          utilisateurId={resetPour.id}
+          nomComplet={resetPour.nomComplet}
+          onDone={() => setResetPour(null)}
+        />
+      )}
 
       {tarifsPourUtilisateur && (
         <TarifsVilleModal

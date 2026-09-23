@@ -12,7 +12,7 @@ import { ReinitialiserMotDePasse } from '@/components/ReinitialiserMotDePasse';
 export default function AdminMarchandsPage() {
   const [marchands, setMarchands] = useState<Marchand[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [resetId, setResetId] = useState<string | null>(null);
+  const [resetPour, setResetPour] = useState<Marchand | null>(null);
 
   async function load() {
     try {
@@ -155,13 +155,9 @@ export default function AdminMarchandsPage() {
                     Suspendre
                   </button>
                 )}
-                {resetId === m.utilisateurId ? (
-                  <ReinitialiserMotDePasse utilisateurId={m.utilisateurId} onDone={() => setResetId(null)} />
-                ) : (
-                  <button onClick={() => setResetId(m.utilisateurId)} className="btn-outline px-2 py-1 text-xs">
-                    Réinitialiser mot de passe
-                  </button>
-                )}
+                <button onClick={() => setResetPour(m)} className="btn-outline px-2 py-1 text-xs">
+                  Réinitialiser mot de passe
+                </button>
                 <button
                   onClick={() => supprimer(m.id, m.nomBoutique)}
                   className="btn-outline px-2 py-1 text-xs text-red-600 dark:text-red-400"
@@ -183,6 +179,14 @@ export default function AdminMarchandsPage() {
       </table>
       </div>
       </div>
+
+      {resetPour && (
+        <ReinitialiserMotDePasse
+          utilisateurId={resetPour.utilisateurId}
+          nomComplet={resetPour.nomBoutique}
+          onDone={() => setResetPour(null)}
+        />
+      )}
     </div>
   );
 }
