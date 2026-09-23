@@ -8,6 +8,7 @@ import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
+import { RemisePowerDelivery } from '@/components/admin/RemisePowerDelivery';
 
 interface CurrentUser {
   role: 'admin' | 'agent_hub' | string;
@@ -99,6 +100,13 @@ export default function DetailBonEnvoiPage() {
           </div>
         )}
       </div>
+
+      {/* § Power Delivery : remise par leur API pour un bon vers une de leurs
+          agences. Réservée à l'admin (bon_envoi:manage) — l'agent de quai
+          consulte et réceptionne, il ne remet pas. */}
+      {user?.role === 'admin' && bon.hubDestination?.prestataire?.nom === 'Power Delivery' && (
+        <RemisePowerDelivery bonId={bon.id} onRemis={load} />
+      )}
 
       <div className="overflow-x-auto">
         <table className="table-basic min-w-[640px]">

@@ -151,6 +151,14 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/commandes/scan', permission: null },
 
   { pattern: '/api/commandes/bulk-delete', permission: 'colis:delete' },
+  // § Power Delivery : consulter et piloter un colis confié à leur API
+  // (actualiser, transmettre une correction, demander un retour ou une
+  // relivraison). Même clé que la remise elle-même, faite depuis le bon
+  // d'envoi : c'est la même responsabilité — gérer ce qui part chez le
+  // transporteur — et une permission de plus n'aurait pas de public distinct
+  // (décision du 22/09/2026).
+  { pattern: '/api/commandes/*/power-delivery', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/power-delivery/**', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/statut', permission: 'colis:confirm' },
   // Encaissement COD : sa propre clé, parce que le trio qui l'exerce
   // aujourd'hui (admin, superviseur, responsable) ne correspond ni à la
@@ -191,6 +199,11 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/bons-envoi/destinations', permission: 'bon_envoi:create' },
   { pattern: '/api/bons-envoi/verifier-colis', permission: 'bon_envoi:create' },
   { pattern: '/api/bons-envoi/*/marquer-recu', permission: 'bon_envoi:manage' },
+  // § Power Delivery : la remise par leur API, qui remplace l'export Excel du
+  // bon pour les villes qu'ils identifient. Avant la règle générique `**`, qui
+  // la classerait en composition (`bon_envoi:create`) : remettre un bon déjà
+  // composé relève de sa gestion, pas de sa création.
+  { pattern: '/api/bons-envoi/*/remise-power-delivery', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi/**', permission: 'bon_envoi:create' },
@@ -271,6 +284,17 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // sur les trois hôtes d'espace (proxy.ts §1 bis), et ce tableau n'est lu
   // que sur l'hôte du back-office. Elle documente, et elle empêchera une
   // future règle générique de happer ce préfixe.
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la seule route du
+  // dépôt dans ce cas, par nécessité : les webhooks de Power Delivery. C'est
+  // LEUR serveur qui appelle, sans session et sans clé à nous : ils n'en
+  // connaissent pas d'autre que leur propre signature. Le contrôle d'accès est
+  // donc la signature HMAC-SHA256 du corps, OBLIGATOIRE chez nous alors
+  // qu'optionnelle chez eux, comparée en temps constant, plus une fenêtre de
+  // fraîcheur de dix minutes (lib/suivi-power-delivery.ts). Sans secret
+  // configuré, la route refuse tout. Entrée nommée pour que cette exception se
+  // lise ici, et non seulement dans le handler.
+  { pattern: '/api/v1/webhooks/power-delivery', permission: null },
   { pattern: '/api/v1/**', permission: null },
 ];
 

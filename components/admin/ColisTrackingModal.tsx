@@ -6,6 +6,7 @@ import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Modal } from '@/components/admin/Modal';
 import { PreuveLivraison } from '@/components/PreuveLivraison';
+import { PowerDeliveryColis } from '@/components/admin/PowerDeliveryColis';
 
 interface EvenementCircuit {
   type: 'statut' | 'commentaire';
@@ -46,11 +47,13 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
   const [commande, setCommande] = useState<Commande | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [version, setVersion] = useState(0);
+
   useEffect(() => {
     apiGet<Commande>(`/api/commandes/${commandeId}`)
       .then(setCommande)
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
-  }, [commandeId]);
+  }, [commandeId, version]);
 
   const circuit = commande ? construireCircuit(commande) : [];
   const dernierStatutIndex = circuit.map((ev) => ev.type).lastIndexOf('statut');
@@ -81,6 +84,11 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
             dateLivraison={commande.dateLivraison}
             compact
           />
+
+          {/* § Power Delivery : rien ne s'affiche si le colis ne leur a jamais
+              été confié. Une action y recharge le colis, dont le statut et
+              l'historique ont pu changer. */}
+          <PowerDeliveryColis commandeId={commandeId} onChanged={() => setVersion((v) => v + 1)} />
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
             {circuit.map((ev, i) => {

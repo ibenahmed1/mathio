@@ -173,4 +173,7 @@ Longue, à lire à la demande — ne pas en recopier le contenu ici :
 - `API_SUIVI_PRESTATAIRES.md` — flux **ENTRANT** côté transport : un transporteur sous-traitant
   nous déclare l'issue des colis qu'on lui a confiés (`/api/v1/livraisons/statut`). Endpoints,
   catalogue des statuts exposés, garde-fous et scénarios de test. **Implémenté.**
+- `INTEGRATION_POWER_DELIVERY.md` — flux **SORTANT** réel vers un transporteur : c'est NOUS qui
+  appelons l'API de Power Delivery (remise depuis le bon d'envoi, suivi), et lui qui nous pousse
+  des webhooks signés. Ce que leur doc dit de faux, décisions, mise en service. **Implémenté.**
 - `NUMERO_SERIE_QR_CODEBARRE.md` — numérotation des colis, QR et code-barres
