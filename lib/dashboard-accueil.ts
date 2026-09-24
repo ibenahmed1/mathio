@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
+import { LABELS_STATUT_COMMANDE, STATUTS_RETOUR_TABLEAU_BORD, tonColisDuStatut } from '@/lib/statuts';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { coordonneesVille } from '@/lib/coordonnees-villes';
 import type {
@@ -8,7 +8,6 @@ import type {
   ColisRecent,
   DashboardAccueilProps,
   FamilleStatut,
-  TonColis,
   VolumeJourAccueil,
   ZoneClient,
 } from '@/components/admin/DashboardAccueil';
@@ -19,21 +18,10 @@ import type {
 // type` : la frontière reste à sens unique — le composant, lui, n'importe
 // jamais ce module, donc ni Prisma ni la base ne partent dans le bundle client.
 
-// Statuts qui comptent comme un échec de livraison. Sert à la fois au taux de
-// retour du cadran et à la troisième tranche du donut : une seule liste, pour
-// que les deux chiffres ne puissent pas diverger.
-const STATUTS_RETOUR: StatutCommande[] = [
-  'retourne',
-  'retourne_au_hub',
-  'en_retour_par_amana',
-  'annule',
-  'annule_par_vendeur',
-  'refuse',
-];
-
-// Statuts d'un colis encore en amont de la distribution — sert au ton de la
-// pilule dans la table des derniers colis.
-const STATUTS_AMONT: StatutCommande[] = ['nouveau_colis', 'attente_de_ramassage', 'ramasse', 'recu'];
+// Statuts qui comptent comme un échec de livraison, et découpage du cycle de
+// vie : tous deux vivent désormais dans lib/statuts.ts, partagés avec l'Accueil
+// livreur qui affiche exactement les mêmes tranches (§ tonColisDuStatut).
+const STATUTS_RETOUR = STATUTS_RETOUR_TABLEAU_BORD;
 
 const JOURS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
 
@@ -50,16 +38,6 @@ function depuis(date: Date, maintenant: Date): string {
   const heures = Math.round(minutes / 60);
   if (heures < 24) return `${heures} h`;
   return `${Math.round(heures / 24)} j`;
-}
-
-// Le ton dit le MOMENT DU CYCLE, pas une couleur : le composant en tire aussi
-// bien le dégradé de la pilule que l'icône du mouvement, et un changement de
-// charte graphique ne redescend pas jusqu'ici.
-function tonDuStatut(statut: StatutCommande): TonColis {
-  if (statut === 'livre') return 'livre';
-  if (STATUTS_RETOUR.includes(statut)) return 'retour';
-  if (STATUTS_AMONT.includes(statut)) return 'amont';
-  return 'encours';
 }
 
 // Répartition en pourcentages entiers dont la somme fait exactement 100 : les
@@ -196,7 +174,7 @@ export async function chargerDashboardAccueil(): Promise<DashboardAccueilProps> 
     ville: c.ville,
     montantCod: Number(c.montantCod),
     statut: LABELS_STATUT_COMMANDE[c.statut],
-    ton: tonDuStatut(c.statut),
+    ton: tonColisDuStatut(c.statut),
   }));
 
   const activites: ActiviteRecente[] = historique.map((h) => ({
@@ -205,7 +183,7 @@ export async function chargerDashboardAccueil(): Promise<DashboardAccueilProps> 
     depuis: depuis(h.horodatage, maintenant),
     qui: h.utilisateur.nomComplet,
     action: h.note ?? `a fait passer ${h.commande.codeSuivi} à « ${LABELS_STATUT_COMMANDE[h.nouveauStatut]} »`,
-    ton: tonDuStatut(h.nouveauStatut),
+    ton: tonColisDuStatut(h.nouveauStatut),
   }));
 
   const zones: ZoneClient[] = parVille.map((v) => ({

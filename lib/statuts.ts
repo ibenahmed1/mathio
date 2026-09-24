@@ -144,6 +144,42 @@ export const STATUTS_INJOIGNABLES: StatutCommande[] = [
 // sert à dériver le taux de collecte du dashboard marchand.
 export const STATUTS_AVANT_COLLECTE: StatutCommande[] = ['nouveau_colis', 'attente_de_ramassage'];
 
+// § Tableaux de bord (Accueil back-office ET Accueil livreur) ------------------
+//
+// Échecs de livraison, au sens où l'entendent les tableaux de bord : ce qui ne
+// sera pas remis au destinataire. Sert à la fois au taux de retour des cadrans
+// et à la tranche « Retournés » des donuts — une seule liste, pour que les
+// deux chiffres d'un même écran ne puissent pas se contredire.
+export const STATUTS_RETOUR_TABLEAU_BORD: StatutCommande[] = [
+  'retourne',
+  'retourne_au_hub',
+  'en_retour_par_amana',
+  'annule',
+  'annule_par_vendeur',
+  'refuse',
+];
+
+// Colis encore en amont de la distribution : ni tenté, ni abouti.
+export const STATUTS_AMONT_TABLEAU_BORD: StatutCommande[] = [
+  'nouveau_colis',
+  'attente_de_ramassage',
+  'ramasse',
+  'recu',
+];
+
+// Moment du cycle de vie d'un colis, tel que le représentent les tableaux de
+// bord (pilule de statut, icône du mouvement, tranche de donut). Le mot dit
+// l'ÉTAPE et non une couleur : la charte graphique peut changer sans que la
+// donnée bouge.
+export type TonColis = 'amont' | 'encours' | 'livre' | 'retour';
+
+export function tonColisDuStatut(statut: StatutCommande): TonColis {
+  if (statut === 'livre') return 'livre';
+  if (STATUTS_RETOUR_TABLEAU_BORD.includes(statut)) return 'retour';
+  if (STATUTS_AMONT_TABLEAU_BORD.includes(statut)) return 'amont';
+  return 'encours';
+}
+
 // § API prestataires (POST /api/v1/livraisons/statut) : les seuls statuts
 // qu'un transporteur sous-traitant a le droit de poser sur un colis qu'on lui
 // a confié.
