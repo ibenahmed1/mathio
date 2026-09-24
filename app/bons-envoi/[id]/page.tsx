@@ -24,6 +24,7 @@ export default async function BonEnvoiDetailPrintPage({ params }: { params: Prom
     where: { id },
     include: {
       hubDestination: true,
+      prestataire: { select: { nom: true, telephone: true } },
       commandes: { include: { marchand: { select: { nomBoutique: true } } }, orderBy: { codeSuivi: 'asc' } },
     },
   });
@@ -74,10 +75,13 @@ export default async function BonEnvoiDetailPrintPage({ params }: { params: Prom
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+        {/* Un bon vise un quai OU un transporteur, jamais les deux : l'encart
+            dit lequel, pour que le papier remis au chauffeur ne laisse aucun
+            doute sur qui prend les colis. */}
         <div className="rounded border border-black/70 p-3">
-          <p className="font-bold">Destination</p>
-          <p>{bon.hubDestination.nom}</p>
-          <p className="opacity-70">{bon.hubDestination.ville}</p>
+          <p className="font-bold">{bon.prestataire ? 'Transporteur' : 'Destination'}</p>
+          <p>{bon.prestataire?.nom ?? bon.hubDestination?.nom}</p>
+          <p className="opacity-70">{bon.prestataire?.telephone ?? bon.hubDestination?.ville}</p>
         </div>
         <div className="rounded border border-black/70 p-3">
           <p>

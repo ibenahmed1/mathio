@@ -262,19 +262,27 @@ export interface BonDePreparation {
   validateur?: { nomComplet: string } | null;
 }
 
+// Un bon vise SOIT un de nos quais (`hubDestinationId`), SOIT un transporteur
+// (`prestataireId`) — jamais les deux, jamais aucun (§ BonEnvoi dans
+// prisma/schema.prisma, contrainte CHECK en base). Les deux champs sont donc
+// nullables ici, et c'est celui qui est renseigné qui dit la nature du bon.
 export interface BonEnvoi {
   id: string;
   numero: string;
-  hubDestinationId: string;
+  hubDestinationId: string | null;
+  prestataireId: string | null;
   statut: 'nouveau' | 'recu';
   nbColis: number;
   dateGeneration: string;
   dateReception: string | null;
   receptionnaireId: string | null;
   commandes?: Commande[];
-  // `prestataire` n'est renseigné que par GET /api/bons-envoi/[id] : null pour
-  // un hub interne, le transporteur pour une agence sous-traitée.
-  hubDestination?: { nom: string; prestataire?: { nom: string } | null };
+  // `hubDestination.prestataire` n'est renseigné que par GET /api/bons-envoi/[id] :
+  // null pour un hub interne, le transporteur pour une agence sous-traitée.
+  hubDestination?: { nom: string; prestataire?: { nom: string } | null } | null;
+  // Transporteur visé directement, à ne pas confondre avec le précédent : ici
+  // le colis ne transite par aucun quai à nous.
+  prestataire?: { id: string; nom: string } | null;
   receptionnaire?: { nomComplet: string } | null;
 }
 
@@ -363,6 +371,12 @@ export interface Utilisateur {
   actif: boolean;
   dateCreation: string;
   derniereConnexion?: string | null;
+  // § Comptes livreurs : renseignés UNIQUEMENT sur un compte livreur
+  // (§ lib/comptes-livreur.ts). `null` partout ailleurs — un admin n'est ni un
+  // individu ni une société au sens de ce champ, il n'est pas livreur.
+  typeLivreur?: 'individuel' | 'societe' | null;
+  raisonSociale?: string | null;
+  ice?: string | null;
   cin?: string | null;
   photoUrl?: string | null;
   zonePrincipale?: string | null;
@@ -440,6 +454,10 @@ export interface Prestataire {
   actif: boolean;
   agences?: { id: string; nom: string; ville: string; nbVilles: number }[];
   nbVillesTarifees?: number;
+  // § Comptes transporteurs : compte humain rattaché (§ lib/comptes-livreur.ts).
+  // Absent tant qu'aucun ne l'est — le transporteur nous renvoie alors ses
+  // statuts par fichier ou par API, sans voir nos écrans.
+  compteLivreur?: { id: string; nomComplet: string; raisonSociale: string | null } | null;
 }
 
 export interface Hub {
@@ -594,11 +612,16 @@ export interface CaisseLivreurJour {
   total: string;
 }
 
-// Réponse de GET /api/livreur/dashboard (§ /livreur, Accueil) : les 2 blocs de
-// stats sur la plage de dates sélectionnée.
+// Réponse de GET /api/livreur/dashboard (§ /livreur, Accueil) : les blocs de
+// stats sur la plage de dates sélectionnée, plus la courbe jour par jour.
 export interface DashboardLivreurStats {
   colis: { total: number; livres: number; retournes: number; tauxLivre: number; tauxRetourne: number };
   bonsDistribution: { total: number; nouveau: number; enCours: number; nbColisTotal: number };
+  // Un point par jour de la plage, jours creux compris (§ getVolumeParJourLivreur).
+  // La forme est redite ici plutôt qu'importée de lib/livreur.ts : ce fichier
+  // ne décrit que des réponses JSON et n'a aucune dépendance — en tirer une
+  // ferait entrer Prisma dans la chaîne d'imports des composants clients.
+  volume: { label: string; recus: number; livres: number }[];
 }
 
 export interface Reclamation {

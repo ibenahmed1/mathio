@@ -123,7 +123,7 @@ export async function villesPartagees(): Promise<
 // null) : les colis de stock (ramasse+enStock) n'ont jamais été réceptionnés
 // au quai, ils sont implicitement à l'entrepôt central (Hub.isCentral, cf.
 // lib/hub-stock.ts) jusqu'à preuve du contraire.
-async function hubCentralId(): Promise<string | null> {
+export async function hubCentralId(): Promise<string | null> {
   const hub = await prisma.hub.findFirst({ where: { isCentral: true }, select: { id: true } });
   return hub?.id ?? null;
 }

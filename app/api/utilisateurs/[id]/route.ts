@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { Role } from '@/app/generated/prisma/enums';
 import { getHomeSpace, normalizePhoneMaroc, sanitizePermissions } from '@/lib/auth';
+import { analyserIdentiteLivreur, hubRequis } from '@/lib/comptes-livreur';
 
 // Mêmes jeux de rôles que POST /api/utilisateurs (voir ce fichier pour le
 // détail) : seuls les comptes équipe se modifient/suppriment depuis cet
@@ -55,6 +56,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const data: Prisma.UtilisateurUpdateInput = { role };
 
+    // § Comptes livreurs : individu ou société de livraison. Résolu à partir
+    // du rôle FINAL et de ce qui est déjà en base, pour qu'une modification
+    // partielle (la fenêtre n'envoie parfois qu'un champ) ne fasse ni
+    // retomber une société sur « individuel », ni effacer ses papiers.
+    const identiteLivreur = analyserIdentiteLivreur(role, body, {
+      typeLivreur: utilisateur.typeLivreur,
+      raisonSociale: utilisateur.raisonSociale,
+      ice: utilisateur.ice,
+    });
+    data.typeLivreur = identiteLivreur.typeLivreur;
+    data.raisonSociale = identiteLivreur.raisonSociale;
+    data.ice = identiteLivreur.ice;
+
     // RF AGENT_HUB / LIVREUR : rattachement obligatoire à un Hub. Si le
     // hubId est fourni, il est revalidé ; sinon on garde celui déjà en base
     // (utile quand on modifie d'autres champs sans toucher au hub) — mais un
@@ -62,14 +76,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // est rejeté. À l'inverse, un rôle qui n'a plus besoin de hub le perd.
     if (avecHub) {
       const hubId = typeof body.hubId === 'string' && body.hubId.trim() ? body.hubId.trim() : utilisateur.hubId;
+      // Une société de livraison n'a pas de quai chez nous : le rattachement
+      // lui reste ouvert mais n'est plus exigé (§ hubRequis).
       if (!hubId) {
-        throw new ApiError(400, 'hubId est requis pour ce rôle');
+        if (hubRequis(role, identiteLivreur.typeLivreur)) {
+          throw new ApiError(400, 'hubId est requis pour ce rôle');
+        }
+        data.hub = { disconnect: true };
+      } else {
+        const hub = await prisma.hub.findUnique({ where: { id: hubId } });
+        if (!hub) {
+          throw new ApiError(400, 'Hub introuvable');
+        }
+        data.hub = { connect: { id: hubId } };
       }
-      const hub = await prisma.hub.findUnique({ where: { id: hubId } });
-      if (!hub) {
-        throw new ApiError(400, 'Hub introuvable');
-      }
-      data.hub = { connect: { id: hubId } };
     } else {
       data.hub = { disconnect: true };
     }
@@ -160,14 +180,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if (estTerrain) {
-      if (typeof body.cin === 'string') data.cin = body.cin.trim() || null;
+      // Une société n'a pas de carte d'identité. Si le compte vient d'être
+      // basculé en société, on efface le numéro et les deux photos plutôt que
+      // de les laisser traîner : plus aucun écran ne les montre, mais un
+      // export irait les chercher, et ce sont des pièces d'identité.
+      if (identiteLivreur.typeLivreur === 'societe') {
+        data.cin = null;
+        data.cinRectoUrl = null;
+        data.cinVersoUrl = null;
+      } else if (typeof body.cin === 'string') {
+        data.cin = body.cin.trim() || null;
+      }
       if (typeof body.adresse === 'string') data.adresse = body.adresse.trim() || null;
       if (typeof body.nomBanque === 'string') data.nomBanque = body.nomBanque.trim() || null;
       if (typeof body.numeroCompte === 'string') data.numeroCompte = body.numeroCompte.trim() || null;
       if (typeof body.zonePrincipale === 'string') data.zonePrincipale = body.zonePrincipale.trim() || null;
       if (typeof body.zoneSecondaire === 'string') data.zoneSecondaire = body.zoneSecondaire.trim() || null;
-      if (typeof body.cinRectoUrl === 'string') data.cinRectoUrl = body.cinRectoUrl || null;
-      if (typeof body.cinVersoUrl === 'string') data.cinVersoUrl = body.cinVersoUrl || null;
+      // Sous condition, pour la même raison que la CIN juste au-dessus : sans
+      // elle, un corps qui porte encore les photos de l'ancien compte
+      // individuel les réécrirait aussitôt après leur effacement.
+      if (identiteLivreur.typeLivreur !== 'societe') {
+        if (typeof body.cinRectoUrl === 'string') data.cinRectoUrl = body.cinRectoUrl || null;
+        if (typeof body.cinVersoUrl === 'string') data.cinVersoUrl = body.cinVersoUrl || null;
+      }
       if (typeof body.ribPhotoUrl === 'string') data.ribPhotoUrl = body.ribPhotoUrl || null;
       if (body.fraisLivraison !== undefined) {
         data.fraisLivraison = body.fraisLivraison === '' || body.fraisLivraison === null ? null : Number(body.fraisLivraison);

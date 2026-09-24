@@ -1,179 +1,187 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { PackageCheck, Package, Share2 } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
+import { LABELS_STATUT_COMMANDE, tonColisDuStatut } from '@/lib/statuts';
 import type { DashboardLivreurStats } from '@/lib/types';
-import { LivreurShell } from '@/components/livreur/LivreurShell';
+import { DashboardLivreur, type ColisAccueilLivreur } from '@/components/livreur/DashboardLivreur';
+import type { StatutCommande } from '@/app/generated/prisma/enums';
+
+// § /livreur (Accueil). La page ne fait que réunir les deux sources et les
+// mettre à la forme attendue par le tableau de bord : la période (stats et
+// courbe, GET /api/livreur/dashboard) et la tournée en cours (caisse, colis à
+// remettre, colis déjà traités, GET /api/livreur/tournee). Toute la
+// présentation vit dans DashboardLivreur, qui reprend la composition du
+// tableau de bord du back-office.
+
+interface ColisTournee {
+  id: string;
+  codeSuivi: string;
+  clientNom: string;
+  clientTelephone: string;
+  ville: string;
+  montantCod: string;
+  statut: string;
+}
+
+interface FeuilleDeRoute {
+  colis: ColisTournee[];
+  recap: { nbColis: number; nbLivres: number; nbEnCours: number; nbARetourner: number; cashEncaisse: string };
+}
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function defaultRange() {
+function plageParDefaut() {
   const to = new Date();
   const from = new Date(to);
   from.setDate(from.getDate() - 29);
   return { from: isoDate(from), to: isoDate(to) };
 }
 
-const DONUT_COLORS = ['#94a3b8', '#2563eb']; // nouveau (gris), en_cours (bleu)
-
-function ProgressBar({ label, pct, color }: { label: string; pct: number; color: string }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-semibold">{label}</span>
-        <span className="font-bold">{pct}%</span>
-      </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
+// Le statut arrive du JSON comme une chaîne. Il vient de l'enum Prisma côté
+// serveur, mais rien dans le type ne le dit : on le vérifie contre le
+// catalogue plutôt que de le forcer, sans quoi un statut inconnu ferait
+// afficher « undefined » en guise de libellé.
+function versColisAccueil(c: ColisTournee): ColisAccueilLivreur {
+  const statut = c.statut as StatutCommande;
+  const libelle = LABELS_STATUT_COMMANDE[statut] ?? c.statut;
+  return {
+    id: c.id,
+    codeSuivi: c.codeSuivi,
+    client: c.clientNom,
+    ville: c.ville,
+    telephone: c.clientTelephone,
+    montantCod: Number(c.montantCod),
+    statut: libelle,
+    ton: tonColisDuStatut(statut),
+  };
 }
 
 export default function LivreurDashboardPage() {
-  const [range, setRange] = useState(defaultRange());
-  const [pendingRange, setPendingRange] = useState(range);
-  const [data, setData] = useState<DashboardLivreurStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [plage, setPlage] = useState(plageParDefaut());
+  const [plageEnCours, setPlageEnCours] = useState(plage);
+  const [stats, setStats] = useState<DashboardLivreurStats | null>(null);
+  const [feuille, setFeuille] = useState<FeuilleDeRoute | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => {
-      setError(null);
-      apiGet<DashboardLivreurStats>(`/api/livreur/dashboard?from=${range.from}&to=${range.to}`)
-        .then(setData)
-        .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
+      setErreur(null);
+      apiGet<DashboardLivreurStats>(`/api/livreur/dashboard?from=${plage.from}&to=${plage.to}`)
+        .then(setStats)
+        .catch((err) => setErreur(err instanceof Error ? err.message : 'Erreur'));
     });
-  }, [range]);
+  }, [plage]);
 
-  const bd = data?.bonsDistribution;
-  const donutData = bd ? [{ name: 'Nouveau', value: bd.nouveau }, { name: 'En cours', value: bd.enCours }] : [];
+  // La feuille de route ne dépend pas de la plage : elle dit l'état de la
+  // tournée EN COURS. Elle est donc chargée une seule fois, et un changement
+  // de période ne la fait pas clignoter.
+  useEffect(() => {
+    queueMicrotask(() => {
+      apiGet<FeuilleDeRoute>('/api/livreur/tournee')
+        .then(setFeuille)
+        .catch((err) => setErreur(err instanceof Error ? err.message : 'Erreur'));
+    });
+  }, []);
+
+  const colis = feuille?.colis ?? [];
+  const aTenter = colis.filter((c) => c.statut === 'mise_en_distribution');
+  const traites = colis.filter((c) => c.statut !== 'mise_en_distribution');
+
+  const filtrePeriode = (
+    <form
+      style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F6F6F5', borderRadius: 8, padding: 3 }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        setPlage(plageEnCours);
+      }}
+    >
+      <input
+        type="date"
+        aria-label="Début de période"
+        value={plageEnCours.from}
+        max={plageEnCours.to}
+        onChange={(e) => setPlageEnCours((p) => ({ ...p, from: e.target.value }))}
+        style={{
+          border: 'none',
+          background: '#FFF',
+          borderRadius: 6,
+          padding: '6px 8px',
+          fontFamily: 'inherit',
+          fontSize: 11,
+          color: '#4A4A45',
+        }}
+      />
+      <input
+        type="date"
+        aria-label="Fin de période"
+        value={plageEnCours.to}
+        min={plageEnCours.from}
+        onChange={(e) => setPlageEnCours((p) => ({ ...p, to: e.target.value }))}
+        style={{
+          border: 'none',
+          background: '#FFF',
+          borderRadius: 6,
+          padding: '6px 8px',
+          fontFamily: 'inherit',
+          fontSize: 11,
+          color: '#4A4A45',
+        }}
+      />
+      <button
+        type="submit"
+        style={{
+          border: 'none',
+          background: 'linear-gradient(135deg,#209EBB,#023047)',
+          color: '#FFF',
+          borderRadius: 6,
+          padding: '7px 12px',
+          fontFamily: 'inherit',
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        Filtrer
+      </button>
+    </form>
+  );
 
   return (
-    <LivreurShell>
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="page-title">Accueil</h1>
-          <form
-            className="flex flex-wrap items-end gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setRange(pendingRange);
-            }}
-          >
-            <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-              Du
-              <input
-                type="date"
-                className="input-basic"
-                value={pendingRange.from}
-                max={pendingRange.to}
-                onChange={(e) => setPendingRange((r) => ({ ...r, from: e.target.value }))}
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs font-semibold opacity-70">
-              Au
-              <input
-                type="date"
-                className="input-basic"
-                value={pendingRange.to}
-                min={pendingRange.from}
-                onChange={(e) => setPendingRange((r) => ({ ...r, to: e.target.value }))}
-              />
-            </label>
-            <button type="submit" className="btn-primary">
-              Filtrer
-            </button>
-          </form>
-        </div>
-
-        {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="card-tint-strong flex flex-col gap-4 p-5">
-            <h2 className="flex items-center gap-2 text-sm font-bold">
-              <PackageCheck className="h-4 w-4" />
-              Statistique des colis
-            </h2>
-            {data ? (
-              <>
-                <ProgressBar label="Colis livrés" pct={data.colis.tauxLivre} color="#16a34a" />
-                <ProgressBar label="Colis retournés" pct={data.colis.tauxRetourne} color="#dc2626" />
-                <p className="text-xs opacity-60">
-                  {data.colis.total} colis sur la période — {data.colis.livres} livrés, {data.colis.retournes} retournés
-                </p>
-              </>
-            ) : (
-              <p className="text-sm opacity-60">Chargement…</p>
-            )}
-          </div>
-
-          <div className="card-tint-strong flex flex-col gap-4 p-5">
-            <h2 className="flex items-center gap-2 text-sm font-bold">
-              <Share2 className="h-4 w-4" />
-              Statistique des bons de distribution
-            </h2>
-            {bd ? (
-              <div className="flex flex-col items-center gap-2 sm:flex-row">
-                <div className="relative h-[160px] w-full sm:w-1/2">
-                  <ResponsiveContainer width="100%" height={160}>
-                    <PieChart>
-                      <Pie
-                        data={donutData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={48}
-                        outerRadius={70}
-                        paddingAngle={2}
-                        strokeWidth={2}
-                        stroke="#ffffff"
-                        isAnimationActive={false}
-                      >
-                        {donutData.map((d, i) => (
-                          <Cell key={d.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold">{bd.total}</span>
-                    <span className="text-xs opacity-60">Enregistré</span>
-                  </div>
-                </div>
-                <ul className="flex w-full flex-col gap-1.5 text-sm sm:w-1/2">
-                  <li className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: DONUT_COLORS[0] }} />
-                      Nouveau
-                    </span>
-                    <span className="font-semibold opacity-70">{bd.nouveau}</span>
-                  </li>
-                  <li className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: DONUT_COLORS[1] }} />
-                      En cours
-                    </span>
-                    <span className="font-semibold opacity-70">{bd.enCours}</span>
-                  </li>
-                  <li className="flex items-center justify-between gap-2 border-t border-black/10 pt-1.5 dark:border-white/10">
-                    <span className="flex items-center gap-2">
-                      <Package className="h-3.5 w-3.5" />
-                      Colis distribués
-                    </span>
-                    <span className="font-semibold opacity-70">{bd.nbColisTotal}</span>
-                  </li>
-                </ul>
-              </div>
-            ) : (
-              <p className="text-sm opacity-60">Chargement…</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </LivreurShell>
+    <>
+      {erreur && (
+        <p
+          style={{
+            margin: 0,
+            padding: '12px 26px 0',
+            background: '#F0F0ED',
+            color: '#b04a37',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {erreur}
+        </p>
+      )}
+      <DashboardLivreur
+        cashEncaisse={Number(feuille?.recap.cashEncaisse ?? 0)}
+        aLivrer={feuille?.recap.nbEnCours ?? 0}
+        colisTotal={stats?.colis.total ?? 0}
+        colisLivres={stats?.colis.livres ?? 0}
+        colisRetournes={stats?.colis.retournes ?? 0}
+        tauxRetour={stats?.colis.tauxRetourne ?? 0}
+        tournees={{
+          total: stats?.bonsDistribution.total ?? 0,
+          enCours: stats?.bonsDistribution.enCours ?? 0,
+          nbColisTotal: stats?.bonsDistribution.nbColisTotal ?? 0,
+        }}
+        volume={stats?.volume ?? []}
+        feuilleDeRoute={aTenter.slice(0, 5).map(versColisAccueil)}
+        traites={traites.slice(0, 5).map(versColisAccueil)}
+        periode={filtrePeriode}
+      />
+    </>
   );
 }

@@ -21,6 +21,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.actif === 'boolean') {
       data.actif = body.actif;
     }
+
+    // § Comptes transporteurs : rattachement du compte humain. Chaîne vide =
+    // détachement explicite, et non « champ absent » — c'est ce qui permet de
+    // retirer un compte sans en poser un autre. Le compte doit être un compte
+    // livreur de type société : un livreur individuel n'est le compte de
+    // personne d'autre que lui-même, et un compte du back-office n'a pas
+    // d'espace terrain où recevoir des colis.
+    if (body.compteLivreurId !== undefined) {
+      const compteLivreurId = typeof body.compteLivreurId === 'string' ? body.compteLivreurId.trim() : '';
+      if (!compteLivreurId) {
+        data.compteLivreur = { disconnect: true };
+      } else {
+        const compte = await prisma.utilisateur.findUnique({
+          where: { id: compteLivreurId },
+          select: { id: true, role: true, typeLivreur: true, prestataireRattache: { select: { id: true } } },
+        });
+        if (!compte) {
+          throw new ApiError(400, 'Compte introuvable');
+        }
+        if (compte.role !== 'livreur' || compte.typeLivreur !== 'societe') {
+          throw new ApiError(400, 'Seul un compte livreur de type société peut être rattaché à un transporteur');
+        }
+        // Le doublon est déjà interdit en base (index unique), mais le message
+        // de Postgres ne dirait pas LEQUEL des deux transporteurs le détient.
+        if (compte.prestataireRattache && compte.prestataireRattache.id !== id) {
+          throw new ApiError(409, 'Ce compte est déjà rattaché à un autre transporteur');
+        }
+        data.compteLivreur = { connect: { id: compteLivreurId } };
+      }
+    }
     if (Object.keys(data).length === 0) {
       throw new ApiError(400, 'Aucune modification fournie');
     }

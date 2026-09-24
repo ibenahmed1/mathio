@@ -19,6 +19,10 @@ export async function GET() {
           orderBy: { nom: 'asc' },
           select: { id: true, nom: true, ville: true, _count: { select: { villes: true } } },
         },
+        // § Comptes transporteurs : le compte humain rattaché, s'il existe.
+        // C'est lui qui reçoit les colis des bons d'envoi adressés à ce
+        // transporteur (§ Prestataire.compteLivreurId).
+        compteLivreur: { select: { id: true, nomComplet: true, raisonSociale: true } },
         _count: { select: { tarifs: true } },
       },
     });

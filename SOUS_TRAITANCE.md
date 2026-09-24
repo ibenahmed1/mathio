@@ -246,6 +246,40 @@ relation commerciale à écrire, et elle peut changer qui nous facture.
   (portés par la facture, pas par un colis). La marge est donc légèrement **sous-estimée** — sauf
   quand un coût est inconnu, où elle est **surestimée** et signalée comme telle.
 
+### 2.13 Un bon d'envoi peut viser un transporteur, sans passer par le référentiel — 23 septembre 2026
+
+Jusqu'ici, confier des colis à un prestataire n'était possible **qu'indirectement** : on créait un
+bon d'envoi vers une de ses agences, et la liste des colis proposés était imposée par le routage
+ville → hub. L'opérateur ne choisissait donc jamais le transporteur, il choisissait un quai.
+
+Deux conséquences, mesurées sur la base du 23 septembre 2026 :
+
+- les **13 villes de Casablanca** (§2.12) routent vers le hub interne, donc les colis de Casa ne
+  pouvaient **pas** être confiés à un sous-traitant — précisément le cas qu'on voulait tester ;
+- un colis dont la ville était couverte par deux réseaux partait chez celui que `meilleurHub()`
+  désignait, sans recours.
+
+**`BonEnvoi` porte désormais deux destinations exclusives** — `hubDestinationId` (transit interne,
+inchangé) ou `prestataireId` (remise sous-traitée) — l'exclusivité étant tenue par un `CHECK` en
+base, migration `bon_envoi_transporteur`. Le second mode ignore complètement la ville : c'est
+l'opérateur qui décide.
+
+**Aucun contrôle de couverture n'y est appliqué, et c'est délibéré.** Tant que la répartition
+« quelle région pour quel prestataire » n'est pas arrêtée (§3, questions bloquantes), un contrôle
+ne protégerait rien : il masquerait des colis sans le dire. Une ville absente de la grille du
+transporteur est **signalée à l'écran**, le bon se crée, et le coût d'achat reste `null` — jamais
+`0`. Deux garde-fous seulement subsistent, parce qu'ils protègent les données et non le confort :
+un colis déjà pris dans un bon, et un colis à statut terminal (`livre`, `retourne`, `annule`,
+`annule_par_vendeur`).
+
+**Ce que « Marquer comme reçu » veut dire sur un tel bon** : le transporteur a pris les colis en
+charge. Le bon passe `recu`, mais les colis **restent `en_transit`** — les basculer à `recu_au_hub`
+dirait qu'ils sont arrivés sur un quai à nous, ce qui serait faux.
+
+⚠️ **À revoir quand la carte des villes sera figée.** Ce mode est un outil de structuration. Une
+fois la répartition validée et les tarifs saisis, la question se posera de réintroduire un
+avertissement bloquant — ou pas.
+
 ---
 
 ## 3. Questions à poser au métier

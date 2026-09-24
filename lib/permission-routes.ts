@@ -190,6 +190,9 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // puis la réception et les lectures, puis tout le reste en composition.
   { pattern: '/api/bons-envoi/colis-eligibles', permission: 'bon_envoi:create' },
   { pattern: '/api/bons-envoi/destinations', permission: 'bon_envoi:create' },
+  // Transporteurs sélectionnables et hubs où des colis attendent : l'étape 1
+  // du mode « Remise à un transporteur », donc de la composition.
+  { pattern: '/api/bons-envoi/transporteurs', permission: 'bon_envoi:create' },
   { pattern: '/api/bons-envoi/verifier-colis', permission: 'bon_envoi:create' },
   { pattern: '/api/bons-envoi/*/marquer-recu', permission: 'bon_envoi:manage' },
   // § Power Delivery : la remise par leur API, qui remplace l'export Excel du

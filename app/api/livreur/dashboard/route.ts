@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jsonError, requireUser } from '@/lib/api-utils';
-import { resolveUserHub } from '@/lib/hub-envoi';
-import { getStatsBonsDistributionLivreur, getStatsColisLivreur } from '@/lib/livreur';
+import { prisma } from '@/lib/prisma';
+import { getStatsBonsDistributionLivreur, getStatsColisLivreur, getVolumeParJourLivreur } from '@/lib/livreur';
 
 function parseDateParam(value: string | null, fallback: Date): Date {
   if (!value) return fallback;
@@ -23,14 +23,23 @@ export async function GET(request: NextRequest) {
     const dateDebut = parseDateParam(searchParams.get('from'), ilYA30Jours);
     const dateFin = parseDateParam(searchParams.get('to'), aujourdhui);
 
-    const hub = await resolveUserHub(session.sub);
+    // Hub de rattachement — FACULTATIF depuis l'ouverture des comptes société
+    // (§ hubRequis, lib/comptes-livreur.ts) : une société de livraison n'a pas
+    // de quai chez nous. `resolveUserHub` lève un 403 dans ce cas, ce qui
+    // rendrait tout son accueil inaccessible ; on lit donc le rattachement
+    // sans l'exiger, et son absence ne restreint simplement plus rien.
+    const utilisateur = await prisma.utilisateur.findUnique({
+      where: { id: session.sub },
+      select: { hubId: true },
+    });
 
-    const [colis, bonsDistribution] = await Promise.all([
+    const [colis, bonsDistribution, volume] = await Promise.all([
       getStatsColisLivreur(session.sub, dateDebut, dateFin),
-      getStatsBonsDistributionLivreur(session.sub, hub.id, dateDebut, dateFin),
+      getStatsBonsDistributionLivreur(session.sub, utilisateur?.hubId ?? null, dateDebut, dateFin),
+      getVolumeParJourLivreur(session.sub, dateDebut, dateFin),
     ]);
 
-    return NextResponse.json({ colis, bonsDistribution });
+    return NextResponse.json({ colis, bonsDistribution, volume });
   } catch (error) {
     return jsonError(error);
   }

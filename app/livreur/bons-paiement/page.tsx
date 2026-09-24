@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Hourglass, Printer } from 'lucide-react';
+import { ChevronDown, ChevronRight, FileCheck2, Hourglass, Printer, Wallet } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
-import { LivreurShell } from '@/components/livreur/LivreurShell';
+import { KpiCard } from '@/components/KpiCard';
 import type { BonPaiementLivreur, ModeReglementLivreur, PaieLivreur, StatutBonPaiement } from '@/lib/types';
 
 // § /livreur/bons-paiement — « Ma paie ». L'entrée existait dans la navigation
@@ -63,16 +63,6 @@ function libellePeriode(debut: string) {
   return `${MOIS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-function Tuile({ label, valeur, aide }: { label: string; valeur: string; aide: string }) {
-  return (
-    <div className="card-tint-strong flex flex-col gap-0.5 px-4 py-3">
-      <span className="text-xs font-semibold opacity-60">{label}</span>
-      <span className="text-xl font-bold">{valeur}</span>
-      <span className="text-xs opacity-60">{aide}</span>
-    </div>
-  );
-}
-
 function LigneBon({ bon }: { bon: BonPaiementLivreur }) {
   const [ouvert, setOuvert] = useState(false);
   const aDesAjustements = bon.ajustements.length > 0;
@@ -101,8 +91,8 @@ function LigneBon({ bon }: { bon: BonPaiementLivreur }) {
             <span className="block text-xs opacity-60">{bon.nbColisRetournes} retourné(s)</span>
           )}
         </td>
-        <td className="whitespace-nowrap">{dh(bon.montantCommissions)}</td>
-        <td className="whitespace-nowrap">
+        <td className="cell-num whitespace-nowrap">{dh(bon.montantCommissions)}</td>
+        <td className="cell-num whitespace-nowrap">
           {Number(bon.totalAjustements) === 0 ? (
             <span className="opacity-40">—</span>
           ) : (
@@ -112,12 +102,12 @@ function LigneBon({ bon }: { bon: BonPaiementLivreur }) {
             </span>
           )}
         </td>
-        <td className="whitespace-nowrap font-bold">{dh(bon.montantTotal)}</td>
+        <td className="cell-num whitespace-nowrap font-bold">{dh(bon.montantTotal)}</td>
         {/* Collée à droite tant que la table déborde (sous xl) : dernière
             colonne d'une table de 820 px, l'accès à la fiche n'apparaissait
             qu'après défilement. Fond opaque pour masquer les montants qui
             glissent dessous. À partir de xl la table tient, rien ne change. */}
-        <td className="max-xl:sticky max-xl:right-0 max-xl:bg-white dark:max-xl:bg-black">
+        <td className="cell-actions max-xl:sticky max-xl:right-0 max-xl:bg-white dark:max-xl:bg-black">
           <a
             href={`/bons-paiement/${bon.id}`}
             target="_blank"
@@ -216,68 +206,79 @@ export default function PaieLivreurPage() {
   }, []);
 
   return (
-    <LivreurShell>
+    <>
       <div className="flex flex-col gap-5">
-        <h1 className="page-title">Ma paie</h1>
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Ma paie</h1>
+            <p className="page-subtitle">
+              Vos gains sont figés colis par colis à la clôture de chaque tournée au dépôt. Ils sont réglés une
+              fois par mois, séparément du cash que vous remettez au Planner.
+            </p>
+          </div>
+        </div>
 
         {erreur && <p className="text-sm font-medium text-red-600">{erreur}</p>}
 
         {paie && (
           <>
+            {/* Le « héros » est le total à percevoir : c'est la seule ligne
+                que le livreur vient vérifier, les deux autres l'expliquent. */}
             <div className="grid gap-3 sm:grid-cols-3">
-              <Tuile
+              <KpiCard
+                icon={Wallet}
                 label="Total à percevoir"
-                valeur={dh(paie.totalDu)}
-                aide="Bons non versés + gains pas encore rattachés"
+                value={dh(paie.totalDu)}
+                hint="Bons non versés + gains pas encore rattachés"
+                highlight
               />
-              <Tuile
+              <KpiCard
+                icon={FileCheck2}
                 label="Montant arrêté"
-                valeur={dh(paie.totalArrete)}
-                aide="Bons émis, primes et pénalités comprises"
+                value={dh(paie.totalArrete)}
+                hint="Bons émis, primes et pénalités comprises"
               />
-              <Tuile
+              <KpiCard
+                icon={Hourglass}
                 label="En cours d'accumulation"
-                valeur={dh(paie.totalNonGenere)}
-                aide="Tournées clôturées, bon pas encore établi"
+                value={dh(paie.totalNonGenere)}
+                hint="Tournées clôturées, bon pas encore établi"
               />
             </div>
 
-            <p className="text-xs opacity-60">
-              Vos gains sont figés colis par colis à la clôture de chaque tournée au dépôt. Ils sont réglés
-              une fois par mois, séparément du cash que vous remettez au Planner.
-            </p>
-
             <section className="flex flex-col gap-2">
               <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">Mes bons de paiement</h2>
-              <div className="@container overflow-x-auto">
-                <table className="table-basic min-w-[820px]">
-                  <thead>
-                    <tr>
-                      <th>Période</th>
-                      <th>État</th>
-                      <th>Colis</th>
-                      <th>Commissions</th>
-                      <th>Ajustements</th>
-                      <th>Net</th>
-                      {/* Pendant collant de la cellule « fiche de paie » : la
-                          teinte de la bande d'en-tête (brand/10 sur fond de
-                          page), rendue opaque. */}
-                      <th className="max-xl:sticky max-xl:right-0 max-xl:bg-[#fffae6] dark:max-xl:bg-[#0d0d0d]"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paie.bons.map((b) => (
-                      <LigneBon key={b.id} bon={b} />
-                    ))}
-                    {paie.bons.length === 0 && (
+              <div className="table-card">
+                <div className="@container table-scroll">
+                  <table className="table-basic min-w-[820px]">
+                    <thead>
                       <tr>
-                        <td colSpan={7} className="py-4 text-center opacity-60">
-                          Aucun bon de paiement pour le moment.
-                        </td>
+                        <th>Période</th>
+                        <th>État</th>
+                        <th>Colis</th>
+                        <th className="cell-num">Commissions</th>
+                        <th className="cell-num">Ajustements</th>
+                        <th className="cell-num">Net</th>
+                        {/* Pendant collant de la cellule « fiche de paie » : la
+                            teinte de la bande d'en-tête (brand/10 sur fond de
+                            page), rendue opaque. */}
+                        <th className="max-xl:sticky max-xl:right-0 max-xl:bg-[#fffae6] dark:max-xl:bg-[#0d0d0d]"></th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {paie.bons.map((b) => (
+                        <LigneBon key={b.id} bon={b} />
+                      ))}
+                      {paie.bons.length === 0 && (
+                        <tr>
+                          <td colSpan={7}>
+                            <div className="empty-state">Aucun bon de paiement pour le moment.</div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </section>
 
@@ -291,29 +292,31 @@ export default function PaieLivreurPage() {
                   <Hourglass className="h-4 w-4" />
                   Pas encore rattaché à un bon
                 </h2>
-                <div className="overflow-x-auto">
-                  <table className="table-basic min-w-[520px]">
-                    <thead>
-                      <tr>
-                        <th>Mois</th>
-                        <th>Tournées</th>
-                        <th>Colis livrés</th>
-                        <th>Commissions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paie.periodesNonGenerees.map((p) => (
-                        <tr key={`${p.annee}-${p.mois}`}>
-                          <td className="font-medium">
-                            {MOIS[p.mois - 1]} {p.annee}
-                          </td>
-                          <td>{p.nbTournees}</td>
-                          <td>{p.nbColisLivres}</td>
-                          <td className="whitespace-nowrap font-bold">{dh(p.montant)}</td>
+                <div className="table-card">
+                  <div className="table-scroll">
+                    <table className="table-basic min-w-[520px]">
+                      <thead>
+                        <tr>
+                          <th>Mois</th>
+                          <th className="cell-num">Tournées</th>
+                          <th className="cell-num">Colis livrés</th>
+                          <th className="cell-num">Commissions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {paie.periodesNonGenerees.map((p) => (
+                          <tr key={`${p.annee}-${p.mois}`}>
+                            <td className="font-medium">
+                              {MOIS[p.mois - 1]} {p.annee}
+                            </td>
+                            <td className="cell-num">{p.nbTournees}</td>
+                            <td className="cell-num">{p.nbColisLivres}</td>
+                            <td className="cell-num whitespace-nowrap font-bold">{dh(p.montant)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
                 <p className="text-xs opacity-60">
                   Ces gains sont acquis : ils seront repris dans le bon de paiement du mois correspondant.
@@ -323,6 +326,6 @@ export default function PaieLivreurPage() {
           </>
         )}
       </div>
-    </LivreurShell>
+    </>
   );
 }

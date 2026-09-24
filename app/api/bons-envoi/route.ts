@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
 import { getColisEligiblesEnvoi, resolveUserHub, type CommandeEligibleEnvoi } from '@/lib/hub-envoi';
+import { creerBonEnvoiPrestataire } from '@/lib/bon-envoi-prestataire';
 import { nextBonEnvoiNumero } from '@/lib/codes';
 import type { Prisma } from '@/app/generated/prisma/client';
 
@@ -16,6 +17,8 @@ export async function GET(request: NextRequest) {
     const where: Prisma.BonEnvoiWhereInput = {};
 
     // § Confinement agent_hub : ne voit que les BE destinés à son propre hub.
+    // Un bon remis à un transporteur n'a pas de hub d'arrivée — il sort donc
+    // du périmètre d'un agent de hub, et ce filtre l'exclut de lui-même.
     if (session.role === 'agent_hub') {
       const hub = await resolveUserHub(session.sub);
       where.hubDestinationId = hub.id;
@@ -24,7 +27,10 @@ export async function GET(request: NextRequest) {
     const [data, total] = await Promise.all([
       prisma.bonEnvoi.findMany({
         where,
-        include: { hubDestination: { select: { nom: true } } },
+        include: {
+          hubDestination: { select: { nom: true } },
+          prestataire: { select: { nom: true } },
+        },
         orderBy: { dateGeneration: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -41,19 +47,39 @@ export async function GET(request: NextRequest) {
 // Crée un Bon d'Envoi : revalide server-side chaque colis soumis contre
 // l'éligibilité réelle (ignore un état client périmé), même principe que
 // creerBonDeLivraison (app/marchand/bons-livraison/actions.ts).
+//
+// Deux natures de bon, exclusives (§ BonEnvoi dans prisma/schema.prisma) :
+// `hubDestinationId` pour un transit interne, `prestataireId` pour une remise
+// à un transporteur. Recevoir les deux — ou aucun — est refusé ici avant tout
+// accès en base : c'est la contrainte CHECK de la table, dite en français.
 export async function POST(request: Request) {
   try {
     const session = await requireUser(['admin']);
     const body = await request.json();
 
     const hubDestinationId = typeof body.hubDestinationId === 'string' ? body.hubDestinationId.trim() : '';
-    if (!hubDestinationId) {
-      throw new ApiError(400, 'hubDestinationId est requis');
+    const prestataireId = typeof body.prestataireId === 'string' ? body.prestataireId.trim() : '';
+
+    if (hubDestinationId && prestataireId) {
+      throw new ApiError(400, "Un Bon d'Envoi vise soit un hub, soit un transporteur — pas les deux");
+    }
+    if (!hubDestinationId && !prestataireId) {
+      throw new ApiError(400, 'hubDestinationId ou prestataireId est requis');
     }
 
     const colisIds = parseStringIdArray(body.colisIds);
     if (colisIds.length === 0) {
       throw new ApiError(400, 'Sélectionnez au moins un colis');
+    }
+
+    if (prestataireId) {
+      const cree = await creerBonEnvoiPrestataire({
+        prestataireId,
+        colisIds,
+        auteurId: session.sub,
+        tousStatuts: body.tousStatuts === true,
+      });
+      return NextResponse.json(cree, { status: 201 });
     }
 
     const hub = await prisma.hub.findUnique({ where: { id: hubDestinationId }, select: { id: true, nom: true } });

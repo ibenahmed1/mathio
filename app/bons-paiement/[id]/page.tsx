@@ -63,6 +63,14 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
 
   const MODES = { virement: 'Virement', especes: 'Espèces', cheque: 'Chèque' } as const;
 
+  // § Comptes livreurs : une société de livraison NOUS FACTURE (décision du
+  // 24/09/2026). Le calcul ne change pas d'un iota — c'est le même bon, les
+  // mêmes commissions figées à la clôture ; ce qui change est la nature du
+  // document, qui devient une base de rapprochement et non la pièce qui solde
+  // le règlement. Le dire sur le papier, c'est éviter qu'il soit signé et
+  // classé comme une fiche de paie ordinaire.
+  const estSociete = bon.livreur.typeLivreur === 'societe';
+
   return (
     <div className="doc-scroll">
       {/* Au téléphone, le document garde sa largeur de page et défile dans ce
@@ -85,7 +93,11 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
 
       <header className="flex items-start justify-between gap-6 border-b-2 border-black pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight">FICHE DE PAIE LIVREUR</h1>
+          {/* « Fiche de paie » ne convient pas à une société : il n'y a ni
+              salaire ni bulletin, mais un décompte de prestations. */}
+          <h1 className="text-2xl font-black tracking-tight">
+            {estSociete ? 'DÉCOMPTE DE PRESTATIONS' : 'FICHE DE PAIE LIVREUR'}
+          </h1>
           <p className="font-mono text-sm">{bon.numero}</p>
           <p className="mt-1 text-sm font-bold uppercase">Période : {periode}</p>
           <p className="mt-1 text-xs">
@@ -118,6 +130,13 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
       <section className="mt-5 text-sm">
         <p className="text-xs uppercase tracking-wide opacity-60">Bénéficiaire</p>
         <p className="font-bold">{bon.livreur.nomComplet}</p>
+        {/* § Comptes livreurs : une société de livraison est identifiée par sa
+            dénomination légale et son ICE, pas par une carte d'identité. Les
+            deux sont facultatifs à ce stade et peuvent manquer. */}
+        {estSociete && bon.livreur.raisonSociale && (
+          <p className="text-xs">Raison sociale : {bon.livreur.raisonSociale}</p>
+        )}
+        {estSociete && bon.livreur.ice && <p className="text-xs">ICE : {bon.livreur.ice}</p>}
         {bon.livreur.telephone && <p className="text-xs">Tél. {bon.livreur.telephone}</p>}
         {bon.livreur.cin && <p className="text-xs">CIN : {bon.livreur.cin}</p>}
         {bon.livreur.numeroCompte && (
@@ -232,7 +251,7 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
               </tr>
             )}
             <tr className="border-t-2 border-black font-black">
-              <td className="pt-1.5">NET À VERSER</td>
+              <td className="pt-1.5">{estSociete ? 'MONTANT DÛ' : 'NET À VERSER'}</td>
               <td className="pt-1.5 text-right tabular-nums">{fmt(bon.montantTotal)}</td>
             </tr>
           </tbody>
@@ -258,14 +277,22 @@ export default async function BonPaiementPrintPage({ params }: { params: Promise
         dépôt à la clôture de chaque tournée.
       </p>
 
+      {estSociete && (
+        <p className="mt-2 border border-black px-3 py-2 text-xs font-semibold">
+          Bénéficiaire constitué en société : ce document est une BASE DE RAPPROCHEMENT, non une pièce de
+          règlement. Le paiement intervient sur présentation de la facture de la société, rapprochée du montant
+          ci-dessus.
+        </p>
+      )}
+
       <div className="mt-10 grid grid-cols-2 gap-10 text-xs">
         <div>
           <p className="border-b border-black pb-8">{societe.raisonSociale}</p>
           <p className="mt-1 opacity-60">Cachet et signature</p>
         </div>
         <div>
-          <p className="border-b border-black pb-8">{bon.livreur.nomComplet}</p>
-          <p className="mt-1 opacity-60">Reçu la somme ci-dessus</p>
+          <p className="border-b border-black pb-8">{bon.livreur.raisonSociale ?? bon.livreur.nomComplet}</p>
+          <p className="mt-1 opacity-60">{estSociete ? 'Bon pour accord' : 'Reçu la somme ci-dessus'}</p>
         </div>
       </div>
     </div>

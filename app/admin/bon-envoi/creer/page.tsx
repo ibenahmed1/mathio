@@ -7,6 +7,7 @@ import { ChevronLeft, Plus, Send, X } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonEnvoi, Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
+import { BonEnvoiTransporteur } from '@/components/admin/BonEnvoiTransporteur';
 
 interface Destination {
   id: string;
@@ -23,6 +24,10 @@ type Toast = { type: 'success' | 'error'; text: string } | null;
 // qu'au clic final, qui revalide tout côté serveur.
 export default function CreerBonEnvoiPage() {
   const router = useRouter();
+
+  // 'hub' = transit interne (comportement historique), 'transporteur' = remise
+  // sous-traitée (§ BonEnvoi.prestataireId).
+  const [mode, setMode] = useState<'hub' | 'transporteur'>('hub');
 
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [loadingDestinations, setLoadingDestinations] = useState(true);
@@ -124,6 +129,30 @@ export default function CreerBonEnvoiPage() {
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
+      {/* Nature du bon. Le choix est demandé AVANT toute sélection parce qu'il
+          ne change pas seulement la destination : il change la règle qui décide
+          quels colis sont proposés (routage par la ville d'un côté, choix libre
+          de l'autre). Le proposer plus tard reviendrait à invalider la
+          sélection déjà faite. */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setMode('hub')}
+          className={mode === 'hub' ? 'btn-primary px-4 py-2 text-sm' : 'btn-outline px-4 py-2 text-sm'}
+        >
+          Transit vers un hub
+        </button>
+        <button
+          onClick={() => setMode('transporteur')}
+          className={mode === 'transporteur' ? 'btn-primary px-4 py-2 text-sm' : 'btn-outline px-4 py-2 text-sm'}
+        >
+          Remise à un transporteur
+        </button>
+      </div>
+
+      {mode === 'transporteur' ? (
+        <BonEnvoiTransporteur />
+      ) : (
+        <>
       {/* Étape 1 : destination */}
       <div className="card-tint-strong flex flex-col gap-2 p-4">
         <label className="text-sm font-bold uppercase tracking-wide opacity-70">1. Hub de destination</label>
@@ -255,6 +284,8 @@ export default function CreerBonEnvoiPage() {
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

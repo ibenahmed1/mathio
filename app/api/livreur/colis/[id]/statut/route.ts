@@ -2,8 +2,19 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } from '@/lib/types';
+import { deciderActionColisLivreur, type OrigineColisLivreur } from '@/lib/comptes-livreur';
+import type { StatutCommande } from '@/app/generated/prisma/enums';
 
 const ACTIONS_VALIDES: ActionLivreur[] = ['livre', 'reporte', 'annule'];
+
+// Statut visé par chacune des trois actions. Nécessaire AVANT de décider de
+// l'accès : pour un colis confié à un transporteur, c'est la transition
+// demandée qui détermine si le geste est recevable (§ deciderActionColisLivreur).
+const STATUT_DE_L_ACTION: Record<ActionLivreur, StatutCommande> = {
+  livre: 'livre',
+  reporte: 'reporte',
+  annule: 'annule',
+};
 
 // § /livreur/colis : les 3 actions de livraison mobile, distinctes du PATCH
 // générique /api/commandes/[id]/statut (back-office, 27 statuts libres sans
@@ -24,25 +35,49 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const commande = await prisma.commande.findUnique({
       where: { id },
-      include: { bonDistribution: { select: { numero: true, statut: true } } },
+      include: {
+        bonDistribution: { select: { numero: true, statut: true } },
+        // § Comptes transporteurs : le colis peut venir d'un bon d'envoi
+        // confié à la société dont ce compte est le compte humain, et non
+        // d'une tournée. Les deux origines mènent au même écran.
+        bonEnvoi: { select: { statut: true, prestataire: { select: { compteLivreurId: true } } } },
+      },
     });
     if (!commande) {
       throw new ApiError(404, 'Colis introuvable');
     }
-    if (commande.livreurId !== session.sub) {
-      throw new ApiError(403, "Ce colis n'est pas assigné à votre tournée");
+
+    const confie =
+      commande.bonEnvoi?.statut === 'recu' && commande.bonEnvoi.prestataire?.compteLivreurId === session.sub;
+    const origine: OrigineColisLivreur = confie
+      ? 'confie'
+      : commande.bonDistribution && commande.bonDistribution.statut !== 'cloture'
+        ? 'tournee'
+        : 'aucune';
+
+    // La décision vit dans lib/ (§ deciderActionColisLivreur) : elle porte
+    // deux régimes — la tournée interne et la sous-traitance — et la seconde
+    // réutilise la règle de transition déjà appliquée par l'API des
+    // prestataires, pour qu'un même colis n'ait pas deux vérités selon le
+    // canal par lequel on le déclare.
+    const decision = deciderActionColisLivreur(
+      {
+        livreurId: commande.livreurId,
+        statut: commande.statut,
+        origine,
+        tourneeNumero: commande.bonDistribution?.numero ?? null,
+      },
+      session.sub,
+      STATUT_DE_L_ACTION[action]
+    );
+    if (decision.issue === 'refuse') {
+      throw new ApiError(decision.status, decision.message);
     }
-    if (commande.statut !== 'mise_en_distribution') {
-      throw new ApiError(400, "Ce colis n'est pas en cours de distribution");
-    }
-    // § Clôture de tournée : une fois la tournée déchargée et fermée par le
-    // Planner, la session du livreur est terminée — plus aucune saisie
-    // terrain n'est acceptée dessus (le colis relève alors du back-office).
-    if (commande.bonDistribution?.statut === 'cloture') {
-      throw new ApiError(
-        409,
-        `La tournée ${commande.bonDistribution.numero} a été clôturée au dépôt : ce colis n'est plus modifiable depuis l'application livreur.`
-      );
+    // Rejeu : le colis porte déjà ce statut. On répond succès sans rien
+    // réécrire — une seconde ligne d'historique laisserait croire à une
+    // seconde tentative de livraison.
+    if (decision.issue === 'inchange') {
+      return NextResponse.json({ issue: 'inchange', statut: commande.statut });
     }
 
     let nouveauStatut: 'livre' | 'reporte' | 'annule';

@@ -9,6 +9,7 @@ import {
   ROLE_PERMISSIONS,
   sanitizePermissions,
 } from '@/lib/auth';
+import { analyserIdentiteLivreur, cinRequise, hubRequis } from '@/lib/comptes-livreur';
 import type { Role } from '@/app/generated/prisma/enums';
 
 // Rôles créables via cet endpoint : les comptes équipe internes (RF-22).
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
         actif: true,
         dateCreation: true,
         derniereConnexion: true,
+        typeLivreur: true,
+        raisonSociale: true,
+        ice: true,
         cin: true,
         photoUrl: true,
         zonePrincipale: true,
@@ -133,26 +137,35 @@ export async function POST(request: Request) {
     const email = typeof body.email === 'string' ? body.email.trim() : '';
     const cin = typeof body.cin === 'string' ? body.cin.trim() : '';
 
+    // § Comptes livreurs : individu ou société de livraison (§ lib/comptes-livreur.ts).
+    const identiteLivreur = analyserIdentiteLivreur(role, body);
+
     if (estTerrain) {
       if (!email) {
         throw new ApiError(400, 'email est requis pour un compte livreur/ramasseur');
       }
-      if (!cin) {
+      // La CIN reste exigée d'une personne, jamais d'une société : lui
+      // demander une carte d'identité empêcherait simplement de la créer.
+      if (!cin && cinRequise(role, identiteLivreur.typeLivreur)) {
         throw new ApiError(400, 'cin est requis pour un compte livreur/ramasseur');
       }
     }
 
-    // RF AGENT_HUB / LIVREUR : doit obligatoirement être rattaché à un Hub
-    // (Utilisateur.hubId).
+    // RF AGENT_HUB / LIVREUR : rattachement à un Hub (Utilisateur.hubId).
+    // OBLIGATOIRE sauf pour une société de livraison, qui n'a pas de quai chez
+    // nous (§ hubRequis, lib/comptes-livreur.ts) — le champ lui reste ouvert,
+    // il n'est simplement plus exigé.
     let hubId: string | null = null;
     if (avecHub) {
       hubId = typeof body.hubId === 'string' ? body.hubId.trim() : '';
-      if (!hubId) {
+      if (!hubId && hubRequis(role, identiteLivreur.typeLivreur)) {
         throw new ApiError(400, 'hubId est requis pour ce rôle');
       }
-      const hub = await prisma.hub.findUnique({ where: { id: hubId } });
-      if (!hub) {
-        throw new ApiError(400, 'Hub introuvable');
+      if (hubId) {
+        const hub = await prisma.hub.findUnique({ where: { id: hubId } });
+        if (!hub) {
+          throw new ApiError(400, 'Hub introuvable');
+        }
       }
     }
 
@@ -204,8 +217,16 @@ export async function POST(request: Request) {
       data.photoUrl = typeof body.photoUrl === 'string' && body.photoUrl ? body.photoUrl : null;
     }
 
+    // Toujours écrits, y compris à null : un compte qui n'est pas livreur ne
+    // doit pas hériter d'un type ni d'une raison sociale (cf.
+    // analyserIdentiteLivreur, qui les remet à null hors du rôle livreur).
+    data.typeLivreur = identiteLivreur.typeLivreur;
+    data.raisonSociale = identiteLivreur.raisonSociale;
+    data.ice = identiteLivreur.ice;
+
     if (estTerrain) {
-      data.cin = cin;
+      // Vide pour une société, qui n'en a pas : la colonne reste nullable.
+      data.cin = cin || null;
       data.zonePrincipale = typeof body.zonePrincipale === 'string' && body.zonePrincipale ? body.zonePrincipale : null;
       data.zoneSecondaire = typeof body.zoneSecondaire === 'string' && body.zoneSecondaire ? body.zoneSecondaire : null;
       data.adresse = typeof body.adresse === 'string' && body.adresse ? body.adresse : null;
@@ -224,8 +245,11 @@ export async function POST(request: Request) {
       data.ribPhotoUrl = typeof body.ribPhotoUrl === 'string' && body.ribPhotoUrl ? body.ribPhotoUrl : null;
     }
 
-    if (avecHub) {
-      data.hub = { connect: { id: hubId! } };
+    // `hubId` peut rester vide pour une société de livraison : on ne connecte
+    // alors rien, et la colonne reste NULL — ce qu'elle est déjà pour tous les
+    // rôles qui n'ont pas de quai.
+    if (avecHub && hubId) {
+      data.hub = { connect: { id: hubId } };
     }
 
     const utilisateur = await prisma.utilisateur.create({
