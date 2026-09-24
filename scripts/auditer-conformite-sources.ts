@@ -120,12 +120,19 @@ const SOURCE: LigneSource[] = [
   ]),
   ...zone('Agence Fès', null, ['MOULAY YAACOUB', 'SIDI HRAZEM']),
 
-  // ══ Sahario Express (68 lignes) ════════════════════════════════════════
+  // ══ Sahario Express — Agence Guelmim (14 lignes) ═══════════════════════
   ...zone('Agence Guelmim', 15, ['Guelmim']),
   ...zone('Agence Guelmim', 25, [
     'Bouizakarn', 'Sidi ifni', 'Mirleft', 'Assa', 'Zag', 'Tantan', 'El ouatia', 'Tarfaya',
     'Laayoune', 'Laayoune porte', 'Es semara', 'Boujdour', 'Dakhla',
   ]),
+
+  // ══ Leader Colis — Agence Agadir (51 lignes) ═══════════════════════════
+  // Ces 51 lignes ont d'abord été auditées sous Sahario Express : l'agence lui
+  // avait été attribuée par erreur (§ SOUS_TRAITANCE.md §2.11). Le tarif
+  // comparé n'a pas changé de résolution pour autant — `tarifDe` retient par
+  // défaut celui du prestataire qui exploite le hub, et c'est désormais Leader
+  // Colis. Aucun `prestataire:` explicite n'est donc nécessaire ici.
   ...zone('Agence Agadir', 15, ['Agadir', 'dchaira', 'inzgane', 'ait mlloul']),
   ...zone('Agence Agadir', 20, [
     'Sidi bibi', 'Anza', 'Aourir', 'Biougra', 'Ait aamira', 'Tadart anza', 'Tamraght', 'Tarast',

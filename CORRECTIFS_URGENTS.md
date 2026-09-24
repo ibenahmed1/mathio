@@ -203,3 +203,13 @@ encaisse-t-il, et sous quel délai reverse-t-il ?
 
 **Noté le 9 septembre 2026.** `app/api/livreur/colis/[id]/statut/route.ts` (logique dans le handler)
 et `lib/livraison-statut.ts` divergent. Les faire converger sur une seule fonction de `lib/`.
+
+---
+
+## 9. `/admin/hubs` n'a que cinq couleurs pour six prestataires
+
+**Noté le 23 septembre 2026**, à l'arrivée de Leader Colis (`SOUS_TRAITANCE.md` §2.11).
+`GRADIENTS_AGENCE` (`app/admin/hubs/page.tsx`) compte cinq nuances distribuées dans l'ordre
+alphabétique : à six, la suite reboucle et **Sahario Express reprend la teinte d'Amir Livraison**.
+Le commentaire sur place prévoyait le cas et écartait déjà la solution facile — ajouter une sixième
+nuance dans le même dégradé jaune-brique, que l'œil ne suivrait plus. À trancher autrement.

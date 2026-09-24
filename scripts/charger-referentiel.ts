@@ -6,6 +6,7 @@ import { alignerNomsSurSources } from './aligner-noms-sur-sources';
 import { importerPowerDelivery } from './import-prestataire-power-delivery';
 import { importerMetaLivraison } from './import-prestataire-meta-livraison';
 import { importerSaharioExpress } from './import-prestataire-sahario-express';
+import { importerLeaderColis } from './import-prestataire-leader-colis';
 import { importerAgenceTanger } from './import-agence-tanger';
 import { importerEstLivraison } from './import-prestataire-est-livraison';
 import { ajouterVillesAgences } from './ajouter-villes-agences';
@@ -53,6 +54,7 @@ const ETAPES: Etape[] = [
   { libelle: 'Power Delivery', executer: importerPowerDelivery },
   { libelle: 'Meta Livraison', executer: importerMetaLivraison },
   { libelle: 'Sahario Express', executer: importerSaharioExpress },
+  { libelle: 'Leader Colis', executer: importerLeaderColis },
   { libelle: 'Amir Livraison — agence Tanger', executer: importerAgenceTanger },
   { libelle: 'EST Livraison', executer: importerEstLivraison },
   { libelle: "Villes d'implantation des agences", executer: ajouterVillesAgences },

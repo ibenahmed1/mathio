@@ -45,7 +45,7 @@ const RENOMMAGES: { agence: string; de: string; vers: string }[] = [
   { agence: 'Agence Marrakech', de: 'Tamallalt', vers: 'tamelelt' },
   { agence: 'Agence Rabat', de: 'Tamesna', vers: 'TEMSENA' },
 
-  // --- Sahario Express ----------------------------------------------------
+  // --- Leader Colis (Agence Agadir) ---------------------------------------
   // La précision « (Oulad Teima) » servait à éviter la collision avec la Sidi
   // Moussa de Marrakech. Les deux peuvent désormais coexister.
   { agence: 'Agence Agadir', de: 'Sidi Moussa (Oulad Teima)', vers: 'Sidi moussa' },

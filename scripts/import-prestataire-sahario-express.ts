@@ -8,19 +8,18 @@ import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
  * `npx tsx scripts/import-prestataire-sahario-express.ts`.
  *
  * Troisième réseau sous-traité, après Power Delivery (Centre) et Meta Livraison
- * (Nord-Est) : celui-ci couvre le Sud et le Souss. Idempotent et non
- * destructif, comme les deux autres.
+ * (Nord-Est) : celui-ci couvre le Sud, de Guelmim aux provinces sahariennes.
+ * Idempotent et non destructif, comme les deux autres.
  *
- * L'Agence Agadir est tarifée par ZONE (15 / 20 / 23 dh) et non ville par
- * ville : la structure du fichier source est conservée ci-dessous, chaque zone
- * portant son prix une seule fois. L'Agence Guelmim, elle, donne un prix par
- * ligne.
+ * UNE SEULE AGENCE, ET C'EST UNE CORRECTION. Ce fichier a longtemps porté
+ * l'Agence Agadir et ses 51 villes du Souss. Elles relèvent en réalité de
+ * LEADER COLIS et vivent désormais dans
+ * `scripts/import-prestataire-leader-colis.ts` (corrigé le 23 septembre 2026,
+ * § SOUS_TRAITANCE.md §2.11). Sahario ne dessert que Guelmim.
  *
- * À l'intérieur de la zone 23, « Taroudant : », « Tiznit : » et
- * « Oulad teima : » introduisaient leurs localités. Les trois chefs-lieux sont
- * eux-mêmes créés au tarif de la zone : ils font partie de la liste qu'ils
- * ouvrent, et couvrir Oulad Berhil ou Aglou sans couvrir Taroudant ou Tiznit
- * n'aurait pas de sens opérationnel.
+ * L'Agence Guelmim donne un prix par ligne, et non par zone comme la grille
+ * d'Agadir : les deux tarifs — 15 dh sur Guelmim même, 25 dh partout ailleurs —
+ * sont exprimés ci-dessous comme le fait le message source.
  */
 
 const PRESTATAIRE = 'Sahario Express';
@@ -39,10 +38,12 @@ const AGENCES: AgenceImport[] = [
         villes: [
           'Bouizakarn',
           // « Sidi ifni » et « Mirleft » sont maintenues ici À CÔTÉ de
-          // « sidi fini » et « merleft », rattachées à l'Agence Agadir en zone
-          // 23 : le donneur d'ordre a confirmé les deux listes telles quelles.
-          // Ce sont donc quatre villes distinctes pour le système, pas deux
-          // orthographes.
+          // « sidi fini » et « merleft », que l'Agence Agadir de LEADER COLIS
+          // dessert en zone 23 : le donneur d'ordre a confirmé les deux listes
+          // telles quelles. Ce sont donc quatre villes distinctes pour le
+          // système, pas deux orthographes — et, depuis la correction
+          // d'attribution, quatre villes réparties sur DEUX réseaux : la
+          // graphie saisie par le marchand décide du prestataire, donc du coût.
           'Sidi ifni',
           'Mirleft',
           'Assa',
@@ -55,88 +56,6 @@ const AGENCES: AgenceImport[] = [
           'Es semara',
           'Boujdour',
           'Dakhla',
-        ],
-      },
-    ],
-  },
-  {
-    hub: 'Agence Agadir',
-    ville: 'Agadir',
-    zones: [
-      // « ait mlloul » est la graphie du message. Une version antérieure la
-      // corrigeait en « Ait Melloul » : une grille fournisseur se recopie, elle
-      // ne se corrige pas.
-      { tarif: 15, villes: ['Agadir', 'dchaira', 'inzgane', 'ait mlloul'] },
-      {
-        tarif: 20,
-        villes: [
-          'Sidi bibi',
-          'Anza',
-          'Aourir',
-          'Biougra',
-          'Ait aamira',
-          'Tadart anza',
-          'Tamraght',
-          'Tarast',
-          'Drarga',
-          'Tikiwine',
-          'Leqliaa',
-          'tamait',
-        ],
-      },
-      {
-        tarif: 23,
-        villes: [
-          // Les messages écrivent « . Taroudant : », « . Tiznit : » et
-          // « . Oulad teima : » en EN-TÊTES de groupe — un point devant, deux
-          // points derrière — suivis de leurs localités. Ce sont des repères de
-          // lecture, pas des destinations : les trois chefs-lieux ne sont donc
-          // PAS créés. Une version antérieure en faisait des villes livrables à
-          // 23 DH, ce qui ajoutait trois destinations que le fournisseur n'a
-          // jamais annoncées.
-          //
-          // Secteur Taroudant
-          'Zaouiat',
-          'iferkane',
-          'Ait aiaaza',
-          'El nouwayle',
-          'Oulad aarfa',
-          'taliwin',
-          'awlouz',
-          'oulad berhil',
-          // Secteur Tiznit
-          'Anzi',
-          'tighmi',
-          'idawsmlal',
-          'tafraout',
-          'ait jraj',
-          'lakhssas',
-          'bounaiman',
-          'sihll',
-          'merleft',
-          'sidi fini',
-          'aglou',
-          'lmaader',
-          'rasmouka',
-          'wijan',
-          // Secteur Oulad Teima
-          // Orthographe du message. Elle portait une précision « (Oulad Teima) »
-          // tant que `Ville.nom` était unique pour tout le réseau, pour ne pas
-          // entrer en collision avec la Sidi Moussa de Marrakech ; l'unicité
-          // par hub (§ @@unique([hubId, nom])) rend cette béquille inutile.
-          'Sidi moussa',
-          'lhamri',
-          'Sebt el guerdane',
-          'Douar sulad',
-          'said Qrarma',
-          'Lakhnafif',
-          'El koudia',
-          'Lagfifat',
-          'Ain seddaq',
-          'Belfaa',
-          'massa',
-          'taghazout',
-          'imi wadar',
         ],
       },
     ],

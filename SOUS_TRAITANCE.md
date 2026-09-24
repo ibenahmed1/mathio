@@ -12,20 +12,24 @@ commenté. Il décrit ce qui a été *décidé* faute de réponse.
 
 ## 1. Ce qui est en base
 
-**5 prestataires · 17 agences · 338 villes · 235 tarifs**, chargés par `npm run db:reseau`.
+**6 prestataires · 17 agences · 338 villes · 235 tarifs**, chargés par `npm run db:reseau`.
 
 | Prestataire | Région | Agences | Villes | Tarifs | Tarif de retour |
 |---|---|---|---|---|---|
 | Power Delivery | Centre | 4 | 77 | 90 | aucun |
 | Meta Livraison | Nord-Est | 9 | 103 | **0** | aucun |
-| Sahario Express | Sud | 2 | 65 | 65 | aucun |
-| Amir Livraison | Nord-Ouest | 1 | 17 | 17 | aucun |
 | EST Livraison | Oriental | 1 | 63 | 63 | **0 DH partout** |
+| Leader Colis | Souss | 1 | 51 | 51 | aucun |
+| Amir Livraison | Nord-Ouest | 1 | 17 | 17 | aucun |
+| Sahario Express | Sud | 1 | 14 | 14 | aucun |
 
 Plus le `Hub Casablanca`, interne et central, avec ses 13 villes livrées par nos propres livreurs.
 
-Sources : `ville Power.pdf`, `metalivraison.csv`, deux grilles reçues par message (Sahario, Amir),
-`Code_Generated_Image.pdf` (EST). Les transcriptions vivent dans `scripts/import-prestataire-*.ts`
+Leader Colis est le dernier arrivé du tableau et n'a pourtant rien chargé de neuf : ses 51 villes
+étaient déjà en base, sous Sahario Express, qui ne les dessert pas (§2.11).
+
+Sources : `ville Power.pdf`, `metalivraison.csv`, trois grilles reçues par message (Agadir pour
+Leader Colis, Guelmim pour Sahario, Tanger pour Amir), `Code_Generated_Image.pdf` (EST). Les transcriptions vivent dans `scripts/import-prestataire-*.ts`
 — **ce sont elles qui font foi**, pas la base : un environnement neuf est reconstruit à partir
 d'elles.
 
@@ -83,7 +87,8 @@ deux points derrière — suivis de leurs localités. Ce sont des **repères de 
 été créés comme villes livrables à 23 DH, donc trois destinations que le fournisseur n'a jamais
 annoncées. Retirés. L'Agence Agadir passe de 54 à **51 villes**, ce que dit le message.
 
-⚠️ **À confirmer** : si Sahario livre réellement ces trois chefs-lieux, il faut les rajouter.
+⚠️ **À confirmer** : si Leader Colis livre réellement ces trois chefs-lieux, il faut les rajouter.
+Ces messages ont longtemps été attribués à Sahario Express (cf. §2.11).
 
 ### 2.4 Une seule agence pour EST Livraison
 
@@ -110,7 +115,10 @@ viser séparément. **341 lignes en base pour 343 dans les fichiers** — c'est 
 
 `Sidi Ifni` (Guelmim, 25 DH) et `Sidi Fini` (Agadir, 23 DH), `Mirleft` (25) et `Merleft` (23) : les
 deux listes ont été conservées telles quelles, sur décision explicite. **Conséquence** : un colis
-part chez Guelmim ou chez Agadir selon l'orthographe saisie par le marchand.
+part chez Guelmim ou chez Agadir selon l'orthographe saisie par le marchand — et, depuis la
+correction d'attribution du §2.11, ce n'est plus seulement une affaire d'agence mais de
+**prestataire** : Guelmim est chez Sahario Express, Agadir chez Leader Colis. Une lettre décide
+donc du transporteur, du prix d'achat et de la marge.
 
 Idem chez Power Delivery, où le même fichier écrit deux fois la même ville : `ait aourir` /
 `Aït ourir`, `tamelelt` / `Tamallalt`, `TEMSENA` / `Tamssna`. Les six lignes existent.
@@ -165,7 +173,50 @@ fichiers sources à la lettre, et `scripts/auditer-conformite-sources.ts` le vé
 ville absente du CSV falsifierait la transcription : la décision est donc tenue dans son propre
 script, où elle reste visible et réversible.
 
-### 2.11 Choix de modèle
+### 2.11 L'Agence Agadir était attribuée au mauvais prestataire — corrigé le 23 septembre 2026
+
+**Le constat.** Les 51 villes du Souss rattachées à l'`Agence Agadir` avaient été importées sous
+**Sahario Express**, dans le même fichier que l'`Agence Guelmim`. Elles sont servies par **Leader
+Colis**. Sahario ne dessert que Guelmim et ses 14 villes sahariennes.
+
+**Pourquoi ce n'était pas cosmétique.** Le coût d'un colis est celui du prestataire qui **exploite
+le hub de sa ville** (`getCoutsSousTraitance`, `lib/prestataires.ts`), et non le moins cher de la
+grille. Ces 51 villes entraient donc dans la marge comme de l'achat Sahario, sur des colis qui
+partaient en réalité chez Leader Colis.
+
+**Ce qui a été fait.**
+
+| | |
+|---|---|
+| `scripts/import-prestataire-leader-colis.ts` | la transcription du bloc Agadir, déplacée telle quelle — graphies, zones 15/20/23 DH et en-têtes de groupe compris |
+| `scripts/import-prestataire-sahario-express.ts` | n'a plus que l'Agence Guelmim |
+| `scripts/transferer-agadir-leader-colis.ts` | **à passer une fois** sur toute base déjà chargée |
+
+**Pourquoi un script de transfert plutôt qu'une étape de `db:reseau`.** `resoudreHubImport` refuse
+de reprendre un quai qui appartient à un autre prestataire, et `detecterBlocages()` arrête le
+chargement avant sa première écriture pour la même raison : déplacer une agence emporte ses villes,
+ses tarifs et le coût de ses colis. Les deux garde-fous ont été **laissés intacts**. Conséquence
+assumée : sur une base chargée avant le 23 septembre 2026, `npm run db:reseau` **refuse de tourner**
+tant que le transfert n'a pas été passé, et le message nomme le conflit.
+
+**Ce que le transfert déplace.** Le hub n'est ni supprimé ni recréé — seul son `prestataireId`
+change, son `id` ne bouge pas, donc `Utilisateur.hubId`, `Commande.hubActuelId`, les bons et
+`HistoriqueStatutCommande.hubId` restent valides. Les villes suivent le hub. Les 51 lignes de
+`TarifPrestataireVille`, elles, sont recopiées chez Leader Colis puis **supprimées chez Sahario** :
+indexées sur (prestataire, ville), elles ne suivent pas le hub, et les laisser afficherait une
+grille Sahario de 65 villes dont 51 qu'il ne dessert pas — une offre inventée, sur laquelle
+quelqu'un finirait par arbitrer.
+
+**Ce qu'il ne répare pas.** Les factures déjà émises gardent leur coût : `LigneFacture.coutLivraison`
+est figé à l'émission, et le réécrire changerait des marges déjà arrêtées. Les colis livrés sous
+l'ancienne attribution restent donc comptés comme du Sahario. C'est le seul résidu de l'erreur.
+
+⚠️ **À confirmer** (§3, question 29) : les messages portant la grille d'Agadir avaient été classés
+« Sahario » à la réception. L'attribution à Leader Colis vient du donneur d'ordre, pas d'un en-tête
+du document. Si Sahario nous a transmis la grille **pour le compte de** Leader Colis, c'est une
+relation commerciale à écrire, et elle peut changer qui nous facture.
+
+### 2.12 Choix de modèle
 
 - **Le mode de livraison se décide par ville, via son hub.** Un `Hub` sans `prestataireId` est
   interne (nos livreurs) ; avec, c'est une agence. Basculer une ville revient à la déplacer d'un
@@ -229,7 +280,7 @@ script, où elle reste visible et réversible.
     chacune, ou deux ?
 15. `Mzouda` et `Mzoudia` : deux communes, ou une faute de frappe ?
 16. `ouargui` (×2) et `kantra asqar` (×2) : erreur de saisie, ou deux endroits distincts ?
-17. **Sahario livre-t-il Taroudant, Tiznit et Oulad Teima ?** (retirées, cf. § 2.3)
+17. **Leader Colis livre-t-il Taroudant, Tiznit et Oulad Teima ?** (retirées, cf. § 2.3)
 
 ### Arbitrage — villes revendiquées par deux réseaux
 
@@ -258,6 +309,9 @@ script, où elle reste visible et réversible.
     pour ce que voit le marchand, la graphie du fichier restant celle du back-office ?
 28. Les hubs internes `Hub Marrakech` et `Hub Tanger` sont vides depuis que leurs villes sont
     passées aux agences. On les supprime ?
+29. **Qui nous a transmis la grille d'Agadir, et qui nous facture ?** Ces messages avaient été
+    classés « Sahario » à la réception ; l'Agence Agadir est désormais chez Leader Colis (§2.11).
+    Sahario a-t-il relayé la grille d'un exécutant, ou n'a-t-il jamais eu de rôle sur le Souss ?
 
 ---
 
@@ -272,7 +326,7 @@ npm run db:reseau                               # le référentiel — idempoten
 
 `db:reseau` n'est **pas** appelé par `db:deploy` : sur une base fraîchement migrée, sans lui, il n'y
 a ni prestataire, ni hub, ni ville, ni tarif. Il enchaîne un script d'alignement (sans effet sur une
-base neuve) puis les cinq imports.
+base neuve) puis les six imports.
 
 **Sur un environnement qui contient déjà des hubs**, lancer d'abord `verifier-avant-reseau.ts` : il
 n'écrit rien et dit, hub par hub, ce qui sera créé, réutilisé, ou laissé de côté. Il signale en
