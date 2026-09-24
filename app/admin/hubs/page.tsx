@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Building2, Map, MapPin, Pencil, Plus, Search, Tag, Trash2, Warehouse, X } from 'lucide-react';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
-import type { Hub, Prestataire, Ville } from '@/lib/types';
+import type { Hub, Prestataire, Utilisateur, Ville } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { Field } from '@/components/form/Field';
 import './hubs.css';
@@ -46,10 +46,14 @@ const GRADIENTS: Record<string, string> = {
 
 // Rangées dans l'ordre où elles seront distribuées : du plus clair au plus
 // soutenu, pour que deux prestataires voisins dans l'alphabet restent
-// distinguables au premier coup d'œil. Cinq marches pour cinq prestataires
-// (Amir, EST, Meta, Power, Sahario) — au-delà la suite reboucle, et deux
-// réseaux se retrouveraient de la même couleur : il faudra alors trancher
-// autrement qu'en ajoutant une nuance de plus, l'œil ne suivrait pas.
+// distinguables au premier coup d'œil.
+//
+// ⚠️ CINQ marches pour SIX prestataires depuis l'arrivée de Leader Colis
+// (§ SOUS_TRAITANCE.md §2.11) : la suite reboucle, et Sahario Express — dernier
+// dans l'alphabet — reprend la teinte d'Amir Livraison. Le défaut est connu et
+// reporté (§ CORRECTIFS_URGENTS.md §9). La solution facile a déjà été écartée :
+// une sixième nuance dans le même dégradé jaune-brique, l'œil ne la suivrait
+// pas. Il faut trancher autrement.
 const GRADIENTS_AGENCE = ['yellow', 'accent', 'orange', 'orangeDeep', 'brique'];
 
 // Teinte de chaque prestataire, attribuée dans l'ordre alphabétique de leur
@@ -108,6 +112,10 @@ export default function AdminHubsPage() {
   // parce que c'est le même référentiel vu des deux côtés — un hub est soit
   // exploité par nous, soit par l'un d'eux.
   const [prestataires, setPrestataires] = useState<Prestataire[]>([]);
+  // § Comptes transporteurs : les comptes livreur de type société, seuls
+  // candidats au rattachement (§ Prestataire.compteLivreurId). Chargés ici
+  // plutôt que dans la fenêtre pour que la liste soit prête à son ouverture.
+  const [comptesSociete, setComptesSociete] = useState<Utilisateur[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   // Hub visé par le formulaire de ville, suivi à part : c'est lui qui décide si
@@ -122,12 +130,14 @@ export default function AdminHubsPage() {
 
   async function load() {
     try {
-      const [resHubs, resPrestataires] = await Promise.all([
+      const [resHubs, resPrestataires, resComptes] = await Promise.all([
         apiGet<{ data: Hub[] }>('/api/hubs'),
         apiGet<{ data: Prestataire[] }>('/api/prestataires'),
+        apiGet<{ data: Utilisateur[] }>('/api/utilisateurs?role=livreur'),
       ]);
       setHubs(resHubs.data);
       setPrestataires(resPrestataires.data);
+      setComptesSociete(resComptes.data.filter((u) => u.typeLivreur === 'societe'));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     }
@@ -242,13 +252,20 @@ export default function AdminHubsPage() {
     e.preventDefault();
     if (!modal || modal.kind !== 'prestataire') return;
     const fd = new FormData(e.currentTarget);
-    const payload = {
+    const payload: Record<string, unknown> = {
       nom: String(fd.get('nom') ?? ''),
       contact: String(fd.get('contact') ?? ''),
       telephone: String(fd.get('telephone') ?? ''),
       email: String(fd.get('email') ?? ''),
       actif: fd.get('actif') === 'on',
     };
+    // Le champ n'existe qu'en modification : à la création il n'est pas dans
+    // le formulaire, et l'envoyer à vide détacherait un compte qui n'a jamais
+    // été rattaché — sans conséquence ici, mais l'API distingue « absent » de
+    // « vidé » et il n'y a pas de raison de lui mentir.
+    if (modal.mode === 'edit') {
+      payload.compteLivreurId = String(fd.get('compteLivreurId') ?? '');
+    }
     setError(null);
     try {
       if (modal.mode === 'create') {
@@ -704,6 +721,34 @@ export default function AdminHubsPage() {
                 defaultValue={modal.mode === 'edit' ? (modal.prestataire.email ?? '') : ''}
               />
             </Field>
+            {/* § Comptes transporteurs : rattacher un compte donne à ce
+                transporteur une feuille de route dans l'espace terrain. Les
+                colis d'un bon d'envoi qui lui est adressé y atterrissent, et
+                il en déclare l'issue lui-même au lieu de nous renvoyer un
+                fichier. Sans compte, rien ne change pour lui. Réservé à la
+                modification : le compte se crée depuis /admin/equipe, et un
+                transporteur qu'on vient de saisir n'en a pas encore. */}
+            {modal.mode === 'edit' && (
+              <Field label="Compte livreur rattaché" optional>
+                <select
+                  name="compteLivreurId"
+                  className="input-basic"
+                  defaultValue={modal.prestataire.compteLivreur?.id ?? ''}
+                >
+                  <option value="">Aucun — suivi par fichier ou par API</option>
+                  {comptesSociete
+                    .filter(
+                      (c) =>
+                        !prestataires.some((p) => p.compteLivreur?.id === c.id && p.id !== modal.prestataire.id)
+                    )
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.raisonSociale ? `${c.nomComplet} — ${c.raisonSociale}` : c.nomComplet}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            )}
             <label className="check-row">
               <input
                 type="checkbox"

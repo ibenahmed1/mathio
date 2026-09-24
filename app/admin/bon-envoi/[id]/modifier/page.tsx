@@ -47,13 +47,22 @@ export default function ModifierBonEnvoiPage() {
       .finally(() => setLoadingBon(false));
   }, [params.id]);
 
+  // Les colis ajoutables dépendent de la nature du bon : routage ville → hub
+  // pour un transit interne, périmètre libre pour une remise sous-traitée.
+  const critereEligibles = useMemo(() => {
+    if (!bon) return null;
+    if (bon.prestataireId) return `prestataireId=${encodeURIComponent(bon.prestataireId)}`;
+    if (bon.hubDestinationId) return `hubDestinationId=${encodeURIComponent(bon.hubDestinationId)}`;
+    return null;
+  }, [bon]);
+
   useEffect(() => {
-    if (!bon) return;
-    apiGet<{ data: Commande[] }>(`/api/bons-envoi/colis-eligibles?hubDestinationId=${encodeURIComponent(bon.hubDestinationId)}`)
+    if (!critereEligibles) return;
+    apiGet<{ data: Commande[] }>(`/api/bons-envoi/colis-eligibles?${critereEligibles}`)
       .then((res) => setEligibles(res.data))
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'))
       .finally(() => setLoadingEligibles(false));
-  }, [bon]);
+  }, [critereEligibles]);
 
   function toggleRetirer(id: string) {
     setARetirer((prev) => {
@@ -79,9 +88,12 @@ export default function ModifierBonEnvoiPage() {
       setScanning(true);
       setToast(null);
       try {
+        const cible = bon.prestataireId
+          ? { prestataireId: bon.prestataireId }
+          : { hubDestinationId: bon.hubDestinationId };
         const body: Record<string, unknown> = raw.includes('.')
-          ? { qrPayload: raw, hubDestinationId: bon.hubDestinationId }
-          : { codeSuivi: raw, hubDestinationId: bon.hubDestinationId };
+          ? { qrPayload: raw, ...cible }
+          : { codeSuivi: raw, ...cible };
         const commande = await apiPost<Commande>('/api/bons-envoi/verifier-colis', body);
         setAAjouter((prev) => new Map(prev).set(commande.id, commande));
         setToast({ type: 'success', text: `Colis ${commande.codeSuivi} ajouté.` });

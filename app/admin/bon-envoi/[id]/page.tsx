@@ -70,8 +70,8 @@ export default function DetailBonEnvoiPage() {
 
       <div className="card-tint-strong grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
         <div>
-          <p className="opacity-60">Destination</p>
-          <p className="font-semibold">{bon.hubDestination?.nom ?? '—'}</p>
+          <p className="opacity-60">{bon.prestataire ? 'Transporteur' : 'Destination'}</p>
+          <p className="font-semibold">{bon.prestataire?.nom ?? bon.hubDestination?.nom ?? '—'}</p>
         </div>
         <div>
           <p className="opacity-60">Colis</p>
@@ -101,10 +101,12 @@ export default function DetailBonEnvoiPage() {
         )}
       </div>
 
-      {/* § Power Delivery : remise par leur API pour un bon vers une de leurs
-          agences. Réservée à l'admin (bon_envoi:manage) — l'agent de quai
-          consulte et réceptionne, il ne remet pas. */}
-      {user?.role === 'admin' && bon.hubDestination?.prestataire?.nom === 'Power Delivery' && (
+      {/* § Power Delivery : remise par leur API, qu'on les vise par une de
+          leurs agences (transit) ou directement (remise sous-traitée).
+          Réservée à l'admin (bon_envoi:manage) — l'agent de quai consulte et
+          réceptionne, il ne remet pas. */}
+      {user?.role === 'admin' &&
+        (bon.hubDestination?.prestataire?.nom === 'Power Delivery' || bon.prestataire?.nom === 'Power Delivery') && (
         <RemisePowerDelivery bonId={bon.id} onRemis={load} />
       )}
 

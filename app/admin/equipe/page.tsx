@@ -156,7 +156,22 @@ export default function AdminEquipePage() {
         <tbody>
           {visibles.map((u) => (
             <tr key={u.id}>
-              <td>{u.nomComplet}</td>
+              <td>
+                {u.nomComplet}
+                {/* § Comptes livreurs : rien ne distinguait une société de
+                    livraison d'une personne dans cette liste, alors que les
+                    deux ne se règlent pas de la même façon — une société nous
+                    facture. La raison sociale n'est affichée que si elle a été
+                    saisie : elle est facultative à ce stade. */}
+                {u.typeLivreur === 'societe' && (
+                  <>
+                    <span className="badge badge-neutral ml-2" title="Société de livraison">
+                      Société
+                    </span>
+                    {u.raisonSociale && <span className="block text-xs opacity-60">{u.raisonSociale}</span>}
+                  </>
+                )}
+              </td>
               <td>{u.telephone ?? '—'}</td>
               <td>
                 {ROLE_LABELS[u.role] ?? u.role}

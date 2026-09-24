@@ -1,65 +1,82 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { LogOut, Menu } from 'lucide-react';
-import { deconnecter } from '@/lib/deconnexion';
-import { AppSidebar } from '@/components/AppSidebar';
+import { usePathname } from 'next/navigation';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { SidebarContext } from '@/components/admin/SidebarContext';
+import { SidebarToggleButtons } from '@/components/admin/SidebarToggleButtons';
 import { NAV_LIVREUR } from './nav';
+import type { Role } from '@/app/generated/prisma/enums';
 
-// Coquille desktop de l'espace livreur (sidebar à 6 sections, cf. nav.ts) —
-// remplace l'ancienne coquille mobile-first à 2 onglets (Tournée/Caisse)
-// désormais absorbée par les pages Colis et Bons de paiement. Réutilise
-// AppSidebar (composant générique déjà prévu pour ça, jusqu'ici seulement
-// utilisé pour son type NavItem) plutôt que de dupliquer AdminSidebar/
-// MarchandSidebar pour un espace à une seule section de nav sans sous-menus.
-export function LivreurShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+// Coquille de l'espace livreur. Elle ne réimplémente plus une barre à elle :
+// elle monte EXACTEMENT celle du back-office (AdminSidebar) avec la navigation
+// du livreur. Les deux espaces internes partagent ainsi le même gabarit, le
+// même pied de profil (avatar, nom, rôle, menu Profil/Déconnexion) et le même
+// comportement de repli — une divergence de style entre eux ne peut plus
+// s'installer par simple oubli, puisqu'il n'y a plus qu'un seul composant.
+//
+// Elle est montée UNE FOIS par le layout (§ app/livreur/layout.tsx) et non
+// plus par chaque page : sans cela, le nom du livreur — lu en base côté
+// serveur — n'avait aucun chemin jusqu'à la barre.
+
+// Écrans qui posent EUX-MÊMES leur fond d'un bord à l'autre et refusent donc
+// la gouttière de la coquille, qui laisserait un liseré de .shell-surface tout
+// autour :
+//   — l'Accueil (§ DashboardLivreur), qui reprend la surface #F0F0ED du
+//     tableau de bord du back-office ;
+//   — la documentation API, qui reprend la page blanche du document déployé
+//     chez nos partenaires.
+// Comparaison EXACTE : un startsWith('/livreur') emporterait tout l'espace.
+const PLEINE_LARGEUR = ['/livreur', '/livreur/documentation-api'];
+
+function estPleineLargeur(pathname: string | null) {
+  return !!pathname && PLEINE_LARGEUR.includes(pathname);
+}
+
+export function LivreurShell({
+  nomComplet,
+  role,
+  children,
+}: {
+  nomComplet: string;
+  // Rôle RÉEL de la session, et non `'livreur'` en dur : l'espace est aussi
+  // atteignable par un compte dont `livreur` n'est qu'un rôle supplémentaire
+  // (§ roleMatches, lib/auth.ts). Le pied de barre doit dire qui l'on est.
+  role: Role;
+  children: React.ReactNode;
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-
-  async function handleLogout() {
-    const erreur = await deconnecter();
-    if (erreur) {
-      window.alert(erreur);
-      return;
-    }
-    router.push('/login');
-  }
+  const pathname = usePathname();
+  const pleineLargeur = estPleineLargeur(pathname);
 
   return (
-    <div className="shell-surface min-h-dvh lg:flex">
-      <AppSidebar
-        nav={NAV_LIVREUR}
-        collapsed={collapsed}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-        onToggleCollapse={() => setCollapsed((v) => !v)}
-      />
-      <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-        {/* Le repli desktop vit désormais dans la barre (cf. AppSidebar) : ne
-            reste ici que l'ouverture en mobile, où la barre est hors-écran.
-            `print:hidden` : l'impression ne masque plus les <header> (ceux des
-            documents doivent sortir sur papier), celui de la coquille doit
-            donc s'effacer de lui-même. */}
-        <header className="flex items-center justify-between gap-2 border-b border-black/[0.06] px-4 py-3 print:hidden dark:border-white/10">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-black/10 bg-white p-2.5 text-black/70 shadow-sm transition hover:border-brand hover:bg-brand/10 hover:text-black lg:hidden dark:border-white/15 dark:bg-white/5 dark:text-white/80"
-            aria-label="Ouvrir le menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <button
-            onClick={handleLogout}
-            className="-mr-2 ml-auto flex items-center gap-1.5 px-2 text-sm font-semibold opacity-70 transition hover:opacity-100 pointer-coarse:min-h-11"
-          >
-            <LogOut className="h-4 w-4" />
-            Déconnexion
-          </button>
-        </header>
-        <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>
+    <SidebarContext.Provider
+      value={{ collapsed, toggleCollapse: () => setCollapsed((v) => !v), openMobile: () => setMobileOpen(true) }}
+    >
+      <div className="shell-surface mtContent min-h-screen lg:flex">
+        <AdminSidebar
+          nav={NAV_LIVREUR}
+          adminName={nomComplet}
+          role={role}
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+          onToggleCollapse={() => setCollapsed((v) => !v)}
+          profilHref="/livreur/profil"
+        />
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          {/* Le repli desktop vit dans la barre elle-même : ne reste ici que
+              l'ouverture en MOBILE, où la barre est hors-écran et son propre
+              bouton donc inatteignable. `print:hidden` : l'impression ne
+              masque plus les <header>, celui de la coquille doit s'effacer de
+              lui-même. */}
+          <div className="px-4 pt-4 lg:hidden print:hidden">
+            <SidebarToggleButtons />
+          </div>
+          <main className={pleineLargeur ? 'min-w-0 flex-1' : 'min-w-0 flex-1 p-4 sm:p-6'}>{children}</main>
+        </div>
       </div>
-    </div>
+    </SidebarContext.Provider>
   );
 }

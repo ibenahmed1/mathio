@@ -54,7 +54,12 @@ const HUBS_ATTENDUS: { nom: string; ville: string; prestataire: string | null }[
   { nom: 'Agence Sefrou', ville: 'Sefrou', prestataire: 'Meta Livraison' },
   { nom: 'Agence Fès', ville: 'Fès', prestataire: 'Meta Livraison' },
   { nom: 'Agence Guelmim', ville: 'Guelmim', prestataire: 'Sahario Express' },
-  { nom: 'Agence Agadir', ville: 'Agadir', prestataire: 'Sahario Express' },
+  // Agadir est chez LEADER COLIS, pas chez Sahario : correction d'attribution
+  // du 23 septembre 2026. Sur une base chargée avant cette date, l'agence est
+  // encore rattachée à Sahario Express et ce contrôle la signale — c'est voulu,
+  // le chargement doit s'arrêter le temps de passer
+  // `scripts/transferer-agadir-leader-colis.ts` (§ SOUS_TRAITANCE.md §2.11).
+  { nom: 'Agence Agadir', ville: 'Agadir', prestataire: 'Leader Colis' },
   { nom: 'Agence Tanger', ville: 'Tanger', prestataire: 'Amir Livraison' },
   { nom: 'Agence Oujda', ville: 'Oujda', prestataire: 'EST Livraison' },
 ];

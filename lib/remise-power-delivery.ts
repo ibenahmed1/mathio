@@ -10,7 +10,7 @@ import {
   construireColisPower,
   creerColisPower,
 } from '@/lib/power-delivery';
-import { resoudreVillePower } from '@/lib/power-delivery-villes';
+import { resoudreVillePower, resoudreVilleToutesAgencesPower } from '@/lib/power-delivery-villes';
 
 // § Sous-traitance Power Delivery — la REMISE d'un colis par leur API.
 //
@@ -91,6 +91,7 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
       id: true,
       numero: true,
       hubDestination: { select: { nom: true, prestataireId: true } },
+      prestataireId: true,
       commandes: {
         select: {
           id: true,
@@ -112,11 +113,16 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
     },
   });
   if (!bon) throw new ApiError(404, "Bon d'envoi introuvable");
-  if (bon.hubDestination.prestataireId !== power.id) {
-    throw new ApiError(400, `Ce bon d'envoi ne part pas vers une agence ${NOM_PRESTATAIRE_POWER}`);
+  // Deux façons pour un bon de viser ce transporteur : par une de ses AGENCES
+  // (transit interne vers un quai qui lui appartient) ou DIRECTEMENT (remise
+  // sous-traitée, § BonEnvoi.prestataireId). La seconde n'a pas d'agence de
+  // départ, d'où la résolution de ville sans point d'entrée plus bas.
+  const prestataireDuBon = bon.prestataireId ?? bon.hubDestination?.prestataireId ?? null;
+  if (prestataireDuBon !== power.id) {
+    throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_POWER}`);
   }
 
-  const agence = bon.hubDestination.nom;
+  const agence = bon.hubDestination?.nom ?? null;
   const resultats: ResultatRemiseColis[] = [];
 
   // Un colis après l'autre, et non en parallèle : leur API n'annonce aucun
@@ -133,8 +139,12 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
       continue;
     }
 
-    // `null` = ville mise de côté ou hors contrat : jamais d'envoi par le nom.
-    const ville = resoudreVillePower(agence, commande.ville);
+    // `null` = ville mise de côté, hors contrat, ou — sur un bon sans agence —
+    // revendiquée par plusieurs de leurs dépôts : jamais d'envoi par le nom,
+    // et jamais de dépôt choisi au hasard.
+    const ville = agence
+      ? resoudreVillePower(agence, commande.ville)
+      : resoudreVilleToutesAgencesPower(commande.ville);
     if (!ville) {
       resultats.push({
         ...base,

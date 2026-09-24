@@ -216,12 +216,12 @@ async function VueEtiquettes({ bon, societe }: { bon: BonAvecDetails; societe: P
 
   return (
     <div className="doc-scroll">
-      {/* L'étiquette mesure 90 mm (≈ 340 px) : plus large qu'un téléphone de
-          320 px. Elle défile dans ce cadre plutôt que d'élargir la page ; à
-          l'impression le cadre s'efface (cf. .doc-scroll dans globals.css). */}
+      {/* L'étiquette mesure 100 × 100 mm (≈ 378 px) : plus large qu'un
+          téléphone de 320 px. Elle défile dans ce cadre plutôt que d'élargir la
+          page ; à l'impression le cadre s'efface (cf. .doc-scroll dans globals.css). */}
     <div className="bg-white text-black">
       <style>{`
-        @page { size: 100mm 150mm; margin: 5mm; }
+        @page { size: 100mm 100mm; margin: 0; }
         @media print { .etiquette { break-after: page; } .etiquette:last-child { break-after: auto; } }
       `}</style>
       <AutoPrint />
@@ -261,81 +261,57 @@ function Etiquette({
   ].filter((flag): flag is string => Boolean(flag));
 
   return (
-    <div className="etiquette mx-auto flex h-[140mm] w-[90mm] flex-col overflow-hidden rounded-md border-2 border-black bg-white text-black">
-      {/* Bandeau transporteur */}
-      <div className="flex items-center justify-between bg-black px-3.5 py-2 text-white">
-        <span className="text-[11px] font-black tracking-[0.15em]">{nomSociete.toUpperCase()}</span>
-        <span className="text-[10px] font-semibold opacity-80">
+    <div className="etiquette mx-auto flex h-[100mm] w-[100mm] flex-col overflow-hidden border-2 border-black bg-white p-[3mm] font-bold text-black">
+      {/* Noir sur blanc, tout en gras : lisible sur imprimante thermique. */}
+      <div className="flex items-center justify-between border-b-2 border-black pb-1 text-[12px]">
+        <span className="font-black tracking-wider">{nomSociete.toUpperCase()}</span>
+        <span>
           Colis {index + 1}/{bon.commandes.length}
         </span>
       </div>
-      <div className="h-1 w-full bg-brand" />
 
-      <div className="flex flex-1 flex-col gap-2.5 px-4 py-3">
-        <div className="flex items-baseline justify-between text-[10px] text-black/60">
+      <div className="flex flex-1 flex-col gap-1.5 pt-1.5">
+        <div className="flex items-baseline justify-between text-[11px]">
           <span className="font-mono">{bon.numero}</span>
           <span>{bon.dateGeneration.toLocaleDateString('fr-FR')}</span>
         </div>
 
-        <div className="text-[10px] leading-snug text-black/70">
-          <p className="font-bold uppercase tracking-wide text-black/45">Expéditeur</p>
-          <p className="font-semibold text-black">{bon.marchand.nomBoutique}</p>
-          {bon.marchand.adresse && <p>{bon.marchand.adresse}</p>}
-          {bon.marchand.ville && <p>{bon.marchand.ville}</p>}
-        </div>
+        <p className="text-[11px] leading-tight">EXPÉDITEUR : {bon.marchand.nomBoutique}</p>
 
         {/* Destinataire — bloc mis en avant, comme sur une étiquette transporteur */}
-        <div className="rounded-lg border-2 border-black p-3">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-black/45">Livrer à</p>
-          <p className="text-xl font-black leading-tight">{c.clientNom}</p>
-          <p className="mt-1 text-sm">{c.adresse}</p>
-          <p className="text-sm">
+        <div className="border-2 border-black px-2 py-1.5">
+          <p className="text-[11px]">LIVRER À</p>
+          <p className="text-lg font-black leading-tight">{c.clientNom}</p>
+          <p className="text-[13px] leading-tight">{c.adresse}</p>
+          <p className="text-[13px] leading-tight">
             {c.codePostal ? `${c.codePostal} ` : ''}
             {c.ville}
           </p>
-          <p className="mt-1 text-sm font-bold">Tél. {c.clientTelephone}</p>
+          <p className="text-[13px]">Tél. {c.clientTelephone}</p>
         </div>
 
         {flags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {flags.map((flag) => (
-              <span
-                key={flag}
-                className="rounded-full bg-black px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
-              >
-                {flag}
-              </span>
-            ))}
-          </div>
+          <p className="text-[12px] uppercase">{flags.join(' · ')}</p>
         )}
 
-        {/* Codes de suivi : QR sécurisé (numéro de série signé) + code-barres Code128 (scan entrepôt) */}
-        <div className="mt-auto flex flex-col items-center gap-2 border-t border-dashed border-black/40 pt-3">
-          <div className="flex items-center gap-3">
+        {/* QR sécurisé (numéro de série signé) + montant à encaisser */}
+        <div className="mt-auto flex items-center justify-between gap-2 border-t-2 border-black pt-1.5">
+          <div className="flex items-center gap-2">
             {label && (
               <div
-                className="h-[24mm] w-[24mm] shrink-0 [&>svg]:h-full [&>svg]:w-full"
+                className="h-[18mm] w-[18mm] shrink-0 [&>svg]:h-full [&>svg]:w-full"
                 dangerouslySetInnerHTML={{ __html: label.qrSvg }}
               />
             )}
-            <div className="text-left">
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-black/45">N° de série</p>
-              <p className="font-mono text-sm font-bold tracking-wider">{label?.serial}</p>
+            <div className="text-[11px] leading-tight">
+              <p>N° DE SÉRIE</p>
+              <p className="font-mono text-[12px]">{label?.serial}</p>
             </div>
           </div>
-          {label && (
-            <div
-              className="h-[14mm] w-full [&>svg]:mx-auto [&>svg]:h-full"
-              dangerouslySetInnerHTML={{ __html: label.barcodeSvg }}
-            />
-          )}
-        </div>
-
-        <div className="flex items-center justify-between rounded-lg bg-black px-4 py-2.5 text-white">
-          <span className="text-[10px] font-semibold uppercase tracking-wide opacity-80">
-            À encaisser (COD)
-          </span>
-          <span className="text-xl font-black">{Number(c.montantCod).toFixed(2)} DH</span>
+          <div className="border-2 border-black px-2 py-1 text-right">
+            <p className="text-[11px]">À ENCAISSER</p>
+            <p className="text-lg font-black leading-tight">{Number(c.montantCod).toFixed(2)} DH</p>
+          </div>
         </div>
       </div>
     </div>

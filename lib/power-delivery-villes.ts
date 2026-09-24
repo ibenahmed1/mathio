@@ -185,3 +185,21 @@ export function resoudreVillePower(agence: string, ville: string): Correspondanc
     ) ?? null
   );
 }
+
+// Même résolution, mais sans agence de départ : le cas d'un bon d'envoi adressé
+// DIRECTEMENT au transporteur (§ BonEnvoi.prestataireId), qui ne passe par
+// aucune de leurs agences et n'a donc rien à donner comme point d'entrée.
+//
+// Ne répond QUE si une seule agence déclare cette ville. Deux agences qui la
+// déclarent lui donnent deux `cityId` différents : en choisir un serait
+// décider, à la place de l'exploitation, par quel dépôt le colis transite. Un
+// `null` renvoie le colis vers l'export Excel, où un humain tranche — c'est
+// une réponse honnête, là où un choix arbitraire serait un colis mal routé.
+export function resoudreVilleToutesAgencesPower(ville: string): CorrespondanceVillePower | null {
+  const cible = normaliserVille(ville);
+  const candidats = CORRESPONDANCES_VILLES_POWER.filter((c) => normaliserVille(c.ville) === cible);
+  if (candidats.length === 0) return null;
+
+  const cityIds = new Set(candidats.map((c) => c.cityId));
+  return cityIds.size === 1 ? candidats[0] : null;
+}

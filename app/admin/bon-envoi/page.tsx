@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, Truck } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
@@ -46,7 +46,7 @@ export default function AdminBonEnvoiPage() {
           <thead>
             <tr>
               <th>Numéro</th>
-              <th>Hub destination</th>
+              <th>Destination</th>
               <th>Colis</th>
               <th>Statut</th>
               <th>Date de génération</th>
@@ -61,7 +61,18 @@ export default function AdminBonEnvoiPage() {
                     {b.numero}
                   </Link>
                 </td>
-                <td>{b.hubDestination?.nom ?? '—'}</td>
+                {/* Un quai à nous, ou un transporteur : la pastille évite de
+                    confondre les deux dans une liste qui les mélange. */}
+                <td>
+                  {b.prestataire ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 opacity-60" />
+                      {b.prestataire.nom}
+                    </span>
+                  ) : (
+                    (b.hubDestination?.nom ?? '—')
+                  )}
+                </td>
                 <td>{b.nbColis}</td>
                 <td>
                   <span className={`badge ${b.statut === 'recu' ? 'bg-green-600 text-white' : 'bg-cyan-400 text-cyan-950'}`}>

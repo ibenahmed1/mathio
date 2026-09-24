@@ -20,11 +20,12 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  *  lma3ziz, jm3at hodran, hjar ma3dan, ait ya3zem, lhaj 9adour, sidi 3edi.
  *  Une convention appliquée à un nom sur neuf n'est pas une convention.
  *
- *  SAHARIO EXPRESS — « ait mlloul » avait été corrigé en « Ait Melloul », et
+ *  LEADER COLIS — « ait mlloul » avait été corrigé en « Ait Melloul », et
  *  trois EN-TÊTES de groupe des messages WhatsApp (« . Taroudant : »,
  *  « . Tiznit : », « . Oulad teima : ») avaient été pris pour des villes
  *  desservies. L'Agence Agadir revient de 54 à 51 villes, ce que dit le
- *  message.
+ *  message. Ces lignes ont longtemps été classées sous Sahario Express :
+ *  l'agence lui avait été attribuée par erreur (§ SOUS_TRAITANCE.md §2.11).
  *
  * SUPPRESSION SOUS CONDITION : une ville n'est retirée que si rien ne s'y
  * rattache — ni colis, ni tarif livreur, ni tarif marchand. Sinon elle est
@@ -58,7 +59,7 @@ const RENOMMAGES: { agence: string; de: string; vers: string; motif: string }[] 
   { agence: 'Agence Meknès', de: 'Sebaa Ayoun', vers: 'SEBA AYOUN', motif: 'un « a » ajouté' },
   { agence: 'Agence Meknès', de: 'Meknès', vers: 'meknes', motif: 'accent ajouté' },
 
-  // --- Sahario Express ----------------------------------------------------
+  // --- Leader Colis -------------------------------------------------------
   { agence: 'Agence Agadir', de: 'Ait Melloul', vers: 'ait mlloul', motif: 'orthographe corrigée à l’import' },
 ];
 
@@ -144,7 +145,7 @@ export async function alignerNomsSurSources(): Promise<void> {
     `Agence Agadir : ${agadir?._count.villes ?? '?'} villes` +
       (agadir?._count.villes === 51 ? '  ✔ conforme aux messages' : '  ⚠ 51 attendues')
   );
-  console.log('\nLa casse n’est pas traitée ici : elle reste normalisée sur Power, Meta et Sahario.');
+  console.log('\nLa casse n’est pas traitée ici : elle reste normalisée sur Power, Meta et Leader Colis.');
 }
 
 if (lanceDirectement('aligner-noms-sur-sources')) {

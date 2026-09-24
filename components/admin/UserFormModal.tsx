@@ -132,6 +132,13 @@ export function UserFormModal({
       ? (existant?.permissions ?? [])
       : (ROLE_PERMISSIONS[(draft?.role ?? 'superviseur') as Role] ?? [])
   );
+  // § Comptes livreurs : une personne, ou une société de livraison qui
+  // travaille avec nous (cf. lib/comptes-livreur.ts). Piloté en état et non
+  // laissé au seul champ de formulaire : c'est lui qui décide des champs
+  // affichés en dessous.
+  const [typeLivreur, setTypeLivreur] = useState(
+    draft?.typeLivreur ?? existant?.typeLivreur ?? 'individuel'
+  );
   const [hubId, setHubId] = useState(draft?.hubId ?? existant?.hubId ?? '');
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [photo, setPhoto] = useState<string | null>(draft?.photoUrl ?? existant?.photoUrl ?? null);
@@ -151,11 +158,23 @@ export function UserFormModal({
   const estTerrain = ROLES_TERRAIN.includes(role);
   const avecPhoto = ROLES_AVEC_PHOTO.includes(role);
   const avecHub = ROLES_AVEC_HUB.includes(role);
+  const estLivreur = role === 'livreur';
+  const estSociete = estLivreur && typeLivreur === 'societe';
+  // Même règle que `hubRequis` côté serveur, redite ici parce que ce module
+  // est chargé côté client et ne doit pas tirer lib/comptes-livreur.ts, qui
+  // entraînerait lib/api-utils puis next/server dans le bundle.
+  const hubObligatoire = avecHub && !estSociete;
   const pieces: Record<PieceKey, [string | null, (v: string | null) => void]> = {
     cinRectoUrl: [cinRecto, setCinRecto],
     cinVersoUrl: [cinVerso, setCinVerso],
     ribPhotoUrl: [rib, setRib],
   };
+  // Une société n'a pas de carte d'identité : les deux pièces correspondantes
+  // disparaissent, et le RIB se relit à son nom. Même règle que côté serveur,
+  // où la CIN n'est ni exigée ni conservée pour une société.
+  const piecesAffichees = estSociete
+    ? PIECES.filter((p) => p.key === 'ribPhotoUrl').map((p) => ({ ...p, label: 'RIB société' }))
+    : PIECES;
 
   // Liste des hubs pour le select "Hub de rattachement" (agent_hub et
   // livreur) — chargée une seule fois, indépendamment du rôle sélectionné au
@@ -272,6 +291,14 @@ export function UserFormModal({
         role,
       };
       if (avecPhoto) payload.photoUrl = photo ?? '';
+      // § Comptes livreurs. Envoyé pour le seul rôle livreur : l'API remet de
+      // toute façon ces trois champs à null pour les autres rôles, mais les
+      // lui envoyer laisserait croire qu'ils veulent dire quelque chose.
+      if (estLivreur) {
+        payload.typeLivreur = typeLivreur;
+        payload.raisonSociale = estSociete ? String(fd.get('raisonSociale') ?? '') : '';
+        payload.ice = estSociete ? String(fd.get('ice') ?? '') : '';
+      }
       if (estTerrain) {
         payload.cin = String(fd.get('cin') ?? '');
         payload.zonePrincipale = String(fd.get('zonePrincipale') ?? '');
@@ -286,7 +313,7 @@ export function UserFormModal({
         payload.ribPhotoUrl = rib ?? '';
       }
       if (avecHub) {
-        if (!hubId) {
+        if (!hubId && hubObligatoire) {
           setError('Un hub de rattachement est requis pour cette fonction');
           setSaving(false);
           return;
@@ -391,16 +418,22 @@ export function UserFormModal({
             />
           </label>
 
+          {/* Le rattachement à un hub n'est plus exigé d'une société de
+              livraison : elle n'a pas de quai chez nous, on lui confie des
+              colis par bon d'envoi et elle ne revient pas au dépôt. Le champ
+              lui reste proposé — un transporteur qui vient effectivement
+              charger à un quai précis peut l'indiquer. Même règle côté
+              serveur (§ hubRequis, lib/comptes-livreur.ts). */}
           {avecHub && (
-            <Field label="Hub de rattachement" required>
+            <Field label="Hub de rattachement" required={hubObligatoire} optional={!hubObligatoire}>
               <select
                 className="input-basic"
                 name="hubId"
                 value={hubId}
                 onChange={(e) => setHubId(e.target.value)}
-                required
+                required={hubObligatoire}
               >
-                <option value="">Sélectionner un hub</option>
+                <option value="">{hubObligatoire ? 'Sélectionner un hub' : 'Aucun'}</option>
                 {hubs.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.nom}
@@ -481,12 +514,63 @@ export function UserFormModal({
             </div>
           )}
 
-          {estTerrain && (
+          {/* § Comptes livreurs : le type commande les champs d'identité qui
+              suivent. Réservé au rôle livreur — un ramasseur est toujours une
+              personne, et les transporteurs sous-traitants (§ Prestataire)
+              n'ont pas de compte du tout. */}
+          {estLivreur && (
             <>
-              <Field label="CIN" required>
-                <input className="input-basic" name="cin" defaultValue={draft?.cin ?? existant?.cin ?? ''} required />
+              <Field label="Type de compte">
+                <select
+                  className="input-basic"
+                  name="typeLivreur"
+                  value={typeLivreur}
+                  onChange={(e) => {
+                    setTypeLivreur(e.target.value);
+                    saveDraftNow({ typeLivreur: e.target.value });
+                  }}
+                >
+                  <option value="individuel">Individuel</option>
+                  <option value="societe">Société de livraison</option>
+                </select>
               </Field>
               <div />
+            </>
+          )}
+
+          {estSociete && (
+            <>
+              <Field label="Raison sociale">
+                <input
+                  className="input-basic"
+                  name="raisonSociale"
+                  placeholder="Dénomination légale de la société"
+                  defaultValue={draft?.raisonSociale ?? existant?.raisonSociale ?? ''}
+                />
+              </Field>
+              <Field label="ICE">
+                <input className="input-basic" name="ice" defaultValue={draft?.ice ?? existant?.ice ?? ''} />
+              </Field>
+            </>
+          )}
+
+          {estTerrain && (
+            <>
+              {/* La CIN identifie une personne : une société n'en a pas, et
+                  l'API ne l'exige pas d'elle non plus. */}
+              {!estSociete && (
+                <>
+                  <Field label="CIN" required>
+                    <input
+                      className="input-basic"
+                      name="cin"
+                      defaultValue={draft?.cin ?? existant?.cin ?? ''}
+                      required
+                    />
+                  </Field>
+                  <div />
+                </>
+              )}
 
               <Field label="Zone principale">
                 <select className="input-basic" name="zonePrincipale" defaultValue={draft?.zonePrincipale ?? existant?.zonePrincipale ?? ''}>
@@ -563,7 +647,7 @@ export function UserFormModal({
 
         {estTerrain && (
           <div className="grid grid-cols-3 gap-3 rounded-lg border border-black/10 p-3 dark:border-white/10">
-            {PIECES.map(({ key, label }) => {
+            {piecesAffichees.map(({ key, label }) => {
               const [value] = pieces[key];
               return (
                 <div key={key} className="flex flex-col items-center gap-1.5 text-center text-xs">

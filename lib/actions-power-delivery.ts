@@ -146,7 +146,7 @@ export async function modifierColisChezPower(commandeId: string, auteurId: strin
 
   // Une ville corrigée chez nous se transmet par son identifiant — jamais par
   // son nom — et seulement si elle en a un dans la même agence.
-  const agence = commande.bonEnvoi?.hubDestination.nom;
+  const agence = commande.bonEnvoi?.hubDestination?.nom;
   const ville = agence ? resoudreVillePower(agence, commande.ville) : null;
   if (ville && ville.cityId !== remise.cityId) modification.parcel_city = ville.cityId;
 

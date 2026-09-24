@@ -17,9 +17,11 @@ import {
 import { apiGet, apiPatch } from '@/lib/api-client';
 import { readImageAsCompressedDataUrl } from '@/lib/read-file';
 import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } from '@/lib/types';
-import { LivreurShell } from '@/components/livreur/LivreurShell';
+import { STATUTS_TERMINAUX } from '@/lib/statuts';
+import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { SignaturePad } from '@/components/livreur/SignaturePad';
 import { StatutBadge } from '@/components/StatutBadge';
+import { KpiCard } from '@/components/KpiCard';
 import { Field } from '@/components/form/Field';
 
 interface ColisFeuilleDeRoute {
@@ -35,29 +37,24 @@ interface ColisFeuilleDeRoute {
   dateNouvelleLivraison: string | null;
   marchand?: { nomBoutique: string };
   bonDistribution?: { id: string; numero: string; hub?: { nom: string } } | null;
+  // § Comptes transporteurs : renseigné à la place de la tournée pour un colis
+  // confié par bon d'envoi. C'est lui qui distingue les deux provenances, et
+  // donc ce qui reste « à livrer » (voir la partition plus bas).
+  bonEnvoi?: { id: string; numero: string; statut: string } | null;
   hubActuel?: { ville: string } | null;
 }
 
 interface FeuilleDeRoute {
   tournees: { id: string; numero: string; dateGeneration: string; hubNom: string; nbColis: number }[];
+  // § Comptes transporteurs : les bons d'envoi confiés à cette société, quand
+  // le compte est celui d'un transporteur. Vide pour un livreur interne.
+  bonsConfies: { id: string; numero: string; dateReception: string | null; nbColis: number }[];
   colis: ColisFeuilleDeRoute[];
   recap: { nbColis: number; nbLivres: number; nbEnCours: number; nbARetourner: number; cashEncaisse: string };
 }
 
 function isoAujourdhui() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function Tuile({ icone, libelle, valeur, accent }: { icone: React.ReactNode; libelle: string; valeur: string; accent?: string }) {
-  return (
-    <div className="card-tint-strong flex min-w-0 flex-col gap-1 p-4">
-      <span className="flex items-center gap-1.5 text-xs font-semibold opacity-60">
-        {icone}
-        {libelle}
-      </span>
-      <span className={`text-xl font-bold [overflow-wrap:anywhere] sm:text-2xl ${accent ?? ''}`}>{valeur}</span>
-    </div>
-  );
 }
 
 // § /livreur/colis : feuille de route du livreur. Les colis y apparaissent
@@ -84,49 +81,69 @@ export default function FeuilleDeRouteLivreurPage() {
     Promise.resolve().then(() => rafraichir());
   }, [rafraichir]);
 
-  const aTenter = feuille?.colis.filter((c) => c.statut === 'mise_en_distribution') ?? [];
-  const traites = feuille?.colis.filter((c) => c.statut !== 'mise_en_distribution') ?? [];
+  // Ce qui reste à faire ne se lit pas au même statut selon la provenance :
+  //
+  //   TOURNÉE — un seul statut compte, `mise_en_distribution`. Un colis
+  //     reporté ou refusé pendant la tournée est TRAITÉ : il rentre au dépôt
+  //     le soir, et c'est le Planner qui le reprend, pas le livreur.
+  //
+  //   CONFIÉ — la société garde le colis tant qu'il n'est pas clos. Un report
+  //     appelle une nouvelle tentative de SA part, elle doit donc pouvoir le
+  //     redéclarer — c'est exactement ce qu'autorise la garde côté serveur
+  //     (§ deciderActionColisLivreur), et l'écran doit s'y accorder.
+  const resteAFaire = (c: ColisFeuilleDeRoute) =>
+    c.bonDistribution
+      ? c.statut === 'mise_en_distribution'
+      : !STATUTS_TERMINAUX.includes(c.statut as StatutCommande);
+
+  const aTenter = feuille?.colis.filter(resteAFaire) ?? [];
+  const traites = feuille?.colis.filter((c) => !resteAFaire(c)) ?? [];
 
   return (
-    <LivreurShell>
+    <>
       <div className="flex flex-col gap-5">
-        <div>
-          <h1 className="page-title">Mes colis</h1>
-          {feuille && feuille.tournees.length > 0 ? (
-            <p className="text-sm opacity-70">
-              {feuille.tournees.map((t) => `${t.numero} (${t.hubNom})`).join(' · ')}
-            </p>
-          ) : (
-            <p className="text-sm opacity-70">Aucune tournée ouverte.</p>
-          )}
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Mes colis</h1>
+            {/* Deux provenances possibles, et le sous-titre doit nommer la
+                bonne : une tournée pour un livreur interne, un bon d'envoi
+                pour une société de livraison à qui on a confié des colis. */}
+            {feuille && (feuille.tournees.length > 0 || feuille.bonsConfies.length > 0) ? (
+              <p className="page-subtitle">
+                {[
+                  ...feuille.tournees.map((t) => `${t.numero} (${t.hubNom})`),
+                  ...feuille.bonsConfies.map((b) => `${b.numero} (${b.nbColis} colis confiés)`),
+                ].join(' · ')}
+              </p>
+            ) : (
+              <p className="page-subtitle">Aucun colis à livrer pour le moment.</p>
+            )}
+          </div>
         </div>
 
         {erreur && <p className="text-sm font-medium text-red-600">{erreur}</p>}
 
+        {/* Mêmes cartes de KPI que le back-office (§ components/KpiCard.tsx),
+            dont la variante « héros » réservée au chiffre principal — ici le
+            cash, le seul dont le livreur répond au dépôt. */}
         {feuille && (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Tuile icone={<Package className="h-3.5 w-3.5" />} libelle="À livrer" valeur={String(feuille.recap.nbEnCours)} />
-            <Tuile
-              icone={<PackageCheck className="h-3.5 w-3.5" />}
-              libelle="Livrés"
-              valeur={String(feuille.recap.nbLivres)}
-              accent="text-green-700"
+            <KpiCard icon={Package} label="À livrer" value={String(feuille.recap.nbEnCours)} />
+            <KpiCard icon={PackageCheck} label="Livrés" value={String(feuille.recap.nbLivres)} />
+            <KpiCard
+              icon={Banknote}
+              label="Cash encaissé"
+              value={`${feuille.recap.cashEncaisse} DH`}
+              highlight
             />
-            <Tuile
-              icone={<Banknote className="h-3.5 w-3.5" />}
-              libelle="Cash encaissé"
-              valeur={`${feuille.recap.cashEncaisse} DH`}
-            />
-            <Tuile
-              icone={<Undo2 className="h-3.5 w-3.5" />}
-              libelle="À retourner"
-              valeur={String(feuille.recap.nbARetourner)}
-              accent={feuille.recap.nbARetourner > 0 ? 'text-orange-600' : undefined}
-            />
+            <KpiCard icon={Undo2} label="À retourner" value={String(feuille.recap.nbARetourner)} />
           </div>
         )}
 
-        {feuille && feuille.recap.nbLivres > 0 && (
+        {/* La remise du cash au Planner ne concerne QUE les tournées internes :
+            une société de livraison ne rentre pas au dépôt le soir, et lui
+            écrire le contraire serait une consigne fausse. */}
+        {feuille && feuille.recap.nbLivres > 0 && feuille.tournees.length > 0 && (
           <p className="text-xs opacity-60">
             Vous remettez l&apos;intégralité du cash encaissé ({feuille.recap.cashEncaisse} DH) au Planner à votre
             retour au dépôt. Vos gains de tournée sont réglés séparément.
@@ -134,13 +151,19 @@ export default function FeuilleDeRouteLivreurPage() {
         )}
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold">À livrer ({aTenter.length})</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">À livrer ({aTenter.length})</h2>
           {aTenter.length === 0 ? (
-            <p className="text-sm opacity-60">Rien à livrer pour le moment.</p>
+            <div className="table-card">
+              <div className="empty-state">Rien à livrer pour le moment.</div>
+            </div>
           ) : (
             <ul className="flex flex-col gap-2">
               {aTenter.map((c) => (
-                <li key={c.id} className="card-tint-strong flex flex-wrap items-center justify-between gap-3 p-4">
+                // Carte blanche du back-office (.dashboard-card) et non plus le
+                // jaune plein : celui-ci est réservé au KPI « héros » de la
+                // rangée du dessus. Répété sur chaque colis, il faisait de la
+                // liste un bloc de couleur où plus rien ne ressortait.
+                <li key={c.id} className="dashboard-card flex flex-wrap items-center justify-between gap-3">
                   <div className="flex min-w-0 flex-col gap-0.5">
                     <span className="font-mono text-xs opacity-60">{c.codeSuivi}</span>
                     <span className="font-semibold">{c.clientNom}</span>
@@ -169,18 +192,24 @@ export default function FeuilleDeRouteLivreurPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold">Traités sur cette tournée ({traites.length})</h2>
-          {traites.length === 0 ? (
-            <p className="text-sm opacity-60">Aucun colis traité pour l&apos;instant.</p>
-          ) : (
-            <div className="overflow-x-auto">
+          <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">
+            {/* « Sur cette tournée » ne veut rien dire pour une société de
+                livraison, qui n'en a pas. */}
+            {feuille && feuille.tournees.length === 0 ? 'Déjà traités' : 'Traités sur cette tournée'} (
+            {traites.length})
+          </h2>
+          {/* Cadre de table du back-office : .table-card porte le cadre et les
+              coins, .table-scroll le défilement horizontal — une table large
+              défile dans son cadre, jamais en poussant la page. */}
+          <div className="table-card">
+            <div className="table-scroll">
               <table className="table-basic min-w-[560px]">
                 <thead>
                   <tr>
                     <th>Code</th>
                     <th>Client</th>
                     <th>Statut</th>
-                    <th className="text-right">CRBT</th>
+                    <th className="cell-num">CRBT</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -198,13 +227,20 @@ export default function FeuilleDeRouteLivreurPage() {
                         <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
                         {c.motifRetour && <span className="block text-xs opacity-60">{c.motifRetour}</span>}
                       </td>
-                      <td className="text-right font-semibold">{Number(c.montantCod).toFixed(2)} DH</td>
+                      <td className="cell-num font-semibold">{Number(c.montantCod).toFixed(2)} DH</td>
                     </tr>
                   ))}
+                  {traites.length === 0 && (
+                    <tr>
+                      <td colSpan={4}>
+                        <div className="empty-state">Aucun colis traité pour l&apos;instant.</div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
         </section>
       </div>
 
@@ -218,7 +254,7 @@ export default function FeuilleDeRouteLivreurPage() {
           }}
         />
       )}
-    </LivreurShell>
+    </>
   );
 }
 

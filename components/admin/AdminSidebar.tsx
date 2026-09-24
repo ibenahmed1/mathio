@@ -13,7 +13,12 @@ import s from './AdminSidebar.module.css';
 
 const LOGO = '/mathio-logo.png';
 
-const ROLE_LABELS: Record<Role, string> = {
+// Exporté pour l'écran de profil de l'espace livreur : il doit afficher
+// EXACTEMENT le libellé que le pied de la barre annonce deux centimètres plus
+// à gauche. Une troisième table de libellés de rôles dans le dépôt (il y en a
+// déjà une autre, volontairement plus explicite, dans UserFormModal) finirait
+// par diverger.
+export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Administrateur',
   superviseur: 'Superviseur',
   moderateur: 'Modérateur',
@@ -101,6 +106,12 @@ function initialsOf(name: string) {
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
 }
 
+// Cette barre n'est plus réservée au back-office : l'espace livreur la reprend
+// telle quelle (§ components/livreur/LivreurShell.tsx) pour que les deux
+// interfaces internes aient exactement la même coquille — même gabarit, même
+// recherche, même pied de profil. Rien ici n'est propre à /admin, à une
+// exception près : la destination du « Profil », qui diffère d'un espace à
+// l'autre et se passe donc en prop.
 export function AdminSidebar({
   nav,
   adminName,
@@ -109,6 +120,7 @@ export function AdminSidebar({
   mobileOpen,
   onCloseMobile,
   onToggleCollapse,
+  profilHref = '/admin/parametres',
 }: {
   nav: NavItem[];
   adminName: string;
@@ -117,6 +129,10 @@ export function AdminSidebar({
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onToggleCollapse: () => void;
+  // Écran de profil de l'espace courant. Défaut : les paramètres du
+  // back-office, seule destination existante avant l'ouverture aux autres
+  // espaces — aucun appelant actuel n'a à le préciser.
+  profilHref?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -340,7 +356,7 @@ export function AdminSidebar({
             style={{ bottom: profileMenuRect.bottom, left: profileMenuRect.left, width: profileMenuRect.width }}
           >
             <Link
-              href="/admin/parametres"
+              href={profilHref}
               role="menuitem"
               onClick={() => setProfileMenuOpen(false)}
               className={s.profileMenuItem}

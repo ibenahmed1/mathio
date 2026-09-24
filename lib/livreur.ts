@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { estColisARecuperer } from '@/lib/bon-distribution';
+import { STATUTS_TERMINAUX } from '@/lib/statuts';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 
@@ -117,9 +118,23 @@ export async function getStatsColisLivreur(livreurId: string, dateDebut: Date, d
 // sont simplement isolées dans leur propre compteur — sans quoi
 // nouveau + enCours ne totalise plus `total` dès la première clôture, et le
 // donut de l'accueil sous-compte silencieusement.
-export async function getStatsBonsDistributionLivreur(livreurId: string, hubId: string, dateDebut: Date, dateFin: Date) {
+// `hubId` NULL : compte sans rattachement — une société de livraison
+// (§ hubRequis, lib/comptes-livreur.ts). La restriction au hub tombe alors au
+// lieu de faire échouer l'appel ; elle ne servait qu'à cantonner un livreur
+// interne aux tournées de son quai, et une société n'en a aucune de toute
+// façon. Le filtre sur `livreurId`, lui, ne bouge pas.
+export async function getStatsBonsDistributionLivreur(
+  livreurId: string,
+  hubId: string | null,
+  dateDebut: Date,
+  dateFin: Date
+) {
   const bons = await prisma.bonDistribution.findMany({
-    where: { livreurId, hubId, dateGeneration: { gte: debutJour(dateDebut), lte: finJour(dateFin) } },
+    where: {
+      livreurId,
+      ...(hubId ? { hubId } : {}),
+      dateGeneration: { gte: debutJour(dateDebut), lte: finJour(dateFin) },
+    },
     select: { statut: true, nbColis: true },
   });
 
@@ -171,6 +186,10 @@ export async function getCaisseJour(livreurId: string, jour: Date = new Date()) 
 const commandeTourneeInclude = {
   marchand: { select: { nomBoutique: true } },
   bonDistribution: { select: { id: true, numero: true, dateGeneration: true, hub: { select: { nom: true } } } },
+  // § Comptes transporteurs : un colis confié à une société de livraison n'a
+  // PAS de tournée — il vient d'un bon d'envoi. C'est ce bon qui situe le
+  // colis dans son écran, à la place du numéro de tournée.
+  bonEnvoi: { select: { id: true, numero: true, statut: true, dateReception: true } },
   // Ville du hub où le colis se trouve physiquement : c'est elle qui complète
   // le libellé « Retourné au Hub (Casablanca) » (cf. StatutBadge) — le nom du
   // hub de la tournée ne convient pas, ce n'est pas la même donnée.
@@ -187,8 +206,22 @@ export interface TourneeOuverte {
   nbColis: number;
 }
 
+// § Comptes transporteurs : un bon d'envoi PRIS EN CHARGE par la société dont
+// ce compte est le compte humain. C'est l'équivalent d'une tournée pour un
+// livreur interne — l'unité dans laquelle des colis lui ont été confiés.
+export interface BonConfieTransporteur {
+  id: string;
+  numero: string;
+  dateReception: Date | null;
+  nbColis: number;
+}
+
 export interface FeuilleDeRouteLivreur {
   tournees: TourneeOuverte[];
+  // Vide pour un livreur interne, rempli pour une société de livraison. Les
+  // deux sources coexistent dans le même écran : ce qui compte pour celui qui
+  // regarde, c'est la liste de colis, pas leur provenance administrative.
+  bonsConfies: BonConfieTransporteur[];
   colis: CommandeTourneeLivreur[];
   // Récapitulatif de session recalculé à chaque appel — c'est le même
   // décompte que celui présenté au Planner à la clôture (§ getBilanTournee),
@@ -205,26 +238,80 @@ export interface FeuilleDeRouteLivreur {
   };
 }
 
-export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<FeuilleDeRouteLivreur> {
-  const tournees = await prisma.bonDistribution.findMany({
-    where: { livreurId, statut: { not: 'cloture' } },
-    select: { id: true, numero: true, dateGeneration: true, nbColis: true, hub: { select: { nom: true } } },
-    orderBy: { dateGeneration: 'desc' },
-  });
-
-  if (tournees.length === 0) {
-    return {
-      tournees: [],
-      colis: [],
-      recap: { nbColis: 0, nbLivres: 0, nbEnCours: 0, nbARetourner: 0, cashEncaisse: '0.00' },
-    };
-  }
-
+// § Comptes transporteurs — colis confiés par bon d'envoi.
+//
+// Le bon d'envoi n'a pas de clôture, contrairement à une tournée : rien ne
+// dirait donc quand ses colis quittent l'écran, et une société finirait par
+// faire défiler des mois de livraisons terminées. La règle retenue est
+// l'analogue exact de « tournée non clôturée » : un bon reste à l'écran tant
+// qu'il lui reste AU MOINS UN colis non clos. Le dernier colis traité fait
+// disparaître le bon entier — jusque-là, la société voit ce qu'elle vient de
+// faire, ce qui est précisément à quoi sert la partie « traités » de l'écran.
+async function getColisConfiesAuTransporteur(livreurId: string): Promise<CommandeTourneeLivreur[]> {
   const colis = await prisma.commande.findMany({
-    where: { bonDistributionId: { in: tournees.map((t) => t.id) } },
+    where: {
+      livreurId,
+      // Le bon doit être PRIS EN CHARGE : entre sa composition et sa remise,
+      // les colis sont encore chez nous, et les afficher les donnerait pour
+      // livrables alors qu'ils n'ont pas quitté le quai.
+      bonEnvoi: { statut: 'recu', prestataire: { compteLivreurId: livreurId } },
+    },
     include: commandeTourneeInclude,
     orderBy: [{ statut: 'asc' }, { codeSuivi: 'asc' }],
   });
+
+  const bonsEncoreOuverts = new Set(
+    colis.filter((c) => !STATUTS_TERMINAUX.includes(c.statut)).map((c) => c.bonEnvoiId)
+  );
+  return colis.filter((c) => bonsEncoreOuverts.has(c.bonEnvoiId));
+}
+
+export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<FeuilleDeRouteLivreur> {
+  // Les deux sources sont indépendantes : un compte a des tournées (livreur
+  // interne) ou des bons confiés (société de livraison), et rien n'interdit
+  // qu'il ait les deux — le jour où une société prendrait aussi une tournée.
+  const [tournees, colisConfies] = await Promise.all([
+    prisma.bonDistribution.findMany({
+      where: { livreurId, statut: { not: 'cloture' } },
+      select: { id: true, numero: true, dateGeneration: true, nbColis: true, hub: { select: { nom: true } } },
+      orderBy: { dateGeneration: 'desc' },
+    }),
+    getColisConfiesAuTransporteur(livreurId),
+  ]);
+
+  const colisTournee =
+    tournees.length > 0
+      ? await prisma.commande.findMany({
+          where: { bonDistributionId: { in: tournees.map((t) => t.id) } },
+          include: commandeTourneeInclude,
+          orderBy: [{ statut: 'asc' }, { codeSuivi: 'asc' }],
+        })
+      : [];
+
+  const colis = [...colisTournee, ...colisConfies];
+
+  // Un bon confié par ligne, dans l'ordre de prise en charge la plus récente —
+  // reconstruit depuis les colis plutôt que par une requête de plus : ce sont
+  // exactement les bons que la liste ci-dessus laisse voir, et deux requêtes
+  // pourraient se contredire au bord (un bon soldé entre les deux).
+  const bonsParId = new Map<string, BonConfieTransporteur>();
+  for (const c of colisConfies) {
+    if (!c.bonEnvoi) continue;
+    const existant = bonsParId.get(c.bonEnvoi.id);
+    if (existant) {
+      existant.nbColis += 1;
+    } else {
+      bonsParId.set(c.bonEnvoi.id, {
+        id: c.bonEnvoi.id,
+        numero: c.bonEnvoi.numero,
+        dateReception: c.bonEnvoi.dateReception,
+        nbColis: 1,
+      });
+    }
+  }
+  const bonsConfies = [...bonsParId.values()].sort(
+    (a, b) => (b.dateReception?.getTime() ?? 0) - (a.dateReception?.getTime() ?? 0)
+  );
 
   const livres = colis.filter((c) => c.statut === 'livre');
   const enCours = colis.filter((c) => c.statut === 'mise_en_distribution');
@@ -244,6 +331,7 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
       hubNom: t.hub.nom,
       nbColis: t.nbColis,
     })),
+    bonsConfies,
     colis,
     recap: {
       nbColis: colis.length,
@@ -254,4 +342,74 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
       cashEncaisse: cashEncaisse.toFixed(2),
     },
   };
+}
+
+// ============================================================
+// § /livreur (Accueil) — courbe de volume
+// ============================================================
+
+// Un jour de la courbe de l'Accueil livreur. `label` est déjà formaté pour
+// l'axe (jj/mm) : le composant dessine, il ne met pas en forme des dates.
+export interface VolumeJourLivreur {
+  label: string;
+  // Colis qui lui ont été confiés ce jour-là (dateCreation) et colis qu'il a
+  // effectivement livrés (dateLivraison) — deux dates distinctes, donc deux
+  // séries : un colis reçu lundi et livré mercredi compte une fois dans
+  // chacune, aux deux jours qui lui reviennent.
+  recus: number;
+  livres: number;
+}
+
+// Clé de regroupement en heure LOCALE. `toISOString().slice(0,10)` (ce
+// qu'utilise le tableau de bord du back-office) rangerait un colis livré à 23 h
+// à Casablanca dans le seau du lendemain en hiver, et de l'avant-veille au
+// petit matin en été : les bornes de la plage, elles, sont posées en local
+// (debutJour/finJour). Les deux doivent parler du même jour.
+function cleJourLocal(date: Date): string {
+  const mois = String(date.getMonth() + 1).padStart(2, '0');
+  const jour = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${mois}-${jour}`;
+}
+
+// § /livreur (Accueil), graphe principal : volume jour par jour sur la plage
+// sélectionnée. Les jours SANS mouvement sont produits à zéro plutôt
+// qu'omis — une courbe qui saute les jours creux resserre l'axe et fait passer
+// une semaine morte pour une activité continue.
+export async function getVolumeParJourLivreur(
+  livreurId: string,
+  dateDebut: Date,
+  dateFin: Date
+): Promise<VolumeJourLivreur[]> {
+  const debut = debutJour(dateDebut);
+  const fin = finJour(dateFin);
+
+  const commandes = await prisma.commande.findMany({
+    where: {
+      livreurId,
+      // Un OR et non un ET : les deux séries ne portent pas sur la même date,
+      // un colis n'a aucune raison d'entrer dans la plage par les deux bouts.
+      OR: [{ dateCreation: { gte: debut, lte: fin } }, { dateLivraison: { gte: debut, lte: fin } }],
+    },
+    select: { dateCreation: true, dateLivraison: true },
+  });
+
+  const seaux = new Map<string, VolumeJourLivreur>();
+  for (const curseur = new Date(debut); curseur <= fin; curseur.setDate(curseur.getDate() + 1)) {
+    seaux.set(cleJourLocal(curseur), {
+      label: `${String(curseur.getDate()).padStart(2, '0')}/${String(curseur.getMonth() + 1).padStart(2, '0')}`,
+      recus: 0,
+      livres: 0,
+    });
+  }
+
+  for (const commande of commandes) {
+    const seauRecu = seaux.get(cleJourLocal(commande.dateCreation));
+    if (seauRecu) seauRecu.recus += 1;
+    if (commande.dateLivraison) {
+      const seauLivre = seaux.get(cleJourLocal(commande.dateLivraison));
+      if (seauLivre) seauLivre.livres += 1;
+    }
+  }
+
+  return [...seaux.values()];
 }

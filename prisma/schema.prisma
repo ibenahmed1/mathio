@@ -77,6 +77,25 @@ enum TypeCompteMarchand {
   dropshipping
 }
 
+// Nature d'un compte LIVREUR : une personne, ou une société de livraison qui
+// travaille avec nous. La distinction est juridique, jamais fonctionnelle —
+// une société a exactement les mêmes accès et les mêmes écrans qu'un individu
+// (espace terrain, tournées, feuille de route, paie). Elle ne change que deux
+// choses : l'identité qui figure sur les documents, et la façon dont l'argent
+// lui parvient (une société nous facture, cf. BonPaiement).
+//
+// Une société de livraison EST, le plus souvent, l'un de nos transporteurs
+// sous-traitants : son compte se rattache alors à sa ligne `Prestataire`
+// (§ Prestataire.compteLivreurId), et les colis qu'on lui confie par bon
+// d'envoi lui sont affectés dès la création du bon. C'est ce rattachement —
+// et lui seul — qui lui ouvre une feuille de route ; un transporteur sans
+// compte continue de nous renvoyer ses statuts par fichier ou par API, comme
+// avant, sans rien voir de nos écrans.
+enum TypeCompteLivreur {
+  individuel
+  societe
+}
+
 enum StatutMarchand {
   en_attente_validation
   actif
@@ -270,6 +289,24 @@ model Utilisateur {
   resetTokenHash    String?   @unique @map("reset_token_hash")
   resetTokenExpire  DateTime? @map("reset_token_expire")
 
+  // § Comptes livreurs — individu ou société de livraison (cf.
+  // TypeCompteLivreur). Nullable pour la même raison que les champs terrain
+  // ci-dessous : le champ ne veut rien dire pour un admin ou un ramasseur, et
+  // un défaut `individuel` posé sur toute la table ferait passer chaque compte
+  // du back-office pour un livreur en puissance. C'est donc l'API
+  // (POST/PATCH /api/utilisateurs) qui l'exige quand `role = livreur`, et le
+  // force à null partout ailleurs — même dispositif que `hubId`.
+  typeLivreur TypeCompteLivreur? @map("type_livreur")
+
+  // Identité légale d'un compte société. FACULTATIVES à ce stade, y compris
+  // `raisonSociale` : le module est en cours d'essai et on préfère un compte
+  // créé sans ses papiers à un compte qu'on ne peut pas créer. `nomComplet`
+  // reste le nom d'usage affiché partout dans l'application ; `raisonSociale`
+  // n'existe que pour les documents qui engagent (fiche de paie, plus tard
+  // rapprochement de leur facture).
+  raisonSociale String? @map("raison_sociale")
+  ice           String? @map("ice")
+
   // Champs propres aux comptes terrain (livreur/ramasseur), saisis lors de la
   // création via le formulaire admin "Ajouter Utilisateur" — nullable pour
   // tous les autres rôles qui ne les utilisent pas.
@@ -287,9 +324,14 @@ model Utilisateur {
   ribPhotoUrl    String?  @map("rib_photo_url")
 
   // Hub de rattachement (§ /admin/scan/reception, § /admin/bon-distribution)
-  // — obligatoire pour un AGENT_HUB ou un LIVREUR (validé côté API dans
-  // POST/PATCH /api/utilisateurs, pas en contrainte DB pour rester nullable
-  // pour tous les autres rôles).
+  // — obligatoire pour un AGENT_HUB, un PLANNER ou un LIVREUR INDIVIDUEL
+  // (validé côté API dans POST/PATCH /api/utilisateurs, pas en contrainte DB
+  // pour rester nullable pour tous les autres rôles).
+  //
+  // EXCEPTION : une société de livraison (§ TypeCompteLivreur) n'a pas de quai
+  // chez nous — on lui confie des colis par bon d'envoi, elle les emporte et
+  // ne revient pas. Le champ lui reste ouvert, il n'est plus exigé
+  // (§ hubRequis, lib/comptes-livreur.ts).
   hubId String? @map("hub_id")
   hub   Hub?    @relation("UtilisateurHub", fields: [hubId], references: [id])
 
@@ -386,6 +428,12 @@ model Utilisateur {
   // PlateformePartenaire.utilisateurTechnique pour la raison d'être de ce
   // compte.
   plateformeTechnique PlateformePartenaire? @relation("PlateformeUtilisateurTechnique")
+
+  // § Comptes livreurs : transporteur sous-traitant dont ce compte est le
+  // compte humain (§ Prestataire.compteLivreurId). Renseigné au plus sur un
+  // compte de type `societe` — un livreur individuel n'est le compte de
+  // personne d'autre que lui-même.
+  prestataireRattache Prestataire? @relation("PrestataireCompteLivreur")
 
   // § Règlements (/admin/bon-paiement, /admin/factures) : bons de paiement
   // dont il est le BÉNÉFICIAIRE (livreur), et ceux qu'il a émis en tant
@@ -977,8 +1025,36 @@ enum StatutBonEnvoi {
 model BonEnvoi {
   id               String         @id @default(uuid())
   numero           String         @unique
-  hubDestinationId String         @map("hub_destination_id")
-  hubDestination   Hub            @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+
+  // DEUX NATURES DE BON, MUTUELLEMENT EXCLUSIVES — exactement une des deux
+  // colonnes ci-dessous est renseignée, jamais les deux, jamais aucune :
+  //
+  //   hubDestinationId → TRANSIT INTERNE. Le bon vise un de nos quais. La
+  //     destination est DÉDUITE de la ville du colis (lib/hub-envoi.ts), et la
+  //     réception se fait par « Marquer comme reçu » côté hub d'arrivée.
+  //
+  //   prestataireId → REMISE SOUS-TRAITÉE. Le bon désigne un TRANSPORTEUR,
+  //     choisi à la main par l'opérateur. Ici la ville du colis ne décide plus
+  //     rien : confier un colis à tel transporteur est un arbitrage commercial,
+  //     pas un routage géographique. Tant que la carte « quel prestataire sert
+  //     quelle ville » n'est pas figée (§ SOUS_TRAITANCE.md), aucun contrôle de
+  //     couverture ne s'y oppose — une ville absente de la grille du
+  //     transporteur est signalée à l'écran, jamais refusée, et son coût
+  //     d'achat reste NULL. Surtout pas zéro : zéro dirait « gratuit » et
+  //     gonflerait la marge d'un montant inventé.
+  //
+  // L'exclusivité est garantie en base par un CHECK posé à la main dans la
+  // migration — Prisma ne sait pas l'exprimer ici, même procédé que l'index
+  // partiel de RemisePrestataire. Sans lui, un bon pourrait viser un quai ET un
+  // transporteur, et plus rien ne dirait où part le colis.
+  hubDestinationId String?        @map("hub_destination_id")
+  hubDestination   Hub?           @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+  prestataireId    String?        @map("prestataire_id")
+  prestataire      Prestataire?   @relation(fields: [prestataireId], references: [id])
+
+  // Sur un bon sous-traité, 'recu' ne dit pas « arrivé à un quai à nous » mais
+  // « pris en charge par le transporteur » : les colis restent en_transit, et
+  // leur sort nous revient ensuite par son API ou son fichier de suivi.
   statut           StatutBonEnvoi @default(nouveau)
   nbColis          Int            @map("nb_colis")
   dateGeneration   DateTime       @default(now()) @map("date_generation")
@@ -992,6 +1068,7 @@ model BonEnvoi {
   remisesPrestataire RemisePrestataire[]
 
   @@index([hubDestinationId])
+  @@index([prestataireId])
   @@map("bons_envoi")
 }
 
@@ -1322,6 +1399,20 @@ model Prestataire {
   // reste porteur de l'historique tarifaire des colis déjà livrés.
   actif     Boolean @default(true)
 
+  // Compte HUMAIN du transporteur : un compte livreur de type `societe`
+  // (§ TypeCompteLivreur) avec lequel il ouvre une session dans l'espace
+  // terrain, voit les colis qu'on lui a confiés et en déclare l'issue à la
+  // main. Pendant exact de `compteMachine` ci-dessous, pour les transporteurs
+  // qui n'ont pas de système à brancher — et les deux peuvent coexister.
+  //
+  // OPTIONNEL, et c'est tout l'intérêt : un transporteur sans compte se
+  // comporte exactement comme avant (bon d'envoi, puis fichier ou API). Le
+  // rattachement n'ouvre pas un droit, il désigne un destinataire : c'est lui
+  // qui fait poser `Commande.livreurId` à la création d'un bon d'envoi, donc
+  // qui répond à « qui livre ce colis » dès la décision, et non après coup.
+  compteLivreurId String?      @unique @map("compte_livreur_id")
+  compteLivreur   Utilisateur? @relation("PrestataireCompteLivreur", fields: [compteLivreurId], references: [id])
+
   agences       Hub[]
   tarifs        TarifPrestataireVille[]
   // Compte machine du prestataire (§ PlateformePartenaire.prestataireId) —
@@ -1330,6 +1421,10 @@ model Prestataire {
   compteMachine PlateformePartenaire?
   // Colis confiés par son API, et ce qu'il nous en a dit (§ Power Delivery).
   remises       RemisePrestataire[]
+  // Bons d'envoi qui lui sont directement adressés (§ BonEnvoi.prestataireId) —
+  // indépendants de ses agences : un bon peut lui être confié pour des villes
+  // qu'aucune de ses agences ne déclare encore.
+  bonsEnvoi     BonEnvoi[]
   evenements    EvenementPrestataire[]
 
   @@map("prestataires")
