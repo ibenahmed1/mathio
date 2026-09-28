@@ -259,6 +259,14 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // Administration des plateformes (clés, marchands synchronisés, journal).
   { pattern: '/api/plateformes/**', permission: 'integrations:manage' },
 
+  // NON MAPPÉ — /api/integrations/** : les intégrations qu'un MARCHAND branche
+  // lui-même sur sa boutique (Shopify, YouCan, § /marchand/integrations). Réservé au
+  // rôle marchand par `requireUser(['marchand'])` dans chaque handler, comme
+  // /api/commandes/*/relancer. Le gouverner par `integrations:manage`
+  // l'ouvrirait au back-office, qui n'a rien à connecter pour le compte d'un
+  // marchand — et fermerait l'écran au marchand, qui ne détient pas la clé.
+  { pattern: '/api/integrations/**', permission: null },
+
   // NON GOUVERNÉ — l'API MACHINE des plateformes partenaires (§ lib/spaces.ts,
   // HOST_API). L'entrée est explicite plutôt qu'absente pour dire l'intention
   // sur place : ce chemin n'a pas de session, donc pas de permissions à
@@ -271,8 +279,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // que sur l'hôte du back-office. Elle documente, et elle empêchera une
   // future règle générique de happer ce préfixe.
   //
-  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la seule route du
-  // dépôt dans ce cas, par nécessité : les webhooks de Power Delivery. C'est
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — l'une des deux
+  // routes du dépôt dans ce cas, par nécessité : les webhooks de Power Delivery. C'est
   // LEUR serveur qui appelle, sans session et sans clé à nous : ils n'en
   // connaissent pas d'autre que leur propre signature. Le contrôle d'accès est
   // donc la signature HMAC-SHA256 du corps, OBLIGATOIRE chez nous alors
@@ -281,6 +289,22 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // configuré, la route refuse tout. Entrée nommée pour que cette exception se
   // lise ici, et non seulement dans le handler.
   { pattern: '/api/v1/webhooks/power-delivery', permission: null },
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la seconde : les
+  // webhooks des boutiques Shopify connectées par nos marchands. Même raison
+  // (le serveur de Shopify n'a ni session ni clé à nous), même parade : la
+  // signature HMAC-SHA256 du corps (`X-Shopify-Hmac-Sha256`), vérifiée en temps
+  // constant avec la clé secrète de LA boutique annoncée ; une boutique inconnue
+  // ou déconnectée n'a pas de clé, donc tout est refusé (lib/shopify.ts).
+  { pattern: '/api/v1/webhooks/shopify', permission: null },
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la troisième : les
+  // webhooks des boutiques YouCan. Même parade, avec une nuance : la signature
+  // (`X-YOUCAN-SIGNATURE`, HMAC-SHA256 hexadécimal) est calculée avec le secret
+  // de NOTRE application YouCan (YOUCAN_CLIENT_SECRET), et la boutique est
+  // ensuite désignée par `data.store_id` ; inconnue ou déconnectée, elle est
+  // refusée (lib/youcan.ts).
+  { pattern: '/api/v1/webhooks/youcan', permission: null },
   { pattern: '/api/v1/**', permission: null },
 ];
 

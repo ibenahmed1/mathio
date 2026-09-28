@@ -16,6 +16,8 @@
     "db:deploy": "prisma migrate deploy && prisma db seed",
     "simuler:shipeh": "tsx scripts/simuler-shipeh.ts",
     "simuler:prestataire": "tsx scripts/simuler-prestataire.ts",
+    "simuler:shopify": "tsx scripts/simuler-webhook-shopify.ts",
+    "simuler:youcan": "tsx scripts/simuler-youcan.ts",
     "colis:confies": "tsx scripts/colis-confies.ts",
     "purger:journal": "tsx scripts/purger-journal.ts",
     "shipeh": "tsx scripts/console-shipeh.ts",

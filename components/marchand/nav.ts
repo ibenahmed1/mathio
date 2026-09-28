@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, Boxes, FileStack, Truck, LifeBuoy, Warehouse } from 'lucide-react';
+import { LayoutDashboard, Package, Boxes, FileStack, Truck, LifeBuoy, Warehouse, Plug } from 'lucide-react';
 import type { NavItem } from '@/components/AppSidebar';
 
 // Navigation plate : le détail (sous-listes, filtres, actions) vit dans des
@@ -22,6 +22,8 @@ export const NAV_MARCHAND_MENU: NavItem[] = [
 
 export const NAV_MARCHAND_AUTRE: NavItem[] = [
   { label: 'Support & Profil', href: '/marchand/reclamations', icon: LifeBuoy },
+  // § Intégrations Shopify et YouCan : le marchand y connecte lui-même sa boutique.
+  { label: 'Intégrations', href: '/marchand/integrations', icon: Plug },
 ];
 
 export const NAV_MARCHAND: NavItem[] = [...NAV_MARCHAND_MENU, ...NAV_MARCHAND_AUTRE];

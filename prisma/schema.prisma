@@ -596,6 +596,12 @@ model Marchand {
   // déjà inscrit en direct). Vide pour l'immense majorité des marchands.
   comptesExternes CompteMarchandExterne[]
 
+  // § Intégration Shopify : la boutique connectée par ce marchand, s'il en a
+  // une (cf. BoutiqueShopify).
+  boutiqueShopify BoutiqueShopify?
+  // § Intégration YouCan : idem pour une boutique YouCan (cf. BoutiqueYoucan).
+  boutiqueYoucan  BoutiqueYoucan?
+
   @@map("marchands")
 }
 
@@ -630,6 +636,12 @@ model Marchandise {
   dateCreation DateTime @default(now()) @map("date_creation")
 
   commandes Commande[]
+
+  // § Intégration Shopify : renseigné quand cette marchandise a été importée
+  // d'une boutique Shopify — c'est ce lien qui porte le tag « Shopify ».
+  shopify MarchandiseShopify?
+  // § Intégration YouCan : idem pour une boutique YouCan (tag « YouCan »).
+  youcan  MarchandiseYoucan?
 
   @@unique([marchandId, nom])
   @@index([marchandId])
@@ -912,6 +924,12 @@ model Commande {
   // une seule active à la fois (cf. RemisePrestataire).
   remisesPrestataire RemisePrestataire[]
 
+  // § Intégration Shopify : la commande Shopify dont ce colis est issu. Porte
+  // le tag « Shopify » et l'idempotence des webhooks (cf. CommandeShopify).
+  shopify CommandeShopify?
+  // § Intégration YouCan : idem pour une commande YouCan (cf. CommandeYoucan).
+  youcan  CommandeYoucan?
+
   // Garde-fou anti-doublon import (bug rapporté : réimporter le même fichier
   // ne remonte aucune erreur et duplique les colis) — un même marchand ne
   // peut pas avoir deux commandes avec la même référence partenaire. NULL
@@ -1008,8 +1026,8 @@ enum StatutBonEnvoi {
 // !== hub actuel du colis, cf. lib/hub-envoi.ts) — il n'y a plus de "Hub
 // Central" privilégié pour ce flux.
 model BonEnvoi {
-  id               String         @id @default(uuid())
-  numero           String         @unique
+  id     String @id @default(uuid())
+  numero String @unique
 
   // DEUX NATURES DE BON, MUTUELLEMENT EXCLUSIVES — exactement une des deux
   // colonnes ci-dessous est renseignée, jamais les deux, jamais aucune :
@@ -1032,10 +1050,10 @@ model BonEnvoi {
   // migration — Prisma ne sait pas l'exprimer ici, même procédé que l'index
   // partiel de RemisePrestataire. Sans lui, un bon pourrait viser un quai ET un
   // transporteur, et plus rien ne dirait où part le colis.
-  hubDestinationId String?        @map("hub_destination_id")
-  hubDestination   Hub?           @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
-  prestataireId    String?        @map("prestataire_id")
-  prestataire      Prestataire?   @relation(fields: [prestataireId], references: [id])
+  hubDestinationId String?      @map("hub_destination_id")
+  hubDestination   Hub?         @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+  prestataireId    String?      @map("prestataire_id")
+  prestataire      Prestataire? @relation(fields: [prestataireId], references: [id])
 
   // Sur un bon sous-traité, 'recu' ne dit pas « arrivé à un quai à nous » mais
   // « pris en charge par le transporteur » : les colis restent en_transit, et
@@ -1662,10 +1680,10 @@ model EquipeTacheMembre {
 // DELETE /api/taches/etiquettes/[id]), sinon les tableaux garderaient des
 // codes fantômes qu'aucune couleur ne saurait peindre.
 model EtiquetteTache {
-  id String @id @default(uuid())
+  id           String   @id @default(uuid())
   // Identifiant lisible et stable, dérivé du nom à la création.
-  code String @unique
-  nom  String
+  code         String   @unique
+  nom          String
   // Clé de la palette de chips (design, frontend, backend, research, bug,
   // docs) consommée côté UI — jamais une valeur CSS brute, même convention
   // qu'EquipeTache.couleur.
@@ -1812,7 +1830,7 @@ model Transaction {
   // chaque ouverture de /admin/comptabilite — d'où le `omit` de
   // GET /api/finance, qui n'expose qu'un pointeur vers la route de contenu
   // (GET /api/finance/[id]/preuve), laquelle sert l'octet à la demande.
-  preuveUrl   String?              @map("preuve_url")
+  preuveUrl String? @map("preuve_url")
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
@@ -1900,7 +1918,7 @@ model CommandeStockHub {
   // CONSÉQUENCE, identique : ne JAMAIS sélectionner cette colonne pour dresser
   // la liste des commandes. GET /api/commandes-stock-hub l'écarte par `omit` et
   // n'expose qu'un pointeur vers sa route de contenu.
-  preuveUrl    String?                @map("preuve_url")
+  preuveUrl String? @map("preuve_url")
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("CommandeStockHubAuteur", fields: [auteurId], references: [id])
@@ -2628,4 +2646,285 @@ model JournalAppelApi {
   @@index([plateformeId, horodatage])
   @@index([reference])
   @@map("journal_appels_api")
+}
+
+// ============================================================
+// Intégration Shopify (§ INTEGRATION_SHOPIFY.md)
+// ============================================================
+//
+// Un marchand connecte SA boutique Shopify depuis /marchand/integrations ;
+// chaque commande qu'elle reçoit nous arrive ensuite par webhook et devient un
+// colis dans son espace. C'est un flux ENTRANT, comme Shipeh, mais sans
+// plateforme intermédiaire : le tiers est la boutique du marchand elle-même,
+// et c'est le marchand — pas un admin — qui branche le tuyau.
+//
+// Même parti que pour les plateformes partenaires : AUCUNE colonne ajoutée sur
+// `commandes`, `marchandises` ni `marchands`. Tout ce qui est propre à Shopify
+// vit dans les tables satellites ci-dessous, et le tag « Shopify » affiché sur
+// un colis ou une marchandise se DÉDUIT de l'existence du lien. Une colonne
+// `source` à côté serait une seconde vérité du même fait.
+
+// Une boutique Shopify connectée. Une par marchand, et une boutique n'est
+// connectée qu'à un seul marchand : ses webhooks portent son domaine
+// (X-Shopify-Shop-Domain), et c'est par lui qu'on retrouve à qui appartient la
+// commande. Deux marchands sur la même boutique rendraient ce routage ambigu.
+model BoutiqueShopify {
+  id         String   @id @default(uuid())
+  marchandId String   @unique @map("marchand_id")
+  marchand   Marchand @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  // Domaine myshopify.com, en minuscules — jamais un domaine personnalisé :
+  // c'est lui que Shopify place dans l'en-tête de ses webhooks.
+  domaine String  @unique
+  nom     String?
+  // Devise de la boutique au moment de la connexion. Le montant d'une commande
+  // est repris TEL QUEL, sans conversion (décision du 2026-09-26) : quand la
+  // devise n'est pas le MAD, la note du colis le dit.
+  devise  String?
+
+  // Jeton d'administration (shpat_…) et clé secrète de l'application
+  // (shpss_…), CHIFFRÉS en AES-256-GCM (lib/chiffrement.ts). Contrairement aux
+  // clés d'API qu'on DÉLIVRE (CleApiPlateforme.secretHash), ces secrets-ci sont
+  // à nous de les PRÉSENTER : le jeton pour appeler Shopify, la clé pour
+  // recalculer la signature de ses webhooks. Un hash ne permettrait ni l'un ni
+  // l'autre ; le chiffrement réversible est donc le mieux possible, et la clé
+  // de chiffrement vit hors de la base (CLE_CHIFFREMENT_INTEGRATIONS).
+  jetonAccesChiffre  String @map("jeton_acces_chiffre")
+  cleSecreteChiffree String @map("cle_secrete_chiffree")
+
+  // Abonnement ORDERS_CREATE créé chez Shopify à la connexion (gid://…). Nul
+  // tant qu'il n'a pas pu l'être — typiquement faute d'URL publique HTTPS en
+  // développement : la boutique reste alors connectée (les produits sont
+  // importés), et `derniereErreur` dit pourquoi les commandes n'arrivent pas.
+  webhookId  String? @map("webhook_id")
+  webhookUri String? @map("webhook_uri")
+
+  connecteeLe   DateTime  @default(now()) @map("connectee_le")
+  // Renseigné à la déconnexion. La ligne est CONSERVÉE, et non supprimée :
+  // les colis et marchandises déjà importés gardent leur lien, donc leur tag.
+  // Une boutique déconnectée ne reçoit plus rien — son webhook est supprimé
+  // chez Shopify, et ceux qui arriveraient quand même sont refusés.
+  deconnecteeLe DateTime? @map("deconnectee_le")
+
+  derniereSynchroProduitsLe DateTime? @map("derniere_synchro_produits_le")
+  derniereErreur            String?   @map("derniere_erreur")
+
+  dateMaj DateTime @updatedAt @map("date_maj")
+
+  commandes    CommandeShopify[]
+  marchandises MarchandiseShopify[]
+  receptions   WebhookShopifyRecu[]
+
+  @@map("boutiques_shopify")
+}
+
+// Colis ↔ commande Shopify dont il est issu.
+//
+// L'unicité (boutique, commande) est la garantie d'IDEMPOTENCE : Shopify
+// redélivre un webhook dès qu'il n'a pas eu sa réponse à temps, et peut en
+// livrer deux en parallèle. Un contrôle « chercher puis créer » laisserait
+// passer ce second cas ; la contrainte, non.
+model CommandeShopify {
+  id         String          @id @default(uuid())
+  commandeId String          @unique @map("commande_id")
+  commande   Commande        @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  boutiqueId String          @map("boutique_id")
+  boutique   BoutiqueShopify @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  // Identifiant numérique de la commande chez Shopify, en texte : il dépasse
+  // la précision d'un `number` JavaScript sûr à terme.
+  idCommandeShopify String  @map("id_commande_shopify")
+  // Numéro lisible (« #1001 »), celui que le marchand et son client connaissent.
+  numero            String
+  devise            String?
+
+  dateReception DateTime @default(now()) @map("date_reception")
+
+  @@unique([boutiqueId, idCommandeShopify])
+  @@index([boutiqueId])
+  @@map("commandes_shopify")
+}
+
+// Marchandise ↔ variante Shopify. Une marchandise par VARIANTE, et non par
+// produit : le catalogue Marchandise n'a pas de variantes, et c'est la
+// variante qui porte le prix et le SKU. Ce lien permet aussi de rattacher une
+// commande à sa marchandise (Commande.marchandiseId) sans rapprochement par
+// le nom.
+model MarchandiseShopify {
+  id            String          @id @default(uuid())
+  marchandiseId String          @unique @map("marchandise_id")
+  marchandise   Marchandise     @relation(fields: [marchandiseId], references: [id], onDelete: Cascade)
+  boutiqueId    String          @map("boutique_id")
+  boutique      BoutiqueShopify @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  idProduitShopify  String  @map("id_produit_shopify")
+  idVarianteShopify String  @map("id_variante_shopify")
+  sku               String?
+
+  dateSynchro DateTime @updatedAt @map("date_synchro")
+
+  @@unique([boutiqueId, idVarianteShopify])
+  @@index([boutiqueId])
+  @@map("marchandises_shopify")
+}
+
+// Journal des webhooks REÇUS, acceptés ou non. Même raison d'être que
+// JournalAppelApi : sans lui, « mes commandes Shopify n'arrivent pas » ne se
+// diagnostique pas — ni par nous, ni par le marchand, qui en voit les
+// dernières lignes sur son écran d'intégration.
+//
+// Même règle aussi : le corps n'est PAS conservé (noms, téléphones et
+// adresses de clients finaux n'ont rien à faire dans un journal).
+model WebhookShopifyRecu {
+  id         String           @id @default(uuid())
+  // Nul quand le domaine annoncé ne correspond à aucune boutique connue.
+  boutiqueId String?          @map("boutique_id")
+  boutique   BoutiqueShopify? @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  domaine    String?
+
+  // X-Shopify-Webhook-Id : identique d'une redélivrance à l'autre, c'est ce
+  // qui permet de reconnaître un rejeu dans ce journal.
+  idWebhook String? @map("id_webhook")
+  sujet     String?
+  // cree | deja_recu | ignore | rejete | erreur
+  issue     String
+  // Numéro de commande (« #1001 ») quand il a pu être lu.
+  reference String?
+  message   String?
+
+  horodatage DateTime @default(now())
+
+  @@index([boutiqueId, horodatage])
+  @@map("webhooks_shopify_recus")
+}
+
+// ============================================================
+// Intégration YouCan (§ INTEGRATION_YOUCAN.md)
+// ============================================================
+//
+// Même flux entrant et même parti que Shopify ci-dessus (tables satellites,
+// tag déduit du lien), avec deux différences qui expliquent les colonnes :
+//
+//   - le marchand saisit le Client ID / Client Secret de SA propre application
+//     YouCan, puis l'autorise une fois (OAuth, redirection inévitable chez
+//     YouCan). Les jetons se renouvellent avec le jeton de rafraîchissement ;
+//   - les webhooks sont signés avec le secret de cette application et
+//     désignent la boutique par `data.store_id` — d'où `storeId` unique.
+
+// Une boutique YouCan connectée. Une par marchand, et une boutique n'est
+// connectée qu'à un seul marchand : son `store_id` route les webhooks.
+model BoutiqueYoucan {
+  id         String   @id @default(uuid())
+  marchandId String   @unique @map("marchand_id")
+  marchand   Marchand @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  // Identifiant (UUID) de la boutique chez YouCan, lu par GET /me.
+  storeId String  @unique @map("store_id")
+  slug    String?
+  domaine String?
+  nom     String?
+  // Devise de la boutique : montants repris TELS QUELS (même décision que Shopify).
+  devise  String?
+
+  // Application YouCan DU MARCHAND (Partner Dashboard), saisie dans le
+  // formulaire comme les identifiants Shopify : chaque boutique a la sienne.
+  // Le secret sert à échanger/renouveler les jetons ET à vérifier la
+  // signature des webhooks et du retour OAuth. Chiffré comme les jetons.
+  // Nullables pour la migration seulement : toute connexion les renseigne.
+  clientId            String? @map("client_id")
+  clientSecretChiffre String? @map("client_secret_chiffre")
+
+  // Jetons OAuth, CHIFFRÉS en AES-256-GCM (lib/chiffrement.ts), pour la même
+  // raison que BoutiqueShopify.jetonAccesChiffre : nous devons les PRÉSENTER.
+  jetonAccesChiffre            String   @map("jeton_acces_chiffre")
+  jetonRafraichissementChiffre String   @map("jeton_rafraichissement_chiffre")
+  jetonExpireLe                DateTime @map("jeton_expire_le")
+  // Scopes accordés par le marchand, tels que demandés (espace entre chaque).
+  scopes                       String?
+
+  // Abonnements REST Hooks créés à la connexion. Nuls tant qu'ils n'ont pas pu
+  // l'être (typiquement : pas d'URL publique HTTPS en développement).
+  webhookCommandesId  String? @map("webhook_commandes_id")
+  webhookDesinstallId String? @map("webhook_desinstall_id")
+  webhookUri          String? @map("webhook_uri")
+
+  connecteeLe   DateTime  @default(now()) @map("connectee_le")
+  // Déconnexion depuis notre écran, OU désinstallation de l'application côté
+  // YouCan (webhook app.uninstalled). La ligne est conservée, comme Shopify.
+  deconnecteeLe DateTime? @map("deconnectee_le")
+
+  derniereSynchroProduitsLe DateTime? @map("derniere_synchro_produits_le")
+  derniereErreur            String?   @map("derniere_erreur")
+
+  dateMaj DateTime @updatedAt @map("date_maj")
+
+  commandes    CommandeYoucan[]
+  marchandises MarchandiseYoucan[]
+  receptions   WebhookYoucanRecu[]
+
+  @@map("boutiques_youcan")
+}
+
+// Colis ↔ commande YouCan dont il est issu. L'unicité (boutique, commande) est
+// la garantie d'idempotence : YouCan relivre un webhook jusqu'à 5 fois.
+model CommandeYoucan {
+  id         String         @id @default(uuid())
+  commandeId String         @unique @map("commande_id")
+  commande   Commande       @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  boutiqueId String         @map("boutique_id")
+  boutique   BoutiqueYoucan @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  // UUID de la commande chez YouCan.
+  idCommandeYoucan String  @map("id_commande_youcan")
+  // Référence lisible (`ref`, « 021 »).
+  numero           String
+  devise           String?
+
+  dateReception DateTime @default(now()) @map("date_reception")
+
+  @@unique([boutiqueId, idCommandeYoucan])
+  @@index([boutiqueId])
+  @@map("commandes_youcan")
+}
+
+// Marchandise ↔ variante YouCan (une marchandise par variante, comme Shopify).
+model MarchandiseYoucan {
+  id            String         @id @default(uuid())
+  marchandiseId String         @unique @map("marchandise_id")
+  marchandise   Marchandise    @relation(fields: [marchandiseId], references: [id], onDelete: Cascade)
+  boutiqueId    String         @map("boutique_id")
+  boutique      BoutiqueYoucan @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  idProduitYoucan  String  @map("id_produit_youcan")
+  idVarianteYoucan String  @map("id_variante_youcan")
+  sku              String?
+
+  dateSynchro DateTime @updatedAt @map("date_synchro")
+
+  @@unique([boutiqueId, idVarianteYoucan])
+  @@index([boutiqueId])
+  @@map("marchandises_youcan")
+}
+
+// Journal des webhooks YouCan REÇUS, acceptés ou non (même rôle et même règle
+// que WebhookShopifyRecu : le corps n'est pas conservé).
+model WebhookYoucanRecu {
+  id         String          @id @default(uuid())
+  // Nul quand le store_id annoncé ne correspond à aucune boutique connue.
+  boutiqueId String?         @map("boutique_id")
+  boutique   BoutiqueYoucan? @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  storeId    String?         @map("store_id")
+
+  // X-YOUCAN-DELIVERY-ID : identique d'une relivraison à l'autre.
+  idLivraison String? @map("id_livraison")
+  sujet       String?
+  // cree | deja_recu | ignore | rejete | erreur
+  issue       String
+  reference   String?
+  message     String?
+
+  horodatage DateTime @default(now())
+
+  @@index([boutiqueId, horodatage])
+  @@map("webhooks_youcan_recus")
 }

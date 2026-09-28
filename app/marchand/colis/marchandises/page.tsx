@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { PackagePlus, Trash2, Boxes, TriangleAlert } from 'lucide-react';
 import { apiDelete, apiGet, apiPost } from '@/lib/api-client';
+import { ShopifyTag } from '@/components/ShopifyTag';
+import { YoucanTag } from '@/components/YoucanTag';
 import type { Marchandise } from '@/lib/types';
 
 // Catalogue "marchandise" du marchand : sert à peupler la liste déroulante
@@ -144,7 +146,13 @@ export default function MarchandisesPage() {
             <tbody>
               {marchandises.map((m) => (
                 <tr key={m.id}>
-                  <td className="font-medium">{m.nom}</td>
+                  <td className="font-medium">
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                      {m.nom}
+                      {m.shopify && <ShopifyTag detail={m.shopify.sku ? `SKU ${m.shopify.sku}` : null} />}
+                      {m.youcan && <YoucanTag detail={m.youcan.sku ? `SKU ${m.youcan.sku}` : null} />}
+                    </span>
+                  </td>
                   <td className="text-right tabular-nums">
                     <span className={`badge ${m.qteStock === 0 ? 'badge-danger' : 'badge-neutral'}`}>{m.qteStock}</span>
                   </td>

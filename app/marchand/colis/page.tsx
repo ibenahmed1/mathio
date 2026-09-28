@@ -7,6 +7,8 @@ import { PackagePlus, FileUp, FileDown, PackageSearch, DoorOpen, TriangleAlert, 
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { ShopifyTag } from '@/components/ShopifyTag';
+import { YoucanTag } from '@/components/YoucanTag';
 import { EtatPaiementBadge } from '@/components/EtatPaiementBadge';
 import { STATUTS_COMMANDE, LABELS_STATUT_COMMANDE, ETATS_PAIEMENT, LABELS_ETAT_PAIEMENT } from '@/lib/statuts';
 import { ColisActionsMenu } from '@/components/marchand/ColisActionsMenu';
@@ -341,11 +343,16 @@ function ColisListContent() {
                       className="check-basic"
                       checked={selected.has(c.id)}
                       onChange={() => toggleUn(c.id)}
-                      disabled={c.statut !== 'nouveau_colis'}
                       aria-label={`Sélectionner ${c.codeSuivi}`}
                     />
                   </td>
-                  <td className="font-mono text-xs font-semibold text-black/70 dark:text-white/70">{c.codeSuivi}</td>
+                  <td className="font-mono text-xs font-semibold text-black/70 dark:text-white/70">
+                    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                      {c.codeSuivi}
+                      {c.shopify && <ShopifyTag detail={`commande ${c.shopify.numero}`} />}
+                      {c.youcan && <YoucanTag detail={`commande ${c.youcan.numero}`} />}
+                    </span>
+                  </td>
                   <td className="font-medium">{c.clientNom}</td>
                   <td className="whitespace-nowrap">{c.clientTelephone}</td>
                   <td>{c.marchandise?.nom ?? c.produitDescription ?? <span className="opacity-40">—</span>}</td>

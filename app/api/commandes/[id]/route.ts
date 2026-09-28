@@ -102,7 +102,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (Number.isInteger(Number(body.quantite)) && Number(body.quantite) > 0) data.quantite = Number(body.quantite);
     if (body.montantCod !== undefined) {
       const montant = Number(body.montantCod);
-      if (!Number.isFinite(montant) || montant <= 0) {
+      // Zéro n'est accepté que s'il l'était déjà : c'est le COD d'une commande
+      // Shopify payée en ligne (§ intégration Shopify), que le formulaire
+      // d'édition renvoie tel quel. Passer un colis ordinaire à 0 reste refusé.
+      const zeroInchange = montant === 0 && Number(commande.montantCod) === 0;
+      if (!Number.isFinite(montant) || (montant <= 0 && !zeroInchange)) {
         throw new ApiError(400, 'montantCod doit être un nombre positif');
       }
       data.montantCod = montant;
