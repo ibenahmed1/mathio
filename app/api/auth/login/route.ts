@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
+  getSessionAuthState,
   signSession,
   verifySecret,
   getHomeSpace,
@@ -80,6 +81,21 @@ export async function POST(request: Request) {
 
     if (!valid) {
       return NextResponse.json({ error: INVALID_CREDENTIALS_MESSAGE }, { status: 401 });
+    }
+
+    // § Équipe & accès : un membre de boutique dont l'accès temporaire a
+    // expiré est refusé par le proxy à chaque requête (getSessionAuthState).
+    // Lui ouvrir une session ici le renverrait aussitôt vers /login, sans
+    // explication. Le mot de passe vient d'être vérifié : le lui dire ne
+    // révèle rien qu'il ne sache.
+    if (user.role === 'marchand') {
+      const etat = await getSessionAuthState(user.id);
+      if (!etat?.actif) {
+        return NextResponse.json(
+          { error: "Votre accès à cette boutique a expiré. Demandez au responsable de l'équipe de le prolonger." },
+          { status: 403 }
+        );
+      }
     }
 
     // Le rôle a-t-il le droit d'ouvrir une session PAR MOT DE PASSE sur cet

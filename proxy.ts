@@ -19,6 +19,11 @@ import {
   type SessionSpace,
 } from '@/lib/auth';
 import { apiPermissionFor, pagePermissionFor } from '@/lib/permission-routes';
+import {
+  permissionApiMarchand,
+  permissionPageMarchand,
+  premiereDestinationMarchand,
+} from '@/lib/permissions-marchand';
 import type { Role } from '@/app/generated/prisma/enums';
 
 // Chemins publics sous /api/** qui ne nécessitent pas de session existante,
@@ -273,6 +278,19 @@ export async function proxy(request: NextRequest) {
       return new NextResponse('Accès refusé : permission manquante', { status: 403 });
     }
 
+    // --- 3 ter. Permissions de l'équipe marchande ------------------------
+    // Même principe, pour l'espace marchand : le titulaire détient tout, un
+    // membre ce que lui donne son rôle (§ lib/permissions-marchand.ts,
+    // résolu par getSessionAuthState). Écran fermé → première destination
+    // ouverte à ce membre, ou l'écran « accès refusé » s'il n'en a aucune.
+    if (guard.space === 'marchand') {
+      const permissionMarchand = permissionPageMarchand(pathname);
+      if (permissionMarchand && !session.permissions.includes(permissionMarchand)) {
+        const destination = premiereDestinationMarchand(session.permissions);
+        return NextResponse.redirect(new URL(destination, origine));
+      }
+    }
+
     return withUserHeaders(request, session, permissionPage);
   }
 
@@ -306,6 +324,20 @@ export async function proxy(request: NextRequest) {
     const permissionApi = space === 'admin' ? apiPermissionFor(pathname, request.method) : null;
     if (permissionApi && !session.permissions.includes(permissionApi)) {
       return NextResponse.json({ error: 'Accès refusé : permission manquante' }, { status: 403 });
+    }
+
+    // Pendant API du §3 ter, sur le seul hôte marchand. La clé résolue n'est
+    // PAS transmise au handler (ROUTE_PERMISSION_HEADER reste vide) : elle n'a
+    // de sens que pour la couche back-office de requireUser, et un droit de
+    // boutique ne doit jamais pouvoir y être lu comme un octroi.
+    if (space === 'marchand' && roleMatches(session, ['marchand'])) {
+      const permissionMarchand = permissionApiMarchand(pathname, request.method);
+      if (permissionMarchand && !session.permissions.includes(permissionMarchand)) {
+        return NextResponse.json(
+          { error: "Votre rôle dans l'équipe ne vous donne pas accès à cette action" },
+          { status: 403 }
+        );
+      }
     }
 
     return withUserHeaders(request, session, permissionApi);

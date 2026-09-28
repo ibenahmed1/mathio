@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { AdresseMarchand, Ramassage } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export default function MarchandRamassagesPage() {
+  // § Équipe & accès : demander un ramassage est un droit distinct de la consultation.
+  const peutDemander = usePermissionsMarchand().peut('ramassages.demander');
   const [ramassages, setRamassages] = useState<Ramassage[]>([]);
   const [adresses, setAdresses] = useState<AdresseMarchand[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -51,12 +54,14 @@ export default function MarchandRamassagesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="page-title">Mes ramassages</h1>
-        <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
-          {showForm ? 'Annuler' : 'Demander un ramassage ponctuel'}
-        </button>
+        {peutDemander && (
+          <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
+            {showForm ? 'Annuler' : 'Demander un ramassage ponctuel'}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {peutDemander && showForm && (
         <form onSubmit={handleCreate} className="form-section max-w-xl">
           <label className="form-field">
             <span className="form-label">

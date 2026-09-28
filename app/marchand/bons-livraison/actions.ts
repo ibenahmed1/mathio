@@ -23,6 +23,12 @@ export async function creerBonDeLivraison(colisIds: string[]): Promise<BonDeLivr
   if (!session || !roleMatches(session, ['marchand'])) {
     throw new Error('Authentification requise');
   }
+  // § Équipe & accès : une Server Action se poste sur l'URL de la page qui
+  // l'appelle, pas sur une route API — la table du proxy ne la voit donc pas
+  // comme « générer un bon ». Le droit est vérifié ici.
+  if (!session.permissions.includes('bons.creer')) {
+    throw new Error("Votre rôle dans l'équipe ne vous permet pas de générer un bon de livraison");
+  }
 
   // § Inscription progressive : même verrou que GET /api/bons-livraison. Une
   // Server Action ne passe pas par le proxy et n'est pas une route API — elle

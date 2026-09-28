@@ -358,8 +358,12 @@ model Utilisateur {
   // n'en ont pas l'usage et gardent une liste vide.
   permissions String[] @default([])
 
-  marchand       Marchand?
-  marchandMembre MarchandMembre?
+  marchand            Marchand?
+  marchandMembre      MarchandMembre?
+  // § Équipe & accès : membres qu'il a fait entrer dans une boutique, et
+  // gestes d'équipe qu'il a effectués.
+  membresAjoutes      MarchandMembre[]        @relation("MembreAjoutePar")
+  journalEquipeAuteur JournalEquipeMarchand[] @relation("JournalEquipeAuteur")
 
   historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
   historiqueProduits HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
@@ -585,6 +589,10 @@ model Marchand {
   bonsPreparation BonDePreparation[]
   marchandises    Marchandise[]
   membres         MarchandMembre[]
+  // § Équipe & accès (/marchand/equipe) : rôles propres à la boutique et
+  // journal des gestes d'administration de l'équipe.
+  rolesEquipe     RoleMarchand[]
+  journalEquipe   JournalEquipeMarchand[]
   reclamations    Reclamation[]
   produits        Produit[]
   tarifsVilles    TarifMarchandVille[]
@@ -605,12 +613,12 @@ model Marchand {
   @@map("marchands")
 }
 
-// RF : le titulaire du compte marchand (Marchand.utilisateurId) peut inviter
-// d'autres comptes Utilisateur (role "marchand") à accéder à sa boutique —
-// ex. un employé qui gère les colis sans être le titulaire légal. L'accès est
-// total sur les données de la boutique (pas de permissions fines pour ce
-// scénario) : voir lib/marchand-scope.ts, résolu en plus du propriétaire
-// direct sur toutes les routes marchand.
+// RF : le titulaire du compte marchand (Marchand.utilisateurId) donne accès à
+// sa boutique à d'autres comptes Utilisateur (role "marchand") — ex. un
+// employé qui gère les colis sans être le titulaire légal. Le périmètre de
+// DONNÉES est celui de la boutique (lib/marchand-scope.ts) ; ce que le membre
+// peut y FAIRE est gouverné par son rôle (§ RoleMarchand,
+// lib/permissions-marchand.ts), appliqué par le proxy sur l'hôte marchand.
 model MarchandMembre {
   id            String      @id @default(uuid())
   marchandId    String      @map("marchand_id")
@@ -619,8 +627,89 @@ model MarchandMembre {
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
   dateAjout     DateTime    @default(now()) @map("date_ajout")
 
+  // Rôle dans la boutique — obligatoire : un membre sans rôle n'aurait aucun
+  // droit lisible, et « pas de rôle = tout » serait la pire des lectures.
+  // `Restrict` : un rôle encore porté ne se supprime pas (l'API propose de
+  // réaffecter ses membres d'abord).
+  roleId String       @map("role_id")
+  role   RoleMarchand @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  // Intitulé libre (« Responsable logistique ») — affichage seulement,
+  // n'accorde rien.
+  poste String?
+
+  modeAjout            ModeAjoutMembre @default(manuel) @map("mode_ajout")
+  // Renseigné quand l'invité a choisi son mot de passe par le lien reçu
+  // (POST /api/auth/reinitialiser-mot-de-passe). Tant qu'il est nul pour un
+  // membre invité, l'invitation est « en attente ».
+  invitationAccepteeLe DateTime?       @map("invitation_acceptee_le")
+
+  // Accès temporaire (stagiaire, renfort de saison) : passé cette date, la
+  // session est refusée comme celle d'un compte désactivé (cf.
+  // getSessionAuthState). Nul = sans limite.
+  accesExpireLe DateTime? @map("acces_expire_le")
+
+  // Qui l'a fait entrer dans l'équipe (titulaire ou membre délégué).
+  ajoutePar  String?      @map("ajoute_par")
+  ajouteParU Utilisateur? @relation("MembreAjoutePar", fields: [ajoutePar], references: [id])
+
   @@index([marchandId])
+  @@index([roleId])
   @@map("marchand_membres")
+}
+
+enum ModeAjoutMembre {
+  // Compte créé avec un mot de passe choisi par la personne qui l'ajoute.
+  manuel
+  // Compte créé sans mot de passe utilisable ; l'invité le choisit via un
+  // lien d'activation valable 7 jours (INVITATION_TOKEN_TTL_MS).
+  invitation
+}
+
+// Rôle d'équipe propre à UNE boutique. Deux familles :
+//   - prédéfini (`cle` renseignée : administrateur, gestionnaire…) : créé à la
+//     volée, ni modifiable ni supprimable, ses permissions sont lues dans le
+//     code (ROLES_SYSTEME_MARCHAND) et non dans `permissions` ;
+//   - personnalisé (`cle` nulle) : créé par la boutique, permissions stockées.
+// Les clés sont celles de lib/permissions-marchand.ts, en texte libre pour la
+// même raison que Utilisateur.permissions (le catalogue évolue avec les
+// écrans) ; les inconnues sont ignorées à la lecture.
+model RoleMarchand {
+  id               String   @id @default(uuid())
+  marchandId       String   @map("marchand_id")
+  marchand         Marchand @relation(fields: [marchandId], references: [id])
+  nom              String
+  description      String?
+  cle              String?
+  permissions      String[] @default([])
+  dateCreation     DateTime @default(now()) @map("date_creation")
+  dateModification DateTime @updatedAt @map("date_modification")
+
+  membres MarchandMembre[]
+
+  @@unique([marchandId, nom])
+  @@unique([marchandId, cle])
+  @@map("roles_marchand")
+}
+
+// Journal des gestes d'administration de l'équipe d'une boutique (ajout,
+// invitation, changement de rôle, suspension, retrait, rôles créés…). Ne
+// trace PAS l'activité métier (colis, bons) : elle a déjà ses historiques.
+model JournalEquipeMarchand {
+  id         String      @id @default(uuid())
+  marchandId String      @map("marchand_id")
+  marchand   Marchand    @relation(fields: [marchandId], references: [id])
+  auteurId   String      @map("auteur_id")
+  auteur     Utilisateur @relation("JournalEquipeAuteur", fields: [auteurId], references: [id])
+  action     String
+  // Libellé figé au moment du geste (nom du membre ou du rôle) : il doit
+  // rester lisible après la suppression ou le renommage de la cible.
+  cible      String?
+  details    String?
+  horodatage DateTime    @default(now())
+
+  @@index([marchandId, horodatage])
+  @@map("journal_equipe_marchand")
 }
 
 // Catalogue produit propre à chaque marchand (§ dropdown "Marchandise" du

@@ -6,8 +6,11 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande, Reclamation } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { SupportProfilSubNav } from '../SupportProfilSubNav';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export default function ReclamationsPage() {
+  // § Équipe & accès : ouvrir une réclamation est un droit distinct de la consultation.
+  const peutCreer = usePermissionsMarchand().peut('reclamations.creer');
   const [reclamations, setReclamations] = useState<Reclamation[]>([]);
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +67,15 @@ export default function ReclamationsPage() {
           Signalez un problème (colis, paiement, ramassage…) au support. Vous pouvez suivre ici la réponse du
           back-office.
         </p>
-        <button onClick={() => setShowForm((v) => !v)} className="btn-primary flex items-center gap-2">
-          <MessageSquarePlus className="h-4 w-4" />
-          {showForm ? 'Annuler' : 'Nouvelle réclamation'}
-        </button>
+        {peutCreer && (
+          <button onClick={() => setShowForm((v) => !v)} className="btn-primary flex items-center gap-2">
+            <MessageSquarePlus className="h-4 w-4" />
+            {showForm ? 'Annuler' : 'Nouvelle réclamation'}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {peutCreer && showForm && (
         <form onSubmit={handleCreate} className="form-section max-w-xl">
           <label className="form-field">
             <span className="form-label">

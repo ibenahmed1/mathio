@@ -5,7 +5,8 @@ import { Menu, ShieldAlert } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import { BandeauFinalisation } from '@/components/marchand/BandeauFinalisation';
 import { MarchandSidebar } from '@/components/marchand/MarchandSidebar';
-import { NAV_MARCHAND_MENU, NAV_MARCHAND_AUTRE } from '@/components/marchand/nav';
+import { NAV_MARCHAND_MENU, NAV_MARCHAND_AUTRE, navMarchandFiltree } from '@/components/marchand/nav';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export function MarchandShell({
   children,
@@ -27,6 +28,7 @@ export function MarchandShell({
   retourBackOffice?: string;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { peutOuvrir } = usePermissionsMarchand();
 
   // Termine réellement la session marchand empruntée (pas seulement une
   // navigation) : sans ça, le cookie de session resterait valide jusqu'à 24 h
@@ -52,8 +54,8 @@ export function MarchandShell({
   return (
     <div className="marchand-typo marchand-surface min-h-screen lg:flex">
       <MarchandSidebar
-        nav={NAV_MARCHAND_MENU}
-        autre={NAV_MARCHAND_AUTRE}
+        nav={navMarchandFiltree(NAV_MARCHAND_MENU, peutOuvrir)}
+        autre={navMarchandFiltree(NAV_MARCHAND_AUTRE, peutOuvrir)}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, CheckCircle2, Lock, UsersRound } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { LABELS_CHAMP_PROFIL, type ChampProfilMarchand } from '@/lib/marchand-activation';
 import { useActivationMarchand } from '@/components/marchand/activation-context';
@@ -11,13 +12,18 @@ import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
 import { readFileAsDataUrl } from '@/lib/read-file';
 import { Field, FormSection } from '@/components/form/Field';
 import { SupportProfilSubNav } from '../SupportProfilSubNav';
-import { EquipeSection } from './EquipeSection';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export default function MarchandProfilPage() {
   const router = useRouter();
   // § Inscription progressive : c'est ICI que le marchand lève son verrou —
   // la page lui dit donc ce qui manque encore, et non l'inverse.
   const activation = useActivationMarchand();
+  // § Équipe & accès : sans le droit « Profil de la boutique », la page reste
+  // consultable mais en lecture seule (les écritures sont refusées par le
+  // proxy de toute façon — ceci évite de proposer un bouton qui échouera).
+  const { peut } = usePermissionsMarchand();
+  const peutGerer = peut('boutique.gerer');
   const [marchand, setMarchand] = useState<Marchand | null>(null);
   const [adresses, setAdresses] = useState<AdresseMarchand[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +42,8 @@ export default function MarchandProfilPage() {
       ]);
       setMarchand(m);
       setAdresses(a.data);
-      // Seul le titulaire direct du compte (pas un membre invité) gère
-      // l'équipe — voir /api/marchands/membres, réservé au même critère.
+      // Seul le titulaire direct du compte (pas un membre de l'équipe) modifie
+      // ses identifiants de connexion.
       setEstTitulaire(Boolean(moi.marchand));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
@@ -123,8 +129,17 @@ export default function MarchandProfilPage() {
 
       <div>
         <h2 className="mb-4 text-lg font-black">Profil boutique</h2>
-        <RappelFinalisation champsManquants={activation.champsManquants} />
+        {peutGerer ? (
+          <RappelFinalisation champsManquants={activation.champsManquants} />
+        ) : (
+          <p className="mb-4 flex max-w-2xl items-start gap-2 rounded-xl border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] px-4 py-3 text-[13px] text-[color:var(--mk-ink-2)]">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+            Consultation seule : votre rôle dans l&apos;équipe ne vous permet pas de modifier le profil de la
+            boutique. Les coordonnées bancaires et les pièces du titulaire sont masquées.
+          </p>
+        )}
         <form onSubmit={handleSave} className="flex max-w-2xl flex-col gap-4">
+          <fieldset disabled={!peutGerer} className="contents">
           <FormSection title="Boutique">
             <div className="form-grid">
               <Field label="Nom de la boutique">
@@ -320,13 +335,16 @@ export default function MarchandProfilPage() {
             </div>
           </FormSection>
 
+          </fieldset>
           {error && <p className="form-error">{error}</p>}
           {saved && <p className="text-xs font-semibold text-green-700 dark:text-green-400">Enregistré.</p>}
-          <div className="form-actions">
-            <button type="submit" className="btn-primary">
-              Enregistrer
-            </button>
-          </div>
+          {peutGerer && (
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                Enregistrer
+              </button>
+            </div>
+          )}
         </form>
       </div>
 
@@ -340,6 +358,7 @@ export default function MarchandProfilPage() {
           ))}
           {adresses.length === 0 && <li className="opacity-60">Aucune adresse</li>}
         </ul>
+        {peutGerer && (
         <form onSubmit={handleAddAdresse} className="form-section max-w-2xl">
           <div className="form-grid">
             <Field label="Libellé" required hint="Ex. Entrepôt">
@@ -365,9 +384,28 @@ export default function MarchandProfilPage() {
             </button>
           </div>
         </form>
+        )}
       </div>
 
-      {estTitulaire && <EquipeSection />}
+      {/* § Équipe & accès : la gestion de l'équipe a quitté cette page pour
+          son propre écran (/marchand/equipe) ; ce raccourci y mène. */}
+      {peut('equipe.voir') && (
+        <Link
+          href="/marchand/equipe"
+          className="group flex max-w-2xl items-center gap-4 rounded-xl border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] p-4 shadow-[var(--mk-shadow)] transition-colors hover:bg-[color:var(--mk-line-soft)]"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand/15 text-[color:var(--mk-ink)]">
+            <UsersRound className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold">Équipe &amp; accès</span>
+            <span className="block text-[13px] text-[color:var(--mk-ink-2)]">
+              Membres, invitations, rôles et journal d&apos;activité de votre équipe.
+            </span>
+          </span>
+          <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      )}
     </div>
   );
 }

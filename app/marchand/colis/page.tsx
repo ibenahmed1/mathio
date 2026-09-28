@@ -14,10 +14,14 @@ import { STATUTS_COMMANDE, LABELS_STATUT_COMMANDE, ETATS_PAIEMENT, LABELS_ETAT_P
 import { ColisActionsMenu } from '@/components/marchand/ColisActionsMenu';
 import { COLONNE_COLLANTE_CARTE } from '@/components/marchand/colonne-collante';
 import { ColisSubNav } from './ColisSubNav';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 function ColisListContent() {
   const searchParams = useSearchParams();
   const statutInitial = searchParams.get('statut') ?? '';
+  // § Équipe & accès : actions affichées selon le rôle du membre.
+  const { peut } = usePermissionsMarchand();
+  const peutSupprimer = peut('colis.supprimer');
 
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [statutFiltre, setStatutFiltre] = useState(statutInitial);
@@ -158,14 +162,18 @@ function ColisListContent() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Colis</h1>
         <div className="flex flex-wrap gap-2">
-          <Link href="/marchand/colis/import" className="btn-outline flex items-center gap-2">
-            <FileUp className="h-4 w-4" />
-            Importer (CSV/Excel)
-          </Link>
-          <Link href="/marchand/colis/nouveau" className="btn-primary flex items-center gap-2">
-            <PackagePlus className="h-4 w-4" />
-            Nouveau colis
-          </Link>
+          {peut('colis.creer') && (
+            <>
+              <Link href="/marchand/colis/import" className="btn-outline flex items-center gap-2">
+                <FileUp className="h-4 w-4" />
+                Importer (CSV/Excel)
+              </Link>
+              <Link href="/marchand/colis/nouveau" className="btn-primary flex items-center gap-2">
+                <PackagePlus className="h-4 w-4" />
+                Nouveau colis
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -277,10 +285,12 @@ function ColisListContent() {
                 Réinitialiser
               </button>
             )}
-            <button onClick={exporterExcel} disabled={exportEnCours} className="btn-outline flex items-center gap-1.5 disabled:opacity-50">
-              <FileDown className="h-3.5 w-3.5" />
-              {exportEnCours ? 'Export…' : 'Exporter (Excel)'}
-            </button>
+            {peut('colis.exporter') && (
+              <button onClick={exporterExcel} disabled={exportEnCours} className="btn-outline flex items-center gap-1.5 disabled:opacity-50">
+                <FileDown className="h-3.5 w-3.5" />
+                {exportEnCours ? 'Export…' : 'Exporter (Excel)'}
+              </button>
+            )}
             <button onClick={() => load()} className="btn-outline">
               Appliquer les filtres
             </button>
@@ -290,7 +300,7 @@ function ColisListContent() {
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-      {selected.size > 0 && (
+      {peutSupprimer && selected.size > 0 && (
         <div className="flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-900/40 dark:bg-red-950/20">
           <span>{selected.size} colis sélectionné(s)</span>
           <button
@@ -315,7 +325,7 @@ function ColisListContent() {
                     className="check-basic"
                     checked={touteLaSelection}
                     onChange={toggleTout}
-                    disabled={idsEligibles.length === 0}
+                    disabled={!peutSupprimer || idsEligibles.length === 0}
                     aria-label="Tout sélectionner"
                   />
                 </th>
@@ -343,6 +353,7 @@ function ColisListContent() {
                       className="check-basic"
                       checked={selected.has(c.id)}
                       onChange={() => toggleUn(c.id)}
+                      disabled={!peutSupprimer || c.statut !== 'nouveau_colis'}
                       aria-label={`Sélectionner ${c.codeSuivi}`}
                     />
                   </td>
