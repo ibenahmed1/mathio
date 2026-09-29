@@ -45,7 +45,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         // Le nom porte le numéro de bordereau (BC-…) et non l'UUID : c'est sous
         // cette référence que la pièce sera classée dans un dossier comptable.
         'Content-Disposition': `inline; filename="${nomFichierPreuve(`BC-${commande.numero}`, analyse.preuve.mime)}"`,
-        'Cache-Control': 'private, max-age=31536000, immutable',
+        // Remplaçable à la même adresse (PATCH /api/commandes-stock-hub/[id]) :
+        // pas de cache long, même raison que le justificatif d'une écriture.
+        'Cache-Control': 'private, no-cache',
         // Ceinture et bretelles avec la liste blanche de formats : rien de ce
         // qui sort d'ici ne doit être deviné ni exécuté par le navigateur.
         'X-Content-Type-Options': 'nosniff',

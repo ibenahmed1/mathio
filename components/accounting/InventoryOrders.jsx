@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Box, Paperclip, Plus } from "lucide-react";
-import { apiGet, apiPatch, apiPost } from "@/lib/api-client";
+import { useEffect, useImperativeHandle, useState } from "react";
+import { Box, History, Paperclip, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
 import { Modal } from "@/components/admin/Modal";
 import { Affix, Field } from "@/components/form/Field";
-import { ChampPreuve, ModalePreuve, usePreuveComptable } from "./PreuveComptable";
+import { ChampPreuve, ModalePreuve, PreuveExistante, usePreuveComptable } from "./PreuveComptable";
+import { useCategoriesComptables } from "./Categories";
+import { ModaleHistorique } from "./Historique";
+import { LONGUEUR_MAX_TITRE } from "@/lib/finance";
 import {
   LABELS_STATUT_COMMANDE_STOCK_HUB,
   STATUTS_CREATION_COMMANDE_STOCK_HUB,
@@ -23,55 +26,107 @@ const CHAMPS_VIDES = {
   statut: STATUT_COMMANDE_STOCK_HUB_PAR_DEFAUT,
   modePaiement: "",
   dateCommande: "",
+  categorieId: "",
 };
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default function InventoryOrders() {
+// Jour LOCAL pour un <input type="date"> — même raison que dans TransactionsTable.
+function versChampDate(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formulaireDepuis(c) {
+  return {
+    titre: c.titre,
+    sousTitre: c.sousTitre ?? "",
+    montant: String(c.montant),
+    statut: c.statut,
+    modePaiement: c.modePaiement,
+    dateCommande: versChampDate(c.dateCommande),
+    categorieId: c.categorie?.id ?? "",
+  };
+}
+
+// Pilotée depuis la barre du haut de page (ComptabiliteBoard), comme le
+// journal : `corbeille` choisit la vue, `ref.ouvrirCreation()` sert le bouton
+// « Nouvelle commande ».
+export default function InventoryOrders({
+  ref,
+  corbeille = false,
+  jetonCategories = 0,
+  peutModifier = false,
+  peutSupprimer = false,
+} = {}) {
   const [commandes, setCommandes] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [error, setError] = useState(null);
-  const [modalOuverte, setModalOuverte] = useState(false);
+  // `null` = fermée ; `{ commande: null }` = création ; `{ commande }` = modification.
+  const [edition, setEdition] = useState(null);
   const [form, setForm] = useState(CHAMPS_VIDES);
   const [formError, setFormError] = useState(null);
   const [envoi, setEnvoi] = useState(false);
-  const [statutEnCours, setStatutEnCours] = useState(null);
+  const [actionEnCours, setActionEnCours] = useState(null);
   // Justificatif de la commande en cours de saisie : facultatif — la facture du
   // fournisseur arrive rarement en même temps que la commande.
   const preuve = usePreuveComptable();
+  const [retirerPreuve, setRetirerPreuve] = useState(false);
   // Commande dont on regarde le justificatif. La photo n'est PAS dans la liste :
   // ce qu'on ouvre est la route de contenu
   // (§ /api/commandes-stock-hub/[id]/preuve).
   const [apercu, setApercu] = useState(null);
+  const [historique, setHistorique] = useState(null);
+  const { categories } = useCategoriesComptables("commande_stock_hub", jetonCategories);
 
-  async function charger() {
-    setChargement(true);
-    try {
-      const res = await apiGet("/api/commandes-stock-hub");
-      setCommandes(res.data ?? []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur");
-    } finally {
-      setChargement(false);
-    }
-  }
+  const [jetonChargement, setJetonChargement] = useState(0);
+  const charger = () => setJetonChargement((v) => v + 1);
 
   useEffect(() => {
-    Promise.resolve().then(() => charger());
-  }, []);
+    let actif = true;
+    Promise.resolve().then(async () => {
+      setChargement(true);
+      try {
+        const res = await apiGet(corbeille ? "/api/commandes-stock-hub?supprimees=1" : "/api/commandes-stock-hub");
+        if (actif) {
+          setCommandes(res.data ?? []);
+          setError(null);
+        }
+      } catch (err) {
+        if (actif) setError(err instanceof Error ? err.message : "Erreur");
+      } finally {
+        if (actif) setChargement(false);
+      }
+    });
+    return () => {
+      actif = false;
+    };
+  }, [corbeille, jetonChargement, jetonCategories]);
 
-  function ouvrir() {
+  function ouvrirCreation() {
+    setForm(CHAMPS_VIDES);
+    preuve.reinitialiser();
+    setRetirerPreuve(false);
     setFormError(null);
-    setModalOuverte(true);
+    setEdition({ commande: null });
+  }
+
+  useImperativeHandle(ref, () => ({ ouvrirCreation }));
+
+  function ouvrirModification(c) {
+    setForm(formulaireDepuis(c));
+    preuve.reinitialiser();
+    setRetirerPreuve(false);
+    setFormError(null);
+    setEdition({ commande: c });
   }
 
   // Pas de fermeture pendant l'envoi : la fenêtre disparaîtrait avant que
   // l'erreur éventuelle de l'API ait un endroit où s'afficher.
   function fermer() {
-    if (!envoi) setModalOuverte(false);
+    if (!envoi) setEdition(null);
   }
 
   async function soumettre(e) {
@@ -92,25 +147,60 @@ export default function InventoryOrders() {
       return;
     }
 
+    const existante = edition?.commande;
     setEnvoi(true);
     try {
-      await apiPost("/api/commandes-stock-hub", {
-        titre: form.titre.trim(),
-        sousTitre: form.sousTitre.trim() || undefined,
-        montant,
-        statut: form.statut,
-        modePaiement: form.modePaiement.trim(),
-        dateCommande: new Date(form.dateCommande).toISOString(),
-        preuveUrl: preuve.corps,
-      });
-      setModalOuverte(false);
-      setForm(CHAMPS_VIDES);
+      if (!existante) {
+        await apiPost("/api/commandes-stock-hub", {
+          titre: form.titre.trim(),
+          sousTitre: form.sousTitre.trim() || undefined,
+          montant,
+          statut: form.statut,
+          modePaiement: form.modePaiement.trim(),
+          dateCommande: new Date(form.dateCommande).toISOString(),
+          categorieId: form.categorieId || undefined,
+          preuveUrl: preuve.corps,
+        });
+      } else {
+        // Seuls les champs changés partent — cf. TransactionsTable. Le statut
+        // n'en fait jamais partie : il a son menu et sa route.
+        const initial = formulaireDepuis(existante);
+        const corps = {};
+        if (form.titre.trim() !== initial.titre) corps.titre = form.titre.trim();
+        if (form.sousTitre.trim() !== initial.sousTitre.trim()) corps.sousTitre = form.sousTitre;
+        if (montant !== Number(initial.montant)) corps.montant = montant;
+        if (form.modePaiement.trim() !== initial.modePaiement) corps.modePaiement = form.modePaiement.trim();
+        if (form.dateCommande !== initial.dateCommande) corps.dateCommande = new Date(form.dateCommande).toISOString();
+        if (form.categorieId !== initial.categorieId) corps.categorieId = form.categorieId || null;
+        if (preuve.corps) corps.preuveUrl = preuve.corps;
+        else if (retirerPreuve) corps.preuveUrl = null;
+
+        if (Object.keys(corps).length === 0) {
+          setEdition(null);
+          return;
+        }
+        await apiPatch(`/api/commandes-stock-hub/${existante.id}`, corps);
+      }
+      setEdition(null);
       preuve.reinitialiser();
       charger();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Erreur");
     } finally {
       setEnvoi(false);
+    }
+  }
+
+  async function agir(commande, action) {
+    setActionEnCours(commande.id);
+    setError(null);
+    try {
+      await action();
+      charger();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setActionEnCours(null);
     }
   }
 
@@ -128,18 +218,27 @@ export default function InventoryOrders() {
       return;
     }
 
-    setStatutEnCours(commande.id);
+    setActionEnCours(commande.id);
     setError(null);
     try {
-      const maj = await apiPatch(`/api/commandes-stock-hub/${commande.id}`, { statut: vers });
+      const maj = await apiPatch(`/api/commandes-stock-hub/${commande.id}/statut`, { statut: vers });
       setCommandes((prev) => prev.map((c) => (c.id === commande.id ? { ...c, statut: maj.statut } : c)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {
-      setStatutEnCours(null);
+      setActionEnCours(null);
     }
   }
 
+  function supprimer(c) {
+    const numero = formatNumeroCommandeStockHub(c.numero);
+    if (!window.confirm(`Supprimer la commande ${numero} « ${c.titre} » ?\n\nElle restera restaurable depuis la corbeille.`)) {
+      return;
+    }
+    agir(c, () => apiDelete(`/api/commandes-stock-hub/${c.id}`));
+  }
+
+  const existante = edition?.commande ?? null;
   const listeVide = !chargement && !error && commandes.length === 0;
 
   return (
@@ -147,29 +246,23 @@ export default function InventoryOrders() {
       <section className={a.card}>
         <div className={a.cardHead}>
           <div className={a.tableTitle}>
-            <h2 className={a.cardTitle}>Commandes d&apos;inventaire</h2>
-            <p className={a.cardSub}>Approvisionnement des hubs</p>
+            <h2 className={a.cardTitle}>{corbeille ? "Commandes supprimées" : "Commandes d'inventaire"}</h2>
+            <p className={a.cardSub}>{corbeille ? "Hors liste, restaurables" : "Approvisionnement des hubs"}</p>
           </div>
-          {/* Masqué sur liste vide : l'état vide porte déjà l'action, deux
-              boutons « Ajouter » à trois centimètres l'un de l'autre. */}
-          {commandes.length > 0 && (
-            <button type="button" className="btn-outline btn-sm" onClick={ouvrir}>
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Ajouter
-            </button>
-          )}
         </div>
 
         {error && <p className="form-error mt-3">{error}</p>}
 
         {chargement && commandes.length === 0 ? (
           <div className="empty-state">Chargement…</div>
+        ) : listeVide && corbeille ? (
+          <div className="empty-state">La corbeille est vide.</div>
         ) : listeVide ? (
           <div className="empty-state">
             <Box size={28} className="opacity-40" aria-hidden />
             <p className="font-semibold text-black/70 dark:text-white/70">Aucune commande d&apos;inventaire</p>
             <p>Achats de matériel et d&apos;aménagement pour les hubs.</p>
-            <button type="button" className="btn-outline btn-sm mt-2" onClick={ouvrir}>
+            <button type="button" className="btn-outline btn-sm mt-2" onClick={ouvrirCreation}>
               <Plus className="h-3.5 w-3.5" aria-hidden />
               Ajouter une commande
             </button>
@@ -178,18 +271,16 @@ export default function InventoryOrders() {
           <div className={a.orderList}>
             {commandes.map((c) => {
               const numero = formatNumeroCommandeStockHub(c.numero);
-              const suivants = statutsSuivantsCommandeStockHub(c.statut);
+              const suivants = corbeille ? [] : statutsSuivantsCommandeStockHub(c.statut);
               const teinte = `${a.statutChip} ${a[`statut_${c.statut}`] ?? ""}`;
               return (
                 <article key={c.id} className={a.order}>
                   <header className={a.orderHead}>
                     <span className={a.orderLabel}>Commande</span>
                     <span className={a.orderId}>#{numero}</span>
-                    {/* Le trombone est posé contre la référence du bordereau, et
-                        pas dans le pied de la carte : c'est de CE document qu'il
-                        est la pièce. `c.preuve` est un chemin vers la route de
-                        contenu, pas l'image — la liste ne transporte pas les
-                        photos (§ GET /api/commandes-stock-hub). */}
+                    {/* Le trombone est posé contre la référence du bordereau :
+                        c'est de CE document qu'il est la pièce. `c.preuve` est
+                        un chemin vers la route de contenu, pas l'image. */}
                     {c.preuve && (
                       <button
                         type="button"
@@ -203,14 +294,13 @@ export default function InventoryOrders() {
                     )}
                     {/* Tant qu'une étape suivante existe, la pastille EST le
                         menu qui fait avancer la commande. Un statut définitif
-                        reste une simple pastille : un menu à une seule option
-                        ferait croire qu'on peut encore agir. */}
+                        — ou une commande à la corbeille — reste une pastille. */}
                     {suivants.length > 0 ? (
                       <select
                         className={`${teinte} ${a.statutSelect}`}
                         value={c.statut}
                         onChange={(e) => changerStatut(c, e.target.value)}
-                        disabled={statutEnCours === c.id}
+                        disabled={actionEnCours === c.id}
                         aria-label={`Statut de la commande ${numero}`}
                       >
                         <option value={c.statut}>{LABELS_STATUT_COMMANDE_STOCK_HUB[c.statut]}</option>
@@ -232,7 +322,11 @@ export default function InventoryOrders() {
                       </span>
                       <div className={a.orderText}>
                         <div className={a.orderItem}>{c.titre}</div>
-                        {c.sousTitre && <div className={a.orderDivision}>{c.sousTitre}</div>}
+                        {(c.sousTitre || c.categorie) && (
+                          <div className={a.orderDivision}>
+                            {[c.categorie?.nom, c.sousTitre].filter(Boolean).join(" · ")}
+                          </div>
+                        )}
                       </div>
                       <div className={`${a.orderAmount} ${a.amountExpense}`}>
                         {formatMontantCommandeStockHub(c.montant)}
@@ -245,14 +339,59 @@ export default function InventoryOrders() {
                         <dd className={a.metaVal}>{formatDate(c.dateCommande)}</dd>
                       </div>
                       <div className={a.metaCell}>
-                        <dt className={a.metaKey}>Par</dt>
-                        <dd className={a.metaVal}>{c.auteur?.nomComplet ?? "—"}</dd>
+                        <dt className={a.metaKey}>{corbeille ? "Suppr." : "Par"}</dt>
+                        <dd className={a.metaVal}>
+                          {corbeille ? formatDate(c.supprimeLe) : c.auteur?.nomComplet ?? "—"}
+                        </dd>
                       </div>
                       <div className={a.metaCell}>
                         <dt className={a.metaKey}>Paiement</dt>
                         <dd className={a.metaVal}>{c.modePaiement}</dd>
                       </div>
                     </dl>
+
+                    {/* Actions en toutes lettres, au pied de la carte qu'elles
+                        visent : pas d'icône à deviner. */}
+                    <div className={a.orderActions}>
+                      {corbeille ? (
+                        <button
+                          type="button"
+                          className="btn-primary btn-sm"
+                          onClick={() => agir(c, () => apiPost(`/api/commandes-stock-hub/${c.id}/restaurer`, {}))}
+                          disabled={actionEnCours === c.id}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                          Restaurer
+                        </button>
+                      ) : (
+                        peutModifier && (
+                          <button
+                            type="button"
+                            className="btn-outline btn-sm"
+                            onClick={() => ouvrirModification(c)}
+                            disabled={actionEnCours === c.id}
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden />
+                            Modifier
+                          </button>
+                        )
+                      )}
+                      <button type="button" className="btn-ghost btn-sm" onClick={() => setHistorique(c)}>
+                        <History className="h-3.5 w-3.5" aria-hidden />
+                        Historique
+                      </button>
+                      {!corbeille && peutSupprimer && (
+                        <button
+                          type="button"
+                          className={`btn-ghost btn-sm ${a.actionDanger}`}
+                          onClick={() => supprimer(c)}
+                          disabled={actionEnCours === c.id}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               );
@@ -263,17 +402,20 @@ export default function InventoryOrders() {
 
       {/* Rendue HORS de la carte, pour la même raison que dans
           TransactionsTable : le `backdrop-filter` de .card confinait le calque
-          `fixed` à la carte. Ici c'était pire encore — la carte vit dans la
-          colonne de 340 px, le formulaire y était comprimé en plus d'être
-          rogné. */}
-      {modalOuverte && (
-        <Modal title="Nouvelle commande d'inventaire" onClose={fermer}>
+          `fixed` à la carte — et la carte vit dans la colonne de 340 px. */}
+      {edition && (
+        <Modal
+          title={existante ? `Modifier la commande #${formatNumeroCommandeStockHub(existante.numero)}` : "Nouvelle commande d'inventaire"}
+          size="xl"
+          onClose={fermer}
+        >
           <form className="flex flex-col gap-4" onSubmit={soumettre} noValidate>
             <div className="form-grid">
               <Field label="Titre" required className="sm:col-span-2">
                 <input
                   className="input-basic"
                   value={form.titre}
+                  maxLength={LONGUEUR_MAX_TITRE}
                   onChange={(e) => setForm((f) => ({ ...f, titre: e.target.value }))}
                   placeholder="Rayonnage métallique lourd (x6)"
                 />
@@ -300,16 +442,30 @@ export default function InventoryOrders() {
                   />
                 </Affix>
               </Field>
-              {/* « Annulée » n'est pas proposée : elle ne s'atteint qu'en
-                  faisant avancer une commande existante. */}
-              <Field label="Statut" required>
+              {/* À la création seulement : ensuite, le statut avance par le
+                  menu de la carte. « Annulée » n'est pas proposée. */}
+              {!existante && (
+                <Field label="Statut" required>
+                  <select
+                    className="input-basic"
+                    value={form.statut}
+                    onChange={(e) => setForm((f) => ({ ...f, statut: e.target.value }))}
+                  >
+                    {STATUTS_CREATION_COMMANDE_STOCK_HUB.map((s) => (
+                      <option key={s} value={s}>{LABELS_STATUT_COMMANDE_STOCK_HUB[s]}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              <Field label="Catégorie" optional>
                 <select
                   className="input-basic"
-                  value={form.statut}
-                  onChange={(e) => setForm((f) => ({ ...f, statut: e.target.value }))}
+                  value={form.categorieId}
+                  onChange={(e) => setForm((f) => ({ ...f, categorieId: e.target.value }))}
                 >
-                  {STATUTS_CREATION_COMMANDE_STOCK_HUB.map((s) => (
-                    <option key={s} value={s}>{LABELS_STATUT_COMMANDE_STOCK_HUB[s]}</option>
+                  <option value="">Sans catégorie</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.nom}</option>
                   ))}
                 </select>
               </Field>
@@ -330,12 +486,19 @@ export default function InventoryOrders() {
                 />
               </Field>
 
+              {existante?.preuve && !preuve.corps && (
+                <PreuveExistante
+                  retire={retirerPreuve}
+                  onBasculer={() => setRetirerPreuve((v) => !v)}
+                  onVoir={() => setApercu(existante)}
+                />
+              )}
               {/* Facture du fournisseur ou bon de livraison signé : le même
                   champ que sur les écritures du journal, avec l'invite du
                   document qu'on cherche vraiment ici. */}
               <ChampPreuve
                 etat={preuve}
-                libelle="Justificatif (facture, bon de livraison)"
+                libelle={existante?.preuve ? "Remplacer le justificatif" : "Justificatif (facture, bon de livraison)"}
                 invite="Photographier ou déposer la facture"
               />
             </div>
@@ -347,20 +510,29 @@ export default function InventoryOrders() {
                 Annuler
               </button>
               <button type="submit" className="btn-primary" disabled={envoi}>
-                {envoi ? "Création…" : "Créer la commande"}
+                {existante
+                  ? envoi ? "Enregistrement…" : "Enregistrer"
+                  : envoi ? "Création…" : "Créer la commande"}
               </button>
             </div>
           </form>
         </Modal>
       )}
 
-      {/* Visionneuse du justificatif d'une commande déjà enregistrée. Hors de la
-          carte, comme le formulaire ci-dessus. */}
       {apercu && (
         <ModalePreuve
           url={apercu.preuve}
           legende={`Commande #${formatNumeroCommandeStockHub(apercu.numero)} · ${apercu.titre} · ${formatMontantCommandeStockHub(apercu.montant)}`}
           onClose={() => setApercu(null)}
+        />
+      )}
+
+      {historique && (
+        <ModaleHistorique
+          cible="commande_stock_hub"
+          id={historique.id}
+          titre={`Commande #${formatNumeroCommandeStockHub(historique.numero)}`}
+          onClose={() => setHistorique(null)}
         />
       )}
     </>
