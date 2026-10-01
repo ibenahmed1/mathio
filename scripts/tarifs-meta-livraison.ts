@@ -10,7 +10,7 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  * Leur fichier source (« metalivraison.csv ») ne donne aucun prix, d'où un
  * import sans tarif (scripts/import-prestataire-meta-livraison.ts, qui reste une
  * transcription fidèle du fichier). Les prix ont été fixés à part, le
- * 01/10/2026 : 18 dh pour Fès, 28 dh pour toutes les autres villes.
+ * 01/10/2026 : 18 dh pour Fès, 25 dh pour toutes les autres villes.
  *
  * Étape distincte, et non ajoutée à l'import, pour deux raisons :
  *   · « Fès » n'est pas dans leur fichier — c'est une ville d'implantation,
@@ -26,7 +26,7 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
 
 const PRESTATAIRE = 'Meta Livraison';
 const TARIF_FES = 18;
-const TARIF_AUTRES = 28;
+const TARIF_AUTRES = 25;
 
 export function tarifMeta(ville: string): number {
   return normaliserVille(ville) === 'fes' ? TARIF_FES : TARIF_AUTRES;

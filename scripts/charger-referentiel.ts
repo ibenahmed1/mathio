@@ -62,7 +62,7 @@ const ETAPES: Etape[] = [
   { libelle: 'Colivraison', executer: importerColivraison },
   { libelle: "Villes d'implantation des agences", executer: ajouterVillesAgences },
   // Après les villes d'implantation : « Fès » en fait partie.
-  { libelle: 'Tarifs Meta Livraison (Fès 18 dh, autres 28 dh)', executer: appliquerTarifsMetaLivraison },
+  { libelle: 'Tarifs Meta Livraison (Fès 18 dh, autres 25 dh)', executer: appliquerTarifsMetaLivraison },
 ];
 
 export type OptionsChargement = {
