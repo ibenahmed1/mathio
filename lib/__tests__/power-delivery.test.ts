@@ -7,6 +7,7 @@ import {
   construireColisPower,
   creerColisPower,
   lireSuivi,
+  lireWebhookPower,
   suivreColisPower,
   type ColisAConfier,
 } from '../power-delivery';
@@ -131,12 +132,26 @@ afterEach(() => {
   else process.env.POWERDELIVERY_TOKEN = tokenOriginal;
 });
 
-test('le token part brut dans Authorization, sans Bearer', async () => {
+// Ces deux tests disent la même chose que leur API : elle ne lit pas
+// l'autorisation de la même façon des deux côtés. Vérifié le 23/09/2026 contre
+// leur production, avec le même token — `/listcities` et `/trackparcel`
+// acceptent le token nu, `/files/webhook.php` répond « Missing or invalid
+// authorization header » et n'accepte que « Bearer ». Le test précédent
+// n'affirmait que la première moitié, et la déclaration du webhook échouait.
+test('sur les routes colis, le token part nu dans Authorization', async () => {
   repondre(200, { success: true, parcel: { code: 'P1' } });
   await creerColisPower(construireColisPower(COLIS, 1));
   const entetes = dernierAppel!.init.headers as Record<string, string>;
   assert.equal(entetes.Authorization, TOKEN);
   assert.equal(dernierAppel!.url, 'https://elog.ma/apiclient/addparcelsnew');
+});
+
+test('sur /files/*, le token part precede de Bearer', async () => {
+  repondre(200, { success: true, webhook: null });
+  await lireWebhookPower();
+  const entetes = dernierAppel!.init.headers as Record<string, string>;
+  assert.equal(entetes.Authorization, `Bearer ${TOKEN}`);
+  assert.equal(dernierAppel!.url, 'https://elog.ma/apiclient/files/webhook.php');
 });
 
 test('une erreur HTTP ne cite jamais le token', async () => {

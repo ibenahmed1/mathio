@@ -45,8 +45,10 @@ async function listerLeursVilles(): Promise<VillePower[]> {
   const token = process.env.POWERDELIVERY_TOKEN?.trim() ?? '';
   if (!token) throw new Error('Variable absente ou vide dans .env : POWERDELIVERY_TOKEN');
 
-  // `Authorization` porte le token BRUT, sans « Bearer » : c'est ce que leur
-  // API attend.
+  // `Authorization` porte le token nu : `listcities` l'accepte, comme les
+  // routes colis (vérifié le 23/09/2026 contre leur production, où il répond
+  // 200 sous les deux formes). Seuls leurs chemins `/files/*` exigent
+  // « Bearer » — voir `entete` dans lib/power-delivery.ts.
   const reponse = await fetch(URL_VILLES, {
     headers: { Authorization: token, 'Content-Type': 'application/json' },
     signal: AbortSignal.timeout(DELAI_MS),
