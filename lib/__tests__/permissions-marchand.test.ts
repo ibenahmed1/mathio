@@ -102,6 +102,7 @@ test('« Lecture seule » n’accorde ni écriture ni droit sensible', () => {
   assert.ok(l);
   for (const k of l.permissions) assert.ok(k.endsWith('.voir'), k);
   assert.ok(!l.permissions.includes('factures.voir'));
+  assert.ok(!l.permissions.includes('comptabilite.voir'));
   assert.ok(!l.permissions.includes('tableau_de_bord.voir'));
 });
 
@@ -124,6 +125,7 @@ test('pages : chaque module a sa clé, le profil reste ouvert', () => {
   assert.equal(permissionPageMarchand('/marchand/colis/marchandises'), 'catalogue.voir');
   assert.equal(permissionPageMarchand('/marchand/bons-livraison/nouveau'), 'bons.creer');
   assert.equal(permissionPageMarchand('/marchand/factures'), 'factures.voir');
+  assert.equal(permissionPageMarchand('/marchand/comptabilite'), 'comptabilite.voir');
   assert.equal(permissionPageMarchand('/marchand/equipe'), 'equipe.voir');
   assert.equal(permissionPageMarchand('/marchand/profil'), null);
   assert.equal(permissionPageMarchand('/marchand/acces-refuse'), null);
@@ -147,6 +149,26 @@ test('API : lecture et écriture distinguées', () => {
   assert.equal(permissionApiMarchand('/api/marchands/equipe/roles/x', 'DELETE'), 'equipe.gerer');
   assert.equal(permissionApiMarchand('/api/integrations/youcan/callback', 'GET'), 'integrations.gerer');
   assert.equal(permissionApiMarchand('/api/auth/me', 'GET'), null);
+});
+
+test('API comptabilité : les quatre gestes, comme au back-office', () => {
+  assert.equal(permissionApiMarchand('/api/finance', 'GET'), 'comptabilite.voir');
+  assert.equal(permissionApiMarchand('/api/finance/abc/preuve', 'GET'), 'comptabilite.voir');
+  assert.equal(permissionApiMarchand('/api/finance/historique', 'GET'), 'comptabilite.voir');
+  assert.equal(permissionApiMarchand('/api/finance/categories', 'GET'), 'comptabilite.voir');
+  assert.equal(permissionApiMarchand('/api/finance', 'POST'), 'comptabilite.saisir');
+  assert.equal(permissionApiMarchand('/api/finance/abc/annuler', 'POST'), 'comptabilite.saisir');
+  assert.equal(permissionApiMarchand('/api/finance/abc', 'PATCH'), 'comptabilite.modifier');
+  assert.equal(permissionApiMarchand('/api/finance/abc', 'DELETE'), 'comptabilite.supprimer');
+  assert.equal(permissionApiMarchand('/api/finance/abc/restaurer', 'POST'), 'comptabilite.supprimer');
+  assert.equal(permissionApiMarchand('/api/finance/categories', 'POST'), 'comptabilite.modifier');
+  assert.equal(permissionApiMarchand('/api/finance/categories/abc', 'PATCH'), 'comptabilite.modifier');
+  assert.equal(permissionApiMarchand('/api/finance/categories/abc', 'DELETE'), 'comptabilite.supprimer');
+  assert.equal(permissionApiMarchand('/api/commandes-stock-hub', 'POST'), 'comptabilite.saisir');
+  assert.equal(permissionApiMarchand('/api/commandes-stock-hub/abc/statut', 'PATCH'), 'comptabilite.saisir');
+  assert.equal(permissionApiMarchand('/api/commandes-stock-hub/abc', 'PATCH'), 'comptabilite.modifier');
+  assert.equal(permissionApiMarchand('/api/commandes-stock-hub/abc', 'DELETE'), 'comptabilite.supprimer');
+  assert.equal(permissionApiMarchand('/api/commandes-stock-hub/abc/restaurer', 'POST'), 'comptabilite.supprimer');
 });
 
 test('chaque page marchande existante est couverte par une règle explicite', () => {

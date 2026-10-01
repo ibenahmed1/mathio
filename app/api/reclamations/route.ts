@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { destinatairesBackoffice, notifier } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,6 +72,14 @@ export async function POST(request: Request) {
         commande: { select: { id: true, codeSuivi: true } },
         utilisateur: { select: { nomComplet: true } },
       },
+    });
+
+    // § Notifications : une réclamation à traiter, côté back-office.
+    await notifier(await destinatairesBackoffice('reclamations:manage'), {
+      type: 'reclamation.nouvelle',
+      titre: `Réclamation — ${marchand.nomBoutique}`,
+      corps: reclamation.commande ? `${reclamation.sujet} · colis ${reclamation.commande.codeSuivi}` : reclamation.sujet,
+      lien: '/admin/reclamations',
     });
 
     return NextResponse.json(reclamation, { status: 201 });

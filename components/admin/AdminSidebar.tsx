@@ -9,6 +9,7 @@ import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Search, UserRound, 
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
 import { deconnecter } from '@/lib/deconnexion';
+import { ClocheNotifications } from '@/components/notifications/ClocheNotifications';
 import s from './AdminSidebar.module.css';
 
 const LOGO = '/mathio-logo.png';
@@ -329,6 +330,19 @@ export function AdminSidebar({
             </div>
           ))}
         </nav>
+
+        {/* ---------- Notifications ---------- */}
+        {/* Au pied de la barre, contre le profil : c'est ce qui est à SOI, pas
+            un module. Même classes qu'une entrée de navigation, pour qu'elle
+            se replie comme elles. `-mb-2` resserre l'écart de 16px de la barre
+            avec le profil, dont elle est le voisin naturel. */}
+        <div className="-mb-2">
+          <ClocheNotifications
+            variante="barre"
+            replie={collapsed}
+            classes={{ item: s.navItem, icone: s.navIcon, libelle: s.navLabel, masque: s.collapseHide }}
+          />
+        </div>
 
         {/* ---------- Profil ---------- */}
         <button

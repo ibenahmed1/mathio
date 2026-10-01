@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { sessionHasPermission } from '@/lib/auth';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import type { Prisma } from '@/app/generated/prisma/client';
 import {
   analyserDate,
@@ -14,12 +14,11 @@ import {
 } from '@/lib/finance';
 import { verifierCategorie } from '@/lib/journal-comptable';
 
-// § Comptabilité — Droits d'accès & sécurité (RBAC) : création et consultation
-// réservées à admin (SUPER_ADMIN/ADMIN) et responsable (responsable comptable
-// côté rôles existants, cf. TarifsVilleModal/paiement qui suit la même
-// convention). Aucun autre rôle back-office (superviseur, moderateur,
-// equipe_suivi) ni rôle Kanban/marchand/terrain n'y accède.
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
+// § Comptabilité — Droits d'accès & sécurité (RBAC) : côté back-office,
+// création et consultation réservées à admin et responsable ; aucun autre rôle
+// back-office (superviseur, moderateur, equipe_suivi) ni terrain n'y accède.
+// Le marchand y accède aussi, pour SA comptabilité uniquement : le livre lu et
+// écrit est décidé par perimetreComptable (lib/comptabilite-perimetre.ts).
 
 // Adresse du justificatif d'une écriture, telle qu'exposée au client. Le
 // contenu ne voyage jamais dans le JSON du journal : il est servi à la demande
@@ -83,20 +82,20 @@ const SANS_CACHE = { 'Cache-Control': 'no-store' } as const;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await requireUser([...ROLES_COMPTABILITE]);
+    const { marchandId, peut } = await perimetreComptable('lecture');
 
     const type = request.nextUrl.searchParams.get('type');
     const categorieId = request.nextUrl.searchParams.get('categorieId');
     // `?supprimees=1` : la corbeille, d'où l'on restaure. Elle n'a de sens que
     // pour qui peut restaurer, et elle montre ce qui a été retiré du journal —
-    // réservée donc à `comptabilite:delete`, le proxy n'exigeant que la lecture
-    // sur un GET.
+    // réservée donc au geste de suppression, le proxy n'exigeant que la
+    // lecture sur un GET.
     const supprimees = request.nextUrl.searchParams.get('supprimees') === '1';
-    if (supprimees && !sessionHasPermission(session, 'comptabilite:delete')) {
+    if (supprimees && !peut('suppression')) {
       throw new ApiError(403, 'Accès refusé : permission manquante');
     }
 
-    const where: Prisma.TransactionWhereInput = { supprimeLe: supprimees ? { not: null } : null };
+    const where: Prisma.TransactionWhereInput = { marchandId, supprimeLe: supprimees ? { not: null } : null };
     if (type) {
       if (!estTypeTransaction(type)) throw new ApiError(400, 'Type de transaction invalide');
       where.type = type;
@@ -127,7 +126,9 @@ export async function GET(request: NextRequest) {
       // la somme. Les écritures SUPPRIMÉES, elles, sortent des totaux — et
       // une écriture annulée n'est jamais supprimée sans sa compensation
       // (lib/journal-comptable.ts), la neutralisation reste donc juste.
-      prisma.transaction.groupBy({ by: ['type'], where: { supprimeLe: null }, _sum: { montant: true } }),
+      // Filtrés sur le livre, eux aussi : sans `marchandId`, le solde de la
+      // plateforme compterait l'argent des boutiques, et inversement.
+      prisma.transaction.groupBy({ by: ['type'], where: { marchandId, supprimeLe: null }, _sum: { montant: true } }),
     ]);
 
     const totalEntrees = Number(totaux.find((t) => t.type === 'revenu')?._sum.montant ?? 0);
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireUser([...ROLES_COMPTABILITE]);
+    const { session, marchandId } = await perimetreComptable('saisie');
     const body = await request.json();
 
     const titre = analyserTitre(body.titre);
@@ -172,7 +173,7 @@ export async function POST(request: Request) {
     if (typeof body.categorieId !== 'string' || !body.categorieId) throw new ApiError(400, 'La catégorie est requise');
     // Existe ET appartient aux transactions : l'identifiant d'une catégorie de
     // commande d'inventaire passerait la clé étrangère sans broncher.
-    const categorie = await verifierCategorie(prisma, body.categorieId, 'transaction');
+    const categorie = await verifierCategorie(prisma, body.categorieId, 'transaction', marchandId);
 
     // Justificatif photo FACULTATIF (§ Transaction.preuveUrl) : une écriture
     // sans preuve est valide et complète. Mais une preuve fournie est validée
@@ -196,6 +197,7 @@ export async function POST(request: Request) {
         description,
         preuveUrl,
         auteurId: session.sub,
+        marchandId,
       },
       // La photo ne repart pas dans la réponse qui vient de l'écrire : le
       // client l'a déjà, et le journal ne travaille que sur le pointeur.

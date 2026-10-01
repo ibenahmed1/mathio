@@ -135,6 +135,37 @@ export const PERMISSIONS_MARCHAND: PermissionMarchandCategorie[] = [
         description: 'Consulter et télécharger les factures de la boutique.',
         sensible: true,
       },
+      // § Comptabilité de la boutique : les quatre gestes du back-office
+      // (comptabilite:read/write/edit/delete), avec la même séparation —
+      // saisir et neutraliser laissent une trace DANS le journal, modifier et
+      // supprimer réécrivent ce qu'il affiche.
+      {
+        key: 'comptabilite.voir',
+        label: 'Consulter la comptabilité',
+        description: 'Voir le journal des recettes et dépenses, la trésorerie, les commandes d’inventaire et leur historique.',
+        sensible: true,
+      },
+      {
+        key: 'comptabilite.saisir',
+        label: 'Saisir en comptabilité',
+        description: 'Ajouter des transactions et des commandes d’inventaire, neutraliser une écriture, suivre le statut d’une commande.',
+        requiert: ['comptabilite.voir'],
+        sensible: true,
+      },
+      {
+        key: 'comptabilite.modifier',
+        label: 'Modifier la comptabilité',
+        description: 'Corriger une transaction ou une commande d’inventaire, gérer les catégories.',
+        requiert: ['comptabilite.voir'],
+        sensible: true,
+      },
+      {
+        key: 'comptabilite.supprimer',
+        label: 'Supprimer en comptabilité',
+        description: 'Supprimer et restaurer des transactions, des commandes d’inventaire et des catégories.',
+        requiert: ['comptabilite.voir'],
+        sensible: true,
+      },
     ],
   },
   {
@@ -293,12 +324,15 @@ export const ROLES_SYSTEME_MARCHAND: RoleSystemeDef[] = [
   {
     cle: 'comptable',
     nom: 'Comptable',
-    description: 'Tableau de bord, factures, bons et export des colis — en lecture.',
+    description: 'Tient la comptabilité de la boutique ; tableau de bord, factures, bons et export des colis en lecture.',
     permissions: nettoyerPermissionsMarchand([
       'tableau_de_bord.voir',
       'colis.exporter',
       'bons.voir',
       'factures.voir',
+      'comptabilite.saisir',
+      'comptabilite.modifier',
+      'comptabilite.supprimer',
     ]),
   },
   {
@@ -351,6 +385,7 @@ export const PAGES_MARCHAND: RouteMarchand[] = [
   { pattern: '/marchand/bons-livraison/**', permission: 'bons.voir' },
   { pattern: '/marchand/bons-retour/**', permission: 'bons.voir' },
   { pattern: '/marchand/factures/**', permission: 'factures.voir' },
+  { pattern: '/marchand/comptabilite/**', permission: 'comptabilite.voir' },
   { pattern: '/marchand/reclamations/**', permission: 'reclamations.voir' },
   { pattern: '/marchand/integrations/**', permission: 'integrations.gerer' },
   { pattern: '/marchand/equipe/**', permission: 'equipe.voir' },
@@ -395,10 +430,33 @@ export const API_MARCHAND: RouteMarchand[] = [
   { pattern: '/api/bons-retour/**', permission: 'bons.voir' },
   { pattern: '/api/factures/**', permission: 'factures.voir' },
 
+  // § Comptabilité de la boutique : les routes du back-office, le livre de la
+  // boutique étant choisi côté serveur (lib/comptabilite-perimetre.ts). Même
+  // découpage que lib/permission-routes.ts, sous-routes nommées d'abord.
+  { pattern: '/api/finance/categories', permission: 'comptabilite.modifier', methods: ['POST'] },
+  { pattern: '/api/finance/categories/*', permission: 'comptabilite.modifier', methods: ['PATCH'] },
+  { pattern: '/api/finance/categories/*', permission: 'comptabilite.supprimer', methods: ['DELETE'] },
+  { pattern: '/api/finance/*/restaurer', permission: 'comptabilite.supprimer' },
+  { pattern: '/api/finance/*', permission: 'comptabilite.modifier', methods: ['PATCH'] },
+  { pattern: '/api/finance/*', permission: 'comptabilite.supprimer', methods: ['DELETE'] },
+  { pattern: '/api/finance/**', permission: 'comptabilite.voir', methods: LECTURES },
+  { pattern: '/api/finance/**', permission: 'comptabilite.saisir' },
+  { pattern: '/api/commandes-stock-hub/*/statut', permission: 'comptabilite.saisir' },
+  { pattern: '/api/commandes-stock-hub/*/restaurer', permission: 'comptabilite.supprimer' },
+  { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite.modifier', methods: ['PATCH'] },
+  { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite.supprimer', methods: ['DELETE'] },
+  { pattern: '/api/commandes-stock-hub/**', permission: 'comptabilite.voir', methods: LECTURES },
+  { pattern: '/api/commandes-stock-hub/**', permission: 'comptabilite.saisir' },
+
   { pattern: '/api/reclamations/**', permission: 'reclamations.voir', methods: LECTURES },
   { pattern: '/api/reclamations/**', permission: 'reclamations.creer' },
 
   { pattern: '/api/integrations/**', permission: 'integrations.gerer' },
+
+  // Cloche et préférences de push : celles du membre connecté, jamais celles
+  // de la boutique. Ouvertes à tous, comme le profil — le tri de ce qu'il
+  // reçoit est fait à l'envoi (destinatairesBoutique, lib/notifications.ts).
+  { pattern: '/api/notifications/**', permission: null },
 ];
 
 function segments(pathname: string): string[] {
@@ -445,6 +503,7 @@ const DESTINATIONS: { href: string; permission: string }[] = [
   { href: '/marchand/ramassages', permission: 'ramassages.voir' },
   { href: '/marchand/bons-livraison', permission: 'bons.voir' },
   { href: '/marchand/factures', permission: 'factures.voir' },
+  { href: '/marchand/comptabilite', permission: 'comptabilite.voir' },
   { href: '/marchand/reclamations', permission: 'reclamations.voir' },
   { href: '/marchand/integrations', permission: 'integrations.gerer' },
   { href: '/marchand/equipe', permission: 'equipe.voir' },

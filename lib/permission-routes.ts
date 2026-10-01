@@ -272,6 +272,13 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // authentifiée. Le gouverner fermerait l'impression à la moitié des rôles.
   { pattern: '/api/parametres/societe', permission: null },
 
+  // NON MAPPÉ — /api/notifications/** : la cloche et les préférences de push
+  // du compte CONNECTÉ, dans les trois espaces. Chaque handler borne ses
+  // lectures et écritures à `session.sub` dans la requête même : il n'y a pas
+  // de donnée d'autrui à protéger par un module. Le gouverner fermerait la
+  // cloche aux rôles cantonnés (Kanban, Agent Hub) qui n'ont pas la clé.
+  { pattern: '/api/notifications/**', permission: null },
+
   // --- Intégrations partenaires --------------------------------------------
   // Administration des plateformes (clés, marchands synchronisés, journal).
   { pattern: '/api/plateformes/**', permission: 'integrations:manage' },

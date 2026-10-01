@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { exigerMarchandOperationnel } from '@/lib/marchand-scope';
+import { destinatairesBackoffice, notifier } from '@/lib/notifications';
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,6 +72,14 @@ export async function POST(request: Request) {
         nbColisEstimes: Number.isInteger(body.nbColisEstimes) ? body.nbColisEstimes : null,
         statut: 'en_attente',
       },
+    });
+
+    // § Notifications : une demande à affecter, côté back-office.
+    await notifier(await destinatairesBackoffice('demande_ramassage:manage'), {
+      type: 'ramassage.demande',
+      titre: `Demande de ramassage — ${marchand.nomBoutique}`,
+      corps: `Prévu le ${datePrevue.toLocaleDateString('fr-FR', { timeZone: 'UTC' })}${ramassage.nbColisEstimes ? ` · ~${ramassage.nbColisEstimes} colis` : ''}`,
+      lien: '/admin/ramassages',
     });
 
     return NextResponse.json(ramassage, { status: 201 });

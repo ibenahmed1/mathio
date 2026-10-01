@@ -28,7 +28,12 @@ export const metadata = {
   description: 'Plateforme de livraison Mathio Delivery.',
   icons: {
     icon: '/mathio-logo.png',
+    apple: '/mathio-logo.png',
   },
+  // § Notifications : installable sur l'écran d'accueil — seule voie du push
+  // sur iPhone (cf. app/manifest.webmanifest/route.ts).
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'Mathio Delivery' },
 }
 
 export default function RootLayout({

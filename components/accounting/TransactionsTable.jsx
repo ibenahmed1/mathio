@@ -66,6 +66,7 @@ export default function TransactionsTable({
   corbeille = false,
   onMutate,
   jetonCategories = 0,
+  peutSaisir = true,
   peutModifier = false,
   peutSupprimer = false,
 } = {}) {
@@ -341,10 +342,12 @@ export default function TransactionsTable({
             <ArrowLeftRight size={28} className="opacity-40" aria-hidden />
             <p className="font-semibold text-black/70 dark:text-white/70">Aucune transaction</p>
             <p>Les recettes et dépenses saisies ici alimentent le rapport de trésorerie.</p>
-            <button type="button" className="btn-outline btn-sm mt-2" onClick={ouvrirCreation}>
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Saisir la première transaction
-            </button>
+            {peutSaisir && (
+              <button type="button" className="btn-outline btn-sm mt-2" onClick={ouvrirCreation}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Saisir la première transaction
+              </button>
+            )}
           </div>
         ) : aucunResultat ? (
           <div className="empty-state">
@@ -597,6 +600,7 @@ export default function TransactionsTable({
           transaction={detail}
           liee={detailLiee}
           corbeille={corbeille}
+          peutSaisir={peutSaisir}
           peutModifier={peutModifier}
           peutSupprimer={peutSupprimer}
           actionEnCours={actionEnCours}

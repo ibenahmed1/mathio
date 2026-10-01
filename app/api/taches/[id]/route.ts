@@ -15,6 +15,7 @@ import {
 import type { Prisma } from '@/app/generated/prisma/client';
 import { STATUTS_TACHE, PRIORITES_TACHE } from '@/lib/statuts';
 import { piecesJointesExposees } from '@/lib/taches-pieces-jointes';
+import { notifier } from '@/lib/notifications';
 
 const ROLES_BACKOFFICE = ROLES_BACKOFFICE_TACHES;
 
@@ -181,6 +182,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       return updated;
     });
+
+    // § Notifications : une RÉassignation seulement — modifier le titre d'une
+    // tâche déjà confiée ne la reconfie pas.
+    if (tache.assigneeId && tache.assigneeId !== existant.assigneeId) {
+      await notifier([tache.assigneeId], {
+        type: 'tache.assignee',
+        titre: `Tâche assignée : ${tache.titre}`,
+        corps: null,
+        lien: '/admin/tasks',
+      }, { sauf: session.sub });
+    }
 
     return NextResponse.json({ ...tache, piecesJointes: await piecesJointesExposees(id) });
   } catch (error) {

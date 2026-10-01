@@ -32,6 +32,19 @@ export function estTypeTransaction(valeur: unknown): valeur is TypeTransaction {
 export const CODES_CATEGORIE_SYSTEME = ['paiement_client', 'salaire'] as const;
 export type CodeCategorieSysteme = (typeof CODES_CATEGORIE_SYSTEME)[number];
 
+// Catégories créées à la première visite d'une boutique sur sa comptabilité
+// (§ assurerCategoriesParDefaut, lib/journal-comptable.ts) : les six que la
+// plateforme a reçues de l'ancien enum, sans `code`. Elles se renomment et se
+// suppriment ensuite librement.
+export const CATEGORIES_PAR_DEFAUT_BOUTIQUE: { nom: string; portee: PorteeCategorieComptable }[] = [
+  'Paiement client',
+  'Frais de livraison',
+  'Abonnement outil',
+  'Salaire',
+  'Remboursement',
+  'Autre',
+].map((nom) => ({ nom, portee: 'transaction' as const }));
+
 export const PORTEES_CATEGORIE: PorteeCategorieComptable[] = ['transaction', 'commande_stock_hub'];
 
 export const LABELS_PORTEE_CATEGORIE: Record<PorteeCategorieComptable, string> = {

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { STATUTS_COMMANDE } from '@/lib/statuts';
 import type { Role, StatutCommande } from '@/app/generated/prisma/enums';
+import { notifierStatutsColis } from '@/lib/notifications';
 
 // Rôles autorisés à changer le statut d'un colis. Contrairement à l'ancien
 // pipeline logistique linéaire, le cycle "call-center" (27 statuts) n'a pas
@@ -108,6 +109,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       return result;
     });
+
+    // § Notifications : après la transaction (le statut est acquis) ; le tri
+    // des statuts qui méritent d'être annoncés est fait par le helper.
+    if (nouveauStatut !== commande.statut) {
+      await notifierStatutsColis([{ commandeId: id, statut: nouveauStatut }], { sauf: session.sub });
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

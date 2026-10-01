@@ -1,4 +1,15 @@
-import { LayoutDashboard, Package, Boxes, FileStack, Truck, LifeBuoy, Warehouse, Plug, UsersRound } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Package,
+  Boxes,
+  FileStack,
+  Truck,
+  LifeBuoy,
+  Warehouse,
+  Plug,
+  UsersRound,
+  Calculator,
+} from 'lucide-react';
 import type { NavItem } from '@/components/AppSidebar';
 
 // Navigation plate : le détail (sous-listes, filtres, actions) vit dans des
@@ -18,6 +29,9 @@ export const NAV_MARCHAND_MENU: NavItem[] = [
   { label: 'Ramassages', href: '/marchand/ramassages', icon: Truck, section: 'Marchandise' },
   { label: 'Bons & Documents', href: '/marchand/bons-livraison', icon: FileStack, section: 'Marchandise' },
   { label: 'Gestion Inventaire', href: '/marchand/inventaire', icon: Warehouse, section: 'Marchandise' },
+  // § Comptabilité de la boutique : le même écran que /admin/comptabilite,
+  // sur les livres propres à la boutique.
+  { label: 'Comptabilité', href: '/marchand/comptabilite', icon: Calculator, section: 'Finance' },
 ];
 
 export const NAV_MARCHAND_AUTRE: NavItem[] = [

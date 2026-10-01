@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { ModeReglementLivreur } from '@/app/generated/prisma/enums';
 import { idCategorieSysteme } from '@/lib/journal-comptable';
+import { notifier } from '@/lib/notifications';
 
 const ROLES_PAIEMENT = ['admin', 'responsable'] as const;
 
@@ -88,6 +89,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         include: { livreur: { select: { nomComplet: true } } },
       });
     });
+
+    // § Notifications : ce que le livreur attend le plus — être payé.
+    await notifier([paye.livreurId], {
+      type: 'paiement.regle',
+      titre: `Bon de paiement ${paye.numero} réglé`,
+      corps: `${Number(paye.montantTotal).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} DH`,
+      lien: '/livreur/bons-paiement',
+    }, { sauf: session.sub });
 
     return NextResponse.json(paye);
   } catch (error) {

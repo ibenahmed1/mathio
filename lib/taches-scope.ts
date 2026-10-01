@@ -67,8 +67,10 @@ export function exigerBoardAutorise(scope: string[] | null, teamId: string): voi
 // Sans ce second terme, une tâche confiée par l'encadrement à quelqu'un d'un
 // autre pôle (§ ROLES_ASSIGNATION_TOUS_POLES) lui restait invisible : ni sur
 // son tableau, ni sous « Mes tâches », ni par lien direct — et comme
-// l'application n'envoie aucune notification, la personne n'apprenait jamais
-// qu'on lui avait confié quelque chose. L'assignation était muette.
+// l'application n'envoyait alors aucune notification, la personne n'apprenait
+// jamais qu'on lui avait confié quelque chose. L'assignation était muette ;
+// elle est désormais notifiée (tache.assignee, lib/notifications.ts), et ce
+// second terme reste ce qui permet d'OUVRIR la tâche une fois prévenu.
 export function filtreTachesVisibles(
   session: { sub: string },
   scope: string[] | null

@@ -14,6 +14,7 @@ import {
 import { getCoutsPrestataire } from '@/lib/prestataires';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutFacture } from '@/app/generated/prisma/enums';
+import { notifierFacture } from '@/lib/notifications';
 
 // § Facturation marchand (/admin/factures).
 //
@@ -181,6 +182,12 @@ export async function POST(request: Request) {
         date: now,
       });
     });
+
+    // § Notifications : un brouillon reste interne ; émise ou réglée d'emblée,
+    // la facture devient visible du marchand — un seul message, le plus récent.
+    if (finaliser !== 'brouillon') {
+      await notifierFacture(facture.id, finaliser === 'emise' ? 'emise' : 'reglee', { sauf: session.sub });
+    }
 
     return NextResponse.json(facture, { status: 201 });
   } catch (error) {
