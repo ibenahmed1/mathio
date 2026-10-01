@@ -89,6 +89,10 @@ export interface Commande {
   produit?: { id: string; nom: string; reference: string; photoUrl: string | null } | null;
   colisARemplacer?: { id: string; codeSuivi: string } | null;
   hubActuel?: { id: string; nom: string; ville: string } | null;
+  // § Intégration Shopify : présent quand le colis vient d'une commande Shopify.
+  shopify?: { numero: string } | null;
+  // § Intégration YouCan : présent quand le colis vient d'une commande YouCan.
+  youcan?: { numero: string } | null;
   historique?: HistoriqueStatut[];
   commentaires?: CommentaireCommande[];
 }
@@ -104,6 +108,10 @@ export interface Marchandise {
   qteStock: number;
   prix: string;
   dateCreation: string;
+  // § Intégration Shopify : présent quand la marchandise a été importée de Shopify.
+  shopify?: { sku: string | null } | null;
+  // § Intégration YouCan : présent quand la marchandise a été importée de YouCan.
+  youcan?: { sku: string | null } | null;
 }
 
 export interface ProduitVariante {
@@ -567,18 +575,24 @@ export interface MembreTache {
 
 export interface Transaction {
   id: string;
-  montant: string;
+  titre: string;
+  montant: number;
   type: 'revenu' | 'depense';
-  categorie: 'paiement_client' | 'frais_livraison' | 'abonnement_outil' | 'salaire' | 'remboursement' | 'autre';
+  // Tenue en base depuis le 21/09/2026 (§ CategorieComptable), plus un enum.
+  categorie: { id: string; nom: string };
   dateEffet: string;
   description: string | null;
-  auteurId: string;
   estAnnulee: boolean;
   transactionOrigineId: string | null;
   dateCreation: string;
   auteur?: { nomComplet: string; role: string };
-  transactionOrigine?: { id: string; categorie: string } | null;
-  annulation?: { id: string } | null;
+  // Non-null = écriture automatique (tournée, facture, paie).
+  origine: { type: 'tournee' | 'facture' | 'paie'; numero: string } | null;
+  // Pointeur vers la route de contenu, jamais l'image.
+  preuve: string | null;
+  // Renseignés dans la corbeille seulement (`?supprimees=1`).
+  supprimeLe: string | null;
+  supprimePar: { nomComplet: string } | null;
 }
 
 // ============================================================

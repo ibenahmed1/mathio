@@ -1,4 +1,15 @@
-import { LayoutDashboard, Package, Boxes, FileStack, Truck, LifeBuoy, Warehouse } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Package,
+  Boxes,
+  FileStack,
+  Truck,
+  LifeBuoy,
+  Warehouse,
+  Plug,
+  UsersRound,
+  Calculator,
+} from 'lucide-react';
 import type { NavItem } from '@/components/AppSidebar';
 
 // Navigation plate : le détail (sous-listes, filtres, actions) vit dans des
@@ -18,10 +29,17 @@ export const NAV_MARCHAND_MENU: NavItem[] = [
   { label: 'Ramassages', href: '/marchand/ramassages', icon: Truck, section: 'Marchandise' },
   { label: 'Bons & Documents', href: '/marchand/bons-livraison', icon: FileStack, section: 'Marchandise' },
   { label: 'Gestion Inventaire', href: '/marchand/inventaire', icon: Warehouse, section: 'Marchandise' },
+  // § Comptabilité de la boutique : le même écran que /admin/comptabilite,
+  // sur les livres propres à la boutique.
+  { label: 'Comptabilité', href: '/marchand/comptabilite', icon: Calculator, section: 'Finance' },
 ];
 
 export const NAV_MARCHAND_AUTRE: NavItem[] = [
   { label: 'Support & Profil', href: '/marchand/reclamations', icon: LifeBuoy },
+  // § Équipe & accès : membres, rôles et journal de l'équipe de la boutique.
+  { label: 'Équipe & accès', href: '/marchand/equipe', icon: UsersRound },
+  // § Intégrations Shopify et YouCan : le marchand y connecte lui-même sa boutique.
+  { label: 'Intégrations', href: '/marchand/integrations', icon: Plug },
 ];
 
 export const NAV_MARCHAND: NavItem[] = [...NAV_MARCHAND_MENU, ...NAV_MARCHAND_AUTRE];
@@ -44,3 +62,24 @@ export const CHEMINS_VERROUILLES: string[] = [
   '/marchand/bons-retour',
   '/marchand/factures',
 ];
+
+// § Équipe & accès : la navigation réduite aux modules ouverts au rôle du
+// membre connecté (le titulaire voit tout). `peutOuvrir` est celui de
+// usePermissionsMarchand, lu dans la même table que le proxy.
+//
+// « Support & Profil » pointe sur les réclamations : un membre qui n'y a pas
+// droit garde l'entrée, redirigée vers le profil — c'est là qu'il retrouve
+// ses informations de boutique.
+export function navMarchandFiltree(items: NavItem[], peutOuvrir: (href: string) => boolean): NavItem[] {
+  return items.flatMap<NavItem>((item) => {
+    if (!('href' in item)) return [item];
+    if (peutOuvrir(item.href)) return [item];
+    if (item.href === '/marchand/reclamations') return [{ ...item, href: '/marchand/profil' }];
+    // Même logique pour « Bons & Documents » : un rôle qui n'ouvre que les
+    // factures y accède quand même.
+    if (item.href === '/marchand/bons-livraison' && peutOuvrir('/marchand/factures')) {
+      return [{ ...item, href: '/marchand/factures' }];
+    }
+    return [];
+  });
+}

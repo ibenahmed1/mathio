@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  CATEGORIES_TRANSACTION,
-  LABELS_CATEGORIE_TRANSACTION,
+  CODES_CATEGORIE_SYSTEME,
+  LABELS_PORTEE_CATEGORIE,
+  PORTEES_CATEGORIE,
+  MONTANT_MAX,
+  analyserModificationTransaction,
+  normaliserNomCategorie,
   LABELS_TYPE_TRANSACTION,
   TYPES_TRANSACTION,
   formatMontantTransaction,
@@ -75,21 +79,94 @@ test('un solde nul s’affiche en positif', () => {
 
 // Un enum élargi côté Prisma sans son libellé ici afficherait `undefined` dans
 // l'écran de comptabilité. Le test le rappelle au moment de la migration
-// plutôt qu'en production.
-test('chaque type et chaque catégorie a un libellé', () => {
+// plutôt qu'en production. Les catégories, elles, vivent en base depuis le
+// 21/09/2026 : leur libellé est leur nom, il n'y a plus rien à vérifier ici.
+test('chaque type et chaque portée de catégorie a un libellé', () => {
   for (const t of TYPES_TRANSACTION) {
     assert.equal(typeof LABELS_TYPE_TRANSACTION[t], 'string', `libellé manquant pour le type ${t}`);
     assert.ok(LABELS_TYPE_TRANSACTION[t].length > 0, `libellé vide pour le type ${t}`);
   }
-  for (const c of CATEGORIES_TRANSACTION) {
-    assert.equal(typeof LABELS_CATEGORIE_TRANSACTION[c], 'string', `libellé manquant pour ${c}`);
-    assert.ok(LABELS_CATEGORIE_TRANSACTION[c].length > 0, `libellé vide pour ${c}`);
+  for (const p of PORTEES_CATEGORIE) {
+    assert.ok(LABELS_PORTEE_CATEGORIE[p]?.length > 0, `libellé manquant pour la portée ${p}`);
   }
 });
 
 test('aucun doublon dans les référentiels', () => {
   assert.equal(new Set(TYPES_TRANSACTION).size, TYPES_TRANSACTION.length);
-  assert.equal(new Set(CATEGORIES_TRANSACTION).size, CATEGORIES_TRANSACTION.length);
+  assert.equal(new Set(PORTEES_CATEGORIE).size, PORTEES_CATEGORIE.length);
+});
+
+// ------------------------------------------------------------
+// Catégories
+// ------------------------------------------------------------
+
+// Les écritures automatiques se rattachent à ces deux codes : la migration
+// 20260921120000 ne garde QU'EUX. Un code ajouté ici sans elle ferait échouer
+// la clôture de tournée (« catégorie absente »), un code retiré laisserait
+// supprimer une catégorie dont le code a besoin.
+test('les catégories protégées sont exactement celles des écritures automatiques', () => {
+  assert.deepEqual([...CODES_CATEGORIE_SYSTEME].sort(), ['paiement_client', 'salaire']);
+});
+
+test('le nom d’une catégorie est normalisé avant comparaison', () => {
+  assert.equal(normaliserNomCategorie('  Frais   de  port '), 'Frais de port');
+  assert.equal(normaliserNomCategorie('   '), '');
+  assert.equal(normaliserNomCategorie(42), '');
+});
+
+// ------------------------------------------------------------
+// Modification d'une écriture (PATCH)
+// ------------------------------------------------------------
+
+// Une clé absente veut dire « inchangé » : ne renvoyer que le titre ne doit
+// ni effacer la description ni toucher au justificatif.
+test('seules les clés présentes sont modifiées', () => {
+  const r = analyserModificationTransaction({ titre: 'Loyer hub Casa' });
+  assert.equal(r.statut, 'ok');
+  if (r.statut === 'ok') assert.deepEqual(r.valeur, { titre: 'Loyer hub Casa' });
+});
+
+test('une modification vide est refusée', () => {
+  assert.equal(analyserModificationTransaction({}).statut, 'refus');
+  assert.equal(analyserModificationTransaction(null).statut, 'refus');
+  assert.equal(analyserModificationTransaction([]).statut, 'refus');
+});
+
+// Même règle qu'à la création : le sens vient du type, jamais du signe.
+test('un montant nul, négatif ou hors colonne est refusé', () => {
+  assert.equal(analyserModificationTransaction({ montant: 0 }).statut, 'refus');
+  assert.equal(analyserModificationTransaction({ montant: -12 }).statut, 'refus');
+  assert.equal(analyserModificationTransaction({ montant: 'abc' }).statut, 'refus');
+  assert.equal(analyserModificationTransaction({ montant: MONTANT_MAX + 1 }).statut, 'refus');
+});
+
+// Arrondi au centime AVANT la base : sinon l'historique noterait
+// « 100.004 → 100 », une modification qui n'a rien changé.
+test('le montant est arrondi au centime', () => {
+  const r = analyserModificationTransaction({ montant: '100.004' });
+  assert.equal(r.statut, 'ok');
+  if (r.statut === 'ok') assert.equal(r.valeur.montant, 100);
+});
+
+test('un titre vide ou un type inconnu est refusé', () => {
+  assert.equal(analyserModificationTransaction({ titre: '   ' }).statut, 'refus');
+  assert.equal(analyserModificationTransaction({ type: 'virement' }).statut, 'refus');
+  assert.equal(analyserModificationTransaction({ dateEffet: 'pas une date' }).statut, 'refus');
+});
+
+// `null` retire le justificatif, une description vidée devient `null` — jamais
+// une chaîne vide en base.
+test('retirer un justificatif ou vider une description donne null', () => {
+  const r = analyserModificationTransaction({ preuveUrl: null, description: '  ' });
+  assert.equal(r.statut, 'ok');
+  if (r.statut === 'ok') assert.deepEqual(r.valeur, { preuveUrl: null, description: null });
+});
+
+// Un justificatif remplacé passe la même liste blanche qu'à la création : le
+// PATCH ne doit pas être la porte dérobée du SVG.
+test('un justificatif remplacé est validé comme à la création', () => {
+  const svg = `data:image/svg+xml;base64,${Buffer.from('<svg/>').toString('base64')}`;
+  assert.equal(analyserModificationTransaction({ preuveUrl: svg }).statut, 'refus');
 });
 
 // ------------------------------------------------------------

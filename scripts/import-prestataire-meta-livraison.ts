@@ -14,9 +14,9 @@ import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
  *
  *  1. AUCUN TARIF. La grille Power Delivery donnait un prix par ville ; celle-ci
  *     n'a que des zones et des jours. Aucune ligne TarifPrestataireVille n'est
- *     donc créée : les colis livrés dans ces villes apparaîtront en « coût
- *     inconnu » à la facturation (cf. Facture.nbLignesCoutInconnu) tant que les
- *     prix ne sont pas saisis depuis /admin/hubs.
+ *     donc créée ICI. Les prix, fixés à part le 01/10/2026 (Fès 18 dh, autres
+ *     25 dh), sont posés par scripts/tarifs-meta-livraison.ts, qui passe après
+ *     les villes d'implantation dans scripts/charger-referentiel.ts.
  *
  *  2. UN PROGRAMME HEBDOMADAIRE, que le modèle ne sait pas encore porter. Il est
  *     transcrit ci-dessous dans `jours` — donnée morte pour la base, mais le

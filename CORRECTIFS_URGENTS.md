@@ -89,6 +89,10 @@ API. **Décision métier requise d'abord** : le superviseur doit-il accéder à 
 la correction est de décocher la permission sur le compte, et de supprimer l'entrée de nav — pas de
 toucher au code.
 
+**21/09/2026** : les routes ajoutées pour modifier, supprimer, restaurer et gérer les catégories
+(`comptabilite:edit` / `comptabilite:delete`) passent par `requirePermission`. Les quatre contrôles
+ci-dessus sont inchangés, la décision métier est toujours attendue.
+
 ---
 
 ## ~~3. Cinq agences sur dix-sept ne desservent pas leur propre ville~~ — CORRIGÉ

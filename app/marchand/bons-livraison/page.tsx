@@ -8,8 +8,11 @@ import type { BonDeLivraison } from '@/lib/types';
 import { BonLivraisonActionsMenu } from '@/components/BonLivraisonActionsMenu';
 import { COLONNE_COLLANTE_PAGE } from '@/components/marchand/colonne-collante';
 import { BonsDocumentsSubNav } from '../BonsDocumentsSubNav';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export default function ListeBonsLivraisonPage() {
+  // § Équipe & accès : générer un bon est un droit distinct de la consultation.
+  const peutCreer = usePermissionsMarchand().peut('bons.creer');
   const [bons, setBons] = useState<BonDeLivraison[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,10 +30,12 @@ export default function ListeBonsLivraisonPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Bons & Documents</h1>
-        <Link href="/marchand/bons-livraison/nouveau" className="btn-primary flex items-center gap-2">
-          <FilePlus2 className="h-4 w-4" />
-          Nouveau bon de livraison
-        </Link>
+        {peutCreer && (
+          <Link href="/marchand/bons-livraison/nouveau" className="btn-primary flex items-center gap-2">
+            <FilePlus2 className="h-4 w-4" />
+            Nouveau bon de livraison
+          </Link>
+        )}
       </div>
 
       <BonsDocumentsSubNav />

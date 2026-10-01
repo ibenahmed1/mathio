@@ -209,12 +209,22 @@ export async function traiterInformationPower(info: InformationPower): Promise<R
     data: {
       ...(codeEffectif && { dernierStatutExterne: codeEffectif }),
       ...(info.paiement && { dernierPaiementExterne: info.paiement }),
-      dernierEvenementLe: new Date(),
       ...(remise.etat === 'a_confirmer' && { etat: 'acceptee', erreur: null }),
     },
   });
 
+  // `dernierEvenementLe` est posé ICI, et pas avec la mise à jour ci-dessus :
+  // c'est lui qui dit au rattrapage « on a des nouvelles de ce colis », et il
+  // ne doit valoir que pour une information effectivement TRAITÉE. Posé trop
+  // tôt, une erreur survenue ensuite — compte de service absent, panne — aurait
+  // quand même écarté le colis du rattrapage pendant 24 h, et l'échec se serait
+  // réparé tout seul en apparence sans que rien n'ait été appliqué. Constaté en
+  // conditions réelles le 28/09/2026.
   const conclure = async (issue: IssueInformation, detail: string | null): Promise<ResultatInformation> => {
+    await prisma.remisePrestataire.update({
+      where: { id: remise.id },
+      data: { dernierEvenementLe: new Date() },
+    });
     await journaliser(power.id, remise.id, info, issue, detail);
     return { issue, detail, commandeId: remise.commande.id };
   };

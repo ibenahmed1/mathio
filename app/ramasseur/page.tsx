@@ -8,6 +8,7 @@ import type { Commande } from '@/lib/types';
 import { Logo } from '@/components/Logo';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
+import { ClocheNotifications } from '@/components/notifications/ClocheNotifications';
 import Link from 'next/link';
 import { ChevronLeft, List, LogOut, PackageCheck, ScanLine, Undo2 } from 'lucide-react';
 
@@ -100,6 +101,7 @@ export default function RamasseurPage() {
         <Logo />
         <div className="flex items-center gap-4">
           {user && <span className="hidden text-sm font-semibold text-white/80 sm:block">Bonjour, {user.nomComplet.split(' ')[0]}</span>}
+          <ClocheNotifications variante="bouton" />
           <button
             onClick={handleLogout}
             className="-m-2.5 flex items-center gap-1.5 p-2.5 text-sm font-semibold text-white/70 transition hover:text-brand"

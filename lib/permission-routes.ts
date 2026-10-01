@@ -159,6 +159,9 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // (décision du 22/09/2026).
   { pattern: '/api/commandes/*/power-delivery', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/power-delivery/**', permission: 'bon_envoi:manage' },
+  // § Colivraison : même responsabilité, même clé (consulter, actualiser).
+  { pattern: '/api/commandes/*/colivraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/colivraison/**', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/statut', permission: 'colis:confirm' },
   // Encaissement COD : sa propre clé, parce que le trio qui l'exerce
   // aujourd'hui (admin, superviseur, responsable) ne correspond ni à la
@@ -180,6 +183,13 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/marchandises/**', permission: 'stock:inventory' },
   // Colis en stock au hub : servi par la comptabilité (admin + responsable),
   // pas par le module stock — on garde ce périmètre.
+  // Faire avancer le statut reste un geste de saisie (`comptabilite:write`) ;
+  // réécrire la commande ou la supprimer demande les clés dédiées. Les
+  // sous-routes nommées d'abord : `/*` seul happerait `/statut`.
+  { pattern: '/api/commandes-stock-hub/*/statut', permission: 'comptabilite:write' },
+  { pattern: '/api/commandes-stock-hub/*/restaurer', permission: 'comptabilite:delete' },
+  { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite:edit', methods: ['PATCH'] },
+  { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
   { pattern: '/api/commandes-stock-hub/**', permission: 'comptabilite:read', methods: SAFE_METHODS },
   { pattern: '/api/commandes-stock-hub/**', permission: 'comptabilite:write' },
 
@@ -200,6 +210,7 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // la classerait en composition (`bon_envoi:create`) : remettre un bon déjà
   // composé relève de sa gestion, pas de sa création.
   { pattern: '/api/bons-envoi/*/remise-power-delivery', permission: 'bon_envoi:manage' },
+  { pattern: '/api/bons-envoi/*/remise-colivraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi/**', permission: 'bon_envoi:create' },
@@ -220,6 +231,16 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/factures/*/annuler', permission: 'facture:issue' },
   { pattern: '/api/factures/**', permission: 'facture:read', methods: SAFE_METHODS },
   { pattern: '/api/factures/**', permission: 'facture:create' },
+  // Modifier, supprimer, restaurer, et gérer les catégories : clés distinctes
+  // de la saisie (cf. lib/permissions.ts). La lecture des catégories et de
+  // l'historique reste sous `comptabilite:read` (règle générique ci-dessous).
+  // `/api/finance/categories` AVANT `/api/finance/*`, qui le happerait.
+  { pattern: '/api/finance/categories', permission: 'comptabilite:edit', methods: ['POST'] },
+  { pattern: '/api/finance/categories/*', permission: 'comptabilite:edit', methods: ['PATCH'] },
+  { pattern: '/api/finance/categories/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
+  { pattern: '/api/finance/*/restaurer', permission: 'comptabilite:delete' },
+  { pattern: '/api/finance/*', permission: 'comptabilite:edit', methods: ['PATCH'] },
+  { pattern: '/api/finance/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
   { pattern: '/api/finance/**', permission: 'comptabilite:read', methods: SAFE_METHODS },
   { pattern: '/api/finance/**', permission: 'comptabilite:write' },
 
@@ -255,9 +276,24 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // authentifiée. Le gouverner fermerait l'impression à la moitié des rôles.
   { pattern: '/api/parametres/societe', permission: null },
 
+  // NON MAPPÉ — /api/notifications/** : la cloche et les préférences de push
+  // du compte CONNECTÉ, dans les trois espaces. Chaque handler borne ses
+  // lectures et écritures à `session.sub` dans la requête même : il n'y a pas
+  // de donnée d'autrui à protéger par un module. Le gouverner fermerait la
+  // cloche aux rôles cantonnés (Kanban, Agent Hub) qui n'ont pas la clé.
+  { pattern: '/api/notifications/**', permission: null },
+
   // --- Intégrations partenaires --------------------------------------------
   // Administration des plateformes (clés, marchands synchronisés, journal).
   { pattern: '/api/plateformes/**', permission: 'integrations:manage' },
+
+  // NON MAPPÉ — /api/integrations/** : les intégrations qu'un MARCHAND branche
+  // lui-même sur sa boutique (Shopify, YouCan, § /marchand/integrations). Réservé au
+  // rôle marchand par `requireUser(['marchand'])` dans chaque handler, comme
+  // /api/commandes/*/relancer. Le gouverner par `integrations:manage`
+  // l'ouvrirait au back-office, qui n'a rien à connecter pour le compte d'un
+  // marchand — et fermerait l'écran au marchand, qui ne détient pas la clé.
+  { pattern: '/api/integrations/**', permission: null },
 
   // NON GOUVERNÉ — l'API MACHINE des plateformes partenaires (§ lib/spaces.ts,
   // HOST_API). L'entrée est explicite plutôt qu'absente pour dire l'intention
@@ -271,8 +307,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // que sur l'hôte du back-office. Elle documente, et elle empêchera une
   // future règle générique de happer ce préfixe.
   //
-  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la seule route du
-  // dépôt dans ce cas, par nécessité : les webhooks de Power Delivery. C'est
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — l'une des deux
+  // routes du dépôt dans ce cas, par nécessité : les webhooks de Power Delivery. C'est
   // LEUR serveur qui appelle, sans session et sans clé à nous : ils n'en
   // connaissent pas d'autre que leur propre signature. Le contrôle d'accès est
   // donc la signature HMAC-SHA256 du corps, OBLIGATOIRE chez nous alors
@@ -281,6 +317,22 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // configuré, la route refuse tout. Entrée nommée pour que cette exception se
   // lise ici, et non seulement dans le handler.
   { pattern: '/api/v1/webhooks/power-delivery', permission: null },
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la seconde : les
+  // webhooks des boutiques Shopify connectées par nos marchands. Même raison
+  // (le serveur de Shopify n'a ni session ni clé à nous), même parade : la
+  // signature HMAC-SHA256 du corps (`X-Shopify-Hmac-Sha256`), vérifiée en temps
+  // constant avec la clé secrète de LA boutique annoncée ; une boutique inconnue
+  // ou déconnectée n'a pas de clé, donc tout est refusé (lib/shopify.ts).
+  { pattern: '/api/v1/webhooks/shopify', permission: null },
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la troisième : les
+  // webhooks des boutiques YouCan. Même parade, avec une nuance : la signature
+  // (`X-YOUCAN-SIGNATURE`, HMAC-SHA256 hexadécimal) est calculée avec le secret
+  // de NOTRE application YouCan (YOUCAN_CLIENT_SECRET), et la boutique est
+  // ensuite désignée par `data.store_id` ; inconnue ou déconnectée, elle est
+  // refusée (lib/youcan.ts).
+  { pattern: '/api/v1/webhooks/youcan', permission: null },
   { pattern: '/api/v1/**', permission: null },
 ];
 

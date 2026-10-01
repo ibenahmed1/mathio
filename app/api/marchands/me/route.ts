@@ -26,6 +26,22 @@ export async function GET() {
     const session = await requireUser(['marchand']);
     const marchand = await getOwnMarchand(session.sub);
     const utilisateur = await chargerUtilisateurTitulaire(marchand.utilisateurId);
+
+    // § Équipe & accès : cette lecture est ouverte à tout membre (nom de la
+    // boutique, état d'activation…), mais les pièces du titulaire — RIB, sa
+    // photo, CIN, registre de commerce — ne regardent que ceux qui gèrent le
+    // profil de la boutique. Les champs restent présents (l'écran s'appuie sur
+    // leur forme), vidés de leur valeur.
+    if (!session.permissions.includes('boutique.gerer')) {
+      return NextResponse.json({
+        ...marchand,
+        rib: null,
+        ribPhotoUrl: null,
+        cin: null,
+        registreCommerce: null,
+        utilisateur: { telephone: null, email: null },
+      });
+    }
     return NextResponse.json({ ...marchand, utilisateur });
   } catch (error) {
     return jsonError(error);

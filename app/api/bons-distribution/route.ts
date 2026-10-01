@@ -10,6 +10,7 @@ import {
 import { nextBonDistributionNumero } from '@/lib/codes';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutBonDistribution } from '@/app/generated/prisma/enums';
+import { notifier } from '@/lib/notifications';
 
 const STATUTS_BON_DISTRIBUTION: StatutBonDistribution[] = ['nouveau', 'en_cours', 'cloture'];
 
@@ -136,6 +137,14 @@ export async function POST(request: Request) {
 
       return created;
     });
+
+    // § Notifications : le livreur apprend sa tournée avant de passer au hub.
+    await notifier([bon.livreurId], {
+      type: 'tournee.affectee',
+      titre: `Nouvelle tournée ${bon.numero}`,
+      corps: `${bon.nbColis} colis · ${hub.nom}`,
+      lien: '/livreur/bons-distribution',
+    }, { sauf: session.sub });
 
     return NextResponse.json(bon, { status: 201 });
   } catch (error) {

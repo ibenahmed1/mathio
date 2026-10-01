@@ -5,7 +5,10 @@ import { Menu, ShieldAlert } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import { BandeauFinalisation } from '@/components/marchand/BandeauFinalisation';
 import { MarchandSidebar } from '@/components/marchand/MarchandSidebar';
-import { NAV_MARCHAND_MENU, NAV_MARCHAND_AUTRE } from '@/components/marchand/nav';
+import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
+import { ClocheNotifications } from '@/components/notifications/ClocheNotifications';
+import { NAV_MARCHAND_MENU, NAV_MARCHAND_AUTRE, navMarchandFiltree } from '@/components/marchand/nav';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export function MarchandShell({
   children,
@@ -27,6 +30,7 @@ export function MarchandShell({
   retourBackOffice?: string;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { peutOuvrir } = usePermissionsMarchand();
 
   // Termine réellement la session marchand empruntée (pas seulement une
   // navigation) : sans ça, le cookie de session resterait valide jusqu'à 24 h
@@ -50,43 +54,46 @@ export function MarchandShell({
   }
 
   return (
-    <div className="marchand-typo marchand-surface min-h-screen lg:flex">
-      <MarchandSidebar
-        nav={NAV_MARCHAND_MENU}
-        autre={NAV_MARCHAND_AUTRE}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-      />
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        {impersonation && (
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-black px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden">
-            <ShieldAlert className="h-3.5 w-3.5" />
-            Vous consultez cet espace marchand depuis l&apos;administration.
+    <NotificationsProvider>
+      <div className="marchand-typo marchand-surface min-h-screen lg:flex">
+        <MarchandSidebar
+          nav={navMarchandFiltree(NAV_MARCHAND_MENU, peutOuvrir)}
+          autre={navMarchandFiltree(NAV_MARCHAND_AUTRE, peutOuvrir)}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+        />
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          {impersonation && (
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 bg-black px-4 py-1.5 text-center text-xs font-semibold text-white print:hidden">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Vous consultez cet espace marchand depuis l&apos;administration.
+              <button
+                onClick={quitterEspaceMarchand}
+                className="underline underline-offset-2 hover:opacity-80 pointer-coarse:py-2"
+              >
+                Retour à l&apos;administration
+              </button>
+            </div>
+          )}
+          {/* La sidebar reste dépliée en permanence en desktop. Ne subsiste que
+              l'ouverture en mobile : la sidebar est alors hors-écran, donc son
+              propre bouton de fermeture est inatteignable. */}
+          <div className="flex items-center justify-between px-4 pt-4 lg:hidden print:hidden">
             <button
-              onClick={quitterEspaceMarchand}
-              className="underline underline-offset-2 hover:opacity-80 pointer-coarse:py-2"
+              onClick={() => setMobileOpen(true)}
+              className="shrink-0 rounded-lg border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] p-2 text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] transition-colors hover:bg-[color:var(--mk-line-soft)] pointer-coarse:p-3"
+              aria-label="Ouvrir le menu"
             >
-              Retour à l&apos;administration
+              <Menu className="h-5 w-5" />
             </button>
+            <ClocheNotifications variante="bouton" />
           </div>
-        )}
-        {/* La sidebar reste dépliée en permanence en desktop. Ne subsiste que
-            l'ouverture en mobile : la sidebar est alors hors-écran, donc son
-            propre bouton de fermeture est inatteignable. */}
-        <div className="px-4 pt-4 lg:hidden print:hidden">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="shrink-0 rounded-lg border border-[color:var(--mk-line)] bg-[color:var(--mk-card)] p-2 text-[color:var(--mk-ink-2)] shadow-[var(--mk-shadow)] transition-colors hover:bg-[color:var(--mk-line-soft)] pointer-coarse:p-3"
-            aria-label="Ouvrir le menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          {/* § Inscription progressive : rappel de finalisation, hors des
+              écrans déjà verrouillés (cf. BandeauFinalisation). */}
+          <BandeauFinalisation />
+          <main className="flex-1 p-4 sm:p-6">{children}</main>
         </div>
-        {/* § Inscription progressive : rappel de finalisation, hors des
-            écrans déjà verrouillés (cf. BandeauFinalisation). */}
-        <BandeauFinalisation />
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
-    </div>
+    </NotificationsProvider>
   );
 }

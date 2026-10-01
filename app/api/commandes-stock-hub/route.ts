@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
+import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutCommandeStockHub } from '@/app/generated/prisma/enums';
 import {
   STATUTS_COMMANDE_STOCK_HUB,
@@ -8,10 +10,11 @@ import {
   STATUT_COMMANDE_STOCK_HUB_PAR_DEFAUT,
 } from '@/lib/commandes-stock-hub';
 import { analyserPreuveComptable, dataUrlPreuve } from '@/lib/finance';
+import { verifierCategorie } from '@/lib/journal-comptable';
 
-// § Comptabilité — même périmètre d'accès que /api/finance (admin/responsable
-// uniquement, cf. app/api/finance/route.ts).
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
+// § Comptabilité — même périmètre d'accès que /api/finance : admin/responsable
+// pour les achats des hubs, le marchand pour les achats de SA boutique
+// (perimetreComptable, lib/comptabilite-perimetre.ts).
 
 // Adresse du justificatif d'une commande, telle qu'exposée au client. Le contenu
 // ne voyage jamais dans le JSON de la liste : il est servi à la demande par
@@ -20,12 +23,51 @@ function cheminPreuve(id: string): string {
   return `/api/commandes-stock-hub/${id}/preuve`;
 }
 
+const INCLUDE_COMMANDE = {
+  auteur: { select: { nomComplet: true, role: true } },
+  supprimePar: { select: { nomComplet: true } },
+  categorie: { select: { id: true, nom: true } },
+} as const;
+
+type CommandeLue = Prisma.CommandeStockHubGetPayload<{ include: typeof INCLUDE_COMMANDE; omit: { preuveUrl: true } }>;
+
+// Montant en nombre : un Decimal brut ne doit pas atteindre le JSON.
+function exposerCommande(c: CommandeLue, preuve: string | null) {
+  return {
+    id: c.id,
+    numero: c.numero,
+    titre: c.titre,
+    sousTitre: c.sousTitre,
+    montant: Number(c.montant),
+    statut: c.statut,
+    modePaiement: c.modePaiement,
+    dateCommande: c.dateCommande,
+    categorie: c.categorie,
+    auteur: c.auteur,
+    dateCreation: c.dateCreation,
+    supprimeLe: c.supprimeLe,
+    supprimePar: c.supprimePar,
+    preuve,
+  };
+}
+
+// Même règle que le journal (§ app/api/finance/route.ts, SANS_CACHE) : une
+// lecture de la comptabilité ne se sert pas depuis un cache.
+const SANS_CACHE = { 'Cache-Control': 'no-store' } as const;
+
 export async function GET(request: NextRequest) {
   try {
-    await requireUser([...ROLES_COMPTABILITE]);
+    const { marchandId, peut } = await perimetreComptable('lecture');
+
+    // `?supprimees=1` : la corbeille, réservée à qui peut restaurer — même
+    // règle que le journal (app/api/finance/route.ts).
+    const supprimees = request.nextUrl.searchParams.get('supprimees') === '1';
+    if (supprimees && !peut('suppression')) {
+      throw new ApiError(403, 'Accès refusé : permission manquante');
+    }
 
     const statut = request.nextUrl.searchParams.get('statut');
-    const where: { statut?: StatutCommandeStockHub } = {};
+    const where: Prisma.CommandeStockHubWhereInput = { marchandId, supprimeLe: supprimees ? { not: null } : null };
     if (statut) {
       if (!STATUTS_COMMANDE_STOCK_HUB.includes(statut as StatutCommandeStockHub)) {
         throw new ApiError(400, 'Statut invalide');
@@ -42,7 +84,7 @@ export async function GET(request: NextRequest) {
         // commandes n'en affiche qu'une vignette cliquable, elle n'a aucune
         // raison de transporter les fichiers.
         omit: { preuveUrl: true },
-        include: { auteur: { select: { nomComplet: true, role: true } } },
+        include: INCLUDE_COMMANDE,
       }),
       // Savoir QU'UN justificatif existe ne demande pas de le lire : cette
       // requête ne ramène que des identifiants.
@@ -54,11 +96,14 @@ export async function GET(request: NextRequest) {
 
     const avecPreuve = new Set(idsAvecPreuve.map((c) => c.id));
 
-    return NextResponse.json({
-      // Un POINTEUR vers la route de contenu, jamais l'octet. `null` quand la
-      // commande n'a pas de justificatif — la carte n'affiche alors rien.
-      data: commandes.map((c) => ({ ...c, preuve: avecPreuve.has(c.id) ? cheminPreuve(c.id) : null })),
-    });
+    return NextResponse.json(
+      {
+        // Un POINTEUR vers la route de contenu, jamais l'octet. `null` quand la
+        // commande n'a pas de justificatif — la carte n'affiche alors rien.
+        data: commandes.map((c) => exposerCommande(c, avecPreuve.has(c.id) ? cheminPreuve(c.id) : null)),
+      },
+      { headers: SANS_CACHE }
+    );
   } catch (error) {
     return jsonError(error);
   }
@@ -66,7 +111,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireUser([...ROLES_COMPTABILITE]);
+    const { session, marchandId } = await perimetreComptable('saisie');
     const body = await request.json();
 
     const titre = typeof body.titre === 'string' ? body.titre.trim() : '';
@@ -93,6 +138,12 @@ export async function POST(request: Request) {
     if (Number.isNaN(dateCommande.getTime())) {
       throw new ApiError(400, 'Date de commande invalide');
     }
+    // Catégorie FACULTATIVE (§ CommandeStockHub.categorieId), mais si elle est
+    // fournie elle doit être une catégorie de commande, pas d'écriture.
+    const categorieId =
+      typeof body.categorieId === 'string' && body.categorieId
+        ? (await verifierCategorie(prisma, body.categorieId, 'commande_stock_hub', marchandId)).id
+        : null;
 
     // Justificatif photo FACULTATIF (§ CommandeStockHub.preuveUrl) : une
     // commande sans facture jointe est valide — le fournisseur ne l'a pas
@@ -114,19 +165,20 @@ export async function POST(request: Request) {
         statut,
         modePaiement,
         dateCommande,
+        categorieId,
         preuveUrl,
         auteurId: session.sub,
+        marchandId,
       },
       // La photo ne repart pas dans la réponse qui vient de l'écrire : le client
       // l'a déjà, et la liste ne travaille que sur le pointeur.
       omit: { preuveUrl: true },
-      include: { auteur: { select: { nomComplet: true, role: true } } },
+      include: INCLUDE_COMMANDE,
     });
 
-    return NextResponse.json(
-      { ...commande, preuve: preuveUrl ? cheminPreuve(commande.id) : null },
-      { status: 201 },
-    );
+    return NextResponse.json(exposerCommande(commande, preuveUrl ? cheminPreuve(commande.id) : null), {
+      status: 201,
+    });
   } catch (error) {
     return jsonError(error);
   }

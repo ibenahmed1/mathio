@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getPageSession, roleMatches } from '@/lib/auth';
+import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
 
 // Avant ce fichier, app/ramasseur/page.tsx n'avait aucune vérification de
 // session côté serveur (page 100% client). Le proxy (proxy.ts) protège
@@ -11,5 +12,7 @@ export default async function RamasseurLayout({ children }: { children: React.Re
     redirect('/login');
   }
 
-  return <>{children}</>;
+  // § Notifications : l'espace ramasseur n'a pas de coquille — c'est donc ici
+  // que vit l'état de sa cloche, pour toutes ses pages.
+  return <NotificationsProvider>{children}</NotificationsProvider>;
 }

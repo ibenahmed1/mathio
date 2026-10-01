@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import { analyserPreuveComptable, nomFichierPreuve } from '@/lib/finance';
 
 // Justificatif d'une écriture comptable (§ /admin/comptabilite).
@@ -17,18 +18,19 @@ import { analyserPreuveComptable, nomFichierPreuve } from '@/lib/finance';
 // par la règle `/api/finance/**` → `comptabilite:read` (méthodes sûres) de
 // lib/permission-routes.ts — pas d'entrée à ajouter, elle vaut pour les
 // sous-routes.
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
+// Une boutique n'ouvre que les justificatifs de SON journal
+// (perimetreComptable).
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser([...ROLES_COMPTABILITE]);
+    const { marchandId } = await perimetreComptable('lecture');
     const { id } = await params;
 
     const transaction = await prisma.transaction.findUnique({
       where: { id },
-      select: { id: true, preuveUrl: true },
+      select: { id: true, preuveUrl: true, marchandId: true },
     });
-    if (!transaction) throw new ApiError(404, 'Transaction introuvable');
+    if (!transaction || transaction.marchandId !== marchandId) throw new ApiError(404, 'Transaction introuvable');
     // Une écriture sans justificatif n'est pas une anomalie (la preuve est
     // facultative) : c'est bien 404, la ressource demandée n'existe pas.
     if (!transaction.preuveUrl) throw new ApiError(404, 'Cette écriture n\'a pas de justificatif');
@@ -46,10 +48,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         // `inline` : la visionneuse du journal affiche l'image sans la
         // télécharger. Le nom ne sert qu'au téléchargement explicite.
         'Content-Disposition': `inline; filename="${nomFichierPreuve(transaction.id, analyse.preuve.mime)}"`,
-        // Un justificatif ne se modifie pas : l'écriture qui le porte est
-        // immuable (on l'annule, on ne la corrige pas). Cache privé et non
-        // partagé — le contenu est soumis aux droits de la comptabilité.
-        'Cache-Control': 'private, max-age=31536000, immutable',
+        // `no-cache` et non plus `immutable` : depuis le 21/09/2026 un
+        // justificatif se remplace à la MÊME adresse (PATCH /api/finance/[id]).
+        // Un an de cache aurait continué d'afficher l'ancienne photo sous la
+        // nouvelle écriture. Privé et non partagé — le contenu est soumis aux
+        // droits de la comptabilité.
+        'Cache-Control': 'private, no-cache',
         // Ceinture et bretelles avec la liste blanche de formats : rien de ce
         // qui sort d'ici ne doit être deviné ni exécuté par le navigateur.
         'X-Content-Type-Options': 'nosniff',

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import type { Role } from '@/app/generated/prisma/enums';
 import { SESSION_COOKIE_NAMES, spaceForHost, type SessionSpace } from '@/lib/spaces';
 import { effectivePermissions } from '@/lib/permissions';
+import { TOUTES_PERMISSIONS_MARCHAND, permissionsDuRole } from '@/lib/permissions-marchand';
 
 // Réduit de 7 jours à 24h : même si `verifySpaceCookie` (ci-dessous) revérifie
 // désormais `Utilisateur.actif` en base à chaque requête pour une révocation
@@ -391,9 +392,44 @@ export interface SessionAuthState {
 export async function getSessionAuthState(userId: string): Promise<SessionAuthState | null> {
   const utilisateur = await prisma.utilisateur.findUnique({
     where: { id: userId },
-    select: { role: true, actif: true, rolesSupplementaires: true, permissions: true },
+    select: {
+      role: true,
+      actif: true,
+      rolesSupplementaires: true,
+      permissions: true,
+      // § Équipe & accès : ne servent qu'aux comptes marchand (cf. plus bas).
+      // Deux relations uniques, lues dans la même requête que le compte.
+      marchand: { select: { id: true } },
+      marchandMembre: {
+        select: { accesExpireLe: true, role: { select: { cle: true, permissions: true } } },
+      },
+    },
   });
   if (!utilisateur) return null;
+
+  // § Équipe & accès — un compte marchand tire ses droits de sa place dans la
+  // boutique, relue ici à chaque requête comme le reste : retirer un droit à
+  // un rôle, suspendre un membre ou laisser expirer son accès s'applique à la
+  // requête suivante, sans attendre la fin du cookie.
+  //   - titulaire : le catalogue entier, toujours ;
+  //   - membre : les permissions de son rôle ; un accès expiré vaut compte
+  //     désactivé (la session est refusée, cf. verifySpaceCookie) ;
+  //   - ni l'un ni l'autre : aucun droit (anomalie de données).
+  if (utilisateur.role === 'marchand') {
+    const membre = utilisateur.marchandMembre;
+    const expire = !!membre?.accesExpireLe && membre.accesExpireLe <= new Date();
+    return {
+      role: utilisateur.role,
+      actif: utilisateur.actif && !expire,
+      extraRoles: utilisateur.rolesSupplementaires,
+      permissions: utilisateur.marchand
+        ? [...TOUTES_PERMISSIONS_MARCHAND]
+        : membre
+          ? permissionsDuRole(membre.role)
+          : [],
+    };
+  }
+
   return {
     role: utilisateur.role,
     actif: utilisateur.actif,

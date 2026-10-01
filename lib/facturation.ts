@@ -4,6 +4,7 @@ import { nextFactureNumero } from '@/lib/codes';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { SourceCoutLivraison, StatutFacture } from '@/app/generated/prisma/enums';
 import { getCoutsPrestataire, type CoutsPrestataire } from '@/lib/prestataires';
+import { idCategorieSysteme } from '@/lib/journal-comptable';
 
 // § Facturation marchand (/admin/factures).
 //
@@ -660,7 +661,8 @@ export async function reglerFacture(
     data: {
       montant: Math.abs(netAPayer),
       type: netAPayer >= 0 ? 'depense' : 'revenu',
-      categorie: 'paiement_client',
+      titre: `Règlement facture ${facture.numero}`,
+      categorieId: await idCategorieSysteme(tx, 'paiement_client'),
       dateEffet: now,
       description: `Règlement facture ${facture.numero} — ${facture.marchand.nomBoutique} (${facture.nbColisLivres} livré(s), ${facture.nbColisRetournes} retourné(s))`,
       auteurId,

@@ -8,6 +8,7 @@ import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from './ColisTrackingModal';
 import { ColisEditModal } from './ColisEditModal';
 import { ActionsMenuPanel, actionsMenuItemClass, actionsMenuItemDangerClass } from '@/components/ActionsMenuPanel';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 export function ColisActionsMenu({
   commande,
@@ -23,6 +24,9 @@ export function ColisActionsMenu({
   champsRestreints?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // § Équipe & accès : Modifier et Supprimer n'apparaissent qu'aux rôles qui
+  // les détiennent (le proxy refuserait de toute façon).
+  const { peut } = usePermissionsMarchand();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [modal, setModal] = useState<'suivi' | 'modifier' | 'supprimer' | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,15 +70,17 @@ export function ColisActionsMenu({
         >
           <MapPinned className="h-4 w-4" /> Suivi du colis
         </button>
-        <button
-          onClick={() => {
-            setOpen(false);
-            setModal('modifier');
-          }}
-          className={actionsMenuItemClass}
-        >
-          <SquarePen className="h-4 w-4" /> Modifier le colis
-        </button>
+        {peut('colis.modifier') && (
+          <button
+            onClick={() => {
+              setOpen(false);
+              setModal('modifier');
+            }}
+            className={actionsMenuItemClass}
+          >
+            <SquarePen className="h-4 w-4" /> Modifier le colis
+          </button>
+        )}
         <button
           onClick={() => {
             setOpen(false);
@@ -84,7 +90,7 @@ export function ColisActionsMenu({
         >
           <Printer className="h-4 w-4" /> Imprimer le ticket
         </button>
-        {commande.statut === 'nouveau_colis' && (
+        {commande.statut === 'nouveau_colis' && peut('colis.supprimer') && (
           <>
             <div className="my-1 border-t border-black/10 dark:border-white/10" />
             <button

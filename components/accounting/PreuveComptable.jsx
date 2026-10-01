@@ -176,7 +176,7 @@ export function ChampPreuve({ etat, libelle = "Justificatif", invite = "Photogra
  *  `omit` côté serveur. */
 export function ModalePreuve({ titre = "Justificatif", legende, url, onClose }) {
   return (
-    <Modal title={titre} size="lg" onClose={onClose}>
+    <Modal title={titre} size="xl" onClose={onClose}>
       <div className="flex flex-col gap-3">
         {legende && <p className="form-hint">{legende}</p>}
         {/* <img> nue : la route de contenu sert des octets déjà stockés,
@@ -203,5 +203,34 @@ export function ModalePreuve({ titre = "Justificatif", legende, url, onClose }) 
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Justificatif DÉJÀ enregistré sur la pièce qu'on modifie. On ne le recharge
+ *  pas dans le formulaire (ce serait rapatrier le base64 pour rien) : on
+ *  propose de le voir, de le garder ou de le retirer, et <ChampPreuve> à côté
+ *  permet de le remplacer. `retire` = il partira à l'enregistrement. */
+export function PreuveExistante({ retire, onBasculer, onVoir }) {
+  return (
+    <div className="form-field sm:col-span-2">
+      <span className="form-label">Justificatif enregistré</span>
+      <div className="flex flex-wrap items-center gap-2">
+        {retire ? (
+          <p className="form-hint">Il sera retiré à l&apos;enregistrement.</p>
+        ) : (
+          <button type="button" className="btn-outline btn-sm" onClick={onVoir}>
+            Voir
+          </button>
+        )}
+        <button type="button" className="btn-ghost btn-sm" onClick={onBasculer}>
+          {retire ? "Le conserver" : (
+            <>
+              <X className="h-3.5 w-3.5" aria-hidden />
+              Retirer
+            </>
+          )}
+        </button>
+      </div>
+    </div>
   );
 }

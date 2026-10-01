@@ -2,6 +2,7 @@ import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { normaliserVille } from '@/lib/hub-stock';
+import { notifierStatutsColis } from '@/lib/notifications';
 import {
   STATUTS_PRESTATAIRE,
   STATUTS_TERMINAUX,
@@ -360,7 +361,7 @@ export async function ecrireTransition(t: TransitionColis): Promise<IssueStatut>
   const { nouveauStatut } = t;
   const commande = { id: t.commandeId, statut: t.statutActuel };
 
-  return prisma.$transaction<IssueStatut>(async (tx) => {
+  const issue = await prisma.$transaction<IssueStatut>(async (tx) => {
     // VERROU OPTIMISTE : la mise à jour n'aboutit que si le statut n'a pas
     // bougé depuis la lecture ci-dessus.
     //
@@ -442,6 +443,15 @@ export async function ecrireTransition(t: TransitionColis): Promise<IssueStatut>
 
     return 'applique';
   });
+
+  // § Notifications : point de passage de TOUS les statuts déclarés par une
+  // machine (API v1 des transporteurs, webhooks et rattrapage Power
+  // Delivery). Seulement si la transition a eu lieu : un « inchangé » (double
+  // envoi, rejeu du rattrapage) ne doit pas réannoncer un refus au marchand.
+  if (issue === 'applique') {
+    await notifierStatutsColis([{ commandeId: t.commandeId, statut: nouveauStatut }]);
+  }
+  return issue;
 }
 
 function noteHistorique(plateformeCode: string, entree: EntreeStatut): string {

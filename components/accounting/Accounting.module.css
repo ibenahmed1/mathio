@@ -315,12 +315,15 @@
 
 /* défilement horizontal : les colonnes ne sont jamais rognées */
 .tableScroll { overflow-x: auto; margin-top: 2px; }
-.tableInner { min-width: 750px; }
+.tableInner { min-width: 780px; }
 
 .thead,
 .tr {
   display: grid;
-  grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 56px 34px;
+  /* Date · Transaction · Auteur · Type · État · Preuve · Montant · chevron —
+     le montant en dernier et aligné à droite, là où l'œil compare les
+     chiffres ; le chevron dit qu'un clic ouvre la fiche. */
+  grid-template-columns: 92px minmax(180px, 1.6fr) minmax(90px, .8fr) 84px 118px 52px 116px 16px;
   gap: 8px;
   align-items: center;
 }
@@ -334,16 +337,27 @@
   white-space: nowrap;
 }
 .thEnd { text-align: right; }
+.thCenter { text-align: center; }
 
 .tbody { display: flex; flex-direction: column; }
 
 .tr {
-  padding: 9px 6px;
+  padding: 11px 6px;
   border-radius: 10px;
-  transition: background .15s;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
 }
+.tr + .tr { margin-top: 2px; }
 .trAlt { background: rgba(255,209,0,.05); }
-.tr:hover { background: rgba(255,209,0,.12); }
+.tr:hover { background: rgba(255,209,0,.10); }
+.tr:focus-visible { outline: 2px solid var(--mt-yellow); outline-offset: -2px; }
+/* Ligne dont la fiche est ouverte : on la retrouve en refermant la fiche. */
+.trSelection,
+.trSelection:hover {
+  background: rgba(255,209,0,.22);
+  border-color: var(--mt-yellow);
+}
 
 .td { font-size: 11px; color: var(--mt-ink-3); }
 .tdId { font-size: 11px; font-weight: 700; color: var(--mt-muted); }
@@ -411,7 +425,10 @@
    .form-* de app/globals.css, comme tous les formulaires du système. */
 
 .rowMenu {
-  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
   width: 26px;
   height: 26px;
   border: none;
@@ -427,16 +444,14 @@
 /* ---------- Tactile ----------
    Les boutons d'action portent les classes .btn-* du système, dont
    app/globals.css relève déjà la hauteur sous `pointer: coarse`. Restent ici
-   les seuls éléments propres au module : le bouton d'annulation de ligne, et
+   les seuls éléments propres au module : les boutons d'icône (catégories), et
    la recherche qui passe à 16 px — en dessous, iOS zoome la page à la prise de
-   focus. La dernière colonne de la table suit la largeur du bouton. */
+   focus. */
 @media (pointer: coarse) {
   .rowMenu { width: 40px; height: 40px; }
   /* Menu de statut : cible tactile, et 16 px pour que iOS ne zoome pas la
      page à l'ouverture — même raison que la recherche ci-dessous. */
   .statutSelect { min-height: 36px; font-size: 16px; padding: 4px 28px 4px 12px; background-size: 12px; background-position: right 10px center; }
-  .thead,
-  .tr { grid-template-columns: 88px minmax(140px, 1.2fr) 92px 104px 84px 84px 56px 40px; }
   .searchInput { font-size: 16px; }
 }
 
@@ -467,4 +482,210 @@
   /* Même cible tactile que le bouton d'annulation de ligne : 26 px se rate au
      doigt, et une preuve qu'on n'arrive pas à ouvrir ne prouve rien. */
   .preuveBtn { width: 36px; height: 36px; }
+}
+
+/* Bouton d'icône « danger » (fenêtre des catégories). */
+.rowMenuDanger:hover { background: var(--mt-warn-bg); color: var(--mt-warn-fg); }
+
+/* Catégorie (et origine « auto ») sous le titre d'une écriture. */
+.tdSub {
+  font-size: 10px;
+  color: var(--mt-muted-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Avertissement en tête d'un formulaire : écriture automatique dont le
+   document d'origine ne sera pas recalculé, compensation qui suivra. */
+.avertissement {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-fg);
+}
+
+.orderActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+/* ---------- Fenêtre des catégories ---------- */
+.onglets { display: flex; gap: 6px; flex-wrap: wrap; }
+.onglet, .ongletActif {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--mt-line-2);
+  background: transparent;
+  color: var(--mt-muted);
+  cursor: pointer;
+}
+.ongletActif { background: var(--mt-yellow); border-color: var(--mt-yellow); color: #202020; }
+
+.categorieListe { display: flex; flex-direction: column; gap: 2px; max-height: 50dvh; overflow-y: auto; }
+.categorieLigne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+.categorieLigne:hover { background: rgba(255,209,0,.08); }
+.categorieNom {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mt-ink);
+}
+.categorieCompte { font-size: 11px; color: var(--mt-muted-2); white-space: nowrap; }
+
+/* ---------- Historique ---------- */
+.histoListe { display: flex; flex-direction: column; gap: 10px; max-height: 60dvh; overflow-y: auto; }
+.histoLigne { padding: 10px 12px; border: 1px solid var(--mt-line-3); border-radius: 12px; }
+.histoTete { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.histoChamps { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.histoChamp { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.histoAvant { text-decoration: line-through; opacity: .6; }
+
+
+/* ---------- Actions de page (en-tête) ----------
+   Par ordre d'importance, de droite à gauche : l'action principale (jaune) en
+   bout de ligne, là où l'œil finit sa lecture de l'en-tête. */
+.pageActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  .pageActions { width: 100%; }
+  .pageActions > :global(.btn-primary) { flex: 1 1 100%; justify-content: center; order: -1; }
+}
+
+/* Bascule Journal / Corbeille : un contrôle segmenté, pour que la vue en
+   cours se lise sans cliquer. */
+.vueBascule {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 12px;
+  background: var(--mt-surface-2);
+  border: 1px solid var(--mt-line-2);
+}
+.vueOption, .vueOptionActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--mt-muted);
+  cursor: pointer;
+}
+.vueOptionActive { background: var(--mt-surface); color: var(--mt-ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+.bandeauCorbeille {
+  font-size: 12.5px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--mt-warn-bg);
+  color: var(--mt-warn-fg);
+}
+
+/* ---------- Filtres du journal ---------- */
+.filtres { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.filtre, .filtreActif {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 6px 11px;
+  border-radius: 20px;
+  border: 1px solid var(--mt-line-2);
+  background: transparent;
+  color: var(--mt-muted);
+  cursor: pointer;
+}
+.filtre:hover { border-color: var(--mt-yellow); color: var(--mt-ink); }
+.filtreActif { background: var(--mt-ink); border-color: var(--mt-ink); color: var(--mt-surface); }
+
+/* ---------- Cellules ---------- */
+.tdMontant { text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tdSub { display: flex; align-items: center; gap: 6px; }
+.chipAuto {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 20px;
+  background: rgba(255,209,0,.22);
+  color: var(--mt-ink-3);
+  white-space: nowrap;
+}
+.etatActif { font-size: 10.5px; color: var(--mt-muted-3); }
+
+/* Supprimer, dans le pied d'une carte de commande : rouge au survol, pour
+   qu'on ne le confonde pas avec ses voisins. */
+.actionDanger:hover { color: var(--mt-warn-fg); background: var(--mt-warn-bg); }
+
+.trChevron { width: 14px; height: 14px; color: var(--mt-muted-3); transition: transform .15s, color .15s; }
+.tr:hover .trChevron { color: var(--mt-ink); transform: translateX(2px); }
+
+/* ---------- Fiche d'une transaction (DetailTransaction) ---------- */
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--mt-line-3);
+}
+.detailMontantBloc { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.detailMontant { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
+.detailGrille {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+}
+/* La fenêtre `xl` fait ~1000 px : quatre informations par ligne au large,
+   deux sur un écran moyen, une au téléphone. */
+@media (min-width: 900px) {
+  .detailGrille { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .detailGrille { grid-template-columns: minmax(0, 1fr); }
+}
+.detailInfo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.detailInfoLarge { grid-column: 1 / -1; }
+.detailValeur { font-size: 13.5px; color: var(--mt-ink); overflow-wrap: anywhere; }
+.detailSection {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: var(--mt-muted-2);
+}
+.lienDetail {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--mt-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--mt-yellow);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  text-align: left;
 }

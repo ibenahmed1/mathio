@@ -34,6 +34,8 @@ export async function GET(request: Request) {
     const marchandises = await prisma.marchandise.findMany({
       where: { marchandId },
       orderBy: { nom: 'asc' },
+      // Tags « Shopify » / « YouCan » de la liste (§ intégrations boutique).
+      include: { shopify: { select: { sku: true } }, youcan: { select: { sku: true } } },
     });
     return NextResponse.json({ data: marchandises });
   } catch (error) {

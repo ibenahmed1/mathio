@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import ComptabiliteBoard from "@/components/accounting/ComptabiliteBoard";
-import { SidebarToggleButtons } from "@/components/admin/SidebarToggleButtons";
 import a from "@/components/accounting/Accounting.module.css";
 import { getPageSession } from "@/lib/auth";
 
@@ -22,16 +21,16 @@ export default async function ComptabiliteAdminPage() {
     <div className={a.pageGlow}>
       <div className={a.pageGlowInner}>
         <div className={a.pageRoot}>
-          {/* ---------- En-tête ---------- */}
-          <header className={a.pageHead}>
-            <div className={a.titleRow}>
-              <SidebarToggleButtons className={a.sidebarToggle} />
-              <h1 className="page-title">Comptabilité &amp; paie</h1>
-            </div>
-          </header>
-
-          {/* ---------- Grille comptabilité ---------- */}
-          <ComptabiliteBoard />
+          {/* En-tête ET grille sont rendus par ComptabiliteBoard : les actions
+              de page (nouvelle transaction, corbeille…) pilotent les cartes, il
+              faut qu'elles vivent dans le même composant client qu'elles.
+              Modifier et supprimer ont leurs propres permissions, réservées à
+              l'admin par défaut : on ne montre pas au responsable des boutons
+              que l'API lui refuserait. */}
+          <ComptabiliteBoard
+            peutModifier={session.permissions.includes("comptabilite:edit")}
+            peutSupprimer={session.permissions.includes("comptabilite:delete")}
+          />
         </div>
       </div>
     </div>

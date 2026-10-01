@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import { analyserPreuveComptable, nomFichierPreuve } from '@/lib/finance';
 
 // Justificatif d'une commande d'inventaire (§ /admin/comptabilite, carte
@@ -16,18 +17,19 @@ import { analyserPreuveComptable, nomFichierPreuve } from '@/lib/finance';
 // `/api/commandes-stock-hub/**` → `comptabilite:read` (méthodes sûres) de
 // lib/permission-routes.ts — pas d'entrée à ajouter, elle vaut pour les
 // sous-routes.
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
+// Une boutique n'ouvre que les justificatifs de SES commandes
+// (perimetreComptable).
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser([...ROLES_COMPTABILITE]);
+    const { marchandId } = await perimetreComptable('lecture');
     const { id } = await params;
 
     const commande = await prisma.commandeStockHub.findUnique({
       where: { id },
-      select: { id: true, numero: true, preuveUrl: true },
+      select: { id: true, numero: true, preuveUrl: true, marchandId: true },
     });
-    if (!commande) throw new ApiError(404, 'Commande introuvable');
+    if (!commande || commande.marchandId !== marchandId) throw new ApiError(404, 'Commande introuvable');
     // Une commande sans justificatif n'est pas une anomalie (la preuve est
     // facultative) : c'est bien 404, la ressource demandée n'existe pas.
     if (!commande.preuveUrl) throw new ApiError(404, 'Cette commande n\'a pas de justificatif');
@@ -45,7 +47,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         // Le nom porte le numéro de bordereau (BC-…) et non l'UUID : c'est sous
         // cette référence que la pièce sera classée dans un dossier comptable.
         'Content-Disposition': `inline; filename="${nomFichierPreuve(`BC-${commande.numero}`, analyse.preuve.mime)}"`,
-        'Cache-Control': 'private, max-age=31536000, immutable',
+        // Remplaçable à la même adresse (PATCH /api/commandes-stock-hub/[id]) :
+        // pas de cache long, même raison que le justificatif d'une écriture.
+        'Cache-Control': 'private, no-cache',
         // Ceinture et bretelles avec la liste blanche de formats : rien de ce
         // qui sort d'ici ne doit être deviné ni exécuté par le navigateur.
         'X-Content-Type-Options': 'nosniff',

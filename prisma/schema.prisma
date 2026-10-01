@@ -246,16 +246,26 @@ enum TypeTransaction {
   depense
 }
 
-// Catégorie d'origine ou de destination de l'argent — liste fermée pour
-// garder des totaux comparables d'une écriture à l'autre (cf. lib/finance.ts
-// pour les libellés affichés).
-enum CategorieTransaction {
-  paiement_client
-  frais_livraison
-  abonnement_outil
-  salaire
-  remboursement
-  autre
+// À quelle carte de /admin/comptabilite une CategorieComptable s'applique. Les
+// deux listes sont tenues séparément : « Salaire » n'a pas de sens pour une
+// commande de rayonnage, « Mobilier » n'en a pas pour une écriture de caisse.
+enum PorteeCategorieComptable {
+  transaction
+  commande_stock_hub
+}
+
+// Objet visé par une ligne d'HistoriqueComptable.
+enum CibleHistoriqueComptable {
+  transaction
+  commande_stock_hub
+  categorie
+}
+
+enum ActionHistoriqueComptable {
+  creation
+  modification
+  suppression
+  restauration
 }
 
 // ============================================================
@@ -358,8 +368,21 @@ model Utilisateur {
   // n'en ont pas l'usage et gardent une liste vide.
   permissions String[] @default([])
 
-  marchand       Marchand?
-  marchandMembre MarchandMembre?
+  // § Notifications (NOTIFICATIONS.md) : types dont ce compte a coupé le PUSH
+  // (clés du catalogue de lib/notifications-catalogue.ts). La cloche, elle,
+  // reçoit tout, toujours : elle fait foi, le push n'est qu'un canal de plus.
+  // Même choix que `permissions` ci-dessus — texte libre et non enum, pour que
+  // chaque nouveau type d'événement ne coûte pas une migration.
+  pushCoupes    String[]       @default([]) @map("push_coupes")
+  notifications Notification[]
+  appareilsPush AppareilPush[]
+
+  marchand            Marchand?
+  marchandMembre      MarchandMembre?
+  // § Équipe & accès : membres qu'il a fait entrer dans une boutique, et
+  // gestes d'équipe qu'il a effectués.
+  membresAjoutes      MarchandMembre[]        @relation("MembreAjoutePar")
+  journalEquipeAuteur JournalEquipeMarchand[] @relation("JournalEquipeAuteur")
 
   historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
   historiqueProduits HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
@@ -389,8 +412,13 @@ model Utilisateur {
   piecesJointesTaches     PieceJointeTache[]      @relation("PieceJointeTacheAuteur")
 
   // Comptabilité (§ /admin/comptabilite) : auteur des écritures qu'il a saisies.
-  transactions      Transaction[]      @relation("TransactionAuteur")
-  commandesStockHub CommandeStockHub[] @relation("CommandeStockHubAuteur")
+  transactions                Transaction[]         @relation("TransactionAuteur")
+  commandesStockHub           CommandeStockHub[]    @relation("CommandeStockHubAuteur")
+  // … et celles qu'il a supprimées (suppression logique), plus la trace de
+  // toutes ses modifications — voir HistoriqueComptable.
+  transactionsSupprimees      Transaction[]         @relation("TransactionSupprimeePar")
+  commandesStockHubSupprimees CommandeStockHub[]    @relation("CommandeStockHubSupprimeePar")
+  historiqueComptable         HistoriqueComptable[] @relation("HistoriqueComptableAuteur")
 
   // § Power Delivery : remises de colis qu'il a déclenchées.
   remisesPrestataire RemisePrestataire[] @relation("RemisePrestataireAuteur")
@@ -585,26 +613,43 @@ model Marchand {
   bonsPreparation BonDePreparation[]
   marchandises    Marchandise[]
   membres         MarchandMembre[]
+  // § Équipe & accès (/marchand/equipe) : rôles propres à la boutique et
+  // journal des gestes d'administration de l'équipe.
+  rolesEquipe     RoleMarchand[]
+  journalEquipe   JournalEquipeMarchand[]
   reclamations    Reclamation[]
   produits        Produit[]
   tarifsVilles    TarifMarchandVille[]
   factures        Facture[]
   bonsRetour      BonRetour[]
 
+  // § Comptabilité de la boutique (/marchand/comptabilite) : mêmes tables que
+  // les livres de la plateforme, cloisonnées par marchandId.
+  transactions          Transaction[]
+  commandesInventaire   CommandeStockHub[]
+  categoriesComptables  CategorieComptable[]
+  historiqueComptable   HistoriqueComptable[]
+
   // § Plateformes partenaires : canaux de vente depuis lesquels ce marchand
   // nous est arrivé (ou auxquels il a été rattaché après coup s'il s'était
   // déjà inscrit en direct). Vide pour l'immense majorité des marchands.
   comptesExternes CompteMarchandExterne[]
 
+  // § Intégration Shopify : la boutique connectée par ce marchand, s'il en a
+  // une (cf. BoutiqueShopify).
+  boutiqueShopify BoutiqueShopify?
+  // § Intégration YouCan : idem pour une boutique YouCan (cf. BoutiqueYoucan).
+  boutiqueYoucan  BoutiqueYoucan?
+
   @@map("marchands")
 }
 
-// RF : le titulaire du compte marchand (Marchand.utilisateurId) peut inviter
-// d'autres comptes Utilisateur (role "marchand") à accéder à sa boutique —
-// ex. un employé qui gère les colis sans être le titulaire légal. L'accès est
-// total sur les données de la boutique (pas de permissions fines pour ce
-// scénario) : voir lib/marchand-scope.ts, résolu en plus du propriétaire
-// direct sur toutes les routes marchand.
+// RF : le titulaire du compte marchand (Marchand.utilisateurId) donne accès à
+// sa boutique à d'autres comptes Utilisateur (role "marchand") — ex. un
+// employé qui gère les colis sans être le titulaire légal. Le périmètre de
+// DONNÉES est celui de la boutique (lib/marchand-scope.ts) ; ce que le membre
+// peut y FAIRE est gouverné par son rôle (§ RoleMarchand,
+// lib/permissions-marchand.ts), appliqué par le proxy sur l'hôte marchand.
 model MarchandMembre {
   id            String      @id @default(uuid())
   marchandId    String      @map("marchand_id")
@@ -613,8 +658,89 @@ model MarchandMembre {
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
   dateAjout     DateTime    @default(now()) @map("date_ajout")
 
+  // Rôle dans la boutique — obligatoire : un membre sans rôle n'aurait aucun
+  // droit lisible, et « pas de rôle = tout » serait la pire des lectures.
+  // `Restrict` : un rôle encore porté ne se supprime pas (l'API propose de
+  // réaffecter ses membres d'abord).
+  roleId String       @map("role_id")
+  role   RoleMarchand @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  // Intitulé libre (« Responsable logistique ») — affichage seulement,
+  // n'accorde rien.
+  poste String?
+
+  modeAjout            ModeAjoutMembre @default(manuel) @map("mode_ajout")
+  // Renseigné quand l'invité a choisi son mot de passe par le lien reçu
+  // (POST /api/auth/reinitialiser-mot-de-passe). Tant qu'il est nul pour un
+  // membre invité, l'invitation est « en attente ».
+  invitationAccepteeLe DateTime?       @map("invitation_acceptee_le")
+
+  // Accès temporaire (stagiaire, renfort de saison) : passé cette date, la
+  // session est refusée comme celle d'un compte désactivé (cf.
+  // getSessionAuthState). Nul = sans limite.
+  accesExpireLe DateTime? @map("acces_expire_le")
+
+  // Qui l'a fait entrer dans l'équipe (titulaire ou membre délégué).
+  ajoutePar  String?      @map("ajoute_par")
+  ajouteParU Utilisateur? @relation("MembreAjoutePar", fields: [ajoutePar], references: [id])
+
   @@index([marchandId])
+  @@index([roleId])
   @@map("marchand_membres")
+}
+
+enum ModeAjoutMembre {
+  // Compte créé avec un mot de passe choisi par la personne qui l'ajoute.
+  manuel
+  // Compte créé sans mot de passe utilisable ; l'invité le choisit via un
+  // lien d'activation valable 7 jours (INVITATION_TOKEN_TTL_MS).
+  invitation
+}
+
+// Rôle d'équipe propre à UNE boutique. Deux familles :
+//   - prédéfini (`cle` renseignée : administrateur, gestionnaire…) : créé à la
+//     volée, ni modifiable ni supprimable, ses permissions sont lues dans le
+//     code (ROLES_SYSTEME_MARCHAND) et non dans `permissions` ;
+//   - personnalisé (`cle` nulle) : créé par la boutique, permissions stockées.
+// Les clés sont celles de lib/permissions-marchand.ts, en texte libre pour la
+// même raison que Utilisateur.permissions (le catalogue évolue avec les
+// écrans) ; les inconnues sont ignorées à la lecture.
+model RoleMarchand {
+  id               String   @id @default(uuid())
+  marchandId       String   @map("marchand_id")
+  marchand         Marchand @relation(fields: [marchandId], references: [id])
+  nom              String
+  description      String?
+  cle              String?
+  permissions      String[] @default([])
+  dateCreation     DateTime @default(now()) @map("date_creation")
+  dateModification DateTime @updatedAt @map("date_modification")
+
+  membres MarchandMembre[]
+
+  @@unique([marchandId, nom])
+  @@unique([marchandId, cle])
+  @@map("roles_marchand")
+}
+
+// Journal des gestes d'administration de l'équipe d'une boutique (ajout,
+// invitation, changement de rôle, suspension, retrait, rôles créés…). Ne
+// trace PAS l'activité métier (colis, bons) : elle a déjà ses historiques.
+model JournalEquipeMarchand {
+  id         String      @id @default(uuid())
+  marchandId String      @map("marchand_id")
+  marchand   Marchand    @relation(fields: [marchandId], references: [id])
+  auteurId   String      @map("auteur_id")
+  auteur     Utilisateur @relation("JournalEquipeAuteur", fields: [auteurId], references: [id])
+  action     String
+  // Libellé figé au moment du geste (nom du membre ou du rôle) : il doit
+  // rester lisible après la suppression ou le renommage de la cible.
+  cible      String?
+  details    String?
+  horodatage DateTime    @default(now())
+
+  @@index([marchandId, horodatage])
+  @@map("journal_equipe_marchand")
 }
 
 // Catalogue produit propre à chaque marchand (§ dropdown "Marchandise" du
@@ -630,6 +756,12 @@ model Marchandise {
   dateCreation DateTime @default(now()) @map("date_creation")
 
   commandes Commande[]
+
+  // § Intégration Shopify : renseigné quand cette marchandise a été importée
+  // d'une boutique Shopify — c'est ce lien qui porte le tag « Shopify ».
+  shopify MarchandiseShopify?
+  // § Intégration YouCan : idem pour une boutique YouCan (tag « YouCan »).
+  youcan  MarchandiseYoucan?
 
   @@unique([marchandId, nom])
   @@index([marchandId])
@@ -912,6 +1044,12 @@ model Commande {
   // une seule active à la fois (cf. RemisePrestataire).
   remisesPrestataire RemisePrestataire[]
 
+  // § Intégration Shopify : la commande Shopify dont ce colis est issu. Porte
+  // le tag « Shopify » et l'idempotence des webhooks (cf. CommandeShopify).
+  shopify CommandeShopify?
+  // § Intégration YouCan : idem pour une commande YouCan (cf. CommandeYoucan).
+  youcan  CommandeYoucan?
+
   // Garde-fou anti-doublon import (bug rapporté : réimporter le même fichier
   // ne remonte aucune erreur et duplique les colis) — un même marchand ne
   // peut pas avoir deux commandes avec la même référence partenaire. NULL
@@ -1008,8 +1146,8 @@ enum StatutBonEnvoi {
 // !== hub actuel du colis, cf. lib/hub-envoi.ts) — il n'y a plus de "Hub
 // Central" privilégié pour ce flux.
 model BonEnvoi {
-  id               String         @id @default(uuid())
-  numero           String         @unique
+  id     String @id @default(uuid())
+  numero String @unique
 
   // DEUX NATURES DE BON, MUTUELLEMENT EXCLUSIVES — exactement une des deux
   // colonnes ci-dessous est renseignée, jamais les deux, jamais aucune :
@@ -1032,10 +1170,10 @@ model BonEnvoi {
   // migration — Prisma ne sait pas l'exprimer ici, même procédé que l'index
   // partiel de RemisePrestataire. Sans lui, un bon pourrait viser un quai ET un
   // transporteur, et plus rien ne dirait où part le colis.
-  hubDestinationId String?        @map("hub_destination_id")
-  hubDestination   Hub?           @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
-  prestataireId    String?        @map("prestataire_id")
-  prestataire      Prestataire?   @relation(fields: [prestataireId], references: [id])
+  hubDestinationId String?      @map("hub_destination_id")
+  hubDestination   Hub?         @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+  prestataireId    String?      @map("prestataire_id")
+  prestataire      Prestataire? @relation(fields: [prestataireId], references: [id])
 
   // Sur un bon sous-traité, 'recu' ne dit pas « arrivé à un quai à nous » mais
   // « pris en charge par le transporteur » : les colis restent en_transit, et
@@ -1662,10 +1800,10 @@ model EquipeTacheMembre {
 // DELETE /api/taches/etiquettes/[id]), sinon les tableaux garderaient des
 // codes fantômes qu'aucune couleur ne saurait peindre.
 model EtiquetteTache {
-  id String @id @default(uuid())
+  id           String   @id @default(uuid())
   // Identifiant lisible et stable, dérivé du nom à la création.
-  code String @unique
-  nom  String
+  code         String   @unique
+  nom          String
   // Clé de la palette de chips (design, frontend, backend, research, bug,
   // docs) consommée côté UI — jamais une valeur CSS brute, même convention
   // qu'EquipeTache.couleur.
@@ -1781,16 +1919,40 @@ model CommentaireTache {
 // Écriture comptable unique (revenu ou dépense) — accès restreint à
 // admin/responsable (cf. requireUser dans app/api/finance/**). Montant
 // toujours positif ; le signe affiché côté UI dépend uniquement de `type`.
-// Immuable une fois créée : pas de PATCH/DELETE, seule une transaction de
-// compensation (annulation) peut neutraliser une écriture — cf. estAnnulee /
-// transactionOrigineId, qui portent la traçabilité d'audit plutôt qu'une
-// suppression physique.
+//
+// MODIFIABLE ET SUPPRIMABLE depuis le 21/09/2026, par décision métier : elle
+// était immuable jusque-là (seule l'annulation par compensation existait), et
+// le comptable ne pouvait corriger ni une faute de frappe ni un doublon. Deux
+// garde-fous remplacent l'immuabilité :
+//   - toute modification, suppression ou restauration est tracée, avant/après,
+//     dans HistoriqueComptable ;
+//   - la suppression est LOGIQUE (supprimeLe) : la ligne sort du journal et
+//     des totaux mais reste en base, restaurable.
+// Réservé aux permissions comptabilite:edit / comptabilite:delete (admin par
+// défaut) ; le responsable garde saisie et annulation. Les règles de
+// cohérence avec l'annulation vivent dans lib/journal-comptable.ts.
+//
+// Les écritures AUTOMATIQUES (remise de tournée, règlement de facture, paie
+// livreur — cf. les relations plus bas) sont modifiables elles aussi, par
+// choix explicite : le document d'origine n'est PAS recalculé. Corriger le
+// montant d'une remise de caisse ne change pas BonDistribution.montantRemis ;
+// l'écart devient visible entre les deux, c'est le prix de ce contrôle total.
 model Transaction {
-  id          String               @id @default(uuid())
-  montant     Decimal              @db.Decimal(10, 2)
+  id          String             @id @default(uuid())
+  // Libellé court affiché en tête de ligne du journal. Obligatoire : c'est
+  // lui qu'on cherche et qu'on lit, la description porte le détail. Les
+  // écritures antérieures à la colonne ont reçu un titre dérivé de leur
+  // origine (migration 20260921120000).
+  titre       String
+  montant     Decimal            @db.Decimal(10, 2)
   type        TypeTransaction
-  categorie   CategorieTransaction
-  dateEffet   DateTime             @map("date_effet")
+  // Catégorie tenue en base (CategorieComptable, portée `transaction`) — elle
+  // était un enum figé jusqu'au 21/09/2026. `onDelete: Restrict` : une
+  // catégorie encore portée par une écriture, même supprimée logiquement, ne
+  // se supprime pas (la restaurer la laisserait sans catégorie).
+  categorieId String             @map("categorie_id")
+  categorie   CategorieComptable @relation("CategorieTransaction", fields: [categorieId], references: [id], onDelete: Restrict)
+  dateEffet   DateTime           @map("date_effet")
   description String?
 
   // Justificatif photo de l'écriture (reçu, bordereau de versement, capture
@@ -1812,7 +1974,7 @@ model Transaction {
   // chaque ouverture de /admin/comptabilite — d'où le `omit` de
   // GET /api/finance, qui n'expose qu'un pointeur vers la route de contenu
   // (GET /api/finance/[id]/preuve), laquelle sert l'octet à la demande.
-  preuveUrl   String?              @map("preuve_url")
+  preuveUrl String? @map("preuve_url")
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("TransactionAuteur", fields: [auteurId], references: [id])
@@ -1836,12 +1998,96 @@ model Transaction {
   factureReglee Facture?     @relation("TransactionReglementMarchand")
   bonPaiement   BonPaiement? @relation("TransactionReglementLivreur")
 
+  // Suppression LOGIQUE : non-null = la ligne est hors du journal et des
+  // totaux. Toute lecture du journal filtre `supprimeLe: null`. Supprimer une
+  // écriture annulée supprime avec elle sa compensation, AU MÊME INSTANT —
+  // c'est cette égalité qui permet de les restaurer ensemble.
+  supprimeLe    DateTime?    @map("supprime_le")
+  supprimeParId String?      @map("supprime_par_id")
+  supprimePar   Utilisateur? @relation("TransactionSupprimeePar", fields: [supprimeParId], references: [id])
+
+  // Livre auquel appartient l'écriture (§ lib/comptabilite-perimetre.ts) :
+  // `null` = les livres de la PLATEFORME (/admin/comptabilite), renseigné = la
+  // comptabilité privée d'une boutique (/marchand/comptabilite). Chaque
+  // lecture filtre sur ce champ, totaux compris.
+  marchandId String?   @map("marchand_id")
+  marchand   Marchand? @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
   dateCreation DateTime @default(now()) @map("date_creation")
 
+  @@index([marchandId])
   @@index([type])
-  @@index([categorie])
+  @@index([categorieId])
   @@index([dateEffet])
+  @@index([supprimeLe])
   @@map("transactions")
+}
+
+// Catégories des deux cartes de /admin/comptabilite, tenues en base et
+// gérées depuis l'écran — même démarche qu'EtiquetteTache : ajouter une
+// catégorie ne demande plus un déploiement.
+//
+// `code` n'est renseigné que sur les catégories que le CODE référence : les
+// écritures automatiques s'y rattachent par code (paiement_client pour la
+// remise de tournée et le règlement de facture, salaire pour la paie
+// livreur, cf. CODES_CATEGORIE_SYSTEME dans lib/finance.ts). Une catégorie à
+// code se renomme mais ne se supprime pas : sans elle, clôturer une tournée
+// échouerait. Les catégories créées depuis l'écran ont un code `null`.
+model CategorieComptable {
+  id     String                   @id @default(uuid())
+  nom    String
+  portee PorteeCategorieComptable
+  code   String?                  @unique
+
+  transactions      Transaction[]      @relation("CategorieTransaction")
+  commandesStockHub CommandeStockHub[] @relation("CategorieCommandeStockHub")
+
+  // Chaque livre a SES catégories : une boutique ne voit ni ne choisit celles
+  // de la plateforme, et inversement. Les catégories d'une boutique n'ont
+  // jamais de `code` (aucune écriture automatique ne s'y range) ; elles sont
+  // créées à sa première visite (assurerCategoriesParDefaut).
+  marchandId String?   @map("marchand_id")
+  marchand   Marchand? @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  dateCreation DateTime @default(now()) @map("date_creation")
+
+  // Unicité par livre et par carte. Côté plateforme (`marchandId` NULL),
+  // Postgres tient les NULL pour distincts : l'index ne départage plus deux
+  // catégories de même nom, c'est l'application qui le fait (refuserDoublon,
+  // insensible à la casse, lib/journal-comptable.ts) — comme elle le faisait
+  // déjà pour « salaire » / « Salaire ».
+  @@unique([marchandId, portee, nom])
+  @@map("categories_comptables")
+}
+
+// Trace de chaque manipulation d'une pièce comptable depuis l'écran :
+// modification, suppression, restauration (et création pour les catégories,
+// qui n'ont pas d'auteur propre). `avant` / `apres` portent un INSTANTANÉ des
+// champs métier, sans le justificatif : on note sa présence (`preuve: true`),
+// jamais son base64 — l'historique d'une écriture n'a pas à peser trois fois
+// sa photo.
+//
+// `cibleId` n'est pas une clé étrangère : la cible peut être une transaction,
+// une commande ou une catégorie, et la trace d'une catégorie supprimée doit
+// survivre à sa ligne.
+model HistoriqueComptable {
+  id         String                    @id @default(uuid())
+  cibleType  CibleHistoriqueComptable  @map("cible_type")
+  cibleId    String                    @map("cible_id")
+  action     ActionHistoriqueComptable
+  avant      Json?
+  apres      Json?
+  auteurId   String                    @map("auteur_id")
+  auteur     Utilisateur               @relation("HistoriqueComptableAuteur", fields: [auteurId], references: [id])
+  dateAction DateTime                  @default(now()) @map("date_action")
+
+  // Livre de la pièce tracée — même règle que Transaction.marchandId : une
+  // boutique ne lit que l'historique de ses propres pièces.
+  marchandId String?   @map("marchand_id")
+  marchand   Marchand? @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  @@index([cibleType, cibleId])
+  @@map("historique_comptable")
 }
 
 // ============================================================
@@ -1900,14 +2146,38 @@ model CommandeStockHub {
   // CONSÉQUENCE, identique : ne JAMAIS sélectionner cette colonne pour dresser
   // la liste des commandes. GET /api/commandes-stock-hub l'écarte par `omit` et
   // n'expose qu'un pointeur vers sa route de contenu.
-  preuveUrl    String?                @map("preuve_url")
+  preuveUrl String? @map("preuve_url")
+
+  // Catégorie de l'achat (CategorieComptable, portée `commande_stock_hub`).
+  // FACULTATIVE : les commandes saisies avant le 21/09/2026 n'en ont pas, et
+  // leur en inventer une fausserait les regroupements.
+  categorieId String?             @map("categorie_id")
+  categorie   CategorieComptable? @relation("CategorieCommandeStockHub", fields: [categorieId], references: [id], onDelete: Restrict)
 
   auteurId String      @map("auteur_id")
   auteur   Utilisateur @relation("CommandeStockHubAuteur", fields: [auteurId], references: [id])
 
+  // Suppression LOGIQUE, même règle que Transaction.supprimeLe : la commande
+  // sort de la liste, reste en base, et se restaure. Titre, montant, date et
+  // le reste se modifient depuis l'écran (comptabilite:edit), traces dans
+  // HistoriqueComptable ; le STATUT, lui, continue de suivre son cycle
+  // (lib/commandes-stock-hub.ts) par sa propre route.
+  supprimeLe    DateTime?    @map("supprime_le")
+  supprimeParId String?      @map("supprime_par_id")
+  supprimePar   Utilisateur? @relation("CommandeStockHubSupprimeePar", fields: [supprimeParId], references: [id])
+
+  // Livre auquel appartient la commande (§ lib/comptabilite-perimetre.ts) :
+  // `null` = les livres de la PLATEFORME (/admin/comptabilite), renseigné = la
+  // comptabilité privée d'une boutique (/marchand/comptabilite). Chaque
+  // lecture filtre sur ce champ, totaux compris.
+  marchandId String?   @map("marchand_id")
+  marchand   Marchand? @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
   dateCreation DateTime @default(now()) @map("date_creation")
 
+  @@index([marchandId])
   @@index([statut])
+  @@index([supprimeLe])
   @@map("commandes_stock_hub")
 }
 
@@ -2628,4 +2898,345 @@ model JournalAppelApi {
   @@index([plateformeId, horodatage])
   @@index([reference])
   @@map("journal_appels_api")
+}
+
+// ============================================================
+// Intégration Shopify (§ INTEGRATION_SHOPIFY.md)
+// ============================================================
+//
+// Un marchand connecte SA boutique Shopify depuis /marchand/integrations ;
+// chaque commande qu'elle reçoit nous arrive ensuite par webhook et devient un
+// colis dans son espace. C'est un flux ENTRANT, comme Shipeh, mais sans
+// plateforme intermédiaire : le tiers est la boutique du marchand elle-même,
+// et c'est le marchand — pas un admin — qui branche le tuyau.
+//
+// Même parti que pour les plateformes partenaires : AUCUNE colonne ajoutée sur
+// `commandes`, `marchandises` ni `marchands`. Tout ce qui est propre à Shopify
+// vit dans les tables satellites ci-dessous, et le tag « Shopify » affiché sur
+// un colis ou une marchandise se DÉDUIT de l'existence du lien. Une colonne
+// `source` à côté serait une seconde vérité du même fait.
+
+// Une boutique Shopify connectée. Une par marchand, et une boutique n'est
+// connectée qu'à un seul marchand : ses webhooks portent son domaine
+// (X-Shopify-Shop-Domain), et c'est par lui qu'on retrouve à qui appartient la
+// commande. Deux marchands sur la même boutique rendraient ce routage ambigu.
+model BoutiqueShopify {
+  id         String   @id @default(uuid())
+  marchandId String   @unique @map("marchand_id")
+  marchand   Marchand @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  // Domaine myshopify.com, en minuscules — jamais un domaine personnalisé :
+  // c'est lui que Shopify place dans l'en-tête de ses webhooks.
+  domaine String  @unique
+  nom     String?
+  // Devise de la boutique au moment de la connexion. Le montant d'une commande
+  // est repris TEL QUEL, sans conversion (décision du 2026-09-26) : quand la
+  // devise n'est pas le MAD, la note du colis le dit.
+  devise  String?
+
+  // Jeton d'administration (shpat_…) et clé secrète de l'application
+  // (shpss_…), CHIFFRÉS en AES-256-GCM (lib/chiffrement.ts). Contrairement aux
+  // clés d'API qu'on DÉLIVRE (CleApiPlateforme.secretHash), ces secrets-ci sont
+  // à nous de les PRÉSENTER : le jeton pour appeler Shopify, la clé pour
+  // recalculer la signature de ses webhooks. Un hash ne permettrait ni l'un ni
+  // l'autre ; le chiffrement réversible est donc le mieux possible, et la clé
+  // de chiffrement vit hors de la base (CLE_CHIFFREMENT_INTEGRATIONS).
+  jetonAccesChiffre  String @map("jeton_acces_chiffre")
+  cleSecreteChiffree String @map("cle_secrete_chiffree")
+
+  // Abonnement ORDERS_CREATE créé chez Shopify à la connexion (gid://…). Nul
+  // tant qu'il n'a pas pu l'être — typiquement faute d'URL publique HTTPS en
+  // développement : la boutique reste alors connectée (les produits sont
+  // importés), et `derniereErreur` dit pourquoi les commandes n'arrivent pas.
+  webhookId  String? @map("webhook_id")
+  webhookUri String? @map("webhook_uri")
+
+  connecteeLe   DateTime  @default(now()) @map("connectee_le")
+  // Renseigné à la déconnexion. La ligne est CONSERVÉE, et non supprimée :
+  // les colis et marchandises déjà importés gardent leur lien, donc leur tag.
+  // Une boutique déconnectée ne reçoit plus rien — son webhook est supprimé
+  // chez Shopify, et ceux qui arriveraient quand même sont refusés.
+  deconnecteeLe DateTime? @map("deconnectee_le")
+
+  derniereSynchroProduitsLe DateTime? @map("derniere_synchro_produits_le")
+  derniereErreur            String?   @map("derniere_erreur")
+
+  dateMaj DateTime @updatedAt @map("date_maj")
+
+  commandes    CommandeShopify[]
+  marchandises MarchandiseShopify[]
+  receptions   WebhookShopifyRecu[]
+
+  @@map("boutiques_shopify")
+}
+
+// Colis ↔ commande Shopify dont il est issu.
+//
+// L'unicité (boutique, commande) est la garantie d'IDEMPOTENCE : Shopify
+// redélivre un webhook dès qu'il n'a pas eu sa réponse à temps, et peut en
+// livrer deux en parallèle. Un contrôle « chercher puis créer » laisserait
+// passer ce second cas ; la contrainte, non.
+model CommandeShopify {
+  id         String          @id @default(uuid())
+  commandeId String          @unique @map("commande_id")
+  commande   Commande        @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  boutiqueId String          @map("boutique_id")
+  boutique   BoutiqueShopify @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  // Identifiant numérique de la commande chez Shopify, en texte : il dépasse
+  // la précision d'un `number` JavaScript sûr à terme.
+  idCommandeShopify String  @map("id_commande_shopify")
+  // Numéro lisible (« #1001 »), celui que le marchand et son client connaissent.
+  numero            String
+  devise            String?
+
+  dateReception DateTime @default(now()) @map("date_reception")
+
+  @@unique([boutiqueId, idCommandeShopify])
+  @@index([boutiqueId])
+  @@map("commandes_shopify")
+}
+
+// Marchandise ↔ variante Shopify. Une marchandise par VARIANTE, et non par
+// produit : le catalogue Marchandise n'a pas de variantes, et c'est la
+// variante qui porte le prix et le SKU. Ce lien permet aussi de rattacher une
+// commande à sa marchandise (Commande.marchandiseId) sans rapprochement par
+// le nom.
+model MarchandiseShopify {
+  id            String          @id @default(uuid())
+  marchandiseId String          @unique @map("marchandise_id")
+  marchandise   Marchandise     @relation(fields: [marchandiseId], references: [id], onDelete: Cascade)
+  boutiqueId    String          @map("boutique_id")
+  boutique      BoutiqueShopify @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  idProduitShopify  String  @map("id_produit_shopify")
+  idVarianteShopify String  @map("id_variante_shopify")
+  sku               String?
+
+  dateSynchro DateTime @updatedAt @map("date_synchro")
+
+  @@unique([boutiqueId, idVarianteShopify])
+  @@index([boutiqueId])
+  @@map("marchandises_shopify")
+}
+
+// Journal des webhooks REÇUS, acceptés ou non. Même raison d'être que
+// JournalAppelApi : sans lui, « mes commandes Shopify n'arrivent pas » ne se
+// diagnostique pas — ni par nous, ni par le marchand, qui en voit les
+// dernières lignes sur son écran d'intégration.
+//
+// Même règle aussi : le corps n'est PAS conservé (noms, téléphones et
+// adresses de clients finaux n'ont rien à faire dans un journal).
+model WebhookShopifyRecu {
+  id         String           @id @default(uuid())
+  // Nul quand le domaine annoncé ne correspond à aucune boutique connue.
+  boutiqueId String?          @map("boutique_id")
+  boutique   BoutiqueShopify? @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  domaine    String?
+
+  // X-Shopify-Webhook-Id : identique d'une redélivrance à l'autre, c'est ce
+  // qui permet de reconnaître un rejeu dans ce journal.
+  idWebhook String? @map("id_webhook")
+  sujet     String?
+  // cree | deja_recu | ignore | rejete | erreur
+  issue     String
+  // Numéro de commande (« #1001 ») quand il a pu être lu.
+  reference String?
+  message   String?
+
+  horodatage DateTime @default(now())
+
+  @@index([boutiqueId, horodatage])
+  @@map("webhooks_shopify_recus")
+}
+
+// ============================================================
+// Intégration YouCan (§ INTEGRATION_YOUCAN.md)
+// ============================================================
+//
+// Même flux entrant et même parti que Shopify ci-dessus (tables satellites,
+// tag déduit du lien), avec deux différences qui expliquent les colonnes :
+//
+//   - le marchand saisit le Client ID / Client Secret de SA propre application
+//     YouCan, puis l'autorise une fois (OAuth, redirection inévitable chez
+//     YouCan). Les jetons se renouvellent avec le jeton de rafraîchissement ;
+//   - les webhooks sont signés avec le secret de cette application et
+//     désignent la boutique par `data.store_id` — d'où `storeId` unique.
+
+// Une boutique YouCan connectée. Une par marchand, et une boutique n'est
+// connectée qu'à un seul marchand : son `store_id` route les webhooks.
+model BoutiqueYoucan {
+  id         String   @id @default(uuid())
+  marchandId String   @unique @map("marchand_id")
+  marchand   Marchand @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  // Identifiant (UUID) de la boutique chez YouCan, lu par GET /me.
+  storeId String  @unique @map("store_id")
+  slug    String?
+  domaine String?
+  nom     String?
+  // Devise de la boutique : montants repris TELS QUELS (même décision que Shopify).
+  devise  String?
+
+  // Application YouCan DU MARCHAND (Partner Dashboard), saisie dans le
+  // formulaire comme les identifiants Shopify : chaque boutique a la sienne.
+  // Le secret sert à échanger/renouveler les jetons ET à vérifier la
+  // signature des webhooks et du retour OAuth. Chiffré comme les jetons.
+  // Nullables pour la migration seulement : toute connexion les renseigne.
+  clientId            String? @map("client_id")
+  clientSecretChiffre String? @map("client_secret_chiffre")
+
+  // Jetons OAuth, CHIFFRÉS en AES-256-GCM (lib/chiffrement.ts), pour la même
+  // raison que BoutiqueShopify.jetonAccesChiffre : nous devons les PRÉSENTER.
+  jetonAccesChiffre            String   @map("jeton_acces_chiffre")
+  jetonRafraichissementChiffre String   @map("jeton_rafraichissement_chiffre")
+  jetonExpireLe                DateTime @map("jeton_expire_le")
+  // Scopes accordés par le marchand, tels que demandés (espace entre chaque).
+  scopes                       String?
+
+  // Abonnements REST Hooks créés à la connexion. Nuls tant qu'ils n'ont pas pu
+  // l'être (typiquement : pas d'URL publique HTTPS en développement).
+  webhookCommandesId  String? @map("webhook_commandes_id")
+  webhookDesinstallId String? @map("webhook_desinstall_id")
+  webhookUri          String? @map("webhook_uri")
+
+  connecteeLe   DateTime  @default(now()) @map("connectee_le")
+  // Déconnexion depuis notre écran, OU désinstallation de l'application côté
+  // YouCan (webhook app.uninstalled). La ligne est conservée, comme Shopify.
+  deconnecteeLe DateTime? @map("deconnectee_le")
+
+  derniereSynchroProduitsLe DateTime? @map("derniere_synchro_produits_le")
+  derniereErreur            String?   @map("derniere_erreur")
+
+  dateMaj DateTime @updatedAt @map("date_maj")
+
+  commandes    CommandeYoucan[]
+  marchandises MarchandiseYoucan[]
+  receptions   WebhookYoucanRecu[]
+
+  @@map("boutiques_youcan")
+}
+
+// Colis ↔ commande YouCan dont il est issu. L'unicité (boutique, commande) est
+// la garantie d'idempotence : YouCan relivre un webhook jusqu'à 5 fois.
+model CommandeYoucan {
+  id         String         @id @default(uuid())
+  commandeId String         @unique @map("commande_id")
+  commande   Commande       @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  boutiqueId String         @map("boutique_id")
+  boutique   BoutiqueYoucan @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  // UUID de la commande chez YouCan.
+  idCommandeYoucan String  @map("id_commande_youcan")
+  // Référence lisible (`ref`, « 021 »).
+  numero           String
+  devise           String?
+
+  dateReception DateTime @default(now()) @map("date_reception")
+
+  @@unique([boutiqueId, idCommandeYoucan])
+  @@index([boutiqueId])
+  @@map("commandes_youcan")
+}
+
+// Marchandise ↔ variante YouCan (une marchandise par variante, comme Shopify).
+model MarchandiseYoucan {
+  id            String         @id @default(uuid())
+  marchandiseId String         @unique @map("marchandise_id")
+  marchandise   Marchandise    @relation(fields: [marchandiseId], references: [id], onDelete: Cascade)
+  boutiqueId    String         @map("boutique_id")
+  boutique      BoutiqueYoucan @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+
+  idProduitYoucan  String  @map("id_produit_youcan")
+  idVarianteYoucan String  @map("id_variante_youcan")
+  sku              String?
+
+  dateSynchro DateTime @updatedAt @map("date_synchro")
+
+  @@unique([boutiqueId, idVarianteYoucan])
+  @@index([boutiqueId])
+  @@map("marchandises_youcan")
+}
+
+// Journal des webhooks YouCan REÇUS, acceptés ou non (même rôle et même règle
+// que WebhookShopifyRecu : le corps n'est pas conservé).
+model WebhookYoucanRecu {
+  id         String          @id @default(uuid())
+  // Nul quand le store_id annoncé ne correspond à aucune boutique connue.
+  boutiqueId String?         @map("boutique_id")
+  boutique   BoutiqueYoucan? @relation(fields: [boutiqueId], references: [id], onDelete: Cascade)
+  storeId    String?         @map("store_id")
+
+  // X-YOUCAN-DELIVERY-ID : identique d'une relivraison à l'autre.
+  idLivraison String? @map("id_livraison")
+  sujet       String?
+  // cree | deja_recu | ignore | rejete | erreur
+  issue       String
+  reference   String?
+  message     String?
+
+  horodatage DateTime @default(now())
+
+  @@index([boutiqueId, horodatage])
+  @@map("webhooks_youcan_recus")
+}
+
+// § Notifications internes (NOTIFICATIONS.md) : ce que la cloche d'un compte
+// affiche — marchand (titulaire et membres), terrain, back-office. Le
+// destinataire FINAL du colis n'est pas concerné : c'est le chantier SMS.
+//
+// Une ligne par DESTINATAIRE, et non une ligne par événement partagée entre
+// plusieurs lecteurs : « lue » est un état propre à chaque personne, et la
+// liste d'une cloche se lit alors d'un seul index, sans jointure.
+//
+// `lien` est un chemin RELATIF à l'espace du destinataire (/marchand/…,
+// /admin/…, /livreur/…) : les trois espaces vivent sur trois domaines
+// distincts, et c'est l'origine qui affiche la cloche — ou qui a enregistré
+// le service worker, pour un push — qui le résout.
+//
+// `type` est une clé du catalogue (lib/notifications-catalogue.ts), en texte
+// libre pour la même raison que Utilisateur.permissions ; une clé retirée du
+// catalogue reste lisible, affichée sans famille.
+model Notification {
+  id            String      @id @default(uuid())
+  utilisateurId String      @map("utilisateur_id")
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  type          String
+  titre         String
+  corps         String?
+  lien          String?
+  lueLe         DateTime?   @map("lue_le")
+  creeLe        DateTime    @default(now()) @map("cree_le")
+
+  @@index([utilisateurId, creeLe])
+  @@index([utilisateurId, lueLe])
+  @@map("notifications")
+}
+
+// § Notifications : un navigateur (ou, plus tard, une app mobile) qui a
+// accepté le push pour ce compte — le jeton d'enregistrement Firebase Cloud
+// Messaging qu'il nous a confié.
+//
+// `espace` compte : un même compte peut avoir activé le push sur plusieurs
+// domaines (rôle supplémentaire), et un lien /admin/… envoyé au service worker
+// du domaine terrain y mènerait à un 404. On ne pousse donc à un appareil que
+// les notifications dont le lien appartient à son espace.
+//
+// Un jeton est à usage d'UN compte : `jeton` est unique, et réenregistrer le
+// même navigateur sous un autre compte (poste partagé au hub) le réattribue
+// au lieu de faire recevoir à l'un les notifications de l'autre.
+model AppareilPush {
+  id            String      @id @default(uuid())
+  utilisateurId String      @map("utilisateur_id")
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  jeton         String      @unique
+  espace        String
+  navigateur    String?
+  creeLe        DateTime    @default(now()) @map("cree_le")
+  // Rafraîchi à chaque réenregistrement (ouverture de l'application) : un
+  // jeton muet depuis des mois n'est plus purgé qu'au premier refus de FCM.
+  dernierVuLe   DateTime    @default(now()) @map("dernier_vu_le")
+
+  @@index([utilisateurId])
+  @@map("appareils_push")
 }

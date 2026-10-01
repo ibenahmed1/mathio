@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { SidebarContext } from '@/components/admin/SidebarContext';
 import { SidebarToggleButtons } from '@/components/admin/SidebarToggleButtons';
+import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
+import { ClocheNotifications } from '@/components/notifications/ClocheNotifications';
 import { NAV_ADMIN, filterNavByPermissions } from '@/components/admin/nav';
 import type { Role } from '@/app/generated/prisma/enums';
 
@@ -59,28 +61,31 @@ export function AdminShell({
   const nav = filterNavByPermissions(NAV_ADMIN, role, permissions);
 
   return (
-    <SidebarContext.Provider
-      value={{ collapsed, toggleCollapse: () => setCollapsed((v) => !v), openMobile: () => setMobileOpen(true) }}
-    >
-      <div className="shell-surface mtContent min-h-screen lg:flex">
-        <AdminSidebar
-          nav={nav}
-          adminName={adminName}
-          role={role}
-          collapsed={collapsed}
-          mobileOpen={mobileOpen}
-          onCloseMobile={() => setMobileOpen(false)}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
-        />
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-          {!hideMobileBarFor(pathname) && (
-            <div className="px-4 pt-4 lg:hidden print:hidden">
-              <SidebarToggleButtons />
-            </div>
-          )}
-          <main className={fullBleed ? 'min-w-0 flex-1' : 'min-w-0 flex-1 p-4 sm:p-6'}>{children}</main>
+    <NotificationsProvider>
+      <SidebarContext.Provider
+        value={{ collapsed, toggleCollapse: () => setCollapsed((v) => !v), openMobile: () => setMobileOpen(true) }}
+      >
+        <div className="shell-surface mtContent min-h-screen lg:flex">
+          <AdminSidebar
+            nav={nav}
+            adminName={adminName}
+            role={role}
+            collapsed={collapsed}
+            mobileOpen={mobileOpen}
+            onCloseMobile={() => setMobileOpen(false)}
+            onToggleCollapse={() => setCollapsed((v) => !v)}
+          />
+          <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+            {!hideMobileBarFor(pathname) && (
+              <div className="flex items-center justify-between px-4 pt-4 lg:hidden print:hidden">
+                <SidebarToggleButtons />
+                <ClocheNotifications variante="bouton" />
+              </div>
+            )}
+            <main className={fullBleed ? 'min-w-0 flex-1' : 'min-w-0 flex-1 p-4 sm:p-6'}>{children}</main>
+          </div>
         </div>
-      </div>
-    </SidebarContext.Provider>
+      </SidebarContext.Provider>
+    </NotificationsProvider>
   );
 }

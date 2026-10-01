@@ -6,10 +6,13 @@ import { PackagePlus, Trash2, Boxes, ImageOff, TriangleAlert } from 'lucide-reac
 import { apiDelete, apiGet } from '@/lib/api-client';
 import type { Produit } from '@/lib/types';
 import { InventaireSubNav } from './InventaireSubNav';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 const OPTIONS_PAR_PAGE = [10, 25, 50, 100];
 
 export default function InventairePage() {
+  // § Équipe & accès : sans « Gérer le catalogue », l'inventaire est en lecture.
+  const peutGerer = usePermissionsMarchand().peut('catalogue.gerer');
   const [produits, setProduits] = useState<Produit[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [chargement, setChargement] = useState(true);
@@ -63,10 +66,12 @@ export default function InventairePage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="page-title">Gestion Inventaire</h1>
-        <Link href="/marchand/inventaire/nouveau" className="btn-primary flex items-center gap-2">
-          <PackagePlus className="h-4 w-4" />
-          Ajouter Produit
-        </Link>
+        {peutGerer && (
+          <Link href="/marchand/inventaire/nouveau" className="btn-primary flex items-center gap-2">
+            <PackagePlus className="h-4 w-4" />
+            Ajouter Produit
+          </Link>
+        )}
       </div>
 
       <InventaireSubNav />
@@ -180,13 +185,15 @@ export default function InventairePage() {
                       </>
                     )}
                     <td className="w-8">
-                      <button
-                        onClick={() => handleDelete(p.id, p.nom)}
-                        className="btn-icon -m-2 text-red-600 hover:opacity-70"
-                        aria-label={`Supprimer ${p.nom}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {peutGerer && (
+                        <button
+                          onClick={() => handleDelete(p.id, p.nom)}
+                          className="btn-icon -m-2 text-red-600 hover:opacity-70"
+                          aria-label={`Supprimer ${p.nom}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -199,7 +206,7 @@ export default function InventairePage() {
                       <p className="font-medium">
                         {produits.length === 0 ? "Aucun produit dans l'inventaire" : 'Aucun résultat pour cette recherche'}
                       </p>
-                      {produits.length === 0 && (
+                      {produits.length === 0 && peutGerer && (
                         <p className="text-xs">
                           <Link href="/marchand/inventaire/nouveau" className="underline">
                             Ajoutez votre premier produit
