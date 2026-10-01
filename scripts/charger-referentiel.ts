@@ -9,6 +9,7 @@ import { importerSaharioExpress } from './import-prestataire-sahario-express';
 import { importerLeaderColis } from './import-prestataire-leader-colis';
 import { importerAgenceTanger } from './import-agence-tanger';
 import { importerEstLivraison } from './import-prestataire-est-livraison';
+import { importerColivraison } from './import-prestataire-colivraison';
 import { ajouterVillesAgences } from './ajouter-villes-agences';
 
 /**
@@ -57,6 +58,7 @@ const ETAPES: Etape[] = [
   { libelle: 'Leader Colis', executer: importerLeaderColis },
   { libelle: 'Amir Livraison — agence Tanger', executer: importerAgenceTanger },
   { libelle: 'EST Livraison', executer: importerEstLivraison },
+  { libelle: 'Colivraison', executer: importerColivraison },
   { libelle: "Villes d'implantation des agences", executer: ajouterVillesAgences },
 ];
 
