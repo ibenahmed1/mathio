@@ -11,6 +11,7 @@ import { importerAgenceTanger } from './import-agence-tanger';
 import { importerEstLivraison } from './import-prestataire-est-livraison';
 import { importerColivraison } from './import-prestataire-colivraison';
 import { ajouterVillesAgences } from './ajouter-villes-agences';
+import { appliquerTarifsMetaLivraison } from './tarifs-meta-livraison';
 
 /**
  * Chargement du référentiel de sous-traitance — prestataires, agences, villes
@@ -60,6 +61,8 @@ const ETAPES: Etape[] = [
   { libelle: 'EST Livraison', executer: importerEstLivraison },
   { libelle: 'Colivraison', executer: importerColivraison },
   { libelle: "Villes d'implantation des agences", executer: ajouterVillesAgences },
+  // Après les villes d'implantation : « Fès » en fait partie.
+  { libelle: 'Tarifs Meta Livraison (Fès 18 dh, autres 28 dh)', executer: appliquerTarifsMetaLivraison },
 ];
 
 export type OptionsChargement = {
