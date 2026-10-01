@@ -9,6 +9,7 @@ import type { BonEnvoi } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
 import { RemisePowerDelivery } from '@/components/admin/RemisePowerDelivery';
+import { RemiseColivraison } from '@/components/admin/RemiseColivraison';
 
 interface CurrentUser {
   role: 'admin' | 'agent_hub' | string;
@@ -108,6 +109,10 @@ export default function DetailBonEnvoiPage() {
       {user?.role === 'admin' &&
         (bon.hubDestination?.prestataire?.nom === 'Power Delivery' || bon.prestataire?.nom === 'Power Delivery') && (
         <RemisePowerDelivery bonId={bon.id} onRemis={load} />
+      )}
+      {user?.role === 'admin' &&
+        (bon.hubDestination?.prestataire?.nom === 'Colivraison' || bon.prestataire?.nom === 'Colivraison') && (
+        <RemiseColivraison bonId={bon.id} onRemis={load} />
       )}
 
       <div className="overflow-x-auto">

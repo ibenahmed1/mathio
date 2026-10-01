@@ -159,6 +159,9 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // (décision du 22/09/2026).
   { pattern: '/api/commandes/*/power-delivery', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/power-delivery/**', permission: 'bon_envoi:manage' },
+  // § Colivraison : même responsabilité, même clé (consulter, actualiser).
+  { pattern: '/api/commandes/*/colivraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/colivraison/**', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/statut', permission: 'colis:confirm' },
   // Encaissement COD : sa propre clé, parce que le trio qui l'exerce
   // aujourd'hui (admin, superviseur, responsable) ne correspond ni à la
@@ -207,6 +210,7 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // la classerait en composition (`bon_envoi:create`) : remettre un bon déjà
   // composé relève de sa gestion, pas de sa création.
   { pattern: '/api/bons-envoi/*/remise-power-delivery', permission: 'bon_envoi:manage' },
+  { pattern: '/api/bons-envoi/*/remise-colivraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi/**', permission: 'bon_envoi:create' },

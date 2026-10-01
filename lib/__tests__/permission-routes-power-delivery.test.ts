@@ -31,3 +31,10 @@ test('les règles Power ne happent pas les routes voisines', () => {
 test('le webhook Power n’est gouverné par aucune permission', () => {
   assert.equal(apiPermissionFor('/api/v1/webhooks/power-delivery', 'POST'), null);
 });
+
+// § Colivraison : même responsabilité, même clé que Power Delivery.
+test('la remise Colivraison et le suivi d’un colis confié exigent bon_envoi:manage', () => {
+  assert.equal(apiPermissionFor(`/api/bons-envoi/${ID}/remise-colivraison`, 'POST'), 'bon_envoi:manage');
+  assert.equal(apiPermissionFor(`/api/commandes/${ID}/colivraison`, 'GET'), 'bon_envoi:manage');
+  assert.equal(apiPermissionFor(`/api/commandes/${ID}/colivraison/actualiser`, 'POST'), 'bon_envoi:manage');
+});

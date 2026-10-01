@@ -7,6 +7,7 @@ import { StatutBadge } from '@/components/StatutBadge';
 import { Modal } from '@/components/admin/Modal';
 import { PreuveLivraison } from '@/components/PreuveLivraison';
 import { PowerDeliveryColis } from '@/components/admin/PowerDeliveryColis';
+import { ColivraisonColis } from '@/components/admin/ColivraisonColis';
 
 interface EvenementCircuit {
   type: 'statut' | 'commentaire';
@@ -89,6 +90,7 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
               été confié. Une action y recharge le colis, dont le statut et
               l'historique ont pu changer. */}
           <PowerDeliveryColis commandeId={commandeId} onChanged={() => setVersion((v) => v + 1)} />
+          <ColivraisonColis commandeId={commandeId} onChanged={() => setVersion((v) => v + 1)} />
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
             {circuit.map((ev, i) => {
