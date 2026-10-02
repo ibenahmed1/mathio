@@ -9,6 +9,7 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  *
  *   npx tsx scripts/suivre-colis-power-delivery.ts          à blanc : liste ce qui serait interrogé
  *   npx tsx scripts/suivre-colis-power-delivery.ts --oui    interroge et applique
+ *   npx tsx scripts/suivre-colis-power-delivery.ts --oui --forcer   sans attendre la fenêtre de 24 h
  *
  * POURQUOI IL EXISTE. Leurs webhooks ne sont réessayés que trois fois : une
  * coupure de quelques minutes chez nous, et un « livré » est perdu pour de bon.
@@ -31,19 +32,30 @@ const DELAI_DE_GRACE_MS = 60 * 60 * 1000;
 
 async function executer(): Promise<void> {
   const appliquer = process.argv.includes('--oui');
+  // `--forcer` interroge TOUTES les remises actives, sans attendre la fenêtre
+  // de 24 h ni le délai de grâce. C'est l'option des mises en service et des
+  // incidents : après une panne, après la correction d'une configuration, on
+  // veut rattraper tout de suite, pas le lendemain.
+  const forcer = process.argv.includes('--forcer');
   const power = await prestatairePower();
   const maintenant = Date.now();
+
+  const fenetre = forcer
+    ? {}
+    : {
+        creeLe: { lt: new Date(maintenant - DELAI_DE_GRACE_MS) },
+        OR: [
+          { etat: 'a_confirmer' as const },
+          { dernierEvenementLe: null },
+          { dernierEvenementLe: { lt: new Date(maintenant - SANS_NOUVELLES_MS) } },
+        ],
+      };
 
   const remises = await prisma.remisePrestataire.findMany({
     where: {
       prestataireId: power.id,
       active: true,
-      creeLe: { lt: new Date(maintenant - DELAI_DE_GRACE_MS) },
-      OR: [
-        { etat: 'a_confirmer' },
-        { dernierEvenementLe: null },
-        { dernierEvenementLe: { lt: new Date(maintenant - SANS_NOUVELLES_MS) } },
-      ],
+      ...fenetre,
       // Un colis clos chez nous n'a plus rien à apprendre de leur suivi.
       commande: { statut: { notIn: ['livre', 'retourne', 'annule_par_vendeur'] } },
     },
@@ -51,8 +63,12 @@ async function executer(): Promise<void> {
     orderBy: { creeLe: 'asc' },
   });
 
-  console.log(`Power Delivery — rattrapage du suivi${appliquer ? '' : ' (à blanc)'}`);
-  console.log(`${remises.length} colis sans nouvelles depuis 24 h ou à confirmer\n`);
+  console.log(`Power Delivery — rattrapage du suivi${appliquer ? '' : ' (à blanc)'}${forcer ? ' — toutes les remises actives' : ''}`);
+  console.log(
+    forcer
+      ? `${remises.length} remise(s) active(s)\n`
+      : `${remises.length} colis sans nouvelles depuis 24 h ou à confirmer\n`
+  );
 
   if (!appliquer) {
     for (const r of remises) console.log(`   ${r.codeEnvoye}  ${r.etat}  (chez nous : ${r.commande.statut})`);

@@ -23,10 +23,33 @@ import a from "./Accounting.module.css";
 //   - `jetonCategories` : une catégorie ajoutée ou renommée apparaît dans les
 //     formulaires et les listes des deux cartes.
 //
-// `peutModifier` / `peutSupprimer` viennent de la session, côté serveur
-// (app/admin/comptabilite/page.jsx). Ils ne font que masquer des boutons :
-// l'API refuse d'elle-même sans `comptabilite:edit` / `comptabilite:delete`.
-export default function ComptabiliteBoard({ peutModifier = false, peutSupprimer = false } = {}) {
+// `peutSaisir` / `peutModifier` / `peutSupprimer` viennent de la session
+// (app/admin/comptabilite/page.jsx, app/marchand/comptabilite/page.tsx). Ils
+// ne font que masquer des boutons : l'API refuse d'elle-même un geste sans sa
+// permission.
+//
+// `espace` ne change que des mots et l'en-tête : les routes appelées sont les
+// mêmes, c'est le serveur qui décide du livre lu (lib/comptabilite-perimetre.ts).
+const TEXTES = {
+  admin: {
+    titre: "Comptabilité & paie",
+    sousTitreCommandes: "Approvisionnement des hubs",
+    videCommandes: "Achats de matériel et d'aménagement pour les hubs.",
+  },
+  marchand: {
+    titre: "Comptabilité",
+    sousTitreCommandes: "Achats de stock et de fournitures",
+    videCommandes: "Achats de marchandises, d'emballages et de fournitures pour votre boutique.",
+  },
+};
+
+export default function ComptabiliteBoard({
+  espace = "admin",
+  peutSaisir = true,
+  peutModifier = false,
+  peutSupprimer = false,
+} = {}) {
+  const textes = TEXTES[espace] ?? TEXTES.admin;
   const [refreshToken, setRefreshToken] = useState(0);
   const rafraichir = useCallback(() => setRefreshToken((v) => v + 1), []);
   const [jetonCategories, setJetonCategories] = useState(0);
@@ -41,8 +64,10 @@ export default function ComptabiliteBoard({ peutModifier = false, peutSupprimer 
     <>
       <header className={a.pageHead}>
         <div className={a.titleRow}>
-          <SidebarToggleButtons className={a.sidebarToggle} />
-          <h1 className="page-title">Comptabilité &amp; paie</h1>
+          {/* Bouton de la barre latérale du back-office : l'espace marchand
+              a la sienne, portée par sa coquille. */}
+          {espace === "admin" && <SidebarToggleButtons className={a.sidebarToggle} />}
+          <h1 className="page-title">{textes.titre}</h1>
         </div>
 
         <div className={a.pageActions} role="toolbar" aria-label="Actions de la comptabilité">
@@ -75,7 +100,7 @@ export default function ComptabiliteBoard({ peutModifier = false, peutSupprimer 
             </button>
           )}
           {/* Pas de saisie depuis la corbeille : on y restaure, on n'y crée pas. */}
-          {!corbeille && (
+          {!corbeille && peutSaisir && (
             <>
               <button type="button" className="btn-outline" onClick={() => commandesRef.current?.ouvrirCreation()}>
                 <PackagePlus className="h-4 w-4" aria-hidden />
@@ -104,8 +129,11 @@ export default function ComptabiliteBoard({ peutModifier = false, peutSupprimer 
             ref={commandesRef}
             corbeille={corbeille}
             jetonCategories={jetonCategories}
+            peutSaisir={peutSaisir}
             peutModifier={peutModifier}
             peutSupprimer={peutSupprimer}
+            sousTitre={textes.sousTitreCommandes}
+            descriptionVide={textes.videCommandes}
           />
         </div>
         <TransactionsTable
@@ -113,6 +141,7 @@ export default function ComptabiliteBoard({ peutModifier = false, peutSupprimer 
           corbeille={corbeille}
           onMutate={rafraichir}
           jetonCategories={jetonCategories}
+          peutSaisir={peutSaisir}
           peutModifier={peutModifier}
           peutSupprimer={peutSupprimer}
         />

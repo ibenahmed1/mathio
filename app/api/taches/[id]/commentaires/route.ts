@@ -3,11 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { boardsVisibles, exigerTacheAutorisee } from '@/lib/taches-scope';
 import type { Role } from '@/app/generated/prisma/enums';
+import { lecteursTache, notifier } from '@/lib/notifications';
+
+function extraitCommentaire(texte: string): string {
+  return texte.length > 140 ? `${texte.slice(0, 140)}…` : texte;
+}
 
 const ROLES_BACKOFFICE: Role[] = ['admin', 'superviseur', 'moderateur', 'equipe_suivi', 'responsable', 'design', 'gestionnaire_hub'];
 
 // Fil de discussion d'une tâche, avec mentions "@membre" (§ /admin/tasks).
-// mentionIds n'est qu'un surlignage côté UI, aucune notification n'est envoyée.
+// Les mentionnés reçoivent une notification (tache.mention) ; l'assigné et le
+// créateur, s'ils ne sont pas mentionnés, une notification de commentaire. Dans
+// les deux cas, seulement s'ils peuvent lire la tâche (lecteursTache).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser(ROLES_BACKOFFICE);
@@ -31,6 +38,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       data: { tacheId: id, auteurId: session.sub, texte, mentionIds },
       include: { auteur: { select: { id: true, nomComplet: true } } },
     });
+
+    // § Notifications — la mention prime : quelqu'un de mentionné ET assigné
+    // ne reçoit qu'une notification, la plus précise.
+    const mentionnes = await lecteursTache(tache, mentionIds);
+    const auteur = commentaire.auteur.nomComplet;
+    await notifier(mentionnes, {
+      type: 'tache.mention',
+      titre: `${auteur} vous a mentionné · ${tache.titre}`,
+      corps: extraitCommentaire(texte),
+      lien: '/admin/tasks',
+    }, { sauf: session.sub });
+    const suiveurs = [tache.assigneeId, tache.createurId].filter((u): u is string => !!u && !mentionnes.includes(u));
+    await notifier(await lecteursTache(tache, suiveurs), {
+      type: 'tache.commentaire',
+      titre: `${auteur} a commenté · ${tache.titre}`,
+      corps: extraitCommentaire(texte),
+      lien: '/admin/tasks',
+    }, { sauf: session.sub });
 
     return NextResponse.json(commentaire, { status: 201 });
   } catch (error) {

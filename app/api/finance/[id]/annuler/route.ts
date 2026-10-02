@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import type { TypeTransaction } from '@/app/generated/prisma/enums';
 import { LONGUEUR_MAX_TITRE } from '@/lib/finance';
-
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
 
 const TYPE_INVERSE: Record<TypeTransaction, TypeTransaction> = {
   revenu: 'depense',
@@ -19,7 +18,7 @@ const TYPE_INVERSE: Record<TypeTransaction, TypeTransaction> = {
 // (lib/journal-comptable.ts).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireUser([...ROLES_COMPTABILITE]);
+    const { session, marchandId } = await perimetreComptable('saisie');
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const motif = typeof body.motif === 'string' && body.motif.trim() ? body.motif.trim() : null;
@@ -33,7 +32,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       omit: { preuveUrl: true },
       include: { annulation: { select: { id: true } } },
     });
-    if (!original) {
+    // Une écriture d'un autre livre répond comme une écriture inexistante.
+    if (!original || original.marchandId !== marchandId) {
       throw new ApiError(404, 'Transaction introuvable');
     }
     if (original.supprimeLe) {
@@ -63,6 +63,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           dateEffet: new Date(),
           description: motif ? `Neutralisation de la transaction ${original.id} — ${motif}` : `Neutralisation de la transaction ${original.id}`,
           auteurId: session.sub,
+          // La neutralisation vit dans le même livre que l'écriture visée.
+          marchandId: original.marchandId,
           // Pas de `preuveUrl` ici, volontairement : le justificatif
           // photographié appartient à l'écriture d'origine, qui reste en base.
           // Le recopier sur la compensation ferait croire à un second

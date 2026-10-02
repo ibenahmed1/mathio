@@ -9,6 +9,10 @@ function ReinitialiserMotDePasseContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
+  // § Équipe & accès : le lien d'invitation d'un membre de boutique mène ici
+  // avec `invitation=1` — même mécanique qu'une réinitialisation, mais
+  // l'invité n'a rien demandé : le titre doit dire ce qui se passe.
+  const invitation = searchParams.get('invitation') === '1';
 
   const [secret, setSecret] = useState('');
   const [confirmSecret, setConfirmSecret] = useState('');
@@ -43,7 +47,16 @@ function ReinitialiserMotDePasseContent() {
     <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-brand p-4 sm:p-8">
       <Logo size="lg" />
       <div className="w-full max-w-sm rounded-xl bg-black p-6 shadow-lg">
-        <h1 className="mb-4 text-xl font-black text-white">Nouveau mot de passe</h1>
+        <h1 className="mb-1 text-xl font-black text-white">
+          {invitation ? 'Activez votre accès' : 'Nouveau mot de passe'}
+        </h1>
+        {invitation && (
+          <p className="mb-4 text-sm text-white/70">
+            Vous avez été invité à rejoindre une équipe. Choisissez votre mot de passe : vous vous connecterez
+            ensuite avec votre email.
+          </p>
+        )}
+        {!invitation && <div className="mb-3" />}
         {!token && (
           <p className="mb-4 text-sm font-medium text-red-400">
             Ce lien est invalide. Redemande une réinitialisation depuis la page de connexion.

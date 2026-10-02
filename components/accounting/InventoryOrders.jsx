@@ -58,8 +58,11 @@ export default function InventoryOrders({
   ref,
   corbeille = false,
   jetonCategories = 0,
+  peutSaisir = true,
   peutModifier = false,
   peutSupprimer = false,
+  sousTitre = "Approvisionnement des hubs",
+  descriptionVide = "Achats de matériel et d'aménagement pour les hubs.",
 } = {}) {
   const [commandes, setCommandes] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -247,7 +250,7 @@ export default function InventoryOrders({
         <div className={a.cardHead}>
           <div className={a.tableTitle}>
             <h2 className={a.cardTitle}>{corbeille ? "Commandes supprimées" : "Commandes d'inventaire"}</h2>
-            <p className={a.cardSub}>{corbeille ? "Hors liste, restaurables" : "Approvisionnement des hubs"}</p>
+            <p className={a.cardSub}>{corbeille ? "Hors liste, restaurables" : sousTitre}</p>
           </div>
         </div>
 
@@ -261,17 +264,19 @@ export default function InventoryOrders({
           <div className="empty-state">
             <Box size={28} className="opacity-40" aria-hidden />
             <p className="font-semibold text-black/70 dark:text-white/70">Aucune commande d&apos;inventaire</p>
-            <p>Achats de matériel et d&apos;aménagement pour les hubs.</p>
-            <button type="button" className="btn-outline btn-sm mt-2" onClick={ouvrirCreation}>
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Ajouter une commande
-            </button>
+            <p>{descriptionVide}</p>
+            {peutSaisir && (
+              <button type="button" className="btn-outline btn-sm mt-2" onClick={ouvrirCreation}>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Ajouter une commande
+              </button>
+            )}
           </div>
         ) : (
           <div className={a.orderList}>
             {commandes.map((c) => {
               const numero = formatNumeroCommandeStockHub(c.numero);
-              const suivants = corbeille ? [] : statutsSuivantsCommandeStockHub(c.statut);
+              const suivants = corbeille || !peutSaisir ? [] : statutsSuivantsCommandeStockHub(c.statut);
               const teinte = `${a.statutChip} ${a[`statut_${c.statut}`] ?? ""}`;
               return (
                 <article key={c.id} className={a.order}>

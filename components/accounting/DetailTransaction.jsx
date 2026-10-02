@@ -44,6 +44,7 @@ export function DetailTransaction({
   // compensation d'une écriture annulée), si elle est dans le journal chargé.
   liee,
   corbeille,
+  peutSaisir = true,
   peutModifier,
   peutSupprimer,
   actionEnCours,
@@ -72,7 +73,7 @@ export function DetailTransaction({
     <Modal title={t.titre} size="xl" onClose={onClose}>
       <div className="flex flex-col gap-5">
         {/* ---------- Actions ---------- */}
-        {(corbeille ? peutSupprimer : true) && (
+        {(corbeille ? peutSupprimer : peutSaisir || peutModifier || peutSupprimer) && (
           <div className={a.detailActions}>
             {corbeille ? (
               <button type="button" className="btn-primary btn-sm" onClick={onRestaurer} disabled={actionEnCours}>
@@ -87,16 +88,19 @@ export function DetailTransaction({
                     Modifier
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="btn-outline btn-sm"
-                  onClick={onAnnuler}
-                  disabled={actionEnCours || !!raisonAnnulation}
-                  title={raisonAnnulation ?? "Ajoute une écriture inverse, de même montant, qui remet le solde à zéro"}
-                >
-                  <Undo2 className="h-3.5 w-3.5" aria-hidden />
-                  Neutraliser
-                </button>
+                {/* Neutraliser est un geste de SAISIE : il ajoute une ligne au journal. */}
+                {peutSaisir && (
+                  <button
+                    type="button"
+                    className="btn-outline btn-sm"
+                    onClick={onAnnuler}
+                    disabled={actionEnCours || !!raisonAnnulation}
+                    title={raisonAnnulation ?? "Ajoute une écriture inverse, de même montant, qui remet le solde à zéro"}
+                  >
+                    <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                    Neutraliser
+                  </button>
+                )}
                 {peutSupprimer && (
                   <button type="button" className="btn-danger btn-sm" onClick={onSupprimer} disabled={actionEnCours}>
                     <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -105,7 +109,7 @@ export function DetailTransaction({
                 )}
               </>
             )}
-            {raisonAnnulation && !corbeille && <span className="form-hint">{raisonAnnulation}</span>}
+            {raisonAnnulation && !corbeille && peutSaisir && <span className="form-hint">{raisonAnnulation}</span>}
           </div>
         )}
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { bilanBonRetour, codeSuiviDepuisScan, getBonRetour } from '@/lib/bon-retour';
+import { notifierStatutsColis } from '@/lib/notifications';
 
 // Temps 2, chez le marchand : le ramasseur scanne (ou coche) chaque colis au
 // moment où il le pose sur le comptoir. Le colis passe `retourne` — c'est
@@ -62,6 +63,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           },
         });
       });
+      // § Notifications : un colis par scan — regroupés, ils feraient attendre
+      // la fin d'une tournée de restitution qui n'a pas de « fin » explicite.
+      await notifierStatutsColis([{ commandeId: commande.id, statut: 'retourne' }], { sauf: session.sub });
     }
 
     const rafraichi = await getBonRetour(id);

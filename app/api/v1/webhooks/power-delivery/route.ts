@@ -10,8 +10,8 @@ import {
 
 // § Power Delivery — réception de leurs webhooks (changements de statut).
 //
-// ⚠️ SEULE ROUTE DU DÉPÔT SANS requireUser NI requirePermission, et ce n'est pas
-// un oubli : c'est LEUR serveur qui appelle, sans session et sans clé à nous.
+// ⚠️ ROUTE SANS requireUser NI requirePermission (avec le webhook Shopify, les
+// deux seules du dépôt), et ce n'est pas un oubli : c'est LEUR serveur qui appelle, sans session et sans clé à nous.
 // Le contrôle d'accès est la signature HMAC-SHA256 du corps, obligatoire, plus
 // une fenêtre de fraîcheur (lib/suivi-power-delivery.ts). L'exception est aussi
 // écrite dans lib/permission-routes.ts, là où on la cherche.

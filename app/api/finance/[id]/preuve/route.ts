@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import { analyserPreuveComptable, nomFichierPreuve } from '@/lib/finance';
 
 // Justificatif d'une écriture comptable (§ /admin/comptabilite).
@@ -17,18 +18,19 @@ import { analyserPreuveComptable, nomFichierPreuve } from '@/lib/finance';
 // par la règle `/api/finance/**` → `comptabilite:read` (méthodes sûres) de
 // lib/permission-routes.ts — pas d'entrée à ajouter, elle vaut pour les
 // sous-routes.
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
+// Une boutique n'ouvre que les justificatifs de SON journal
+// (perimetreComptable).
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser([...ROLES_COMPTABILITE]);
+    const { marchandId } = await perimetreComptable('lecture');
     const { id } = await params;
 
     const transaction = await prisma.transaction.findUnique({
       where: { id },
-      select: { id: true, preuveUrl: true },
+      select: { id: true, preuveUrl: true, marchandId: true },
     });
-    if (!transaction) throw new ApiError(404, 'Transaction introuvable');
+    if (!transaction || transaction.marchandId !== marchandId) throw new ApiError(404, 'Transaction introuvable');
     // Une écriture sans justificatif n'est pas une anomalie (la preuve est
     // facultative) : c'est bien 404, la ressource demandée n'existe pas.
     if (!transaction.preuveUrl) throw new ApiError(404, 'Cette écriture n\'a pas de justificatif');

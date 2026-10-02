@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { destinatairesBoutique, notifier } from '@/lib/notifications';
 import type { StatutReclamation } from '@/app/generated/prisma/enums';
 
 const STATUTS_VALIDES: StatutReclamation[] = ['ouverte', 'en_cours', 'resolue', 'rejetee'];
@@ -37,7 +38,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 // Réponse / changement de statut par le back-office (admin, moderateur : reprend le périmètre de l'ancien SAV).
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin', 'moderateur', 'superviseur']);
+    const session = await requireUser(['admin', 'moderateur', 'superviseur']);
     const { id } = await params;
     const body = await request.json();
 
@@ -62,6 +63,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const updated = await prisma.reclamation.update({ where: { id }, data });
+
+    // § Notifications : une RÉPONSE écrite (un simple changement de statut
+    // n'apprend rien au marchand qu'il ne voie dans la liste). Son auteur la
+    // reçoit en plus de ceux qui suivent les réclamations de la boutique —
+    // même si son rôle a changé depuis, c'est sa question. Sauf s'il n'est
+    // pas marchand : une réclamation ouverte d'office par un agent (clôture de
+    // réception de stock) a un auteur du back-office, qui n'a pas de cloche
+    // marchande où lire ce lien.
+    if (data.reponse) {
+      const destinataires = await destinatairesBoutique(reclamation.marchandId, 'reclamations.voir');
+      const auteur = await prisma.utilisateur.findUnique({
+        where: { id: reclamation.utilisateurId },
+        select: { role: true },
+      });
+      if (auteur?.role === 'marchand') destinataires.push(reclamation.utilisateurId);
+      await notifier(destinataires, {
+        type: 'reclamation.repondue',
+        titre: `Réponse à votre réclamation : ${reclamation.sujet}`,
+        corps: data.reponse.length > 140 ? `${data.reponse.slice(0, 140)}…` : data.reponse,
+        lien: '/marchand/reclamations',
+      }, { sauf: session.sub });
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     return jsonError(error);

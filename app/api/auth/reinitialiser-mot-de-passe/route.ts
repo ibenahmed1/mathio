@@ -30,6 +30,15 @@ export async function POST(request: Request) {
       data: { motDePasseHash, resetTokenHash: null, resetTokenExpire: null },
     });
 
+    // § Équipe & accès : pour un membre de boutique invité, choisir son mot de
+    // passe par le lien reçu EST l'acceptation de l'invitation. `updateMany`
+    // borné aux invitations encore ouvertes : sans effet pour tout autre
+    // compte, et une réinitialisation ultérieure ne réécrit pas la date.
+    await prisma.marchandMembre.updateMany({
+      where: { utilisateurId: utilisateur.id, modeAjout: 'invitation', invitationAccepteeLe: null },
+      data: { invitationAccepteeLe: new Date() },
+    });
+
     return NextResponse.json({ message: 'Mot de passe mis à jour, vous pouvez vous connecter.' });
   } catch (error) {
     return jsonError(error);

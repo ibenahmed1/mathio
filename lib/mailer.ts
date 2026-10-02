@@ -68,3 +68,54 @@ export async function sendInvitationEmail(
   });
   return true;
 }
+
+// § Équipe & accès (/marchand/equipe) : invitation d'un collaborateur dans
+// l'équipe d'une boutique. Le lien mène à /reinitialiser-mot-de-passe du
+// domaine MARCHAND (`invitation=1` y adapte le titre) : c'est là que l'invité
+// choisit son mot de passe, puis se connecte avec son email. Même contrat de
+// retour que les deux fonctions ci-dessus.
+function echapperHtml(texte: string): string {
+  return texte.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+}
+
+export async function sendInvitationEquipeMarchandEmail(params: {
+  to: string;
+  nomComplet: string;
+  nomBoutique: string;
+  invitant: string;
+  nomRole: string;
+  activationUrl: string;
+}): Promise<boolean> {
+  const transporter = getTransporter();
+  if (!transporter) {
+    console.warn('[mailer] SMTP non configuré (SMTP_HOST/PORT/USER/PASS) — invitation non envoyée.', {
+      to: params.to,
+      activationUrl: params.activationUrl,
+    });
+    return false;
+  }
+
+  // Le nom de boutique et celui de l'invitant sont saisis par des marchands :
+  // échappés avant d'entrer dans le HTML de l'email.
+  const nom = echapperHtml(params.nomComplet);
+  const boutique = echapperHtml(params.nomBoutique);
+  const invitant = echapperHtml(params.invitant);
+  const role = echapperHtml(params.nomRole);
+  const url = echapperHtml(params.activationUrl);
+
+  await transporter.sendMail({
+    from: process.env.MAIL_FROM || process.env.SMTP_USER,
+    to: params.to,
+    subject: `${params.invitant} vous invite à rejoindre l'équipe de ${params.nomBoutique}`,
+    text: `Bonjour ${params.nomComplet},
+
+${params.invitant} vous invite à rejoindre l'équipe de la boutique « ${params.nomBoutique} » avec le rôle « ${params.nomRole} ».
+
+Choisissez votre mot de passe via ce lien (valable 7 jours) : ${params.activationUrl}
+
+Vous vous connecterez ensuite avec cette adresse email.
+Si vous ne vous attendiez pas à cette invitation, ignorez simplement cet email.`,
+    html: `<p>Bonjour ${nom},</p><p><strong>${invitant}</strong> vous invite à rejoindre l'équipe de la boutique « <strong>${boutique}</strong> » avec le rôle « ${role} ».</p><p><a href="${url}" style="display:inline-block;padding:10px 18px;background:#111;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Activer mon accès</a></p><p style="font-size:13px;color:#555">Ce lien est valable 7 jours. Vous vous connecterez ensuite avec cette adresse email.<br>Si vous ne vous attendiez pas à cette invitation, ignorez simplement cet email.</p>`,
+  });
+  return true;
+}

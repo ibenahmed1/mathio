@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import {
   LABELS_STATUT_COMMANDE_STOCK_HUB,
   estStatutCommandeStockHub,
@@ -8,14 +9,11 @@ import {
 } from '@/lib/commandes-stock-hub';
 
 // § Comptabilité — même périmètre d'accès que la collection voisine
-// (app/api/commandes-stock-hub/route.ts). La constante est recopiée : un
-// fichier route.ts ne peut exporter que ses handlers HTTP. Le contrôle par
-// rôle en dur plutôt que par permission est un défaut connu
-// (CORRECTIFS_URGENTS.md §2) : il est gardé ici pour ne pas faire diverger deux
-// routes du même module. La permission `comptabilite:write` est de toute façon
-// exigée en amont par le proxy (lib/permission-routes.ts, motif
-// /api/commandes-stock-hub/**).
-const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
+// (app/api/commandes-stock-hub/route.ts), via perimetreComptable : un geste de
+// saisie, dans le livre de l'appelant. Le contrôle par rôle en dur côté
+// back-office est un défaut connu (CORRECTIFS_URGENTS.md §2) ; la permission
+// `comptabilite:write` (ou `comptabilite.saisir` côté boutique) est de toute
+// façon exigée en amont par le proxy.
 
 // Fait avancer une commande dans son cycle (lib/commandes-stock-hub.ts). Seul le
 // statut se modifie ici, sous `comptabilite:write` : c'est un geste de suivi.
@@ -28,7 +26,7 @@ const ROLES_COMPTABILITE = ['admin', 'responsable'] as const;
 // nouveau statut.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser([...ROLES_COMPTABILITE]);
+    const { marchandId } = await perimetreComptable('saisie');
     const { id } = await params;
     const body = await request.json();
 
@@ -39,9 +37,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const commande = await prisma.commandeStockHub.findUnique({
       where: { id },
-      select: { statut: true, supprimeLe: true },
+      select: { statut: true, supprimeLe: true, marchandId: true },
     });
-    if (!commande) {
+    // Commande d'un autre livre : 404, comme une commande inexistante.
+    if (!commande || commande.marchandId !== marchandId) {
       throw new ApiError(404, 'Commande introuvable');
     }
     if (commande.supprimeLe) {
@@ -59,7 +58,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // ci-dessus ne vaut plus. On refuse plutôt que d'écraser l'autre choix —
     // un « Annulée » posé par quelqu'un d'autre ne doit pas redevenir « Reçue ».
     const { count } = await prisma.commandeStockHub.updateMany({
-      where: { id, statut: commande.statut, supprimeLe: null },
+      where: { id, marchandId, statut: commande.statut, supprimeLe: null },
       data: { statut: vers },
     });
     if (count === 0) {

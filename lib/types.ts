@@ -89,6 +89,10 @@ export interface Commande {
   produit?: { id: string; nom: string; reference: string; photoUrl: string | null } | null;
   colisARemplacer?: { id: string; codeSuivi: string } | null;
   hubActuel?: { id: string; nom: string; ville: string } | null;
+  // § Intégration Shopify : présent quand le colis vient d'une commande Shopify.
+  shopify?: { numero: string } | null;
+  // § Intégration YouCan : présent quand le colis vient d'une commande YouCan.
+  youcan?: { numero: string } | null;
   historique?: HistoriqueStatut[];
   commentaires?: CommentaireCommande[];
 }
@@ -104,6 +108,10 @@ export interface Marchandise {
   qteStock: number;
   prix: string;
   dateCreation: string;
+  // § Intégration Shopify : présent quand la marchandise a été importée de Shopify.
+  shopify?: { sku: string | null } | null;
+  // § Intégration YouCan : présent quand la marchandise a été importée de YouCan.
+  youcan?: { sku: string | null } | null;
 }
 
 export interface ProduitVariante {

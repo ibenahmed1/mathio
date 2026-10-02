@@ -44,6 +44,9 @@ export async function GET(request: NextRequest) {
           produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },
           colisARemplacer: { select: { id: true, codeSuivi: true } },
           hubActuel: { select: { id: true, nom: true, ville: true } },
+          // Tags « Shopify » / « YouCan » de la liste (§ intégrations boutique).
+          shopify: { select: { numero: true } },
+          youcan: { select: { numero: true } },
         },
         orderBy: { dateCreation: 'desc' },
         skip: (page - 1) * pageSize,

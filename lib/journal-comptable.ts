@@ -8,6 +8,7 @@ import type {
   TypeTransaction,
 } from '@/app/generated/prisma/enums';
 import {
+  CATEGORIES_PAR_DEFAUT_BOUTIQUE,
   LABELS_PORTEE_CATEGORIE,
   LONGUEUR_MAX_NOM_CATEGORIE,
   normaliserNomCategorie,
@@ -19,6 +20,12 @@ import type { ModificationCommandeStockHub } from '@/lib/commandes-stock-hub';
 // Manipulation des pièces comptables depuis /admin/comptabilite : modifier,
 // supprimer (logiquement), restaurer, gérer les catégories — et tracer chacun
 // de ces gestes dans HistoriqueComptable (§ prisma/schema.prisma).
+//
+// CLOISONNEMENT : chaque fonction reçoit le livre de l'appelant (`marchandId`,
+// `null` pour la plateforme — cf. lib/comptabilite-perimetre.ts) et traite
+// toute pièce d'un autre livre comme inexistante (404). Une boutique ne peut
+// donc ni lire, ni modifier, ni supprimer, ni catégoriser avec ce qui ne lui
+// appartient pas, et ses traces d'historique portent son livre.
 //
 // Tout se fait dans une transaction interactive : la lecture de l'état, la
 // décision, l'écriture ET la trace. Une trace écrite hors de la transaction
@@ -129,6 +136,7 @@ export function idsARestaurer(e: EtatCouple): { statut: 'ok'; ids: string[] } | 
 
 async function tracer(
   db: Db,
+  marchandId: string | null,
   cibleType: CibleHistoriqueComptable,
   cibleId: string,
   action: ActionHistoriqueComptable,
@@ -142,6 +150,7 @@ async function tracer(
       cibleId,
       action,
       auteurId,
+      marchandId,
       // Clé omise plutôt que `null` : un Json nullable Prisma exige
       // `Prisma.DbNull` pour écrire NULL, et l'absence donne le même résultat.
       ...(avant ? { avant } : {}),
@@ -161,10 +170,11 @@ export interface LigneHistoriqueComptable {
 
 export async function historiqueComptable(
   cibleType: CibleHistoriqueComptable,
-  cibleId: string
+  cibleId: string,
+  marchandId: string | null
 ): Promise<LigneHistoriqueComptable[]> {
   const lignes = await prisma.historiqueComptable.findMany({
-    where: { cibleType, cibleId },
+    where: { cibleType, cibleId, marchandId },
     orderBy: { dateAction: 'desc' },
     include: { auteur: { select: { nomComplet: true } } },
   });
@@ -214,9 +224,27 @@ function exposerCategorie(c: CategorieLue): CategorieExposee {
   };
 }
 
-export async function listerCategories(portee?: PorteeCategorieComptable): Promise<CategorieExposee[]> {
+/** Une boutique trouve, à sa première visite, les mêmes catégories de départ
+ *  que la plateforme (sans `code` : aucune écriture automatique ne s'y range).
+ *  Ne crée rien dès que la boutique a UNE catégorie, pour ne pas ressusciter
+ *  celles qu'elle a supprimées. `skipDuplicates` couvre deux premiers
+ *  chargements simultanés (index unique marchandId/portee/nom). */
+export async function assurerCategoriesParDefaut(marchandId: string): Promise<void> {
+  const existantes = await prisma.categorieComptable.count({ where: { marchandId } });
+  if (existantes > 0) return;
+  await prisma.categorieComptable.createMany({
+    data: CATEGORIES_PAR_DEFAUT_BOUTIQUE.map((c) => ({ ...c, marchandId })),
+    skipDuplicates: true,
+  });
+}
+
+export async function listerCategories(
+  marchandId: string | null,
+  portee?: PorteeCategorieComptable
+): Promise<CategorieExposee[]> {
+  if (marchandId) await assurerCategoriesParDefaut(marchandId);
   const categories = await prisma.categorieComptable.findMany({
-    where: portee ? { portee } : undefined,
+    where: { marchandId, ...(portee ? { portee } : {}) },
     orderBy: [{ portee: 'asc' }, { nom: 'asc' }],
     select: SELECT_CATEGORIE,
   });
@@ -234,9 +262,20 @@ function validerNomCategorie(brut: unknown): string {
 
 // L'index unique (portee, nom) est sensible à la casse : c'est ici que
 // « salaire » et « Salaire » deviennent un doublon.
-async function refuserDoublon(db: Db, portee: PorteeCategorieComptable, nom: string, saufId?: string): Promise<void> {
+async function refuserDoublon(
+  db: Db,
+  marchandId: string | null,
+  portee: PorteeCategorieComptable,
+  nom: string,
+  saufId?: string
+): Promise<void> {
   const doublon = await db.categorieComptable.findFirst({
-    where: { portee, nom: { equals: nom, mode: 'insensitive' }, ...(saufId ? { NOT: { id: saufId } } : {}) },
+    where: {
+      marchandId,
+      portee,
+      nom: { equals: nom, mode: 'insensitive' },
+      ...(saufId ? { NOT: { id: saufId } } : {}),
+    },
     select: { id: true },
   });
   if (doublon) {
@@ -254,14 +293,15 @@ function traduireConflitCategorie(error: unknown): never {
 export async function creerCategorie(
   nomBrut: unknown,
   portee: PorteeCategorieComptable,
-  auteurId: string
+  auteurId: string,
+  marchandId: string | null
 ): Promise<CategorieExposee> {
   const nom = validerNomCategorie(nomBrut);
   try {
     return await prisma.$transaction(async (tx) => {
-      await refuserDoublon(tx, portee, nom);
-      const creee = await tx.categorieComptable.create({ data: { nom, portee }, select: SELECT_CATEGORIE });
-      await tracer(tx, 'categorie', creee.id, 'creation', auteurId, null, { nom, portee });
+      await refuserDoublon(tx, marchandId, portee, nom);
+      const creee = await tx.categorieComptable.create({ data: { nom, portee, marchandId }, select: SELECT_CATEGORIE });
+      await tracer(tx, marchandId, 'categorie', creee.id, 'creation', auteurId, null, { nom, portee });
       return exposerCategorie(creee);
     });
   } catch (error) {
@@ -269,18 +309,29 @@ export async function creerCategorie(
   }
 }
 
-export async function renommerCategorie(id: string, nomBrut: unknown, auteurId: string): Promise<CategorieExposee> {
+// Une catégorie d'un autre livre n'existe pas pour l'appelant.
+async function lireCategorie(db: Db, id: string, marchandId: string | null): Promise<CategorieLue> {
+  const c = await db.categorieComptable.findFirst({ where: { id, marchandId }, select: SELECT_CATEGORIE });
+  if (!c) throw new ApiError(404, 'Catégorie introuvable');
+  return c;
+}
+
+export async function renommerCategorie(
+  id: string,
+  nomBrut: unknown,
+  auteurId: string,
+  marchandId: string | null
+): Promise<CategorieExposee> {
   const nom = validerNomCategorie(nomBrut);
   try {
     return await prisma.$transaction(async (tx) => {
-      const actuelle = await tx.categorieComptable.findUnique({ where: { id }, select: SELECT_CATEGORIE });
-      if (!actuelle) throw new ApiError(404, 'Catégorie introuvable');
+      const actuelle = await lireCategorie(tx, id, marchandId);
       if (actuelle.nom === nom) return exposerCategorie(actuelle);
-      await refuserDoublon(tx, actuelle.portee, nom, id);
+      await refuserDoublon(tx, marchandId, actuelle.portee, nom, id);
       // Le renommage vaut pour toutes les pièces qui la portent, passées
       // comprises : elles pointent l'identifiant, pas le libellé.
       const renommee = await tx.categorieComptable.update({ where: { id }, data: { nom }, select: SELECT_CATEGORIE });
-      await tracer(tx, 'categorie', id, 'modification', auteurId, { nom: actuelle.nom }, { nom });
+      await tracer(tx, marchandId, 'categorie', id, 'modification', auteurId, { nom: actuelle.nom }, { nom });
       return exposerCategorie(renommee);
     });
   } catch (error) {
@@ -288,10 +339,9 @@ export async function renommerCategorie(id: string, nomBrut: unknown, auteurId: 
   }
 }
 
-export async function supprimerCategorie(id: string, auteurId: string): Promise<void> {
+export async function supprimerCategorie(id: string, auteurId: string, marchandId: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const actuelle = await tx.categorieComptable.findUnique({ where: { id }, select: SELECT_CATEGORIE });
-    if (!actuelle) throw new ApiError(404, 'Catégorie introuvable');
+    const actuelle = await lireCategorie(tx, id, marchandId);
     if (actuelle.code !== null) {
       throw new ApiError(
         409,
@@ -308,7 +358,7 @@ export async function supprimerCategorie(id: string, auteurId: string): Promise<
       );
     }
     await tx.categorieComptable.delete({ where: { id } });
-    await tracer(tx, 'categorie', id, 'suppression', auteurId, { nom: actuelle.nom, portee: actuelle.portee }, null);
+    await tracer(tx, marchandId, 'categorie', id, 'suppression', auteurId, { nom: actuelle.nom, portee: actuelle.portee }, null);
   });
 }
 
@@ -324,16 +374,22 @@ export async function idCategorieSysteme(db: Db, code: CodeCategorieSysteme): Pr
   return categorie.id;
 }
 
-/** Une catégorie choisie par l'utilisateur doit exister ET appartenir à la
- *  bonne carte — un identifiant de catégorie « commande » posé sur une
- *  écriture passerait la clé étrangère sans broncher. */
+/** Une catégorie choisie par l'utilisateur doit exister, appartenir à la
+ *  bonne carte ET au bon livre — un identifiant de catégorie « commande », ou
+ *  d'une autre boutique, passerait la clé étrangère sans broncher. */
 export async function verifierCategorie(
   db: Db | typeof prisma,
   id: string,
-  portee: PorteeCategorieComptable
+  portee: PorteeCategorieComptable,
+  marchandId: string | null
 ): Promise<{ id: string; nom: string }> {
-  const categorie = await db.categorieComptable.findUnique({ where: { id }, select: { id: true, nom: true, portee: true } });
-  if (!categorie || categorie.portee !== portee) throw new ApiError(400, 'Catégorie invalide');
+  const categorie = await db.categorieComptable.findUnique({
+    where: { id },
+    select: { id: true, nom: true, portee: true, marchandId: true },
+  });
+  if (!categorie || categorie.portee !== portee || categorie.marchandId !== marchandId) {
+    throw new ApiError(400, 'Catégorie invalide');
+  }
   return { id: categorie.id, nom: categorie.nom };
 }
 
@@ -347,7 +403,7 @@ const INCLUDE_ETAT_TRANSACTION = {
   transactionOrigine: { select: { id: true, supprimeLe: true } },
 } as const;
 
-async function lireTransaction(db: Db, id: string) {
+async function lireTransaction(db: Db, id: string, marchandId: string | null) {
   // `omit` du justificatif : on n'a besoin que de savoir s'il existe, ce que
   // la requête suivante dit sans rapatrier le base64 (§ Transaction.preuveUrl).
   const t = await db.transaction.findUnique({
@@ -355,7 +411,7 @@ async function lireTransaction(db: Db, id: string) {
     omit: { preuveUrl: true },
     include: INCLUDE_ETAT_TRANSACTION,
   });
-  if (!t) throw new ApiError(404, 'Transaction introuvable');
+  if (!t || t.marchandId !== marchandId) throw new ApiError(404, 'Transaction introuvable');
   const aPreuve = (await db.transaction.count({ where: { id, preuveUrl: { not: null } } })) > 0;
   return { ...t, aPreuve };
 }
@@ -395,9 +451,14 @@ async function recalculerEstAnnulee(db: Db, origineId: string): Promise<void> {
   });
 }
 
-export async function modifierTransaction(id: string, champs: ModificationTransaction, auteurId: string): Promise<void> {
+export async function modifierTransaction(
+  id: string,
+  champs: ModificationTransaction,
+  auteurId: string,
+  marchandId: string | null
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const t = await lireTransaction(tx, id);
+    const t = await lireTransaction(tx, id, marchandId);
     if (t.supprimeLe) throw new ApiError(409, 'Écriture supprimée : restaurez-la avant de la modifier');
 
     const refus = refusModificationCompensation(
@@ -409,7 +470,7 @@ export async function modifierTransaction(id: string, champs: ModificationTransa
 
     let nomCategorie = t.categorie.nom;
     if (champs.categorieId !== undefined && champs.categorieId !== t.categorieId) {
-      nomCategorie = (await verifierCategorie(tx, champs.categorieId, 'transaction')).nom;
+      nomCategorie = (await verifierCategorie(tx, champs.categorieId, 'transaction', marchandId)).nom;
     }
 
     const avant = instantaneTransaction(t);
@@ -438,13 +499,13 @@ export async function modifierTransaction(id: string, champs: ModificationTransa
       },
       select: { id: true },
     });
-    await tracer(tx, 'transaction', id, 'modification', auteurId, diff.avant, diff.apres);
+    await tracer(tx, marchandId, 'transaction', id, 'modification', auteurId, diff.avant, diff.apres);
 
     // L'écriture a été annulée : sa compensation suit le nouveau montant et
     // le nouveau sens, sans quoi l'annulation ne neutraliserait plus rien.
     // Elle reçoit sa propre trace — c'est une ligne du journal qui change.
     if (t.annulation && ('montant' in diff.apres || 'type' in diff.apres)) {
-      const compensation = await lireTransaction(tx, t.annulation.id);
+      const compensation = await lireTransaction(tx, t.annulation.id, marchandId);
       const nouveauType = TYPE_INVERSE[(champs.type ?? t.type) as TypeTransaction];
       const nouveauMontant = champs.montant ?? Number(t.montant);
       const diffCompensation = champsModifies(
@@ -457,15 +518,24 @@ export async function modifierTransaction(id: string, champs: ModificationTransa
           data: { montant: nouveauMontant, type: nouveauType },
           select: { id: true },
         });
-        await tracer(tx, 'transaction', compensation.id, 'modification', auteurId, diffCompensation.avant, diffCompensation.apres);
+        await tracer(
+          tx,
+          marchandId,
+          'transaction',
+          compensation.id,
+          'modification',
+          auteurId,
+          diffCompensation.avant,
+          diffCompensation.apres
+        );
       }
     }
   });
 }
 
-export async function supprimerTransaction(id: string, auteurId: string): Promise<void> {
+export async function supprimerTransaction(id: string, auteurId: string, marchandId: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const t = await lireTransaction(tx, id);
+    const t = await lireTransaction(tx, id, marchandId);
     if (t.supprimeLe) throw new ApiError(409, 'Cette écriture est déjà supprimée');
 
     const ids = idsASupprimer(etatCouple(t));
@@ -473,13 +543,13 @@ export async function supprimerTransaction(id: string, auteurId: string): Promis
     // qui permettra de restaurer l'écriture et sa compensation ensemble.
     const maintenant = new Date();
     for (const cibleId of ids) {
-      const cible = cibleId === t.id ? t : await lireTransaction(tx, cibleId);
+      const cible = cibleId === t.id ? t : await lireTransaction(tx, cibleId, marchandId);
       await tx.transaction.update({
         where: { id: cibleId },
         data: { supprimeLe: maintenant, supprimeParId: auteurId },
         select: { id: true },
       });
-      await tracer(tx, 'transaction', cibleId, 'suppression', auteurId, instantaneTransaction(cible), null);
+      await tracer(tx, marchandId, 'transaction', cibleId, 'suppression', auteurId, instantaneTransaction(cible), null);
     }
 
     // Supprimer une compensation seule défait l'annulation de son origine.
@@ -487,20 +557,20 @@ export async function supprimerTransaction(id: string, auteurId: string): Promis
   });
 }
 
-export async function restaurerTransaction(id: string, auteurId: string): Promise<void> {
+export async function restaurerTransaction(id: string, auteurId: string, marchandId: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const t = await lireTransaction(tx, id);
+    const t = await lireTransaction(tx, id, marchandId);
     const plan = idsARestaurer(etatCouple(t));
     if (plan.statut === 'refus') throw new ApiError(409, plan.message);
 
     for (const cibleId of plan.ids) {
-      const cible = cibleId === t.id ? t : await lireTransaction(tx, cibleId);
+      const cible = cibleId === t.id ? t : await lireTransaction(tx, cibleId, marchandId);
       await tx.transaction.update({
         where: { id: cibleId },
         data: { supprimeLe: null, supprimeParId: null },
         select: { id: true },
       });
-      await tracer(tx, 'transaction', cibleId, 'restauration', auteurId, null, instantaneTransaction(cible));
+      await tracer(tx, marchandId, 'transaction', cibleId, 'restauration', auteurId, null, instantaneTransaction(cible));
     }
 
     await recalculerEstAnnulee(tx, t.transactionOrigine ? t.transactionOrigine.id : t.id);
@@ -511,13 +581,13 @@ export async function restaurerTransaction(id: string, auteurId: string): Promis
 // Commandes d'inventaire
 // ------------------------------------------------------------
 
-async function lireCommande(db: Db, id: string) {
+async function lireCommande(db: Db, id: string, marchandId: string | null) {
   const c = await db.commandeStockHub.findUnique({
     where: { id },
     omit: { preuveUrl: true },
     include: { categorie: { select: { nom: true } } },
   });
-  if (!c) throw new ApiError(404, 'Commande introuvable');
+  if (!c || c.marchandId !== marchandId) throw new ApiError(404, 'Commande introuvable');
   const aPreuve = (await db.commandeStockHub.count({ where: { id, preuveUrl: { not: null } } })) > 0;
   return { ...c, aPreuve };
 }
@@ -540,16 +610,17 @@ function instantaneCommande(c: CommandeLue): Instantane {
 export async function modifierCommandeStockHub(
   id: string,
   champs: ModificationCommandeStockHub,
-  auteurId: string
+  auteurId: string,
+  marchandId: string | null
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const c = await lireCommande(tx, id);
+    const c = await lireCommande(tx, id, marchandId);
     if (c.supprimeLe) throw new ApiError(409, 'Commande supprimée : restaurez-la avant de la modifier');
 
     let nomCategorie = c.categorie?.nom ?? null;
     if (champs.categorieId !== undefined && champs.categorieId !== c.categorieId) {
       nomCategorie = champs.categorieId
-        ? (await verifierCategorie(tx, champs.categorieId, 'commande_stock_hub')).nom
+        ? (await verifierCategorie(tx, champs.categorieId, 'commande_stock_hub', marchandId)).nom
         : null;
     }
 
@@ -580,32 +651,32 @@ export async function modifierCommandeStockHub(
       },
       select: { id: true },
     });
-    await tracer(tx, 'commande_stock_hub', id, 'modification', auteurId, diff.avant, diff.apres);
+    await tracer(tx, marchandId, 'commande_stock_hub', id, 'modification', auteurId, diff.avant, diff.apres);
   });
 }
 
-export async function supprimerCommandeStockHub(id: string, auteurId: string): Promise<void> {
+export async function supprimerCommandeStockHub(id: string, auteurId: string, marchandId: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const c = await lireCommande(tx, id);
+    const c = await lireCommande(tx, id, marchandId);
     if (c.supprimeLe) throw new ApiError(409, 'Cette commande est déjà supprimée');
     await tx.commandeStockHub.update({
       where: { id },
       data: { supprimeLe: new Date(), supprimeParId: auteurId },
       select: { id: true },
     });
-    await tracer(tx, 'commande_stock_hub', id, 'suppression', auteurId, instantaneCommande(c), null);
+    await tracer(tx, marchandId, 'commande_stock_hub', id, 'suppression', auteurId, instantaneCommande(c), null);
   });
 }
 
-export async function restaurerCommandeStockHub(id: string, auteurId: string): Promise<void> {
+export async function restaurerCommandeStockHub(id: string, auteurId: string, marchandId: string | null): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const c = await lireCommande(tx, id);
+    const c = await lireCommande(tx, id, marchandId);
     if (!c.supprimeLe) throw new ApiError(409, "Cette commande n'est pas supprimée");
     await tx.commandeStockHub.update({
       where: { id },
       data: { supprimeLe: null, supprimeParId: null },
       select: { id: true },
     });
-    await tracer(tx, 'commande_stock_hub', id, 'restauration', auteurId, null, instantaneCommande(c));
+    await tracer(tx, marchandId, 'commande_stock_hub', id, 'restauration', auteurId, null, instantaneCommande(c));
   });
 }

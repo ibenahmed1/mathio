@@ -12,6 +12,7 @@ import {
 } from '@/lib/taches-scope';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { PRIORITES_TACHE, STATUTS_TACHE } from '@/lib/statuts';
+import { notifier } from '@/lib/notifications';
 
 const ROLES_BACKOFFICE = ROLES_BACKOFFICE_TACHES;
 
@@ -127,6 +128,16 @@ export async function POST(request: Request) {
 
       return created;
     });
+
+    // § Notifications : l'assignation n'est plus muette (cf. lib/taches-scope.ts).
+    if (tache.assigneeId) {
+      await notifier([tache.assigneeId], {
+        type: 'tache.assignee',
+        titre: `Tâche assignée : ${tache.titre}`,
+        corps: null,
+        lien: '/admin/tasks',
+      }, { sauf: session.sub });
+    }
 
     return NextResponse.json(tache, { status: 201 });
   } catch (error) {

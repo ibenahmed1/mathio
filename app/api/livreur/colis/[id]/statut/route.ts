@@ -4,6 +4,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } from '@/lib/types';
 import { deciderActionColisLivreur, type OrigineColisLivreur } from '@/lib/comptes-livreur';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
+import { notifierStatutsColis } from '@/lib/notifications';
 
 const ACTIONS_VALIDES: ActionLivreur[] = ['livre', 'reporte', 'annule'];
 
@@ -142,6 +143,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       return result;
     });
+
+    // § Notifications : le marchand apprend la livraison (cloche) ou l'échec.
+    if (nouveauStatut !== commande.statut) {
+      await notifierStatutsColis([{ commandeId: id, statut: nouveauStatut }], { sauf: session.sub });
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

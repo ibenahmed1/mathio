@@ -3,6 +3,7 @@ import { getPageSession, roleMatches, spaceOrigin } from '@/lib/auth';
 import { resolveMarchandAvecEtat } from '@/lib/marchand-scope';
 import { CHAMPS_A_FINALISER, type EtatActivationMarchand } from '@/lib/marchand-activation';
 import { ActivationMarchandProvider } from '@/components/marchand/activation-context';
+import { PermissionsMarchandProvider } from '@/components/marchand/permissions-context';
 import { MarchandShell } from './MarchandShell';
 
 // Aucun Marchand rattaché à cette session : anomalie (le rôle existe, le
@@ -52,14 +53,20 @@ export default async function MarchandLayout({ children }: { children: React.Rea
   // la requête ; le calculer ici le rend vrai dès le premier octet.
   const resolu = await resolveMarchandAvecEtat(session.sub);
 
+  // § Équipe & accès : les droits du compte dans sa boutique, déjà résolus
+  // par getSessionAuthState (titulaire = catalogue entier, membre = son rôle).
+  const estTitulaire = resolu?.marchand.utilisateurId === session.sub;
+
   return (
     <ActivationMarchandProvider etat={resolu?.etat ?? ETAT_SANS_DOSSIER}>
-      <MarchandShell
-        impersonation={session.impersonated}
-        retourBackOffice={session.impersonated ? `${spaceOrigin('admin')}/admin/marchands` : undefined}
-      >
-        {children}
-      </MarchandShell>
+      <PermissionsMarchandProvider estTitulaire={estTitulaire} permissions={session.permissions}>
+        <MarchandShell
+          impersonation={session.impersonated}
+          retourBackOffice={session.impersonated ? `${spaceOrigin('admin')}/admin/marchands` : undefined}
+        >
+          {children}
+        </MarchandShell>
+      </PermissionsMarchandProvider>
     </ActivationMarchandProvider>
   );
 }

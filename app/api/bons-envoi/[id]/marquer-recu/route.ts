@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveUserHub } from '@/lib/hub-envoi';
+import { destinatairesHub, notifier } from '@/lib/notifications';
 
 // § Clôture d'un Bon d'Envoi — deux gestes distincts derrière un même bouton,
 // selon la nature du bon (§ BonEnvoi dans prisma/schema.prisma) :
@@ -101,6 +102,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         })),
       });
     });
+
+    // § Notifications : le planner du hub d'arrivée a des colis à mettre en
+    // tournée. Un message par bon d'envoi, pas par colis.
+    if (bon.hubDestinationId) {
+      await notifier(await destinatairesHub(bon.hubDestinationId, ['planner']), {
+        type: 'hub.colis_recus',
+        titre: `${bon.commandes.length} colis reçus au ${bon.hubDestination?.nom ?? 'hub'}`,
+        corps: `Bon d'envoi ${bon.numero} · à planifier`,
+        lien: '/admin/planification',
+      }, { sauf: session.sub });
+    }
 
     return NextResponse.json({ updated: bon.commandes.length });
   } catch (error) {

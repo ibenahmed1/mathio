@@ -3,11 +3,16 @@
 import { useEffect, useState } from 'react';
 import { PackagePlus, Trash2, Boxes, TriangleAlert } from 'lucide-react';
 import { apiDelete, apiGet, apiPost } from '@/lib/api-client';
+import { ShopifyTag } from '@/components/ShopifyTag';
+import { YoucanTag } from '@/components/YoucanTag';
 import type { Marchandise } from '@/lib/types';
+import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
 // Catalogue "marchandise" du marchand : sert à peupler la liste déroulante
 // du formulaire "Nouveau colis" (le marchand ne voit que ce qu'il a saisi ici).
 export default function MarchandisesPage() {
+  // § Équipe & accès : sans « Gérer le catalogue », la page est en lecture.
+  const peutGerer = usePermissionsMarchand().peut('catalogue.gerer');
   const [marchandises, setMarchandises] = useState<Marchandise[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ nom: '', qteStock: '', prix: '' });
@@ -68,6 +73,7 @@ export default function MarchandisesPage() {
         prix pré-remplit automatiquement le prix du colis (prix × quantité), tout en restant modifiable.
       </p>
 
+      {peutGerer && (
       <form onSubmit={handleCreate} className="form-section max-w-xl">
         <div className="form-grid sm:grid-cols-3">
           <label className="form-field sm:col-span-3">
@@ -123,6 +129,7 @@ export default function MarchandisesPage() {
           </button>
         </div>
       </form>
+      )}
 
       {error && (
         <p className="flex items-center gap-2 text-sm font-medium text-red-600">
@@ -144,12 +151,19 @@ export default function MarchandisesPage() {
             <tbody>
               {marchandises.map((m) => (
                 <tr key={m.id}>
-                  <td className="font-medium">{m.nom}</td>
+                  <td className="font-medium">
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                      {m.nom}
+                      {m.shopify && <ShopifyTag detail={m.shopify.sku ? `SKU ${m.shopify.sku}` : null} />}
+                      {m.youcan && <YoucanTag detail={m.youcan.sku ? `SKU ${m.youcan.sku}` : null} />}
+                    </span>
+                  </td>
                   <td className="text-right tabular-nums">
                     <span className={`badge ${m.qteStock === 0 ? 'badge-danger' : 'badge-neutral'}`}>{m.qteStock}</span>
                   </td>
                   <td className="text-right font-semibold tabular-nums">{m.prix} DH</td>
                   <td className="w-8">
+                    {peutGerer && (
                     <button
                       onClick={() => handleDelete(m.id)}
                       className="btn-icon -m-2 text-red-600 hover:opacity-70"
@@ -157,6 +171,7 @@ export default function MarchandisesPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    )}
                   </td>
                 </tr>
               ))}

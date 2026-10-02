@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ApiError, jsonError, requirePermission } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import { analyserModificationCommandeStockHub } from '@/lib/commandes-stock-hub';
 import { modifierCommandeStockHub, supprimerCommandeStockHub } from '@/lib/journal-comptable';
 
@@ -10,14 +11,14 @@ import { modifierCommandeStockHub, supprimerCommandeStockHub } from '@/lib/journ
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requirePermission('comptabilite:edit');
+    const { session, marchandId } = await perimetreComptable('modification');
     const { id } = await params;
     const body = await request.json().catch(() => null);
 
     const analyse = analyserModificationCommandeStockHub(body);
     if (analyse.statut === 'refus') throw new ApiError(400, analyse.message);
 
-    await modifierCommandeStockHub(id, analyse.valeur, session.sub);
+    await modifierCommandeStockHub(id, analyse.valeur, session.sub, marchandId);
     return NextResponse.json({ id });
   } catch (error) {
     return jsonError(error);
@@ -27,9 +28,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 // Suppression LOGIQUE (§ CommandeStockHub.supprimeLe), restaurable.
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requirePermission('comptabilite:delete');
+    const { session, marchandId } = await perimetreComptable('suppression');
     const { id } = await params;
-    await supprimerCommandeStockHub(id, session.sub);
+    await supprimerCommandeStockHub(id, session.sub, marchandId);
     return NextResponse.json({ id });
   } catch (error) {
     return jsonError(error);

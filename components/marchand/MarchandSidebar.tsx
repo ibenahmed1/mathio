@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { Lock, LogOut, X } from 'lucide-react';
 import { deconnecter } from '@/lib/deconnexion';
+import { ClocheNotifications } from '@/components/notifications/ClocheNotifications';
 import type { NavItem, NavGroup } from '@/components/AppSidebar';
 import { useActivationMarchand } from './activation-context';
 import { CHEMINS_VERROUILLES } from './nav';
@@ -147,6 +148,14 @@ export function MarchandSidebar({
               <p className={s.sectionLabel}>Autre</p>
               <ul className={s.navList}>
                 {autre.filter((it): it is Extract<NavItem, { href: string }> => !isGroup(it)).map(renderLeaf)}
+                {/* § Notifications : ce qui est à soi, avant de partir — mêmes
+                    classes qu'une entrée de la liste. */}
+                <li>
+                  <ClocheNotifications
+                    variante="barre"
+                    classes={{ item: s.navItem, icone: s.navIcon, libelle: s.navLabel }}
+                  />
+                </li>
                 <li>
                   <button
                     onClick={handleLogout}
