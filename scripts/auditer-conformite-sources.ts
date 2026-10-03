@@ -191,6 +191,18 @@ const DOUBLONS_ATTENDUS = [
   { agence: 'Agence Taounate', nom: 'Kantra Asqar' },
 ];
 
+// Lignes des fichiers RETIRÉES par décision de l'exploitation, après
+// transcription (§ scripts/decisions-villes-octobre-2026.ts) : attendues
+// absentes, donc non signalées comme manquantes.
+const RETIREES_PAR_DECISION = [
+  ...[
+    'Casablanca', 'Bouskoura', 'TIT MELIL', 'Dar bouazza', 'Deroua', 'NOUACER', 'TAMARIS',
+    'MEDIOUNA', 'Berrechid', 'SIDI HAJAJ', 'SETTAT', 'Ben ahmed', 'Lahraouyine',
+  ].map((nom) => ({ agence: 'Hub Casablanca', nom })),
+  { agence: 'Agence Marrakech', nom: 'moulay brahim' },
+  { agence: 'Agence El Jadida', nom: 'l jadida' },
+];
+
 async function main() {
   const [villes, prestataires] = await Promise.all([
     prisma.ville.findMany({
@@ -240,6 +252,10 @@ async function main() {
     const trouvee = enBase.get(cle);
 
     if (!trouvee) {
+      const retiree = RETIREES_PAR_DECISION.some(
+        (d) => d.agence === ligne.agence && normaliserVille(d.nom) === normaliserVille(ligne.nom)
+      );
+      if (retiree) continue;
       const attendu = DOUBLONS_ATTENDUS.some(
         (d) => d.agence === ligne.agence && normaliserVille(d.nom) === normaliserVille(ligne.nom)
       );

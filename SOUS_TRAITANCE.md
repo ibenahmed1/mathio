@@ -218,6 +218,8 @@ relation commerciale à écrire, et elle peut changer qui nous facture.
 
 ### 2.12 Choix de modèle
 
+> **Mise à jour du 3 octobre 2026 — Casablanca passe à Power Delivery.** Le paragraphe sur les 13 villes annoncées deux fois ci-dessous décrit l'ancien régime. Le Hub Casablanca ne dessert plus aucune ville (il reste le hub central) ; Casablanca et sa région sont routées chez Power, à 15 dh (Casablanca) ou 20 dh. SIDI HAJAJ et moulay brahim sont retirées, « l jadida » fusionnée dans « El Jadida » (20 dh), Oujda (EST) tarifée 15 dh. Appliqué par `scripts/decisions-villes-octobre-2026.ts`.
+
 - **Le mode de livraison se décide par ville, via son hub.** Un `Hub` sans `prestataireId` est
   interne (nos livreurs) ; avec, c'est une agence. Basculer une ville revient à la déplacer d'un
   hub à l'autre — aucune migration.
