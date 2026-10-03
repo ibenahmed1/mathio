@@ -9,7 +9,11 @@ import {
   suivreColisPower,
   type ModificationPower,
 } from '@/lib/power-delivery';
-import { resoudreVillePower } from '@/lib/power-delivery-villes';
+import {
+  adresseLivraisonPower,
+  resoudreVillePower,
+  resoudreVilleToutesAgencesPower,
+} from '@/lib/power-delivery-villes';
 import { NOM_PRESTATAIRE_POWER, prestatairePower } from '@/lib/remise-power-delivery';
 import { traiterInformationPower, type ResultatInformation } from '@/lib/suivi-power-delivery';
 
@@ -134,20 +138,24 @@ export async function modifierColisChezPower(commandeId: string, auteurId: strin
     },
   });
 
+  // Une ville corrigée chez nous se transmet par son identifiant — jamais par
+  // son nom — et seulement si elle en a un : dans l'agence du bon, ou parmi
+  // toutes leurs agences pour un bon adressé directement au transporteur (même
+  // règle qu'à la remise).
+  const agence = commande.bonEnvoi?.hubDestination?.nom;
+  const ville = agence
+    ? resoudreVillePower(agence, commande.ville)
+    : resoudreVilleToutesAgencesPower(commande.ville);
+
   const montant = arrondi(Number(commande.montantCod));
   const ancienMontant = arrondi(Number(remise.montantCodConfie));
   const modification: ModificationPower = {
     parcel_receiver: commande.clientNom.trim(),
     parcel_phone: commande.clientTelephone.trim(),
-    parcel_address: commande.adresse.trim(),
+    parcel_address: adresseLivraisonPower(commande.adresse, ville),
     parcel_open: commande.ouvrir ? 1 : 0,
     ...(montant !== ancienMontant && { parcel_price: montant }),
   };
-
-  // Une ville corrigée chez nous se transmet par son identifiant — jamais par
-  // son nom — et seulement si elle en a un dans la même agence.
-  const agence = commande.bonEnvoi?.hubDestination?.nom;
-  const ville = agence ? resoudreVillePower(agence, commande.ville) : null;
   if (ville && ville.cityId !== remise.cityId) modification.parcel_city = ville.cityId;
 
   await modifierColisPower(codeChezEux(remise), modification).catch(relayer);
@@ -226,7 +234,21 @@ export async function demanderRelivraisonChezPower(
   auteurId: string
 ): Promise<ResultatRelivraison> {
   const remise = await remiseActive(commandeId);
-  await demanderRelivraisonPower(codeChezEux(remise), demande).catch(relayer);
+
+  // La nouvelle adresse remplace la leur : pour une localité rattachée, elle
+  // doit garder le nom de la localité, comme à la remise. Chez nous, elle est
+  // enregistrée telle que saisie.
+  let adresseChezEux = demande.nouvelleAdresse;
+  if (adresseChezEux) {
+    const { ville, bonEnvoi } = await prisma.commande.findUniqueOrThrow({
+      where: { id: commandeId },
+      select: { ville: true, bonEnvoi: { select: { hubDestination: { select: { nom: true } } } } },
+    });
+    const agence = bonEnvoi?.hubDestination?.nom;
+    const correspondance = agence ? resoudreVillePower(agence, ville) : resoudreVilleToutesAgencesPower(ville);
+    adresseChezEux = adresseLivraisonPower(adresseChezEux, correspondance);
+  }
+  await demanderRelivraisonPower(codeChezEux(remise), { ...demande, nouvelleAdresse: adresseChezEux }).catch(relayer);
 
   return prisma.$transaction(async (tx) => {
     const commande = await tx.commande.findUniqueOrThrow({

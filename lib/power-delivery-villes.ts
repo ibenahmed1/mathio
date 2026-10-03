@@ -23,29 +23,33 @@ import { normaliserVille } from '@/lib/hub-stock';
 // notre grille sont hors contrat — servies chez nous par d'autres prestataires —
 // et n'ont rien à faire ici.
 //
-// DEUX GROUPES :
+// TROIS GROUPES :
 //   · `exact`       — même nom chez eux, casse, accents et espaces de bord mis
 //                     à part (leur « Sidi bou othmane » porte une espace finale) ;
-//   · `orthographe` — même ville, autre graphie : « l jadida » est « El jadida ».
+//   · `orthographe` — même ville, autre graphie : « TEMSENA » est « Tamssna » ;
+//   · `rattachee`   — localité absente de leur liste, que Power dessert quand
+//                     même : elle part sous l'identifiant de la ville de son
+//                     agence, et son nom est ajouté à l'adresse
+//                     (`adresseLivraisonPower`), comme chez Meta.
 //
-// AUCUNE LOCALITÉ RATTACHÉE, contrairement à Meta. Une ville absente de leur
-// liste n'est pas envoyée sous le nom d'une voisine : ce rattachement doit venir
-// de Power Delivery, et il n'est pas venu. Ces villes sont listées à part
-// (VILLES_POWER_SANS_CORRESPONDANCE), restent livrables par Excel, et
-// attendent leur réponse.
+// Les rattachements datent du 03/10/2026 : ASNI, ouargui et El arjat étaient
+// jusque-là mises de côté (remise par Excel) faute d'identifiant chez eux. Ils
+// ont été décidés par l'exploitation — Power dessert toujours ces localités —
+// et non déduits d'une ressemblance de nom : on n'envoie JAMAIS une localité
+// sous l'identifiant d'une voisine. « ouargui » en est l'exemple : leur API lui
+// donne deux identifiants (#6458, #6542), aucun n'est retenu, elle part sous
+// Marrakech.
 //
-// Deux de NOS lignes peuvent désigner la même ville chez eux, et c'est voulu :
-// « l jadida » (la grille) et « El Jadida » (la ville d'implantation de
-// l'agence, ajoutée par scripts/ajouter-villes-agences.ts) partent toutes deux
-// sous #4247. À l'inverse, deux villes que LEUR base tient en double — « ait
-// aourir » #5353 / « Aït ourir » #5658, « tamelelt » #6437 / « Tamallalt »
-// #6054 — gardent chacune leur propre identifiant : décider que c'est la même
-// ville leur appartient.
+// À l'inverse, deux villes que LEUR base tient en double — « ait aourir »
+// #5353 / « Aït ourir » #5658, « tamelelt » #6437 / « Tamallalt » #6054 —
+// gardent chacune leur propre identifiant : décider que c'est la même ville
+// leur appartient.
 //
 // Source : `GET https://elog.ma/apiclient/listcities`, relevé du 21/09/2026 —
-// 382 villes chez eux, 91 villes Power chez nous (base locale).
+// 382 villes chez eux, 91 villes Power chez nous (base locale) ; 88 depuis le
+// 03/10/2026 (SIDI HAJAJ, moulay brahim et « l jadida » retirées du référentiel).
 
-export type GroupeCorrespondancePower = 'exact' | 'orthographe';
+export type GroupeCorrespondancePower = 'exact' | 'orthographe' | 'rattachee';
 
 export interface CorrespondanceVillePower {
   // Nom de l'agence (Hub.nom) et de la ville (Ville.nom), tels qu'en base.
@@ -81,7 +85,6 @@ export const CORRESPONDANCES_VILLES_POWER: readonly CorrespondanceVillePower[] =
   { agence: 'Agence El Jadida', ville: 'El Jadida', cityId: 4247, nomPower: 'El jadida', groupe: 'exact' },
   { agence: 'Agence El Jadida', ville: 'Had soualem', cityId: 4295, nomPower: 'Had soualem', groupe: 'exact' },
   { agence: 'Agence El Jadida', ville: 'Khemis des zemamra', cityId: 4319, nomPower: 'Khemis des zemamra', groupe: 'exact' },
-  { agence: 'Agence El Jadida', ville: 'l jadida', cityId: 4247, nomPower: 'El jadida', groupe: 'orthographe' },
   { agence: 'Agence El Jadida', ville: 'MOULAY ABDELLAH', cityId: 4325, nomPower: 'MOULAY ABDELLAH', groupe: 'exact' },
   { agence: 'Agence El Jadida', ville: 'SIDI BENNOUR', cityId: 4709, nomPower: 'SIDI BENNOUR', groupe: 'exact' },
   { agence: 'Agence El Jadida', ville: 'Sidi bouzid', cityId: 4283, nomPower: 'Sidi bouzid', groupe: 'exact' },
@@ -92,6 +95,7 @@ export const CORRESPONDANCES_VILLES_POWER: readonly CorrespondanceVillePower[] =
   { agence: 'Agence Marrakech', ville: 'ait aourir', cityId: 5353, nomPower: 'ait aourir', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'Aït ourir', cityId: 5658, nomPower: 'Aït ourir', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'Amizmiz', cityId: 5672, nomPower: 'Amizmiz', groupe: 'exact' },
+  { agence: 'Agence Marrakech', ville: 'ASNI', cityId: 4367, nomPower: 'Marrakech', groupe: 'rattachee' },
   { agence: 'Agence Marrakech', ville: 'Ben Guerir', cityId: 4787, nomPower: 'Ben Guerir', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'Chichaoua', cityId: 5377, nomPower: 'Chichaoua', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'choueiter', cityId: 6394, nomPower: 'choueiter', groupe: 'exact' },
@@ -108,6 +112,7 @@ export const CORRESPONDANCES_VILLES_POWER: readonly CorrespondanceVillePower[] =
   { agence: 'Agence Marrakech', ville: 'Marrakech', cityId: 4367, nomPower: 'Marrakech', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'Mzouda', cityId: 6549, nomPower: 'Mzouda', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'mzoudia', cityId: 6556, nomPower: 'mzoudia', groupe: 'exact' },
+  { agence: 'Agence Marrakech', ville: 'ouargui', cityId: 4367, nomPower: 'Marrakech', groupe: 'rattachee' },
   { agence: 'Agence Marrakech', ville: 'Ouaht sidi brahim', cityId: 6664, nomPower: 'Ouaht sidi brahim', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'ouled hassoune', cityId: 6465, nomPower: 'ouled hassoune', groupe: 'exact' },
   { agence: 'Agence Marrakech', ville: 'ouled yahya', cityId: 6409, nomPower: 'ouled yahya', groupe: 'exact' },
@@ -135,6 +140,7 @@ export const CORRESPONDANCES_VILLES_POWER: readonly CorrespondanceVillePower[] =
   { agence: 'Agence Rabat', ville: 'Benslimane', cityId: 5303, nomPower: 'Benslimane', groupe: 'exact' },
   { agence: 'Agence Rabat', ville: 'Bouknadel', cityId: 4997, nomPower: 'Bouknadel', groupe: 'exact' },
   { agence: 'Agence Rabat', ville: 'Bouznika', cityId: 5039, nomPower: 'Bouznika', groupe: 'exact' },
+  { agence: 'Agence Rabat', ville: 'El arjat', cityId: 4967, nomPower: 'Rabat', groupe: 'rattachee' },
   { agence: 'Agence Rabat', ville: 'Harhoura', cityId: 5003, nomPower: 'Harhoura', groupe: 'exact' },
   { agence: 'Agence Rabat', ville: 'Kenitra', cityId: 4991, nomPower: 'Kenitra', groupe: 'exact' },
   { agence: 'Agence Rabat', ville: 'Mers el kheir', cityId: 5009, nomPower: 'Mers el kheir', groupe: 'exact' },
@@ -145,30 +151,20 @@ export const CORRESPONDANCES_VILLES_POWER: readonly CorrespondanceVillePower[] =
   { agence: 'Agence Rabat', ville: 'Skhirate', cityId: 5021, nomPower: 'Skhirate', groupe: 'exact' },
   { agence: 'Agence Rabat', ville: 'Tamssna', cityId: 5107, nomPower: 'Tamssna', groupe: 'exact' },
   { agence: 'Agence Rabat', ville: 'Temara', cityId: 4985, nomPower: 'Temara', groupe: 'exact' },
+  { agence: 'Agence Rabat', ville: 'TEMSENA', cityId: 5107, nomPower: 'Tamssna', groupe: 'orthographe' },
   { agence: 'Agence Safi', ville: 'Essaouira', cityId: 4343, nomPower: 'Essaouira', groupe: 'exact' },
   { agence: 'Agence Safi', ville: 'Jemaa shaim', cityId: 4361, nomPower: 'Jemaa shaim', groupe: 'exact' },
   { agence: 'Agence Safi', ville: 'SAFI', cityId: 4331, nomPower: 'SAFI', groupe: 'exact' },
   { agence: 'Agence Safi', ville: 'SEBT GZOULA', cityId: 4349, nomPower: 'SEBT GZOULA', groupe: 'exact' },
 ];
 
-// Villes de notre grille Power qu'on NE PEUT PAS leur remettre par l'API, mises
-// de côté sur décision du 21/09/2026. Elles restent dans le référentiel — les
-// colis y sont routés et tarifés comme avant — mais leur remise passe par
-// l'Excel. Une réponse de Power Delivery les fait passer dans la liste
-// ci-dessus ; elles ne se rapprochent JAMAIS d'une voisine par déduction.
-export const VILLES_POWER_SANS_CORRESPONDANCE: readonly VillePowerSansCorrespondance[] = [
-  { agence: 'Agence Casablanca', ville: 'SIDI HAJAJ', motif: 'absente de leur API sous tout nom' },
-  { agence: 'Agence Marrakech', ville: 'ASNI', motif: 'absente de leur API sous tout nom' },
-  { agence: 'Agence Marrakech', ville: 'moulay brahim', motif: 'absente de leur API sous tout nom' },
-  // Leur grille l'écrit deux fois, leur API lui donne deux identifiants
-  // (#6458 et #6542) : en prendre un au hasard, c'est un colis sur deux au
-  // mauvais endroit si ce sont deux lieux.
-  { agence: 'Agence Marrakech', ville: 'ouargui', motif: 'deux identifiants chez eux (#6458, #6542)' },
-  { agence: 'Agence Rabat', ville: 'El arjat', motif: 'absente de leur API sous tout nom' },
-  // Vraisemblablement « Tamssna » (#5107), déjà dans la liste ci-dessus sous
-  // son propre nom — à confirmer par eux avant de la rattacher.
-  { agence: 'Agence Rabat', ville: 'TEMSENA', motif: 'absente de leur API ; seul « Tamssna » existe' },
-];
+// Villes de notre grille Power qu'on NE PEUT PAS leur remettre par l'API : elles
+// restent dans le référentiel — routées et tarifées comme les autres — mais leur
+// remise passe par l'Excel. Vide depuis le 03/10/2026 : les six villes mises de
+// côté le 21/09 ont été soit retirées du référentiel (SIDI HAJAJ, moulay
+// brahim), soit rapprochées ou rattachées ci-dessus. La liste reste le point
+// d'entrée d'une future ville sans identifiant.
+export const VILLES_POWER_SANS_CORRESPONDANCE: readonly VillePowerSansCorrespondance[] = [];
 
 // Résolution à la remise. La recherche se fait DANS L'AGENCE qui reçoit le
 // colis, et non sur toutes les villes Power : la même localité peut exister
@@ -202,4 +198,16 @@ export function resoudreVilleToutesAgencesPower(ville: string): CorrespondanceVi
 
   const cityIds = new Set(candidats.map((c) => c.cityId));
   return cityIds.size === 1 ? candidats[0] : null;
+}
+
+// Adresse transmise à Power. Pour une localité `rattachee`, le `cityId` désigne
+// la ville d'agence : sans le nom de la localité dans l'adresse, leur livreur
+// chercherait le destinataire en ville. Le nom n'est pas ajouté s'il y figure
+// déjà — beaucoup de marchands l'écrivent eux-mêmes. Même règle que
+// `adresseLivraisonMeta`.
+export function adresseLivraisonPower(adresse: string, correspondance: CorrespondanceVillePower | null): string {
+  const propre = adresse.trim();
+  if (correspondance?.groupe !== 'rattachee') return propre;
+  if (normaliserVille(propre).includes(normaliserVille(correspondance.ville))) return propre;
+  return propre ? `${propre}, ${correspondance.ville}` : correspondance.ville;
 }

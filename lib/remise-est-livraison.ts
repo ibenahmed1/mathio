@@ -5,44 +5,53 @@ import { ApiError } from '@/lib/api-utils';
 import { ErreurPlateforme } from '@/lib/plateforme-auth';
 import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statut';
 import {
-  ErreurColivraison,
-  codeColivraison,
-  codeDansListe,
-  construireColisColivraison,
-  creerColisColivraison,
-  listerColisColivraison,
-} from '@/lib/colivraison';
-import {
-  adresseLivraisonColivraison,
-  resoudreVilleColivraison,
-  resoudreVilleToutesAgencesColivraison,
-} from '@/lib/colivraison-villes';
+  ErreurColisEstLivraison,
+  ErreurEstLivraison,
+  construireCommandeEst,
+  creerCommandeEst,
+  type CommandeEst,
+} from '@/lib/est-livraison';
+import { resoudreVilleEst, resoudreVilleToutesAgencesEst } from '@/lib/est-livraison-villes';
 
-// § Sous-traitance Colivraison — la REMISE d'un colis par leur API, depuis le
-// BON D'ENVOI, exactement comme pour Power Delivery (lib/remise-power-delivery.ts,
-// dont ce fichier reprend l'ordre des écritures et les issues).
+// § Sous-traitance EST Livraison — la REMISE d'un colis par leur API, depuis le
+// BON D'ENVOI. Même ordre d'écritures que Meta et Colivraison
+// (lib/remise-meta-livraison.ts) : la remise est RÉSERVÉE en base avant
+// l'appel, et l'index unique partiel « une remise active par colis » arrête le
+// second de deux clics simultanés avant qu'il ait parlé à EST.
 //
-// L'ORDRE DES ÉCRITURES EST LA GARANTIE ANTI-DOUBLON : la remise est RÉSERVÉE
-// en base (ligne `a_confirmer`, active) AVANT l'appel ; l'index unique partiel
-// « une remise active par colis » fait échouer le second de deux clics
-// simultanés avant qu'il ait parlé à Colivraison. C'est d'autant plus
-// important ici qu'ils n'ont AUCUNE annulation par l'API : un doublon chez eux
-// part en livraison.
+// TROIS DIFFÉRENCES avec les réseaux voisins, toutes imposées par leur API :
 //
-// LES CODES. Notre code part dans le paramètre `code` d'addcolis.php
-// (obligatoire, bien qu'absent de leur doc) et en tête de la note. Si leur
-// réponse ou leur liste de colis révèle un code à eux, il est gardé dans
-// `codeExterne` ; sinon le suivi interroge avec le nôtre.
+//  · LA VILLE EST UN NOM. Pas d'identifiant : le libellé exact part dans
+//    `city` et se fige dans `RemisePrestataire.villeEnvoyee` ; `cityId` reste
+//    null. Il vient UNIQUEMENT de lib/est-livraison-villes.ts — une seule
+//    ville tant que leur liste n'est pas reçue. Pas de correspondance, pas
+//    d'envoi : leur API créerait la ville au lieu de refuser.
+//
+//  · RIEN NE SE RELIT NI NE S'ANNULE. Leur API ne sert aucune lecture et leur
+//    suppression répond 404. Une remise douteuse ne se confirme donc pas par
+//    « Actualiser » comme chez Meta : elle reste active, et un humain les
+//    appelle. Leur suivi nous revient par /api/v1/livraisons/statut.
+//
+//  · UNE RÉPONSE REÇUE MAIS REJETÉE N'EST PAS UN REFUS. `lireCreation` rejette
+//    un 200 qui a créé une ville fantôme ou ne confirme pas notre code. Le
+//    colis existe alors peut-être chez eux : la remise reste active
+//    (`a_confirmer`) plutôt que d'ouvrir la porte à un doublon impossible à
+//    retirer. Seul un statut HTTP d'échec vaut « rien n'existe chez eux ».
+//
+// Le code envoyé est notre `codeSuivi` BRUT, sans préfixe (décision du
+// 23/09/2026, cf. lib/est-livraison.ts) : c'est sous lui qu'ils nous
+// répondront.
 
-export const NOM_PRESTATAIRE_COLIVRAISON = 'Colivraison';
+export const NOM_PRESTATAIRE_EST = 'EST Livraison';
 
 const STATUTS_REMETTABLES: readonly StatutCommande[] = ['en_transit', 'recu_au_hub'];
 const STATUT_REMIS: StatutCommande = 'expedier_par_amana';
 
-export type IssueRemiseColivraison =
+export type IssueRemiseEst =
   | 'remis'
   | 'a_confirmer'
-  | 'refuse_par_colivraison'
+  | 'refuse_par_est'
+  | 'colis_invalide'
   | 'deja_remis'
   | 'ville_sans_correspondance'
   | 'statut_non_remettable';
@@ -50,7 +59,7 @@ export type IssueRemiseColivraison =
 export interface ResultatRemiseColis {
   commandeId: string;
   codeSuivi: string;
-  issue: IssueRemiseColivraison;
+  issue: IssueRemiseEst;
   message: string;
   codeEnvoye?: string;
   codeExterne?: string | null;
@@ -64,12 +73,12 @@ export interface ResultatRemiseBon {
   resultats: ResultatRemiseColis[];
 }
 
-export async function prestataireColivraison(): Promise<{ id: string }> {
+export async function prestataireEst(): Promise<{ id: string }> {
   const prestataire = await prisma.prestataire.findUnique({
-    where: { nom: NOM_PRESTATAIRE_COLIVRAISON },
+    where: { nom: NOM_PRESTATAIRE_EST },
     select: { id: true },
   });
-  if (!prestataire) throw new ApiError(500, `Prestataire « ${NOM_PRESTATAIRE_COLIVRAISON} » absent du référentiel`);
+  if (!prestataire) throw new ApiError(500, `Prestataire « ${NOM_PRESTATAIRE_EST} » absent du référentiel`);
   return prestataire;
 }
 
@@ -77,19 +86,14 @@ function estDoublonActif(erreur: unknown): boolean {
   return erreur instanceof Prisma.PrismaClientKnownRequestError && erreur.code === 'P2002';
 }
 
-// Leur code pour un colis qu'on vient de créer, cherché dans colislist.php.
-// Jamais bloquant : un échec ici laisse simplement la remise sans code externe.
-export async function chercherCodeExterneColivraison(codeEnvoye: string): Promise<string | null> {
-  try {
-    return codeDansListe(await listerColisColivraison(), codeEnvoye);
-  } catch (erreur) {
-    if (erreur instanceof ErreurColivraison) return null;
-    throw erreur;
-  }
+// Une réponse HTTP de succès que `lireCreation` a rejetée : quelque chose a
+// peut-être été créé chez eux.
+function creationPossible(erreur: ErreurEstLivraison): boolean {
+  return erreur.statutHttp === null || (erreur.statutHttp >= 200 && erreur.statutHttp < 300);
 }
 
-export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: string): Promise<ResultatRemiseBon> {
-  const colivraison = await prestataireColivraison();
+export async function remettreBonEnvoiEst(bonEnvoiId: string, auteurId: string): Promise<ResultatRemiseBon> {
+  const est = await prestataireEst();
   const bon = await prisma.bonEnvoi.findUnique({
     where: { id: bonEnvoiId },
     select: {
@@ -119,15 +123,14 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
   });
   if (!bon) throw new ApiError(404, "Bon d'envoi introuvable");
   const prestataireDuBon = bon.prestataireId ?? bon.hubDestination?.prestataireId ?? null;
-  if (prestataireDuBon !== colivraison.id) {
-    throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_COLIVRAISON}`);
+  if (prestataireDuBon !== est.id) {
+    throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_EST}`);
   }
-
   const agence = bon.hubDestination?.nom ?? null;
+
   const resultats: ResultatRemiseColis[] = [];
 
-  // Un colis après l'autre : leur API n'annonce aucun quota, et un bon compte
-  // quelques dizaines de colis au plus.
+  // Un colis après l'autre : leur serveur ne prend qu'une commande par appel.
   for (const commande of bon.commandes) {
     const base = { commandeId: commande.id, codeSuivi: commande.codeSuivi };
 
@@ -140,30 +143,39 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
       continue;
     }
 
-    const ville = agence
-      ? resoudreVilleColivraison(agence, commande.ville)
-      : resoudreVilleToutesAgencesColivraison(commande.ville);
+    const ville = agence ? resoudreVilleEst(agence, commande.ville) : resoudreVilleToutesAgencesEst(commande.ville);
     if (!ville) {
       resultats.push({
         ...base,
         issue: 'ville_sans_correspondance',
-        message: `« ${commande.ville} » n'a pas de correspondance ${NOM_PRESTATAIRE_COLIVRAISON} : remise par l'Excel du bon`,
+        message: `« ${commande.ville} » n'est pas encore reconnue par ${NOM_PRESTATAIRE_EST} : remise par l'Excel du bon`,
       });
       continue;
     }
 
-    const codeEnvoye = codeColivraison(commande.codeSuivi);
+    // Construit AVANT la réservation : un champ vide ou trop long se répare
+    // chez nous, et rien ne doit être réservé ni envoyé d'ici là.
+    let corps: CommandeEst;
+    try {
+      corps = construireCommandeEst(commande, ville.nomEst);
+    } catch (erreur) {
+      if (!(erreur instanceof ErreurColisEstLivraison)) throw erreur;
+      resultats.push({ ...base, issue: 'colis_invalide', message: erreur.message });
+      continue;
+    }
+
+    const codeEnvoye = corps.code;
     let remiseId: string;
     try {
       const reservee = await prisma.remisePrestataire.create({
         data: {
           commandeId: commande.id,
-          prestataireId: colivraison.id,
+          prestataireId: est.id,
           bonEnvoiId: bon.id,
           remisParId: auteurId,
           etat: 'a_confirmer',
           codeEnvoye,
-          cityId: ville.cityId,
+          villeEnvoyee: ville.nomEst,
           montantCodConfie: commande.montantCod,
         },
         select: { id: true },
@@ -179,11 +191,8 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
 
     let codeExterne: string | null = null;
     try {
-      // Une localité rattachée part sous la ville d'agence : son nom voyage
-      // dans l'adresse (`adresseLivraisonColivraison`).
-      const colis = { ...commande, adresse: adresseLivraisonColivraison(commande.adresse, ville) };
-      const creation = await creerColisColivraison(construireColisColivraison(colis, ville.nomColivraison));
-      codeExterne = creation.codeExterne ?? (await chercherCodeExterneColivraison(codeEnvoye));
+      const creation = await creerCommandeEst(corps);
+      codeExterne = creation.idExterne;
       await prisma.remisePrestataire.update({
         where: { id: remiseId },
         data: {
@@ -193,11 +202,8 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
         },
       });
     } catch (erreur) {
-      if (!(erreur instanceof ErreurColivraison)) throw erreur;
-      // Pas de réponse : le colis existe peut-être chez eux. La remise reste
-      // active et `a_confirmer` plutôt que de libérer le colis pour une
-      // seconde remise qui créerait un doublon — impossible à annuler par API.
-      const incertain = erreur.statutHttp === null;
+      if (!(erreur instanceof ErreurEstLivraison)) throw erreur;
+      const incertain = creationPossible(erreur);
       await prisma.remisePrestataire.update({
         where: { id: remiseId },
         data: {
@@ -209,16 +215,16 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
       });
       resultats.push({
         ...base,
-        issue: incertain ? 'a_confirmer' : 'refuse_par_colivraison',
+        issue: incertain ? 'a_confirmer' : 'refuse_par_est',
         message: incertain
-          ? `${erreur.message} — le colis existe peut-être chez eux : à vérifier sur leur espace avant toute nouvelle remise`
+          ? `${erreur.message} — le colis existe peut-être chez eux, et leur API ne permet ni de le vérifier ni de l'annuler : à confirmer avec ${NOM_PRESTATAIRE_EST} par téléphone`
           : erreur.message,
         codeEnvoye,
       });
       continue;
     }
 
-    let message = `Remis à ${NOM_PRESTATAIRE_COLIVRAISON} sous ${codeExterne ?? codeEnvoye}`;
+    let message = `Remis à ${NOM_PRESTATAIRE_EST} sous ${codeEnvoye}`;
     const decision = deciderTransitionStatut(commande.statut, STATUT_REMIS);
     if (decision.issue === 'applique') {
       try {
@@ -227,7 +233,7 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
           statutActuel: commande.statut,
           nouveauStatut: STATUT_REMIS,
           auteurId,
-          noteHistorique: `Remis à ${NOM_PRESTATAIRE_COLIVRAISON} par API sous ${codeExterne ?? codeEnvoye} (bon ${bon.numero})`,
+          noteHistorique: `Remis à ${NOM_PRESTATAIRE_EST} par API sous ${codeEnvoye} (bon ${bon.numero})`,
           dateNouvelleLivraison: null,
           commentaire: null,
         });

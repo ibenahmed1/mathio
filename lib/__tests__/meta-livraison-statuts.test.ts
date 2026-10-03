@@ -38,6 +38,7 @@ function evenement(partiel: Partial<EvenementMeta>): EvenementMeta {
     planifieLe: null,
     livreurNom: null,
     livreurTelephone: null,
+    injoignables: null,
     ...partiel,
   };
 }
@@ -204,4 +205,15 @@ test('une note trop longue est tronquée à la limite de l’historique', () => 
   if (t.issue !== 'applique') return;
   assert.ok(t.corps.note.length <= 150);
   assert.doesNotThrow(() => analyserEntreeStatut(t.corps));
+});
+
+test('la note dit combien d’appels sont restés sans réponse', () => {
+  const t = traduireEvenementMeta(evenement({ statut: 'UNREACHABLE', libelle: 'Injoignable', injoignables: 2 }));
+  assert.equal(t.issue, 'applique');
+  if (t.issue === 'applique') assert.equal(t.corps.note, 'Meta : Injoignable · 2 appel(s) sans réponse');
+});
+
+test('unreachableCount est lu dans leur webhook', () => {
+  const evt = analyserEvenementMeta({ event: 'parcel.status.updated', data: { code: 'mth-1', status: 'UNREACHABLE', unreachableCount: 3 } });
+  assert.equal(evt?.injoignables, 3);
 });

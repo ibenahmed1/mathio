@@ -147,6 +147,8 @@ export interface EvenementMeta {
   planifieLe: string | null;
   livreurNom: string | null;
   livreurTelephone: string | null;
+  // Tentatives sans joindre le destinataire (`unreachableCount`), si envoyé.
+  injoignables: number | null;
 }
 
 function texte(valeur: unknown): string | null {
@@ -177,6 +179,7 @@ export function analyserEvenementMeta(corps: unknown): EvenementMeta | null {
     planifieLe: texte(d.scheduledAt),
     livreurNom: texte(d.delivererName),
     livreurTelephone: texte(d.delivererPhone),
+    injoignables: typeof d.unreachableCount === 'number' && Number.isFinite(d.unreachableCount) ? d.unreachableCount : null,
   };
 }
 
@@ -197,7 +200,8 @@ export type TraductionMeta =
 // destinataire conteste. Tronquée à la limite de l'historique.
 function note(evt: EvenementMeta): string {
   const livreur = [evt.livreurNom, evt.livreurTelephone].filter(Boolean).join(' ');
-  const brut = `Meta : ${evt.libelle ?? evt.statut}${livreur ? ` · livreur ${livreur}` : ''}`;
+  const injoignable = evt.injoignables ? ` · ${evt.injoignables} appel(s) sans réponse` : '';
+  const brut = `Meta : ${evt.libelle ?? evt.statut}${injoignable}${livreur ? ` · livreur ${livreur}` : ''}`;
   return brut.slice(0, NOTE_MAX);
 }
 

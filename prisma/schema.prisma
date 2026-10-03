@@ -1648,7 +1648,12 @@ model RemisePrestataire {
   codeExterne String? @map("code_externe")
   // Identifiant de ville envoyé (lib/power-delivery-villes.ts), figé : si la
   // correspondance change ensuite, ce qui a été envoyé ne change pas.
-  cityId      Int     @map("city_id")
+  // Null pour un transporteur qui n'identifie pas ses villes par un entier
+  // (EST Livraison) : c'est alors `villeEnvoyee` qui fige ce qui est parti.
+  cityId      Int?    @map("city_id")
+  // Libellé de ville envoyé tel quel, pour les transporteurs qui prennent un
+  // NOM (lib/est-livraison-villes.ts). Null pour les remises par identifiant.
+  villeEnvoyee String? @map("ville_envoyee")
 
   // COD demandé au prestataire, FIGÉ à la remise (copie de Commande.montantCod
   // à cet instant). C'est ce qu'il doit nous reverser : si le marchand corrige

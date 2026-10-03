@@ -162,6 +162,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // § Colivraison : même responsabilité, même clé (consulter, actualiser).
   { pattern: '/api/commandes/*/colivraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/colivraison/**', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/meta-livraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/meta-livraison/**', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/statut', permission: 'colis:confirm' },
   // Encaissement COD : sa propre clé, parce que le trio qui l'exerce
   // aujourd'hui (admin, superviseur, responsable) ne correspond ni à la
@@ -211,6 +213,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // composé relève de sa gestion, pas de sa création.
   { pattern: '/api/bons-envoi/*/remise-power-delivery', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*/remise-colivraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/bons-envoi/*/remise-meta-livraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/bons-envoi/*/remise-est-livraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi/**', permission: 'bon_envoi:create' },
@@ -333,6 +337,13 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // ensuite désignée par `data.store_id` ; inconnue ou déconnectée, elle est
   // refusée (lib/youcan.ts).
   { pattern: '/api/v1/webhooks/youcan', permission: null },
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la quatrième : les
+  // webhooks de Meta Livraison (`parcel.status.updated`). Même parade que Power
+  // Delivery : signature HMAC-SHA256 du corps brut (`X-MetaLivraison-Signature`),
+  // obligatoire, comparée en temps constant ; sans META_LIVRAISON_WEBHOOK_SECRET
+  // la route refuse tout (lib/meta-livraison-statuts.ts).
+  { pattern: '/api/v1/webhooks/meta-livraison', permission: null },
   { pattern: '/api/v1/**', permission: null },
 ];
 
