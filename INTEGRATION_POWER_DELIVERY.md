@@ -46,7 +46,7 @@ trackparcel    ◄── bouton « Actualiser » / rattrapage   ─┘ ─► st
 |---|---|
 | `lib/power-delivery.ts` | client HTTP de leur API, construction du colis transmis |
 | `lib/power-delivery-statuts.ts` | leurs 29 statuts → appliqué / mémorisé / inconnu |
-| `lib/power-delivery-villes.ts` | nos 91 villes Power → leur `cityId` (85 rapprochées, 6 mises de côté) |
+| `lib/power-delivery-villes.ts` | nos 88 villes Power → leur `cityId` (84 exactes, 1 orthographe, 3 rattachées à la ville d'agence ; aucune mise de côté depuis le 03/10/2026) |
 | `lib/remise-power-delivery.ts` | remise d'un bon d'envoi, colis par colis |
 | `lib/suivi-power-delivery.ts` | signature, lecture et application d'un webhook ou d'un suivi |
 | `lib/actions-power-delivery.ts` | état, actualisation, correction, retour, relivraison |
@@ -89,7 +89,7 @@ logiciel. Ce qui ne dit pas que les mots veulent dire la même chose — leur «
 | Décision | Pourquoi |
 |---|---|
 | Villes par **identifiant**, jamais par nom | un nom approchant peut être rattaché ailleurs, sans erreur |
-| 6 villes mises de côté (`SIDI HAJAJ`, `ASNI`, `moulay brahim`, `El arjat`, `TEMSENA`, `ouargui`) | absentes de leur API, ou deux identifiants chez eux. Livrables par Excel, en attente de leur réponse |
+| Villes sans identifiant chez eux (décidé le 03/10/2026) | SIDI HAJAJ et moulay brahim retirées du référentiel ; TEMSENA → « Tamssna » #5107 ; ASNI et ouargui rattachées à Marrakech #4367, El arjat à Rabat #4967, avec le nom de la localité ajouté à l'adresse (`adresseLivraisonPower`) |
 | Code envoyé : `MTH-` + notre code | leur `parcel_code` est unique pour **tous** leurs clients |
 | Le marchand n'est **jamais** transmis, ni ses notes libres | lui donner notre client |
 | COD **figé** à la remise ; une correction le met à jour, tracée | c'est la dette du transporteur |

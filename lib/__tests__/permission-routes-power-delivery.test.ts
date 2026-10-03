@@ -38,3 +38,17 @@ test('la remise Colivraison et le suivi d’un colis confié exigent bon_envoi:m
   assert.equal(apiPermissionFor(`/api/commandes/${ID}/colivraison`, 'GET'), 'bon_envoi:manage');
   assert.equal(apiPermissionFor(`/api/commandes/${ID}/colivraison/actualiser`, 'POST'), 'bon_envoi:manage');
 });
+
+// § Meta Livraison : même responsabilité ; leur webhook, comme celui de Power,
+// n'a pas de session.
+test('la remise et le suivi Meta exigent bon_envoi:manage ; leur webhook aucune permission', () => {
+  assert.equal(apiPermissionFor(`/api/bons-envoi/${ID}/remise-meta-livraison`, 'POST'), 'bon_envoi:manage');
+  assert.equal(apiPermissionFor(`/api/commandes/${ID}/meta-livraison`, 'GET'), 'bon_envoi:manage');
+  assert.equal(apiPermissionFor(`/api/commandes/${ID}/meta-livraison/actualiser`, 'POST'), 'bon_envoi:manage');
+  assert.equal(apiPermissionFor('/api/v1/webhooks/meta-livraison', 'POST'), null);
+});
+
+// § EST Livraison : même responsabilité que les autres remises par API.
+test('la remise EST Livraison exige bon_envoi:manage', () => {
+  assert.equal(apiPermissionFor(`/api/bons-envoi/${ID}/remise-est-livraison`, 'POST'), 'bon_envoi:manage');
+});

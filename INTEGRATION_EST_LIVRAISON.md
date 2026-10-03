@@ -170,17 +170,20 @@ qui réponde, ils ne peuvent être retirés que par EST Livraison :**
 | | |
 |---|---|
 | `lib/est-livraison.ts` | écrit, **vérifié contre leur serveur** — corps plat, réponse au singulier |
-| `lib/est-livraison-villes.ts` | écrit — **1 ville sur 63** (`OUJDA`, vérifiée), 62 en attente de leur liste |
+| `lib/est-livraison-villes.ts` | **63 villes** — `OUJDA` vérifiée contre leur API ; 62 sous le libellé de leur grille officielle (groupe `grille`, décision du 03/10/2026, non vérifiées) |
 | `scripts/tester-remise-est-livraison.ts` | écrit — dépôt d'un colis de test, **à blanc par défaut** |
 | `scripts/verifier-cle-est-livraison.ts` | écrit — **inutilisable** : il s'appuie sur `delete`, qui répond 404 |
 | `API_SUIVI_EST_LIVRAISON.md` | écrit, à leur envoyer |
-| `lib/est-livraison.test.ts` + `-villes.test.ts` | 42 tests |
-| `lib/remise-est-livraison.ts`, route, écran | **pas écrits** — le lot suivant |
-| Migration `RemisePrestataire` | **pas générée** — `cityId` en nullable + `villeEnvoyee String?` |
+| `lib/est-livraison.test.ts` + `-villes.test.ts` | 44 tests |
+| `lib/remise-est-livraison.ts`, route `/api/bons-envoi/[id]/remise-est-livraison`, `RemiseEstLivraison` | écrits le 03/10/2026 — bouton sur le bon d'envoi (admin), toutes les villes de la grille |
+| Migration `20261003100000_remise_ville_par_nom` | `cityId` nullable + `villeEnvoyee` (libellé envoyé, figé) |
 
-Le dépôt d'un colis est donc **fonctionnel de bout en bout**, du corps construit par nos soins
-jusqu'à la lecture de leur réponse. Ce qui manque est chez nous (la remise depuis un bon d'envoi) et
-chez eux (les villes, l'annulation, le retour de statut).
+Une réponse 200 rejetée par `lireCreation` (ville créée, code non confirmé) laisse la remise **active,
+en `a_confirmer`** : le colis existe peut-être chez eux, et rien ne permet de le vérifier ni de
+l'annuler. Seul un statut HTTP d'échec libère le colis pour une nouvelle remise.
+
+La remise depuis un bon d'envoi est donc en place. Ce qui manque est chez eux (les villes,
+l'annulation, le retour de statut).
 
 ---
 

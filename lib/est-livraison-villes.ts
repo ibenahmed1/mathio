@@ -21,31 +21,27 @@ import { normaliserVille } from '@/lib/hub-stock';
 // correspondance. L'échec est alors un REFUS de remise, jamais un envoi au
 // mauvais endroit.
 //
-// ⚠️ ÉTAT AU 23/09/2026 : UNE SEULE CORRESPONDANCE, VÉRIFIÉE CONTRE LEUR API.
+// ÉTAT AU 03/10/2026 : LES 63 VILLES DE LA GRILLE SONT REMETTABLES.
 //
-// Leur API n'expose aucun endpoint qui liste leurs villes. C'est EST Livraison
-// qui doit nous transmettre sa liste, et c'est ELLE qui fait foi : ils ne
-// livrent que les villes qui y figurent.
+// Leur API n'expose aucun endpoint qui liste leurs villes. Deux sources :
 //
-// « OUJDA » est établie autrement, et c'est le seul moyen dont on dispose : un
-// dépôt de test a répondu `city_created: null`, ce qui prouve que la ville
-// existait déjà chez eux (INTEGRATION_EST_LIVRAISON.md §3.3). Toute autre ville
-// demanderait un dépôt réel par ville pour être vérifiée de la même façon —
-// autant de ramassages déclenchés, et une ville fantôme créée à chaque erreur.
-// Leur liste reste donc le seul chemin raisonnable pour les 62 autres.
+//  · « OUJDA » (groupe `orthographe`) est VÉRIFIÉE : un dépôt de test a répondu
+//    `city_created: null`, preuve que la ville existait chez eux
+//    (INTEGRATION_EST_LIVRAISON.md §3.4 bis). Leur système l'écrit en capitales
+//    et sans la parenthèse de leur grille.
 //
-// Les 62 villes restantes sont NOTRE transcription de leur grille papier
-// (scripts/import-prestataire-est-livraison.ts), avec son orthographe à elle :
-// « Oujda (Centre & Quartiers) », « Ras El Ma (Cap de l'Eau) », « Ajdir-Taza ».
-// Rien ne dit que leur système les écrit ainsi — et une parenthèse de trop
-// suffit à créer une ville fantôme. Elles sont donc rangées en « sans
-// correspondance » : `resoudreVilleEst` rend `null` pour chacune, la remise par
-// l'API les refuse, et l'export Excel du bon reste leur voie.
+//  · Les 62 autres (groupe `grille`) portent le libellé de LEUR grille
+//    officielle (« ville EST », transcrite dans
+//    scripts/import-prestataire-est-livraison.ts), retenue comme leur
+//    orthographe par l'exploitation le 03/10/2026, la grille venant d'eux.
+//    Aucune n'a été confrontée à leur API. L'exemple d'Oujda montre que leur
+//    système peut écrire autrement que leur grille : si un libellé est faux,
+//    leur API crée la ville, `lireCreation` le voit, et la remise s'arrête en
+//    « à confirmer » — le colis existe alors chez eux sous une ville fantôme, à
+//    régler avec eux par téléphone, et la ligne fautive se corrige ici.
 //
-// À l'arrivée de leur liste, chaque ville reconnue passe de
-// VILLES_EST_SANS_CORRESPONDANCE à CORRESPONDANCES_VILLES_EST avec son libellé
-// exact. Le test `est-livraison-villes.test.ts` vérifie qu'aucune ville ne
-// disparaît en route : les deux listes réunies couvrent toujours la grille.
+// Le test `est-livraison-villes.test.ts` vérifie qu'aucune ville de la grille
+// ne disparaît en route.
 
 // EST Livraison n'a qu'une agence (§ SOUS_TRAITANCE.md §2.4) : ses huit blocs
 // sont des provinces couvertes, pas des quais. Le champ reste néanmoins présent
@@ -53,7 +49,9 @@ import { normaliserVille } from '@/lib/hub-stock';
 // les autres réseaux — la même localité peut exister chez deux prestataires.
 const AGENCE = 'Agence Oujda';
 
-export type GroupeCorrespondanceEst = 'exact' | 'orthographe';
+// `grille` : libellé de leur grille officielle, retenu tel quel sans vérification
+// contre leur API (décision du 03/10/2026).
+export type GroupeCorrespondanceEst = 'exact' | 'orthographe' | 'grille';
 
 export interface CorrespondanceVilleEst {
   // Nom de l'agence (Hub.nom) et de la ville (Ville.nom), tels qu'en base.
@@ -70,79 +68,82 @@ export interface VilleEstSansCorrespondance {
   motif: string;
 }
 
-const ATTENTE = 'liste des villes EST Livraison non reçue';
 
 export const CORRESPONDANCES_VILLES_EST: readonly CorrespondanceVilleEst[] = [
   // Vérifiée : leur API a rendu `city_created: null`, donc « OUJDA » existait
   // déjà chez eux. Notre ligne porte l'orthographe de leur grille papier, la
   // leur est en capitales et sans la parenthèse — d'où le groupe `orthographe`.
   { agence: AGENCE, ville: 'Oujda (Centre & Quartiers)', nomEst: 'OUJDA', groupe: 'orthographe' },
+
+  // Libellés de LEUR grille officielle, transmise par EST Livraison et retenue
+  // comme leur orthographe par l'exploitation le 03/10/2026. Non vérifiés contre
+  // leur API : un libellé qu'ils n'ont pas créerait une ville chez eux, et
+  // `lireCreation` arrête alors la remise en « à confirmer » (cf. en-tête).
+  { agence: AGENCE, ville: 'Beni Drar (Bnidrar)', nomEst: 'Beni Drar (Bnidrar)', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bni Oukil', nomEst: 'Bni Oukil', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Berkane', nomEst: 'Berkane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Saidia', nomEst: 'Saidia', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Ahfir', nomEst: 'Ahfir', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Aklim', nomEst: 'Aklim', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Madagh', nomEst: 'Madagh', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Fezouane', nomEst: 'Fezouane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Cafimour', nomEst: 'Cafimour', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Lamriss', nomEst: 'Lamriss', groupe: 'grille' },
+  { agence: AGENCE, ville: "Ras El Ma (Cap de l'Eau)", nomEst: "Ras El Ma (Cap de l'Eau)", groupe: 'grille' },
+  { agence: AGENCE, ville: 'Nador Ville', nomEst: 'Nador Ville', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Selouane', nomEst: 'Selouane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'El Aroui', nomEst: 'El Aroui', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bni Ansar', nomEst: 'Bni Ansar', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Farkhana', nomEst: 'Farkhana', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Zeghanghane', nomEst: 'Zeghanghane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Zaio', nomEst: 'Zaio', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bouarg', nomEst: 'Bouarg', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Ihdaden', nomEst: 'Ihdaden', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Kariat Arekmane', nomEst: 'Kariat Arekmane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Driouch', nomEst: 'Driouch', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Midar', nomEst: 'Midar', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Ben Tayeb', nomEst: 'Ben Tayeb', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Kassita', nomEst: 'Kassita', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Tafersit', nomEst: 'Tafersit', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Azlaf', nomEst: 'Azlaf', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Dar El Kebdani', nomEst: 'Dar El Kebdani', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Temsamane', nomEst: 'Temsamane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bodinar', nomEst: 'Bodinar', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Al Hoceima Ville', nomEst: 'Al Hoceima Ville', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Imzouren', nomEst: 'Imzouren', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Beni Bouayach', nomEst: 'Beni Bouayach', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Targuist', nomEst: 'Targuist', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Issaguen', nomEst: 'Issaguen', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Ajdir', nomEst: 'Ajdir', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Boukidaren', nomEst: 'Boukidaren', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bni Hadifa', nomEst: 'Bni Hadifa', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bni Boufrah', nomEst: 'Bni Boufrah', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Taourirt', nomEst: 'Taourirt', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Layoun Charkia', nomEst: 'Layoun Charkia', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Guercif Ville', nomEst: 'Guercif Ville', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Taddart', nomEst: 'Taddart', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Taza Ville', nomEst: 'Taza Ville', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Tahla', nomEst: 'Tahla', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Oued Amlil', nomEst: 'Oued Amlil', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Aknoul', nomEst: 'Aknoul', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Tizi Ouzli', nomEst: 'Tizi Ouzli', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Ajdir-Taza', nomEst: 'Ajdir-Taza', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Gueldamane', nomEst: 'Gueldamane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bouhlou', nomEst: 'Bouhlou', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Had Oulad Zbair', nomEst: 'Had Oulad Zbair', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Had Msila', nomEst: 'Had Msila', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Jerada', nomEst: 'Jerada', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Ain Bni Mathar', nomEst: 'Ain Bni Mathar', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Guenfouda', nomEst: 'Guenfouda', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bouarfa', nomEst: 'Bouarfa', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Tandrara', nomEst: 'Tandrara', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Figuig', nomEst: 'Figuig', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bni Tajjit', nomEst: 'Bni Tajjit', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Bouanane', nomEst: 'Bouanane', groupe: 'grille' },
+  { agence: AGENCE, ville: 'Talsint', nomEst: 'Talsint', groupe: 'grille' },
 ];
 
-export const VILLES_EST_SANS_CORRESPONDANCE: readonly VilleEstSansCorrespondance[] = [
-  { agence: AGENCE, ville: 'Beni Drar (Bnidrar)', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bni Oukil', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Berkane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Saidia', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Ahfir', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Aklim', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Madagh', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Fezouane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Cafimour', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Lamriss', motif: ATTENTE },
-  { agence: AGENCE, ville: "Ras El Ma (Cap de l'Eau)", motif: ATTENTE },
-  { agence: AGENCE, ville: 'Nador Ville', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Selouane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'El Aroui', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bni Ansar', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Farkhana', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Zeghanghane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Zaio', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bouarg', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Ihdaden', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Kariat Arekmane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Driouch', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Midar', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Ben Tayeb', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Kassita', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Tafersit', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Azlaf', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Dar El Kebdani', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Temsamane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bodinar', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Al Hoceima Ville', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Imzouren', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Beni Bouayach', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Targuist', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Issaguen', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Ajdir', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Boukidaren', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bni Hadifa', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bni Boufrah', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Taourirt', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Layoun Charkia', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Guercif Ville', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Taddart', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Taza Ville', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Tahla', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Oued Amlil', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Aknoul', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Tizi Ouzli', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Ajdir-Taza', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Gueldamane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bouhlou', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Had Oulad Zbair', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Had Msila', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Jerada', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Ain Bni Mathar', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Guenfouda', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bouarfa', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Tandrara', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Figuig', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bni Tajjit', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Bouanane', motif: ATTENTE },
-  { agence: AGENCE, ville: 'Talsint', motif: ATTENTE },
-];
+export const VILLES_EST_SANS_CORRESPONDANCE: readonly VilleEstSansCorrespondance[] = [];
 
 // Résolution à la remise. La recherche se fait DANS L'AGENCE qui reçoit le
 // colis, et non sur toutes les villes EST : la même localité peut exister dans
@@ -153,9 +154,24 @@ export const VILLES_EST_SANS_CORRESPONDANCE: readonly VilleEstSansCorrespondance
 // `null` veut dire « ne pas remettre par l'API » : l'appelant refuse en citant
 // la ville, il n'envoie JAMAIS le nom tel qu'il l'a reçu. C'est la règle qui
 // empêche leur API de créer une ville fantôme.
+//
+// Leur propre libellé est reconnu aussi (« Oujda » → `OUJDA`), comme chez
+// Colivraison : c'est le nom même qui partirait, il ne peut rien créer.
+function correspond(c: CorrespondanceVilleEst, cible: string): boolean {
+  return normaliserVille(c.ville) === cible || normaliserVille(c.nomEst) === cible;
+}
+
 export function resoudreVilleEst(agence: string, ville: string): CorrespondanceVilleEst | null {
   const cible = normaliserVille(ville);
-  return (
-    CORRESPONDANCES_VILLES_EST.find((c) => c.agence === agence && normaliserVille(c.ville) === cible) ?? null
-  );
+  return CORRESPONDANCES_VILLES_EST.find((c) => c.agence === agence && correspond(c, cible)) ?? null;
+}
+
+// Même résolution sans agence de départ — bon d'envoi adressé DIRECTEMENT au
+// transporteur. Ne répond que si la ville désigne un seul de leurs libellés ;
+// sinon l'Excel, où un humain tranche.
+export function resoudreVilleToutesAgencesEst(ville: string): CorrespondanceVilleEst | null {
+  const cible = normaliserVille(ville);
+  const candidats = CORRESPONDANCES_VILLES_EST.filter((c) => correspond(c, cible));
+  if (candidats.length === 0) return null;
+  return new Set(candidats.map((c) => c.nomEst)).size === 1 ? candidats[0] : null;
 }
