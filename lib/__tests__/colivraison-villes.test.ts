@@ -15,8 +15,10 @@ const cle = (agence: string, ville: string) => `${agence}|${normaliserVille(vill
 // 132 = les villes de « coliv.pdf » et de « ZONE DARAA TAFILLAT.csv », importées
 // par scripts/import-prestataire-colivraison.ts. Aucune sans sort décidé, et
 // depuis le 03/10/2026 toutes remettables par l'API.
-test('les 132 villes Colivraison ont toutes un sort décidé', () => {
-  assert.equal(CORRESPONDANCES_VILLES_COLIVRAISON.length, 132);
+// 127 depuis le 05/10/2026 : Missour, Bouleman, Guigou, Timahdite et Outat Lhaj
+// ne sont plus desservies que par Meta Livraison.
+test('les 127 villes Colivraison ont toutes un sort décidé', () => {
+  assert.equal(CORRESPONDANCES_VILLES_COLIVRAISON.length, 127);
   assert.equal(VILLES_COLIVRAISON_SANS_CORRESPONDANCE.length, 0);
 });
 

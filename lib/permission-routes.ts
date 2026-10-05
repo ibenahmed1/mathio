@@ -102,6 +102,7 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/admin/factures/**', permission: 'facture:read' },
   { pattern: '/admin/comptabilite/**', permission: 'comptabilite:read' },
   { pattern: '/admin/depenses/**', permission: 'comptabilite:read' },
+  { pattern: '/admin/simulateur/**', permission: 'simulateur:use' },
 
   // Relations & support
   { pattern: '/admin/reclamations/**', permission: 'reclamations:manage' },
@@ -247,6 +248,9 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/finance/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
   { pattern: '/api/finance/**', permission: 'comptabilite:read', methods: SAFE_METHODS },
   { pattern: '/api/finance/**', permission: 'comptabilite:write' },
+
+  // § Simulateur de rentabilité : un seul geste pour lire et enregistrer.
+  { pattern: '/api/simulations/**', permission: 'simulateur:use' },
 
   // --- Relations & support -------------------------------------------------
   { pattern: '/api/reclamations/**', permission: 'reclamations:manage' },

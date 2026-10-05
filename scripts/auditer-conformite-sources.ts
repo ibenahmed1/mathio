@@ -201,6 +201,11 @@ const RETIREES_PAR_DECISION = [
   ].map((nom) => ({ agence: 'Hub Casablanca', nom })),
   { agence: 'Agence Marrakech', nom: 'moulay brahim' },
   { agence: 'Agence El Jadida', nom: 'l jadida' },
+  // Confiées à EST Livraison seul le 05/10/2026.
+  ...['TAOURIRT', 'TAHLA', 'bouhlou', 'AKNOUL', 'AJDIR TAZA', 'OUAD AMLIL'].map((nom) => ({ agence: 'Agence Taza', nom })),
+  // Laissées à Sahario Express seul le 05/10/2026.
+  { agence: 'Agence Agadir', nom: 'merleft' },
+  { agence: 'Agence Agadir', nom: 'sidi fini' },
 ];
 
 async function main() {

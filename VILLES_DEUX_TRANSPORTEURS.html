@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Villes à deux transporteurs</title>
+<style>
+:root{--bg:#fff;--text:#1d1c1a;--muted:#6b6862;--border:#dcd9d2;--head:#f2f0eb;--low:#1d7a4a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#181817;--text:#ecebe7;--muted:#a19e97;--border:#3a3935;--head:#262624;--low:#6fcf9b}}
+:root[data-theme="dark"]{--bg:#181817;--text:#ecebe7;--muted:#a19e97;--border:#3a3935;--head:#262624;--low:#6fcf9b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:32px 16px 60px}
+h1{font-size:24px;margin:0 0 6px}
+h2{font-size:18px;margin:34px 0 4px}
+p{margin:6px 0}
+.muted{color:var(--muted);font-size:13.5px}
+.tw{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border:1px solid var(--border)}
+th{background:var(--head)}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.bas{color:var(--low);font-weight:600}
+@media print{main{padding:0}}
+</style>
+</head>
+<body>
+<main>
+<h1>Villes desservies par deux transporteurs</h1>
+<p>Villes qui apparaissent dans la grille de deux transporteurs à la fois, avec le tarif de livraison de chacun. Le tarif le plus bas est en vert.</p>
+<p class="muted">État de notre référentiel au 3 octobre 2026. Tarifs de livraison en dirhams.</p>
+
+<h2>1. Même nom chez les deux transporteurs (6)</h2>
+<div class="tw"><table>
+<thead><tr><th>Ville</th><th>Transporteur 1</th><th class="n">Tarif</th><th>Transporteur 2</th><th class="n">Tarif</th></tr></thead>
+<tbody>
+<tr><td>Ajdir Taza</td><td>Meta Livraison</td><td class="n">25 DH</td><td>EST Livraison</td><td class="n">25 DH</td></tr>
+<tr><td>Aknoul</td><td>Meta Livraison</td><td class="n">25 DH</td><td>EST Livraison</td><td class="n">25 DH</td></tr>
+<tr><td>Bouhlou</td><td>Meta Livraison</td><td class="n">25 DH</td><td>EST Livraison</td><td class="n">25 DH</td></tr>
+<tr><td>Missour</td><td>Meta Livraison</td><td class="n bas">25 DH</td><td>Colivraison</td><td class="n">30 DH</td></tr>
+<tr><td>Tahla</td><td>Meta Livraison</td><td class="n">25 DH</td><td>EST Livraison</td><td class="n">25 DH</td></tr>
+<tr><td>Taourirt</td><td>Meta Livraison</td><td class="n">25 DH</td><td>EST Livraison</td><td class="n">25 DH</td></tr>
+</tbody></table></div>
+
+<h2>2. Même ville, écrite différemment (7)</h2>
+<div class="tw"><table>
+<thead><tr><th>Transporteur 1</th><th>Écrite</th><th class="n">Tarif</th><th>Transporteur 2</th><th>Écrite</th><th class="n">Tarif</th></tr></thead>
+<tbody>
+<tr><td>Meta Livraison</td><td>Boulmane</td><td class="n bas">25 DH</td><td>Colivraison</td><td>Bouleman</td><td class="n">30 DH</td></tr>
+<tr><td>Meta Livraison</td><td>guigo</td><td class="n bas">25 DH</td><td>Colivraison</td><td>Guigou</td><td class="n">30 DH</td></tr>
+<tr><td>Meta Livraison</td><td>OUAD AMLIL</td><td class="n">25 DH</td><td>EST Livraison</td><td>Oued Amlil</td><td class="n">25 DH</td></tr>
+<tr><td>Meta Livraison</td><td>outat el haj</td><td class="n bas">25 DH</td><td>Colivraison</td><td>Outat Lhaj</td><td class="n">30 DH</td></tr>
+<tr><td>Meta Livraison</td><td>timahdit</td><td class="n bas">25 DH</td><td>Colivraison</td><td>Timahdite</td><td class="n">30 DH</td></tr>
+<tr><td>Sahario Express</td><td>Mirleft</td><td class="n">25 DH</td><td>Leader Colis</td><td>merleft</td><td class="n bas">23 DH</td></tr>
+<tr><td>Sahario Express</td><td>Sidi ifni</td><td class="n">25 DH</td><td>Leader Colis</td><td>sidi fini</td><td class="n bas">23 DH</td></tr>
+</tbody></table></div>
+</main>
+</body>
+</html>

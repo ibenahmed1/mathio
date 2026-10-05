@@ -33,6 +33,10 @@ export const CATALOGUE_SCOPES: Record<string, string> = {
   'marchands:creation_validee': 'Créer un compte marchand déjà validé',
   // Déposer des colis, à l'unité ou par lot.
   'colis:creation': 'Déposer des colis',
+  // Lire nos villes desservies et le tarif facturé à un marchand pour chacune
+  // (§ GET /api/v1/villes). Lecture seule, sans danger pour la production :
+  // n'expose ni transporteur ni prix d'achat.
+  'villes:lecture': 'Consulter les villes desservies et leurs tarifs',
   // Poser un statut sur un colis CONFIÉ à un transporteur sous-traitant
   // (§ POST /api/v1/livraisons/statut). C'est le scope des clés de
   // PRESTATAIRE, et il n'a rien à faire sur une clé de plateforme de vente :

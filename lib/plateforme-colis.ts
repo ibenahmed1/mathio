@@ -2,7 +2,7 @@ import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { checkBlacklist } from '@/lib/blacklist';
 import { nextCodeSuivi } from '@/lib/codes';
-import { normaliserVille } from '@/lib/hub-stock';
+import { chargerReferentielRoutage, type ReferentielRoutage } from '@/lib/hub-envoi';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 
 // Ingestion des colis déposés par une plateforme partenaire
@@ -190,10 +190,10 @@ async function resoudreMarchand(contexte: ContextePlateforme, idExterne: string)
  * sans conséquence pour un formulaire ; sur un lot de 200 colis ce serait 200
  * lectures de toute la table.
  */
-export type ReferentielVilles = { id: string; nom: string }[];
+export type ReferentielVilles = ReferentielRoutage;
 
 export async function chargerReferentielVilles(): Promise<ReferentielVilles> {
-  return prisma.ville.findMany({ select: { id: true, nom: true } });
+  return chargerReferentielRoutage();
 }
 
 export async function ingererColis(
@@ -215,8 +215,8 @@ export async function ingererColis(
   // Résolution best-effort de villeId, jamais bloquante : `ville` reste le
   // texte libre reçu, source de vérité, et ce rapprochement n'est qu'un
   // enrichissement pour le routage automatique (cf. lib/hub-envoi.ts).
-  const villeNormalisee = normaliserVille(entree.ville);
-  const villeId = villes.find((v) => normaliserVille(v.nom) === villeNormalisee)?.id ?? null;
+  // Ville desservie par plusieurs réseaux : celle que le routage retient.
+  const villeId = villes.pour(entree.ville)?.id ?? null;
 
   const codeSuivi = await nextCodeSuivi();
 

@@ -25,6 +25,18 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  *   3. « l jadida » (Agence El Jadida) est fusionnée dans « El Jadida », qui
  *      prend son tarif : 20 dh.
  *   4. Oujda (EST Livraison) : 15 dh, retour 0 dh comme le reste de leur grille.
+ *   5. (05/10/2026) Taourirt, Tahla, Bouhlou, Aknoul, Ajdir Taza et Oued Amlil
+ *      ne sont plus desservies que par EST Livraison : retirées de l'Agence
+ *      Taza (Meta), leurs colis rattachés à la ville EST correspondante.
+ *   6. (05/10/2026) Sidi Ifni et Mirleft restent à Sahario Express seul :
+ *      « sidi fini » et « merleft » sont retirées de l'Agence Agadir (Leader
+ *      Colis), leurs colis rattachés à la ville Sahario.
+ *   7. (05/10/2026) Missour, Boulmane, Guigou, Timahdit et Outat el haj restent
+ *      à Meta Livraison seul : retirées de l'Agence Errachidia (Colivraison),
+ *      leurs colis rattachés à la ville Meta.
+ *   8. (05/10/2026) Le retour est à 0 dh chez TOUS les transporteurs : tout
+ *      tarif de retour absent ou différent est mis à 0. Un colis retourné a
+ *      donc un coût connu (0) au lieu d'un coût inconnu à la facturation.
  *
  * POURQUOI UN SCRIPT À PART DES IMPORTS. `scripts/import-prestataire-*.ts`
  * transcrivent les grilles reçues à la lettre (cf. scripts/auditer-conformite-
@@ -55,7 +67,26 @@ const RETRAITS = [
   { agence: 'Agence Casablanca', ville: 'SIDI HAJAJ' },
 ];
 
-const FUSIONS = [{ agence: 'Agence El Jadida', de: 'l jadida', vers: 'El Jadida' }];
+// `agenceVers` absente = même agence.
+const FUSIONS: { agence: string; de: string; agenceVers?: string; vers: string }[] = [
+  { agence: 'Agence El Jadida', de: 'l jadida', vers: 'El Jadida' },
+  // Confiées à EST Livraison seul (05/10/2026).
+  { agence: 'Agence Taza', de: 'TAOURIRT', agenceVers: 'Agence Oujda', vers: 'Taourirt' },
+  { agence: 'Agence Taza', de: 'TAHLA', agenceVers: 'Agence Oujda', vers: 'Tahla' },
+  { agence: 'Agence Taza', de: 'bouhlou', agenceVers: 'Agence Oujda', vers: 'Bouhlou' },
+  { agence: 'Agence Taza', de: 'AKNOUL', agenceVers: 'Agence Oujda', vers: 'Aknoul' },
+  { agence: 'Agence Taza', de: 'AJDIR TAZA', agenceVers: 'Agence Oujda', vers: 'Ajdir-Taza' },
+  { agence: 'Agence Taza', de: 'OUAD AMLIL', agenceVers: 'Agence Oujda', vers: 'Oued Amlil' },
+  // Laissées à Sahario Express seul (05/10/2026).
+  { agence: 'Agence Agadir', de: 'sidi fini', agenceVers: 'Agence Guelmim', vers: 'Sidi ifni' },
+  { agence: 'Agence Agadir', de: 'merleft', agenceVers: 'Agence Guelmim', vers: 'Mirleft' },
+  // Laissées à Meta Livraison seul (05/10/2026).
+  { agence: 'Agence Errachidia', de: 'Missour', agenceVers: 'Agence Missour', vers: 'missour' },
+  { agence: 'Agence Errachidia', de: 'Bouleman', agenceVers: 'Agence Boulmane', vers: 'Boulmane' },
+  { agence: 'Agence Errachidia', de: 'Guigou', agenceVers: 'Agence Boulmane', vers: 'guigo' },
+  { agence: 'Agence Errachidia', de: 'Timahdite', agenceVers: 'Agence Boulmane', vers: 'timahdit' },
+  { agence: 'Agence Errachidia', de: 'Outat Lhaj', agenceVers: 'Agence Missour', vers: 'outat el haj' },
+];
 
 const TARIFS = [
   { prestataire: 'Power Delivery', agence: 'Agence El Jadida', ville: 'El Jadida', livraison: 20, retour: null },
@@ -130,9 +161,10 @@ async function appliquer(tx: Tx, forcer: boolean): Promise<string[]> {
   // 3. Fusions.
   for (const f of FUSIONS) {
     const de = await villeDe(tx, f.agence, f.de);
-    const vers = await villeDe(tx, f.agence, f.vers);
+    const agenceVers = f.agenceVers ?? f.agence;
+    const vers = await villeDe(tx, agenceVers, f.vers);
     if (!de) lignes.push(`${f.agence} / « ${f.de} » : absente, déjà fait`);
-    else if (!vers) throw new Blocage(`${f.agence} / « ${f.vers} » introuvable : lancer d'abord scripts/ajouter-villes-agences.ts`);
+    else if (!vers) throw new Blocage(`${agenceVers} / « ${f.vers} » introuvable : impossible d'y rattacher les colis de « ${f.de} »`);
     else await deplacerPuisSupprimer(tx, de, vers, lignes);
   }
 
@@ -148,6 +180,15 @@ async function appliquer(tx: Tx, forcer: boolean): Promise<string[]> {
     });
     lignes.push(`${t.prestataire} / « ${v.nom} » : ${t.livraison} dh${t.retour !== null ? `, retour ${t.retour} dh` : ''}`);
   }
+
+  // 5. Retour à 0 dh partout (fait après les tarifs : couvre aussi ceux qu'on vient de poser).
+  const retours = await tx.tarifPrestataireVille.updateMany({
+    where: { OR: [{ tarifRetour: null }, { tarifRetour: { not: 0 } }] },
+    data: { tarifRetour: 0 },
+  });
+  lignes.push(
+    retours.count ? `Tarif de retour mis à 0 dh : ${retours.count} ville(s)` : 'Tarifs de retour : tous à 0 dh, déjà fait'
+  );
 
   return lignes;
 }

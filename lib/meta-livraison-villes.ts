@@ -37,7 +37,9 @@ import { normaliserVille } from '@/lib/hub-stock';
 // `note` « à confirmer » sont celles qu'une réponse de leur part peut déplacer.
 //
 // Source : `npx tsx scripts/reconnaitre-meta-livraison.ts --export <fichier>`,
-// relevé du 21/09/2026 — 535 villes chez eux, 106 chez nous.
+// relevé du 21/09/2026 — 535 villes chez eux, 106 chez nous ; 100 depuis le
+// 05/10/2026 : Taourirt, Tahla, Bouhlou, Aknoul, Ajdir Taza et Oued Amlil ne
+// sont plus desservies que par EST Livraison (décision de l'exploitation).
 
 export type GroupeCorrespondance = 'exact' | 'orthographe' | 'rattachee';
 
@@ -157,21 +159,15 @@ export const CORRESPONDANCES_VILLES_META: readonly CorrespondanceVilleMeta[] = [
   { agence: 'Agence Taounate', ville: 'wlad daouad', cityId: 466, nomMeta: 'Ouled Daoud - Taounate', groupe: 'orthographe' },
   { agence: 'Agence Taounate', ville: 'wrtzag', cityId: 478, nomMeta: 'Ourtzagh - Taounate', groupe: 'orthographe' },
   { agence: 'Agence Taounate', ville: 'zrizer', cityId: 625, nomMeta: 'Zrizer', groupe: 'exact' },
-  { agence: 'Agence Taza', ville: 'AJDIR TAZA', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee', note: '« Ajdir » chez eux peut désigner Ajdir d’Al Hoceima' },
-  { agence: 'Agence Taza', ville: 'AKNOUL', cityId: 170, nomMeta: 'Aknoul', groupe: 'exact' },
   { agence: 'Agence Taza', ville: 'BAB MARZOKA', cityId: 195, nomMeta: 'Bab Marzouka', groupe: 'orthographe' },
   { agence: 'Agence Taza', ville: 'bni ftaah', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee' },
-  { agence: 'Agence Taza', ville: 'bouhlou', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee', note: 'la proposition automatique était Boujdour (Sahara)' },
   { agence: 'Agence Taza', ville: 'BOURED', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee' },
   { agence: 'Agence Taza', ville: 'GUERCIF', cityId: 322, nomMeta: 'Guercif', groupe: 'exact' },
   { agence: 'Agence Taza', ville: 'jbarna', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee' },
   { agence: 'Agence Taza', ville: 'marzou9a', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee', note: 'la proposition automatique était Marzouga (Errachidia) ; peut-être Bab Marzouka #195, à confirmer' },
-  { agence: 'Agence Taza', ville: 'OUAD AMLIL', cityId: 442, nomMeta: 'Oued Amlil', groupe: 'orthographe' },
   { agence: 'Agence Taza', ville: 'sabt bou9lal', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee' },
   { agence: 'Agence Taza', ville: 'SIDI ALI BOUREKBA', cityId: 585, nomMeta: 'TAZA', groupe: 'rattachee', note: 'la proposition automatique était Sidi Ali Azemmour (El Jadida)' },
   { agence: 'Agence Taza', ville: 'TADDART GUERCI', cityId: 552, nomMeta: 'Taddart - Taza', groupe: 'orthographe', note: 'Taddart - Taza, et non Taddart - Agadir' },
-  { agence: 'Agence Taza', ville: 'TAHLA', cityId: 561, nomMeta: 'TAHLA', groupe: 'exact' },
-  { agence: 'Agence Taza', ville: 'TAOURIRT', cityId: 578, nomMeta: 'Taourirt', groupe: 'exact' },
   { agence: 'Agence Taza', ville: 'TAZA', cityId: 585, nomMeta: 'TAZA', groupe: 'exact' },
   { agence: 'Agence Taza', ville: 'TIZIOUSLI', cityId: 609, nomMeta: 'Tizi Ouasli', groupe: 'orthographe' },
 ];
