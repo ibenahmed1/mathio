@@ -15,12 +15,13 @@ Version 1.0 — septembre 2026
 4. [`POST /v1/marchands`](#4-post-v1marchands)
 5. [`POST /v1/colis`](#5-post-v1colis)
 6. [`POST /v1/colis/lot`](#6-post-v1colislot)
-7. [Idempotence — à lire avant d'écrire du code](#7-idempotence--à-lire-avant-décrire-du-code)
-8. [Environnement de test](#8-environnement-de-test)
-9. [Passer en production](#9-passer-en-production)
-10. [Référence des erreurs](#10-référence-des-erreurs)
-11. [Quotas et rotation des clés](#11-quotas-et-rotation-des-clés)
-12. [Nous signaler un problème](#12-nous-signaler-un-problème)
+7. [`GET /v1/villes`](#7-get-v1villes)
+8. [Idempotence — à lire avant d'écrire du code](#8-idempotence--à-lire-avant-décrire-du-code)
+9. [Environnement de test](#9-environnement-de-test)
+10. [Passer en production](#10-passer-en-production)
+11. [Référence des erreurs](#11-référence-des-erreurs)
+12. [Quotas et rotation des clés](#12-quotas-et-rotation-des-clés)
+13. [Nous signaler un problème](#13-nous-signaler-un-problème)
 
 ---
 
@@ -170,7 +171,7 @@ Trois issues possibles :
 `idExterne` qui fait référence dans tous nos échanges. Nous le renvoyons pour vos journaux.
 
 `statut` vaut `actif` ou `en_attente_validation` selon les droits de votre clé. En bac à sable,
-il vaut toujours `en_attente_validation` — voir §8.
+il vaut toujours `en_attente_validation` — voir §9.
 
 `invitationEnvoyee` à `false` signifie que le compte existe mais qu'aucun email n'est parti.
 C'est normal en bac à sable. En production, signalez-le nous.
@@ -183,8 +184,8 @@ C'est normal en bac à sable. En production, signalez-le nous.
 | `409` | `conflit_identifiants` | Le téléphone et l'email désignent **deux comptes différents** chez nous. Nous refusons de choisir |
 | `409` | `deja_lie` | Ce marchand est déjà rattaché à votre plateforme sous un autre `idExterne` |
 | `409` | `synchronisation_concurrente` | Deux de vos appels se sont croisés. **Rejouez** : vous obtiendrez `deja_synchronise` |
-| `409` | `marchand_de_test` | Vous utilisez une clé `live` sur des coordonnées créées en bac à sable. Voir §9 |
-| `409` | `marchand_de_production` | Vous utilisez une clé `test` sur des coordonnées d'un marchand réel. Voir §8 |
+| `409` | `marchand_de_test` | Vous utilisez une clé `live` sur des coordonnées créées en bac à sable. Voir §10 |
+| `409` | `marchand_de_production` | Vous utilisez une clé `test` sur des coordonnées d'un marchand réel. Voir §9 |
 | `400` | `champ_requis` | Le message nomme le champ manquant |
 | `400` | `telephone_invalide` · `email_invalide` · `rib_invalide` · `type_compte_invalide` | Format incorrect |
 
@@ -201,7 +202,7 @@ Dépose un colis.
 | Champ | Format |
 |---|---|
 | `idExterneMarchand` | L'`idExterne` d'un marchand déjà synchronisé |
-| `reference` | Votre référence du colis. **C'est la clé d'idempotence** — voir §7 |
+| `reference` | Votre référence du colis. **C'est la clé d'idempotence** — voir §8 |
 | `clientNom` | Destinataire |
 | `clientTelephone` | Téléphone du destinataire |
 | `ville` | Texte libre. Nous la rapprochons de notre référentiel quand nous la reconnaissons ; une ville inconnue n'est jamais refusée |
@@ -309,7 +310,48 @@ Chaque ligne refusée porte son **`index`** dans le tableau que vous avez envoy�
 
 ---
 
-## 7. Idempotence — à lire avant d'écrire du code
+## 7. `GET /v1/villes`
+
+Liste les villes que nous desservons, avec pour chacune son code et le tarif de livraison.
+
+Cet appel ne fait que lire. Il demande le droit `villes:lecture` sur votre clé. Si votre clé ne l'a pas, l'appel renvoie `403 scope_manquant` : demandez-nous de l'ajouter.
+
+```
+GET /api/v1/villes
+Authorization: Bearer mtk_live_…
+```
+
+### Réponse
+
+```json
+{
+  "devise": "MAD",
+  "nombre": 457,
+  "villes": [
+    { "nom": "Agadir", "code": "0b6f6c2e-…", "tarifLivraison": 15 },
+    { "nom": "Casablanca", "code": "5d0e9a41-…", "tarifLivraison": 15 },
+    { "nom": "Fès", "code": "9c27b7d3-…", "tarifLivraison": 18 }
+  ]
+}
+```
+
+| Champ | |
+|---|---|
+| `nom` | Le nom de la ville dans notre référentiel. **Utilisez-le tel quel dans le champ `ville` de `POST /v1/colis`** : la ville est alors reconnue à coup sûr |
+| `code` | L'identifiant de la ville chez nous. Il ne change pas, même si le nom est corrigé : utilisez-le pour rapprocher vos villes des nôtres |
+| `tarifLivraison` | Tarif de livraison, en dirhams. `null` s'il n'est pas encore fixé : ce n'est pas un tarif gratuit |
+
+Les villes sont triées par ordre alphabétique. La liste change rarement : la mettre en cache quelques heures suffit.
+
+### Refus spécifiques
+
+| Code | `code` | |
+|---|---|---|
+| `403` | `scope_manquant` | Votre clé n'a pas le droit `villes:lecture` |
+
+---
+
+## 8. Idempotence — à lire avant d'écrire du code
 
 C'est le point le plus important de cette documentation.
 
@@ -333,7 +375,7 @@ La garantie tient même si deux de vos serveurs appellent en même temps.
 
 ---
 
-## 8. Environnement de test
+## 9. Environnement de test
 
 Votre clé `mtk_test_…` travaille dans un espace séparé. Vous pouvez y envoyer n'importe quoi.
 
@@ -367,7 +409,7 @@ recevriez `404 marchand_inconnu`, exactement comme pour un identifiant qui n'exi
 
 ---
 
-## 9. Passer en production
+## 10. Passer en production
 
 Dans cet ordre :
 
@@ -396,7 +438,7 @@ coordonnées fictives existe.
 
 ---
 
-## 10. Référence des erreurs
+## 11. Référence des erreurs
 
 Toutes les erreurs ont la même forme :
 
@@ -432,7 +474,7 @@ Toutes les erreurs ont la même forme :
 | `409` | `marchand_de_test` | Clé `live` sur des coordonnées de bac à sable |
 | `409` | `marchand_de_production` | Clé `test` sur des coordonnées réelles |
 | `413` | `lot_trop_grand` | Plus de 200 colis |
-| `429` | `quota_depasse` | Voir §11 |
+| `429` | `quota_depasse` | Voir §12 |
 | `500` | `erreur_interne` | Chez nous. Réessayez, et signalez-le si ça persiste |
 
 ### Ce qu'il faut rejouer, ce qu'il ne faut pas
@@ -447,7 +489,7 @@ réponse.
 
 ---
 
-## 11. Quotas et rotation des clés
+## 12. Quotas et rotation des clés
 
 ### Quotas
 
@@ -483,7 +525,7 @@ vite : une révocation coûte moins cher qu'une clé dans la nature.
 
 ---
 
-## 12. Nous signaler un problème
+## 13. Nous signaler un problème
 
 Nous conservons un journal de tous les appels reçus : horodatage, endpoint, code de réponse,
 durée, et la référence concernée. Pour que nous retrouvions un appel, envoyez-nous :
@@ -504,6 +546,7 @@ renvoyé.
 POST /api/v1/marchands     synchroniser un marchand
 POST /api/v1/colis         déposer un colis
 POST /api/v1/colis/lot     déposer jusqu'à 200 colis
+GET  /api/v1/villes        nos villes : nom, code, tarif de livraison
 
 Authorization: Bearer mtk_<env>_<prefixe>_<secret>
 Content-Type: application/json

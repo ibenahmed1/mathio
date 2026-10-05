@@ -130,6 +130,24 @@ les porte. La base suit le **PDF**, sur décision.
 
 ### 2.9 Quatre villes appartiennent à deux réseaux
 
+> **Décidé le 5 octobre 2026 : une ville desservie par plusieurs réseaux part chez le moins cher.**
+> `meilleurHub()` (`lib/hub-envoi.ts`) compare désormais le tarif de livraison avant l'ordre
+> alphabétique, qui ne départage plus que les égalités. `VILLES_EQUIVALENTES` ramène les graphies
+> d'une même ville à une seule clé (« Bouleman » → Boulmane, « sidi fini » → Sidi ifni…).
+>
+> **Même jour : plus aucune ville n'est partagée.** Missour, Boulmane, Guigou, Timahdit et Outat el
+> haj restent à Meta Livraison seul (retirées de l'Agence Errachidia, Colivraison). La règle du moins
+> cher reste en place pour une ville partagée à venir.
+>
+> **Même jour : Sidi Ifni et Mirleft restent à Sahario Express seul** (25 dh) : « sidi fini » et
+> « merleft » sont retirées de l'Agence Agadir (Leader Colis).
+>
+> **Même jour : Taourirt, Tahla, Bouhlou, Aknoul, Ajdir Taza et Oued Amlil ne sont plus desservies
+> que par EST Livraison.** Elles sont retirées de l'Agence Taza (Meta) par
+> `scripts/decisions-villes-octobre-2026.ts` ; le paragraphe ci-dessous décrit l'ancien partage. `Commande.villeId` est posé sur la ville retenue
+> (`chargerReferentielRoutage()`), pour que le coût d'achat suive le transporteur choisi. Les
+> colis déjà créés ne sont pas réaffectés.
+
 `Aknoul`, `Bouhlou`, `Tahla` et `Taourirt` sont annoncées par Meta Livraison **et** par EST
 Livraison. Le modèle l'accepte — chaque agence tient sa propre liste — mais `Commande.ville` étant
 du texte libre, le routage doit en désigner **un**.
@@ -218,6 +236,8 @@ relation commerciale à écrire, et elle peut changer qui nous facture.
 
 ### 2.12 Choix de modèle
 
+> **Mise à jour du 3 octobre 2026 — Casablanca passe à Power Delivery.** Le paragraphe sur les 13 villes annoncées deux fois ci-dessous décrit l'ancien régime. Le Hub Casablanca ne dessert plus aucune ville (il reste le hub central) ; Casablanca et sa région sont routées chez Power, à 15 dh (Casablanca) ou 20 dh. SIDI HAJAJ et moulay brahim sont retirées, « l jadida » fusionnée dans « El Jadida » (20 dh), Oujda (EST) tarifée 15 dh. Appliqué par `scripts/decisions-villes-octobre-2026.ts`.
+
 - **Le mode de livraison se décide par ville, via son hub.** Un `Hub` sans `prestataireId` est
   interne (nos livreurs) ; avec, c'est une agence. Basculer une ville revient à la déplacer d'un
   hub à l'autre — aucune migration.
@@ -288,8 +308,9 @@ avertissement bloquant — ou pas.
 
 1. Quel est le prix de livraison des **103 villes de Meta Livraison** ? Un prix unique suffit s'il
    n'y a pas de zones.
-2. Combien coûte un colis **retourné** chez Power Delivery, Meta, Sahario et Amir ? Seul EST
-   l'annonce (0 DH).
+2. ~~Combien coûte un colis **retourné** chez Power Delivery, Meta, Sahario et Amir ? Seul EST
+   l'annonce (0 DH).~~ **Réglé le 5 octobre 2026 : 0 dh chez tous les transporteurs**
+   (`scripts/decisions-villes-octobre-2026.ts`).
 3. **À quel prix livrons-nous les cinq villes d'implantation d'agence** — Oujda, Taounate,
    El Jadida, Fès, Boulmane ? Elles sont désormais déclarées livrables (§2.10) mais leur coût est
    `null` : chaque colis qui y part fausse la marge tant que les transporteurs n'ont pas donné

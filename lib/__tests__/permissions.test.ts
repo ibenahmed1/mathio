@@ -322,6 +322,7 @@ const MIGRATIONS_PERMISSIONS = [
   '20260828140000_permissions_complements',
   '20260902103100_permission_integrations',
   '20260921120000_comptabilite_crud_categories',
+  '20261005100000_permission_simulateur',
 ];
 
 test('le remplissage SQL des migrations correspond à ROLE_PERMISSIONS', () => {

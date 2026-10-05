@@ -5,7 +5,7 @@ import { checkBlacklist } from '@/lib/blacklist';
 import { nextCodeSuivi } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { buildCommandesWhere } from '@/lib/commandes-filters';
-import { normaliserVille } from '@/lib/hub-stock';
+import { chargerReferentielRoutage } from '@/lib/hub-envoi';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
 
 // Back-office (confirmation/SAV/paiement, cf. requireUser sur statut/paiement)
@@ -159,10 +159,10 @@ export async function POST(request: NextRequest) {
     // reste le champ texte libre saisi par le marchand/admin (source de
     // vérité) — ce matching normalisé (insensible casse/accents, comme le
     // reste du routage Hub/Ville) n'est qu'un enrichissement optionnel,
-    // jamais bloquant si aucune Ville connue ne correspond.
-    const villeNormalisee = normaliserVille(ville);
-    const toutesVilles = await prisma.ville.findMany({ select: { id: true, nom: true } });
-    const villeId = toutesVilles.find((v) => normaliserVille(v.nom) === villeNormalisee)?.id ?? null;
+    // jamais bloquant si aucune Ville connue ne correspond. Une ville
+    // desservie par plusieurs réseaux est rattachée à celle que le routage
+    // retient (le moins cher), pour que le coût d'achat suive le transporteur.
+    const villeId = (await chargerReferentielRoutage()).pour(ville)?.id ?? null;
 
     const commande = await prisma.$transaction(async (tx) => {
       const created = await tx.commande.create({

@@ -132,6 +132,10 @@ Content-Type: application/json
   "fragile": true
 }
 
+### v3b. Nos villes : nom, code, tarif de livraison (scope villes:lecture)
+GET {{apiUrl}}/api/v1/villes
+Authorization: Bearer {{cle}}
+
 ### v4. Rejouer la même référence -> 200 "deja_ingere", MÊME code de suivi
 POST {{apiUrl}}/api/v1/colis
 Authorization: Bearer {{cle}}

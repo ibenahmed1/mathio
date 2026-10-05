@@ -1,6 +1,7 @@
 import { Prisma } from '@/app/generated/prisma/client';
 import type { BoutiqueShopify } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { chargerReferentielRoutage } from '@/lib/hub-envoi';
 import { ApiError } from '@/lib/api-utils';
 import { normalizePhoneMaroc } from '@/lib/auth';
 import { checkBlacklist } from '@/lib/blacklist';
@@ -639,8 +640,11 @@ async function creerColis(
   auteurId: string,
   codeSuiviPartenaire: string
 ): Promise<string> {
-  const villes = await prisma.ville.findMany({ select: { id: true, nom: true } });
-  const ville = commande.ville ? rapprocherVille(commande.ville, villes) : null;
+  // Rapprochement tolérant sur tout le référentiel, puis ramené à la ville que
+  // le routage retient quand plusieurs réseaux la desservent (le moins cher).
+  const referentiel = await chargerReferentielRoutage();
+  const rapprochee = commande.ville ? rapprocherVille(commande.ville, referentiel.villes) : null;
+  const ville = rapprochee ? { ...rapprochee, ...referentiel.preferee(rapprochee.id) } : null;
 
   const telephoneNormalise = commande.telephoneBrut ? normalizePhoneMaroc(commande.telephoneBrut) : null;
   const clientTelephone = telephoneNormalise ?? commande.telephoneBrut ?? '';

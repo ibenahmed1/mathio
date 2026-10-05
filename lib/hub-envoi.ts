@@ -42,52 +42,125 @@ export interface ColisEligibleEnvoi {
 // Livraison, chacun à son prix. `Commande.ville` étant du texte libre, il faut
 // pourtant en désigner UN.
 //
-// Ce choix est commercial, pas technique : rien en base ne dit encore lequel
-// des deux réseaux doit livrer une ville partagée. En attendant cet arbitrage,
-// la règle ci-dessous est DÉTERMINISTE et documentée, plutôt que dictée par
-// l'ordre de lecture de la base — c'est ce que faisait la version précédente,
-// où le dernier enregistrement lu écrasait les autres, et où le routage d'un
-// colis pouvait donc changer d'un import à l'autre sans que rien ne bouge à
-// l'écran.
+// Le choix est COMMERCIAL, tranché par l'exploitation le 05/10/2026 : une ville
+// desservie par plusieurs réseaux part chez le MOINS CHER. La règle reste
+// déterministe, plutôt que dictée par l'ordre de lecture de la base :
 //
 //   1. un hub INTERNE l'emporte sur une agence sous-traitée — ce que nous
 //      savons livrer nous-mêmes n'a pas à partir chez un tiers ;
 //   2. le hub CENTRAL l'emporte parmi les hubs internes ;
-//   3. à défaut, le nom de hub le plus petit dans l'ordre alphabétique — règle
+//   3. entre agences, le TARIF DE LIVRAISON le plus bas (celui du prestataire
+//      de l'agence, § TarifPrestataireVille). Une ville sans tarif passe après
+//      toute ville tarifée : un coût inconnu n'est pas un coût nul ;
+//   4. à égalité, le nom de hub le plus petit dans l'ordre alphabétique —
 //      arbitraire, mais stable et vérifiable.
 //
 // `villesPartagees()` ci-dessous expose les cas où cette règle a dû trancher.
-function meilleurHub(a: VilleAvecHub, b: VilleAvecHub): VilleAvecHub {
+export function meilleurHub<V extends VilleAvecHub>(a: V, b: V): V {
   const rang = (v: VilleAvecHub) => (v.hub.isCentral ? 0 : v.hub.prestataireId ? 2 : 1);
   if (rang(a) !== rang(b)) return rang(a) < rang(b) ? a : b;
+  const prix = (v: VilleAvecHub) => v.tarif ?? Number.POSITIVE_INFINITY;
+  if (prix(a) !== prix(b)) return prix(a) < prix(b) ? a : b;
   return a.hub.nom.localeCompare(b.hub.nom, 'fr', { sensitivity: 'base' }) <= 0 ? a : b;
 }
 
-type VilleAvecHub = {
+export type VilleAvecHub = {
+  id: string;
   nom: string;
   hub: { id: string; nom: string; isCentral: boolean; prestataireId: string | null };
+  // Tarif de livraison du prestataire de l'agence pour cette ville ; null pour
+  // un hub interne ou une ville non tarifée.
+  tarif: number | null;
 };
 
-export async function getVilleHubIndex(): Promise<Map<string, HubDestination>> {
+// MÊME VILLE, ÉCRITE AUTREMENT par deux réseaux (relevé du 03/10/2026). Chaque
+// grille garde sa graphie à l'écran, mais le routage doit les voir comme UNE
+// ville pour que le moins cher l'emporte — sinon c'est l'orthographe tapée par
+// le marchand qui choisirait le transporteur. Le premier nom de chaque groupe
+// sert de clé.
+const VILLES_EQUIVALENTES: readonly (readonly string[])[] = [
+  ['Boulmane', 'Bouleman'],
+  ['guigo', 'Guigou'],
+  ['timahdit', 'Timahdite'],
+  ['outat el haj', 'Outat Lhaj'],
+  ['OUAD AMLIL', 'Oued Amlil'],
+  ['AJDIR TAZA', 'Ajdir-Taza'],
+  ['Sidi ifni', 'sidi fini'],
+  ['Mirleft', 'merleft'],
+];
+
+const CLE_EQUIVALENTE = new Map(
+  VILLES_EQUIVALENTES.flatMap((groupe) => groupe.map((nom) => [normaliserVille(nom), normaliserVille(groupe[0])]))
+);
+
+// Clé de routage d'un nom de ville : casse et accents repliés, puis graphie
+// ramenée à celle de son groupe d'équivalence.
+export function cleRoutage(ville: string): string {
+  const cle = normaliserVille(ville);
+  return CLE_EQUIVALENTE.get(cle) ?? cle;
+}
+
+export async function chargerVillesRoutage(): Promise<VilleAvecHub[]> {
   const villes = await prisma.ville.findMany({
     select: {
+      id: true,
       nom: true,
       hub: { select: { id: true, nom: true, isCentral: true, prestataireId: true } },
+      tarifsPrestataires: { select: { prestataireId: true, tarifLivraison: true } },
     },
   });
+  return villes.map(({ tarifsPrestataires, ...v }) => {
+    const tarif = tarifsPrestataires.find((t) => t.prestataireId === v.hub.prestataireId);
+    return { ...v, tarif: tarif ? Number(tarif.tarifLivraison) : null };
+  });
+}
 
-  const retenues = new Map<string, VilleAvecHub>();
+// Ville retenue pour chaque clé de routage.
+export function villesRetenues<V extends VilleAvecHub>(villes: V[]): Map<string, V> {
+  const retenues = new Map<string, V>();
   for (const v of villes) {
-    const cle = normaliserVille(v.nom);
+    const cle = cleRoutage(v.nom);
     const dejaLa = retenues.get(cle);
     retenues.set(cle, dejaLa ? meilleurHub(dejaLa, v) : v);
   }
+  return retenues;
+}
 
+export async function getVilleHubIndex(): Promise<Map<string, HubDestination>> {
   const index = new Map<string, HubDestination>();
-  for (const [cle, v] of retenues) {
+  for (const [cle, v] of villesRetenues(await chargerVillesRoutage())) {
     index.set(cle, { hubId: v.hub.id, hubNom: v.hub.nom });
   }
   return index;
+}
+
+// Référentiel pour la CRÉATION d'un colis : `Commande.villeId` doit désigner la
+// ville que le routage retient, sans quoi le colis partirait chez un réseau et
+// serait facturé au tarif d'un autre (le coût d'achat se lit par villeId, cf.
+// getCoutsPrestataire). `villes` sert aux rapprochements tolérants (Shopify,
+// YouCan) ; `preferee` ramène n'importe laquelle d'entre elles à la ville
+// retenue de son groupe ; `pour` résout directement un texte saisi.
+export type VilleRetenue = { id: string; nom: string };
+
+export interface ReferentielRoutage {
+  villes: VilleRetenue[];
+  preferee(villeId: string): VilleRetenue | null;
+  pour(texte: string): VilleRetenue | null;
+}
+
+export async function chargerReferentielRoutage(): Promise<ReferentielRoutage> {
+  const villes = await chargerVillesRoutage();
+  const retenues = villesRetenues(villes);
+  const cleDe = new Map(villes.map((v) => [v.id, cleRoutage(v.nom)]));
+  const reduire = (v: VilleAvecHub | undefined): VilleRetenue | null => (v ? { id: v.id, nom: v.nom } : null);
+  return {
+    villes: villes.map(({ id, nom }) => ({ id, nom })),
+    preferee: (villeId) => {
+      const cle = cleDe.get(villeId);
+      return cle === undefined ? null : reduire(retenues.get(cle));
+    },
+    pour: (texte) => reduire(retenues.get(cleRoutage(texte))),
+  };
 }
 
 // § /admin/hubs — villes annoncées par plusieurs hubs, et lequel le routage
@@ -96,16 +169,11 @@ export async function getVilleHubIndex(): Promise<Map<string, HubDestination>> {
 export async function villesPartagees(): Promise<
   { nom: string; hubs: string[]; retenu: string }[]
 > {
-  const villes = await prisma.ville.findMany({
-    select: {
-      nom: true,
-      hub: { select: { id: true, nom: true, isCentral: true, prestataireId: true } },
-    },
-  });
+  const villes = await chargerVillesRoutage();
 
   const parNom = new Map<string, VilleAvecHub[]>();
   for (const v of villes) {
-    const cle = normaliserVille(v.nom);
+    const cle = cleRoutage(v.nom);
     parNom.set(cle, [...(parNom.get(cle) ?? []), v]);
   }
 
@@ -134,7 +202,7 @@ export async function hubCentralId(): Promise<string | null> {
 // Distribution) du cas générique (statut/ville hors référentiel).
 export async function estVilleLocaleAuHub(commande: { ville: string; hubActuelId: string | null }): Promise<boolean> {
   const [index, central] = await Promise.all([getVilleHubIndex(), hubCentralId()]);
-  const destination = index.get(normaliserVille(commande.ville));
+  const destination = index.get(cleRoutage(commande.ville));
   if (!destination) return false;
   const hubActuelEffectif = commande.hubActuelId ?? central;
   return destination.hubId === hubActuelEffectif;
@@ -160,7 +228,7 @@ export async function getColisEligiblesEnvoi(): Promise<ColisEligibleEnvoi[]> {
 
   const result: ColisEligibleEnvoi[] = [];
   for (const commande of commandes) {
-    const hub = villeIndex.get(normaliserVille(commande.ville));
+    const hub = villeIndex.get(cleRoutage(commande.ville));
     if (!hub) continue;
     const hubActuelEffectif = commande.hubActuelId ?? central;
     if (hub.hubId === hubActuelEffectif) continue; // déjà sur place, pas de transit à faire

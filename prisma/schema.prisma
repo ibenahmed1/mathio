@@ -412,13 +412,14 @@ model Utilisateur {
   piecesJointesTaches     PieceJointeTache[]      @relation("PieceJointeTacheAuteur")
 
   // Comptabilité (§ /admin/comptabilite) : auteur des écritures qu'il a saisies.
-  transactions                Transaction[]         @relation("TransactionAuteur")
-  commandesStockHub           CommandeStockHub[]    @relation("CommandeStockHubAuteur")
+  transactions                Transaction[]           @relation("TransactionAuteur")
+  commandesStockHub           CommandeStockHub[]      @relation("CommandeStockHubAuteur")
   // … et celles qu'il a supprimées (suppression logique), plus la trace de
   // toutes ses modifications — voir HistoriqueComptable.
-  transactionsSupprimees      Transaction[]         @relation("TransactionSupprimeePar")
-  commandesStockHubSupprimees CommandeStockHub[]    @relation("CommandeStockHubSupprimeePar")
-  historiqueComptable         HistoriqueComptable[] @relation("HistoriqueComptableAuteur")
+  transactionsSupprimees      Transaction[]           @relation("TransactionSupprimeePar")
+  commandesStockHubSupprimees CommandeStockHub[]      @relation("CommandeStockHubSupprimeePar")
+  historiqueComptable         HistoriqueComptable[]   @relation("HistoriqueComptableAuteur")
+  simulationsRentabilite      SimulationRentabilite[] @relation("SimulationRentabiliteAuteur")
 
   // § Power Delivery : remises de colis qu'il a déclenchées.
   remisesPrestataire RemisePrestataire[] @relation("RemisePrestataireAuteur")
@@ -625,10 +626,14 @@ model Marchand {
 
   // § Comptabilité de la boutique (/marchand/comptabilite) : mêmes tables que
   // les livres de la plateforme, cloisonnées par marchandId.
-  transactions          Transaction[]
-  commandesInventaire   CommandeStockHub[]
-  categoriesComptables  CategorieComptable[]
-  historiqueComptable   HistoriqueComptable[]
+  transactions         Transaction[]
+  commandesInventaire  CommandeStockHub[]
+  categoriesComptables CategorieComptable[]
+  historiqueComptable  HistoriqueComptable[]
+
+  // § Simulateur de rentabilité : les scénarios enregistrés par l'équipe de
+  // la boutique.
+  simulationsRentabilite SimulationRentabilite[]
 
   // § Plateformes partenaires : canaux de vente depuis lesquels ce marchand
   // nous est arrivé (ou auxquels il a été rattaché après coup s'il s'était
@@ -1642,15 +1647,15 @@ model RemisePrestataire {
   // Code sous lequel NOUS avons déclaré le colis chez eux (`MTH-PD-000123`,
   // cf. PREFIXE_CODE_POWER, lib/power-delivery.ts). C'est lui que leurs
   // webhooks citent tant qu'ils n'attribuent pas leur propre code.
-  codeEnvoye  String  @map("code_envoye")
+  codeEnvoye   String  @map("code_envoye")
   // Code attribué par LEUR système, s'il en attribue un — leur documentation
   // ne montre pas la réponse de création. Null tant qu'on ne l'a pas lu.
-  codeExterne String? @map("code_externe")
+  codeExterne  String? @map("code_externe")
   // Identifiant de ville envoyé (lib/power-delivery-villes.ts), figé : si la
   // correspondance change ensuite, ce qui a été envoyé ne change pas.
   // Null pour un transporteur qui n'identifie pas ses villes par un entier
   // (EST Livraison) : c'est alors `villeEnvoyee` qui fige ce qui est parti.
-  cityId      Int?    @map("city_id")
+  cityId       Int?    @map("city_id")
   // Libellé de ville envoyé tel quel, pour les transporteurs qui prennent un
   // NOM (lib/est-livraison-villes.ts). Null pour les remises par identifiant.
   villeEnvoyee String? @map("ville_envoyee")
@@ -3244,4 +3249,36 @@ model AppareilPush {
 
   @@index([utilisateurId])
   @@map("appareils_push")
+}
+
+// § Simulateur de rentabilité (/admin/simulateur, /marchand/simulateur) : un
+// scénario enregistré, pour le rouvrir ou le comparer à d'autres produits.
+//
+// On stocke la SAISIE, jamais les résultats : ceux-ci sont recalculés par
+// lib/simulateur-rentabilite.ts à chaque lecture. Un correctif du moteur
+// s'applique donc aux scénarios déjà enregistrés, et aucun chiffre stocké ne
+// peut contredire la saisie qui l'a produit. `entrees` et `taux` sont
+// normalisés côté serveur (normaliserEntrees / normaliserTaux) : un champ
+// ajouté plus tard reçoit sa valeur par défaut à la relecture.
+//
+// Même cloisonnement que la comptabilité : `marchandId` NULL = scénarios du
+// back-office, sinon ceux de LA boutique, partagés par son équipe.
+model SimulationRentabilite {
+  id      String @id @default(uuid())
+  nom     String
+  entrees Json
+  taux    Json
+
+  marchandId String?   @map("marchand_id")
+  marchand   Marchand? @relation(fields: [marchandId], references: [id], onDelete: Cascade)
+
+  // Nullable : le scénario survit au départ de son auteur.
+  auteurId String?      @map("auteur_id")
+  auteur   Utilisateur? @relation("SimulationRentabiliteAuteur", fields: [auteurId], references: [id], onDelete: SetNull)
+
+  dateCreation     DateTime @default(now()) @map("date_creation")
+  dateModification DateTime @updatedAt @map("date_modification")
+
+  @@index([marchandId, dateModification])
+  @@map("simulations_rentabilite")
 }

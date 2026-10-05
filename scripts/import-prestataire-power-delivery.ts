@@ -31,6 +31,13 @@ import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
  * TarifPrestataireVille est indexé sur (prestataire, ville) et non sur
  * l'agence, et c'est ce qui permettra plus tard de comparer une ville livrée
  * en interne au prix qu'elle coûterait en sous-traitance.
+ *
+ * ⚠ DEPUIS LE 3 OCTOBRE 2026, Casablanca est livrée par Power : les villes du
+ * Hub Casablanca, « moulay brahim », « SIDI HAJAJ » et « l jadida » sont
+ * retirées APRÈS cet import par scripts/decisions-villes-octobre-2026.ts. Ce
+ * fichier reste la transcription fidèle de la grille reçue ; c'est l'étape de
+ * décision, lancée en dernier par scripts/charger-referentiel.ts, qui porte
+ * l'état d'exploitation.
  */
 
 const PRESTATAIRE = {

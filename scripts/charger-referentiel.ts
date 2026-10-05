@@ -12,6 +12,7 @@ import { importerEstLivraison } from './import-prestataire-est-livraison';
 import { importerColivraison } from './import-prestataire-colivraison';
 import { ajouterVillesAgences } from './ajouter-villes-agences';
 import { appliquerTarifsMetaLivraison } from './tarifs-meta-livraison';
+import { appliquerDecisionsVilles } from './decisions-villes-octobre-2026';
 
 /**
  * Chargement du référentiel de sous-traitance — prestataires, agences, villes
@@ -63,6 +64,9 @@ const ETAPES: Etape[] = [
   { libelle: "Villes d'implantation des agences", executer: ajouterVillesAgences },
   // Après les villes d'implantation : « Fès » en fait partie.
   { libelle: 'Tarifs Meta Livraison (Fès 18 dh, autres 25 dh)', executer: appliquerTarifsMetaLivraison },
+  // En dernier : retire des villes que les imports viennent de créer, et tarife
+  // des villes d'implantation (El Jadida, Oujda).
+  { libelle: 'Décisions d’octobre 2026 (Casablanca à Power, retraits, tarifs)', executer: () => appliquerDecisionsVilles() },
 ];
 
 export type OptionsChargement = {
