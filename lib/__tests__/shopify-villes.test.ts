@@ -24,6 +24,10 @@ const VILLES = [
   "M'diq",
   'Sidi moussa - Marrakech',
   'Ajdir-Taza',
+  'Taza Ville',
+  'Guercif Ville',
+  'Al Hoceima Ville',
+  "Ras El Ma (Cap de l'Eau)",
 ].map((nom, i) => ({ id: `v${i}`, nom }));
 
 function nomRetenu(saisie: string): string | null {
@@ -45,6 +49,12 @@ test('rapprochement exact', () => {
   assert.equal(nomRetenu('Ajdir Taza'), 'Ajdir-Taza');
   // Le nom complet est préféré à sa forme courte.
   assert.equal(nomRetenu('Oujda'), 'Oujda');
+  // « … Ville » se retrouve par sa forme usuelle (référentiel du 07/10/2026).
+  assert.equal(nomRetenu('Taza'), 'Taza Ville');
+  assert.equal(nomRetenu('Guercif'), 'Guercif Ville');
+  assert.equal(nomRetenu('Al Hoceima'), 'Al Hoceima Ville');
+  // « ma » final n'est pas ici le suffixe « Maroc ».
+  assert.equal(nomRetenu('Ras El Ma'), "Ras El Ma (Cap de l'Eau)");
 });
 
 test('alias : abréviations, noms anglais, noms arabes', () => {

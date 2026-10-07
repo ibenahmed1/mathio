@@ -135,6 +135,7 @@ npx tsx scripts/verifier-villes-colivraison.ts        # attendu : « Aucun écar
 - **Taza et Guercif partent chez EST Livraison**, au même prix qu'avant (25 dh).
 - Oujda et Taounate ne s'affichent plus qu'une fois, sous leur nom usuel.
 - Chaque ville n'a toujours qu'un transporteur.
+- **Shipeh** : quatre codes de ville disparaissent de `GET /api/v1/villes` (les lignes `TAZA`, `GUERCIF`, `Oujda (Centre & Quartiers)` et `taounate centre`). Leur demander de **recharger la liste des villes** après le déploiement. Les colis qu'ils envoient avec le nom de ville restent reconnus, quelle que soit la graphie (« Taza », « TAZA », « Oujda (Centre & Quartiers) »…).
 
 ## À ne pas faire
 

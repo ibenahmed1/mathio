@@ -137,19 +137,22 @@ export function rapprocherVille(saisie: string, villes: VilleReferentiel[]): Vil
   if (!cleSaisie) return null;
 
   // Chaque ville du référentiel sous deux clés : son nom complet, et son nom
-  // sans la précision entre parenthèses ou après un tiret (« Oujda (Centre &
-  // Quartiers) » → « oujda »). Le nom complet est toujours préféré.
+  // sans la précision entre parenthèses, après un tiret ou en « … Ville »
+  // (« Oujda (Centre & Quartiers) » → « oujda », « Taza Ville » → « taza »).
+  // Le nom complet est toujours préféré.
   const completes = new Map<string, VilleReferentiel>();
   const courtes = new Map<string, VilleReferentiel>();
   for (const ville of villes) {
     const complete = cleVille(ville.nom);
     if (!completes.has(complete)) completes.set(complete, ville);
-    const courte = cleVille(ville.nom.replace(/\(.*\)/, '').split(/ - /)[0]);
+    const courte = cleVille(ville.nom.replace(/\(.*\)/, '').split(/ - /)[0].replace(/\s+ville\s*$/i, ''));
     if (courte && !courtes.has(courte)) courtes.set(courte, ville);
   }
   const chercher = (cle: string): VilleReferentiel | undefined => completes.get(cle) ?? courtes.get(cle);
 
-  const exacte = chercher(cleSaisie);
+  // La saisie telle quelle d'abord : le nettoyage retire « ma » (Maroc) en fin
+  // de saisie, et ferait de « Ras El Ma » un « Ras El » introuvable.
+  const exacte = chercher(cleVille(saisie)) ?? chercher(cleSaisie);
   if (exacte) return { id: exacte.id, nom: exacte.nom, methode: 'exacte' };
 
   const cleAlias = ALIAS[cleSaisie];

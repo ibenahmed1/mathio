@@ -91,6 +91,20 @@ const VILLES_EQUIVALENTES: readonly (readonly string[])[] = [
   // 07/10/2026 (§ scripts/decisions-villes-octobre-2026.ts, point 10).
   ['Oujda', 'Oujda (Centre & Quartiers)'],
   ['Taounate', 'taounate centre'],
+  // Confiées à EST seul le 07/10/2026 : la ligne Meta « TAZA »/« GUERCIF »
+  // a disparu, et la ligne EST porte le nom de sa grille. Sans ces groupes, un
+  // colis saisi « Taza » ou « Guercif » ne trouvait plus aucune ville.
+  ['Taza Ville', 'Taza'],
+  ['Guercif Ville', 'Guercif'],
+  // Noms rendus à la grille EST / Power le 03/10 (restituer-lignes-sources.ts) :
+  // la forme usuelle, saisie en texte libre (API, import), doit les retrouver.
+  // Pas « Sidi moussa » (deux villes distinctes) ni « La Zone Industrielle »
+  // (trop générique pour désigner celle de Béni Mellal).
+  ['Nador Ville', 'Nador'],
+  ['Al Hoceima Ville', 'Al Hoceima'],
+  ['Beni Drar (Bnidrar)', 'Beni Drar', 'Bnidrar'],
+  ["Ras El Ma (Cap de l'Eau)", 'Ras El Ma', "Cap de l'Eau"],
+  ['TNIN CHTOUKA - EL JADIDA', 'Tnin Chtouka'],
 ];
 
 const CLE_EQUIVALENTE = new Map(
