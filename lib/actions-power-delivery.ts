@@ -12,8 +12,8 @@ import {
 import {
   adresseLivraisonPower,
   resoudreVillePower,
-  resoudreVilleToutesAgencesPower,
 } from '@/lib/power-delivery-villes';
+import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
 import { NOM_PRESTATAIRE_POWER, prestatairePower } from '@/lib/remise-power-delivery';
 import { traiterInformationPower, type ResultatInformation } from '@/lib/suivi-power-delivery';
 
@@ -28,6 +28,14 @@ import { traiterInformationPower, type ResultatInformation } from '@/lib/suivi-p
 
 function arrondi(valeur: number): number {
   return Math.round(valeur * 100) / 100;
+}
+
+// § 11 hubs régionaux : même résolution qu'à la remise (lib/remise-power-delivery.ts)
+// — la ville est cherchée dans les agences Power du hub visé, ou de tout le
+// réseau Power pour un bon direct.
+function villePowerDuBon(hubNom: string | null, ville: string) {
+  const agences = agencesARechercher({ hubNom, prestataire: NOM_PRESTATAIRE_POWER });
+  return resoudreParAgences(agences, ville, resoudreVillePower, (c) => String(c.cityId))?.resultat ?? null;
 }
 
 export interface EtatPowerColis {
@@ -142,10 +150,7 @@ export async function modifierColisChezPower(commandeId: string, auteurId: strin
   // son nom — et seulement si elle en a un : dans l'agence du bon, ou parmi
   // toutes leurs agences pour un bon adressé directement au transporteur (même
   // règle qu'à la remise).
-  const agence = commande.bonEnvoi?.hubDestination?.nom;
-  const ville = agence
-    ? resoudreVillePower(agence, commande.ville)
-    : resoudreVilleToutesAgencesPower(commande.ville);
+  const ville = villePowerDuBon(commande.bonEnvoi?.hubDestination?.nom ?? null, commande.ville);
 
   const montant = arrondi(Number(commande.montantCod));
   const ancienMontant = arrondi(Number(remise.montantCodConfie));
@@ -244,8 +249,7 @@ export async function demanderRelivraisonChezPower(
       where: { id: commandeId },
       select: { ville: true, bonEnvoi: { select: { hubDestination: { select: { nom: true } } } } },
     });
-    const agence = bonEnvoi?.hubDestination?.nom;
-    const correspondance = agence ? resoudreVillePower(agence, ville) : resoudreVilleToutesAgencesPower(ville);
+    const correspondance = villePowerDuBon(bonEnvoi?.hubDestination?.nom ?? null, ville);
     adresseChezEux = adresseLivraisonPower(adresseChezEux, correspondance);
   }
   await demanderRelivraisonPower(codeChezEux(remise), { ...demande, nouvelleAdresse: adresseChezEux }).catch(relayer);

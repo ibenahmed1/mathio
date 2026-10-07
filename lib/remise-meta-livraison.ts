@@ -6,6 +6,7 @@ import { ErreurPlateforme } from '@/lib/plateforme-auth';
 import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statut';
 import { ErreurMeta, codeMeta, construireColisMeta, creerColisMeta } from '@/lib/meta-livraison';
 import { adresseLivraisonMeta, resoudreVilleMeta } from '@/lib/meta-livraison-villes';
+import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
 
 // § Sous-traitance Meta Livraison — la REMISE d'un colis par leur API, depuis
 // le BON D'ENVOI. Même ordre d'écritures et mêmes issues que Colivraison
@@ -94,9 +95,12 @@ export async function remettreBonEnvoiMeta(bonEnvoiId: string, auteurId: string)
   if (prestataireDuBon !== meta.id) {
     throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_META}`);
   }
-  // La correspondance des villes est rangée PAR AGENCE : un bon adressé au
-  // transporteur sans agence ne permet pas de choisir un `cityId`.
-  const agence = bon.hubDestination?.nom ?? null;
+  // La correspondance des villes est rangée PAR AGENCE Meta (leur numérotation).
+  // Depuis les 11 hubs régionaux (lib/hubs-regionaux.ts), un bon vise Hub Fès
+  // ou Meta directement : la ville du colis est cherchée dans toutes les
+  // agences de ce hub, ou de tout le réseau Meta pour un bon direct. Aucune
+  // ville n'étant en double, la réponse est unique ; sinon, Excel.
+  const agences = agencesARechercher({ hubNom: bon.hubDestination?.nom ?? null, prestataire: NOM_PRESTATAIRE_META });
 
   const resultats: ResultatRemiseColis[] = [];
 
@@ -112,14 +116,12 @@ export async function remettreBonEnvoiMeta(bonEnvoiId: string, auteurId: string)
       continue;
     }
 
-    const ville = agence ? resoudreVilleMeta(agence, commande.ville) : null;
+    const ville = resoudreParAgences(agences, commande.ville, resoudreVilleMeta, (c) => String(c.cityId))?.resultat ?? null;
     if (!ville) {
       resultats.push({
         ...base,
         issue: 'ville_sans_correspondance',
-        message: agence
-          ? `« ${commande.ville} » n'a pas de correspondance ${NOM_PRESTATAIRE_META} dans ${agence} : remise par l'Excel du bon`
-          : `Bon sans agence ${NOM_PRESTATAIRE_META} : remise par l'Excel du bon`,
+        message: `« ${commande.ville} » n'a pas de correspondance ${NOM_PRESTATAIRE_META} : remise par l'Excel du bon`,
       });
       continue;
     }

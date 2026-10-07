@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { resoudreHubImport, resoudreVilleImport } from '../lib/prestataires';
+import { HUB_CENTRAL } from '../lib/hubs-regionaux';
 
 /**
  * Import de la grille de sous-traitance Power Delivery (§ /admin/hubs,
@@ -89,7 +90,9 @@ type AgenceImport = {
 // qu'une fois, et c'est le seul écart au fichier.
 const AGENCES: AgenceImport[] = [
   {
-    hub: 'Hub Casablanca',
+    // Hub central (renommé en passant aux 11 hubs régionaux) : « Hub
+    // Casablanca » est désormais le hub de Power Delivery.
+    hub: HUB_CENTRAL,
     ville: 'Casablanca',
     interne: true,
     central: true,

@@ -50,6 +50,9 @@ test('les graphies d’une même ville partagent une clé de routage', () => {
   assert.equal(cleRoutage('sidi fini'), cleRoutage('Sidi Ifni'));
   assert.equal(cleRoutage('Ajdir-Taza'), cleRoutage('AJDIR TAZA'));
   assert.equal(cleRoutage('Oued Amlil'), cleRoutage('OUAD AMLIL'));
+  // Nom de grille fusionné dans la ville d'implantation : la clé reste celle du nom usuel.
+  assert.equal(cleRoutage('Oujda (Centre & Quartiers)'), 'oujda');
+  assert.equal(cleRoutage('taounate centre'), 'taounate');
   // Une ville hors table garde sa clé normalisée.
   assert.equal(cleRoutage('Fès'), 'fes');
   assert.notEqual(cleRoutage('Mzouda'), cleRoutage('mzoudia'));

@@ -87,6 +87,10 @@ const VILLES_EQUIVALENTES: readonly (readonly string[])[] = [
   ['AJDIR TAZA', 'Ajdir-Taza'],
   ['Sidi ifni', 'sidi fini'],
   ['Mirleft', 'merleft'],
+  // Nom de la grille du transporteur, fusionné dans la ville d'implantation le
+  // 07/10/2026 (§ scripts/decisions-villes-octobre-2026.ts, point 10).
+  ['Oujda', 'Oujda (Centre & Quartiers)'],
+  ['Taounate', 'taounate centre'],
 ];
 
 const CLE_EQUIVALENTE = new Map(

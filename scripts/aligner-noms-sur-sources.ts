@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { lanceDirectement, lancerEnCli } from './cli-etape';
+import { nomHubActuel } from '../lib/hubs-regionaux';
 
 /**
  * Rend aux villes la graphie de leur document d'origine —
@@ -86,7 +87,7 @@ const A_SUPPRIMER: { agence: string; nom: string; motif: string }[] = [
 // migrée aucun hub n'existe encore. Il doit alors ne rien faire, silencieusement,
 // et laisser les imports créer directement les bons noms.
 async function hubParNom(nom: string) {
-  return prisma.hub.findUnique({ where: { nom }, select: { id: true } });
+  return prisma.hub.findUnique({ where: { nom: nomHubActuel(nom) }, select: { id: true } });
 }
 
 export async function alignerNomsSurSources(): Promise<void> {
@@ -136,7 +137,7 @@ export async function alignerNomsSurSources(): Promise<void> {
   }
 
   const agadir = await prisma.hub.findUnique({
-    where: { nom: 'Agence Agadir' },
+    where: { nom: nomHubActuel('Agence Agadir') },
     select: { _count: { select: { villes: true } } },
   });
 

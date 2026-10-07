@@ -11,7 +11,8 @@ import {
   creerCommandeEst,
   type CommandeEst,
 } from '@/lib/est-livraison';
-import { resoudreVilleEst, resoudreVilleToutesAgencesEst } from '@/lib/est-livraison-villes';
+import { resoudreVilleEst } from '@/lib/est-livraison-villes';
+import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
 
 // § Sous-traitance EST Livraison — la REMISE d'un colis par leur API, depuis le
 // BON D'ENVOI. Même ordre d'écritures que Meta et Colivraison
@@ -126,7 +127,10 @@ export async function remettreBonEnvoiEst(bonEnvoiId: string, auteurId: string):
   if (prestataireDuBon !== est.id) {
     throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_EST}`);
   }
-  const agence = bon.hubDestination?.nom ?? null;
+  // § 11 hubs régionaux (lib/hubs-regionaux.ts) : la ville du colis est
+  // cherchée dans les agences du hub visé, ou de tout le réseau pour un bon
+  // direct. Plusieurs identifiants différents → Excel, jamais au hasard.
+  const agences = agencesARechercher({ hubNom: bon.hubDestination?.nom ?? null, prestataire: NOM_PRESTATAIRE_EST });
 
   const resultats: ResultatRemiseColis[] = [];
 
@@ -143,7 +147,7 @@ export async function remettreBonEnvoiEst(bonEnvoiId: string, auteurId: string):
       continue;
     }
 
-    const ville = agence ? resoudreVilleEst(agence, commande.ville) : resoudreVilleToutesAgencesEst(commande.ville);
+    const ville = resoudreParAgences(agences, commande.ville, resoudreVilleEst, (c) => c.nomEst)?.resultat ?? null;
     if (!ville) {
       resultats.push({
         ...base,

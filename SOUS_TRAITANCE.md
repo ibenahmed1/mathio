@@ -10,6 +10,28 @@ commenté. Il décrit ce qui a été *décidé* faute de réponse.
 
 ---
 
+## Réseau en 11 hubs régionaux (06/10/2026)
+
+Les 24 agences ont été remplacées par **11 hubs**, chacun servi par un transporteur : Tanger (Amir),
+Oujda (EST), Agadir (Leader), Guelmim (Sahario), Rabat, Casablanca, El Jadida, Safi, Marrakech
+(Power), Fès (Meta, ex-9 agences), Béni Mellal (Colivraison, ex-6 agences). Le hub central, renommé
+**Hub Central**, reste séparé et n'est jamais une destination. Les anciens noms d'agence ne sont plus
+que des **villes** (aucune en double sur les 460).
+
+- Seule source du découpage : `lib/hubs-regionaux.ts`.
+- Conversion d'une base existante : `scripts/regrouper-hubs-regionaux.ts` (à blanc, `--oui` pour
+  appliquer), aussi lancé au début et à la fin de `npm run db:reseau`. **Sur une base existante (production),
+  il faut le lancer une fois à la main** : `db:deploy` ne recharge le référentiel que sur une base vide.
+  Les villes sont déplacées, pas recréées : `Commande.villeId` et les tarifs ne bougent pas.
+- Les tables de villes des API (`lib/*-villes.ts`) restent rangées par agence, **en interne** : c'est
+  la numérotation de chaque transporteur. Une remise cherche la ville du colis dans les agences du hub
+  visé, ou de tout le transporteur pour un bon direct (vérifié : 756 correspondances, aucune perdue).
+  Le bouton de remise Meta fonctionne désormais aussi sur un bon direct.
+- Le reste de ce document parle encore d'« agences » : lire « l'ancienne agence X, aujourd'hui dans
+  le hub Y ».
+
+---
+
 ## 1. Ce qui est en base
 
 **6 prestataires · 17 agences · 338 villes · 235 tarifs**, chargés par `npm run db:reseau`.

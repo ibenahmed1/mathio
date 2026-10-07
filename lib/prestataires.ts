@@ -2,6 +2,7 @@ import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { normaliserVille } from '@/lib/hub-stock';
+import { hubRegionalDeLAgence } from '@/lib/hubs-regionaux';
 
 // Deux unicités cohabitent sur Hub, et un 409 qui les confondrait enverrait
 // l'admin renommer son hub alors que le vrai problème est ailleurs :
@@ -40,7 +41,13 @@ export async function resoudreHubImport(params: {
   ville: string;
   nom: string;
 }): Promise<{ id: string; nom: string; cree: boolean; renommeDepuis?: string }> {
-  const { prestataireId, ville, nom } = params;
+  // § Réseau en 11 hubs (lib/hubs-regionaux.ts) : les fichiers fournisseurs
+  // parlent encore d'AGENCES. Une agence absorbée est rangée dans son hub
+  // régional — c'est ce qui empêche un `db:reseau` de recréer les 24 agences.
+  const regional = params.prestataireId ? hubRegionalDeLAgence(params.nom) : undefined;
+  const { prestataireId } = params;
+  const ville = regional?.ville ?? params.ville;
+  const nom = regional?.nom ?? params.nom;
 
   if (prestataireId) {
     const agence = await prisma.hub.findUnique({

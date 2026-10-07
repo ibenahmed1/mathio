@@ -38,7 +38,7 @@ function codeDeTest(): string {
 }
 
 // La seule ville dont le libellé chez eux soit vérifié.
-const VILLE_NOTRE = 'Oujda (Centre & Quartiers)';
+const VILLE_NOTRE = 'Oujda';
 const AGENCE = 'Agence Oujda';
 
 function colisDeTest(code: string): ColisAConfier {

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { normaliserVille } from '../lib/hub-stock';
+import { HUB_CENTRAL, HUBS_REGIONAUX } from '../lib/hubs-regionaux';
 
 /**
  * Contrôle à blanc avant `npm run db:reseau` —
@@ -37,31 +38,12 @@ import { normaliserVille } from '../lib/hub-stock';
  * retour, et `HistoriqueStatutCommande.hubId`.
  */
 
-// Les hubs que `db:reseau` crée, dans l'ordre des scripts. Un seul est interne.
+// Les hubs que `db:reseau` crée : le hub central (interne) et les 11 hubs
+// régionaux, chacun chez son transporteur (§ lib/hubs-regionaux.ts, seule
+// source du découpage — pas de seconde liste à tenir ici).
 const HUBS_ATTENDUS: { nom: string; ville: string; prestataire: string | null }[] = [
-  { nom: 'Hub Casablanca', ville: 'Casablanca', prestataire: null },
-  { nom: 'Agence El Jadida', ville: 'El Jadida', prestataire: 'Power Delivery' },
-  { nom: 'Agence Marrakech', ville: 'Marrakech', prestataire: 'Power Delivery' },
-  { nom: 'Agence Safi', ville: 'Safi', prestataire: 'Power Delivery' },
-  { nom: 'Agence Rabat', ville: 'Rabat', prestataire: 'Power Delivery' },
-  { nom: 'Agence Taounate', ville: 'Taounate', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Taza', ville: 'Taza', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Missour', ville: 'Missour', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Boulmane', ville: 'Boulmane', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Khemisset', ville: 'Khemisset', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Azrou', ville: 'Azrou', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Meknès', ville: 'Meknès', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Sefrou', ville: 'Sefrou', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Fès', ville: 'Fès', prestataire: 'Meta Livraison' },
-  { nom: 'Agence Guelmim', ville: 'Guelmim', prestataire: 'Sahario Express' },
-  // Agadir est chez LEADER COLIS, pas chez Sahario : correction d'attribution
-  // du 23 septembre 2026. Sur une base chargée avant cette date, l'agence est
-  // encore rattachée à Sahario Express et ce contrôle la signale — c'est voulu,
-  // le chargement doit s'arrêter le temps de passer
-  // `scripts/transferer-agadir-leader-colis.ts` (§ SOUS_TRAITANCE.md §2.11).
-  { nom: 'Agence Agadir', ville: 'Agadir', prestataire: 'Leader Colis' },
-  { nom: 'Agence Tanger', ville: 'Tanger', prestataire: 'Amir Livraison' },
-  { nom: 'Agence Oujda', ville: 'Oujda', prestataire: 'EST Livraison' },
+  { nom: HUB_CENTRAL, ville: 'Casablanca', prestataire: null },
+  ...HUBS_REGIONAUX.map((h) => ({ nom: h.nom, ville: h.ville, prestataire: h.prestataire })),
 ];
 
 // UNE seule fonction pour le rapport lu par un humain et pour le garde-fou

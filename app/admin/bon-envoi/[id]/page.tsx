@@ -116,9 +116,10 @@ export default function DetailBonEnvoiPage() {
         (bon.hubDestination?.prestataire?.nom === 'Colivraison' || bon.prestataire?.nom === 'Colivraison') && (
         <RemiseColivraison bonId={bon.id} onRemis={load} />
       )}
-      {/* Meta Livraison : leur `cityId` se choisit par agence, d'où la seule
-          voie hubDestination (cf. lib/remise-meta-livraison.ts). */}
-      {user?.role === 'admin' && bon.hubDestination?.prestataire?.nom === 'Meta Livraison' && (
+      {/* Meta Livraison : vers Hub Fès comme en direct — la ville du colis est
+          cherchée parmi leurs agences (cf. lib/remise-meta-livraison.ts). */}
+      {user?.role === 'admin' &&
+        (bon.hubDestination?.prestataire?.nom === 'Meta Livraison' || bon.prestataire?.nom === 'Meta Livraison') && (
         <RemiseMetaLivraison bonId={bon.id} onRemis={load} />
       )}
       {/* EST Livraison : une seule agence, donc les deux voies comme Power. */}

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { normaliserVille } from '../lib/hub-stock';
 import { lanceDirectement, lancerEnCli } from './cli-etape';
+import { HUB_CENTRAL, nomHubActuel } from '../lib/hubs-regionaux';
 
 /**
  * Décisions de référentiel des 2 et 3 octobre 2026, § /admin/hubs.
@@ -37,6 +38,18 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  *   8. (05/10/2026) Le retour est à 0 dh chez TOUS les transporteurs : tout
  *      tarif de retour absent ou différent est mis à 0. Un colis retourné a
  *      donc un coût connu (0) au lieu d'un coût inconnu à la facturation.
+ *   9. (07/10/2026) Taza et Guercif ne sont plus desservies que par EST
+ *      Livraison : « TAZA » et « GUERCIF » retirées de l'Agence Taza (Meta),
+ *      leurs colis rattachés à « Taza Ville » / « Guercif Ville » (EST). Les
+ *      deux grilles les annonçaient à 25 dh : le coût d'achat ne change pas.
+ *  10. (07/10/2026) Oujda et Taounate n'ont plus qu'une ligne chacune, sous
+ *      leur nom usuel. La ligne de la grille (« Oujda (Centre & Quartiers) »
+ *      chez EST, « taounate centre » chez Meta) doublait la ville
+ *      d'implantation que scripts/ajouter-villes-agences.ts crée pour l'agence :
+ *      même transporteur, même prix, même ville chez lui. Elle est fusionnée
+ *      dans « Oujda » / « Taounate ». Les deux graphies restent reconnues
+ *      (VILLES_EQUIVALENTES, lib/hub-envoi.ts) et la remise ne change pas :
+ *      « Oujda » part chez EST sous « OUJDA », « Taounate » chez Meta sous #577.
  *
  * POURQUOI UN SCRIPT À PART DES IMPORTS. `scripts/import-prestataire-*.ts`
  * transcrivent les grilles reçues à la lettre (cf. scripts/auditer-conformite-
@@ -59,7 +72,8 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  *   · Tout s'applique dans UNE transaction : un échec n'écrit rien.
  */
 
-const HUB_INTERNE = 'Hub Casablanca';
+// Le hub central (ex-« Hub Casablanca », renommé au passage en 11 hubs).
+const HUB_INTERNE = HUB_CENTRAL;
 const AGENCE_POWER_CASA = 'Agence Casablanca';
 
 const RETRAITS = [
@@ -77,6 +91,12 @@ const FUSIONS: { agence: string; de: string; agenceVers?: string; vers: string }
   { agence: 'Agence Taza', de: 'AKNOUL', agenceVers: 'Agence Oujda', vers: 'Aknoul' },
   { agence: 'Agence Taza', de: 'AJDIR TAZA', agenceVers: 'Agence Oujda', vers: 'Ajdir-Taza' },
   { agence: 'Agence Taza', de: 'OUAD AMLIL', agenceVers: 'Agence Oujda', vers: 'Oued Amlil' },
+  // Confiées à EST Livraison seul (07/10/2026).
+  { agence: 'Agence Taza', de: 'TAZA', agenceVers: 'Agence Oujda', vers: 'Taza Ville' },
+  { agence: 'Agence Taza', de: 'GUERCIF', agenceVers: 'Agence Oujda', vers: 'Guercif Ville' },
+  // Une seule ligne par ville d'implantation, sous son nom usuel (07/10/2026).
+  { agence: 'Agence Oujda', de: 'Oujda (Centre & Quartiers)', vers: 'Oujda' },
+  { agence: 'Agence Taounate', de: 'taounate centre', vers: 'Taounate' },
   // Laissées à Sahario Express seul (05/10/2026).
   { agence: 'Agence Agadir', de: 'sidi fini', agenceVers: 'Agence Guelmim', vers: 'Sidi ifni' },
   { agence: 'Agence Agadir', de: 'merleft', agenceVers: 'Agence Guelmim', vers: 'Mirleft' },
@@ -98,7 +118,7 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 class Blocage extends Error {}
 
 async function villeDe(tx: Tx, agence: string, nom: string) {
-  const villes = await tx.ville.findMany({ where: { hub: { nom: agence } }, select: { id: true, nom: true } });
+  const villes = await tx.ville.findMany({ where: { hub: { nom: nomHubActuel(agence) } }, select: { id: true, nom: true } });
   return villes.find((v) => normaliserVille(v.nom) === normaliserVille(nom)) ?? null;
 }
 
