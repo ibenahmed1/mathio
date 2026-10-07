@@ -18,7 +18,11 @@ export async function GET(request: Request) {
     // Pagination par curseur de date (« plus anciennes que… ») : une cloche se
     // lit du plus récent au plus ancien, et un décalage numérique sauterait ou
     // répéterait des lignes dès qu'une notification arrive entre deux pages.
-    const avantParam = new URL(request.url).searchParams.get('avant');
+    const params = new URL(request.url).searchParams;
+    const avantParam = params.get('avant');
+    // Centre de notifications : onglet « Non lues ». Le compteur reste, lui,
+    // celui de toute la cloche.
+    const seulementNonLues = params.get('etat') === 'non_lues';
     const avant = avantParam ? new Date(avantParam) : null;
     if (avant && Number.isNaN(avant.getTime())) throw new ApiError(400, 'avant doit être une date ISO');
 
@@ -29,7 +33,7 @@ export async function GET(request: Request) {
 
     const [notifications, nonLues] = await Promise.all([
       prisma.notification.findMany({
-        where: { ...dansLEspace, ...(avant && { creeLe: { lt: avant } }) },
+        where: { ...dansLEspace, ...(avant && { creeLe: { lt: avant } }), ...(seulementNonLues && { lueLe: null }) },
         orderBy: { creeLe: 'desc' },
         take: PAR_PAGE,
         select: { id: true, type: true, titre: true, corps: true, lien: true, lueLe: true, creeLe: true },

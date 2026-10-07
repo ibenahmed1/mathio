@@ -12,7 +12,14 @@
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import type { SessionSpace } from '@/lib/spaces';
 
-export type FamilleNotification = 'colis' | 'argent' | 'support' | 'terrain' | 'exploitation' | 'taches';
+export type FamilleNotification =
+  | 'colis'
+  | 'argent'
+  | 'support'
+  | 'terrain'
+  | 'exploitation'
+  | 'comptabilite'
+  | 'taches';
 
 export interface TypeNotificationDef {
   cle: string;
@@ -34,6 +41,7 @@ export const LIBELLES_FAMILLE: Record<FamilleNotification, string> = {
   support: 'Support',
   terrain: 'Tournées et ramassages',
   exploitation: 'Exploitation',
+  comptabilite: 'Comptabilité',
   taches: 'Tâches',
 };
 
@@ -62,6 +70,10 @@ export const TYPES_NOTIFICATION: TypeNotificationDef[] = [
   { cle: 'ramassage.demande', libelle: 'Nouvelle demande de ramassage', famille: 'exploitation', espace: 'admin', push: true },
   { cle: 'transporteur.erreur', libelle: 'Erreur chez un transporteur', famille: 'exploitation', espace: 'admin', push: true },
   { cle: 'hub.colis_recus', libelle: 'Colis reçus au hub', famille: 'exploitation', espace: 'admin', push: true },
+  // Toute écriture du journal de la PLATEFORME (§ /admin/comptabilite) :
+  // saisie, neutralisation, remise de caisse, paie, règlement de facture.
+  // Les livres des boutiques n'en déclenchent pas — ce n'est pas notre caisse.
+  { cle: 'comptabilite.transaction', libelle: 'Écriture comptable', famille: 'comptabilite', espace: 'admin', push: true },
   { cle: 'tache.assignee', libelle: 'Tâche qui vous est assignée', famille: 'taches', espace: 'admin', push: true },
   { cle: 'tache.mention', libelle: 'Mention dans une tâche', famille: 'taches', espace: 'admin', push: true },
   { cle: 'tache.commentaire', libelle: 'Commentaire sur votre tâche', famille: 'taches', espace: 'admin', push: true },
@@ -94,6 +106,22 @@ export function nettoyerPushCoupes(values: unknown): string[] {
 // quels appareils peuvent l'ouvrir (cf. AppareilPush.espace). `null` pour un
 // lien absent ou qui ne désigne aucun espace — la notification part alors
 // vers tous les appareils du compte, puisqu'elle ne mène nulle part.
+// La cloche reçoit-elle ce type ? Oui, sauf si le compte l'a coupé. Un type
+// inconnu du catalogue passe : on ne fait pas disparaître une notification
+// parce que son type a été renommé, seules les préférences explicites comptent.
+export function doitAfficher(cle: string, clocheCoupes: readonly string[]): boolean {
+  return !clocheCoupes.includes(cle);
+}
+
+// Préférences de cloche reçues de l'écran : toute clé du catalogue est
+// admise (y compris les types « cloche seulement », que l'on peut couper ici
+// puisque c'est leur seul canal). Dédupliqué, ordre du catalogue.
+export function nettoyerClocheCoupes(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const recues = new Set(values.filter((v): v is string => typeof v === 'string'));
+  return TYPES_NOTIFICATION.filter((t) => recues.has(t.cle)).map((t) => t.cle);
+}
+
 export function espaceDuLien(lien: string | null | undefined): SessionSpace | null {
   if (!lien || !lien.startsWith('/')) return null;
   const premier = lien.split(/[/?#]/)[1] ?? '';

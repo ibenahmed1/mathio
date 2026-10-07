@@ -2,21 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
-import {
-  Bell,
-  BellOff,
-  CheckCheck,
-  ClipboardList,
-  LifeBuoy,
-  Package,
-  Smartphone,
-  Truck,
-  Wallet,
-  Warehouse,
-  X,
-} from 'lucide-react';
-import { definitionNotification, type FamilleNotification } from '@/lib/notifications-catalogue';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, CheckCheck, Settings, X } from 'lucide-react';
+import { definitionNotification } from '@/lib/notifications-catalogue';
+import { BandeauPush, ICONE_FAMILLE, cheminCentre, depuis, lienSur } from './affichage';
 import { useNotifications, type NotificationCloche } from './NotificationsProvider';
 
 // § Notifications — la cloche et son panneau.
@@ -26,31 +16,6 @@ import { useNotifications, type NotificationCloche } from './NotificationsProvid
 //                (passées par `classes`) pour ne pas détonner ;
 //   - `bouton` : une icône seule, pour la rangée mobile et l'écran ramasseur,
 //                où la barre latérale est hors écran ou absente.
-
-const ICONE_FAMILLE: Record<FamilleNotification, typeof Bell> = {
-  colis: Package,
-  argent: Wallet,
-  support: LifeBuoy,
-  terrain: Truck,
-  exploitation: Warehouse,
-  taches: ClipboardList,
-};
-
-function depuis(iso: string): string {
-  const secondes = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (secondes < 60) return "à l'instant";
-  const minutes = Math.round(secondes / 60);
-  if (minutes < 60) return `il y a ${minutes} min`;
-  const heures = Math.round(minutes / 60);
-  if (heures < 24) return `il y a ${heures} h`;
-  if (heures < 48) return 'hier';
-  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-}
-
-// Même garde que le service worker : on ne suit qu'un chemin relatif.
-function lienSur(lien: string | null): string | null {
-  return lien && lien.startsWith('/') && !lien.startsWith('//') ? lien : null;
-}
 
 function Pastille({ nombre, className = '' }: { nombre: number; className?: string }) {
   if (nombre <= 0) return null;
@@ -148,6 +113,7 @@ function Panneau({
   onFermer: () => void;
 }) {
   const router = useRouter();
+  const centre = cheminCentre(usePathname());
   const { notifications, nonLues, suite, chargement, push, chargerPlus, marquerLues, activer } = useNotifications();
   const panneau = useRef<HTMLDivElement>(null);
   const [activation, setActivation] = useState(false);
@@ -208,6 +174,15 @@ function Panneau({
               Tout marquer comme lu
             </button>
           )}
+          <Link
+            href={`${centre}?onglet=preferences`}
+            onClick={onFermer}
+            className="rounded-md p-1 text-black/50 hover:bg-black/5 dark:text-white/50 dark:hover:bg-white/10"
+            aria-label="Choisir mes notifications"
+            title="Choisir mes notifications"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
           <button
             type="button"
             onClick={onFermer}
@@ -268,55 +243,15 @@ function Panneau({
           </li>
         )}
       </ul>
+
+      <Link
+        href={centre}
+        onClick={onFermer}
+        className="border-t border-black/[0.06] px-4 py-2.5 text-center text-xs font-semibold text-black/70 hover:bg-black/[0.03] dark:border-white/10 dark:text-white/70 dark:hover:bg-white/5"
+      >
+        Centre de notifications : tout voir et choisir ce que je reçois
+      </Link>
     </div>,
     document.body
   );
-}
-
-function BandeauPush({
-  etat,
-  enCours,
-  onActiver,
-}: {
-  etat: ReturnType<typeof useNotifications>['push'];
-  enCours: boolean;
-  onActiver: () => void;
-}) {
-  if (etat === 'a_activer') {
-    return (
-      <div className="flex items-center gap-3 border-b border-black/[0.06] bg-brand/[0.08] px-4 py-3 dark:border-white/10">
-        <Smartphone className="h-4 w-4 shrink-0" />
-        <p className="flex-1 text-xs">Recevez ces alertes sur cet appareil, même application fermée.</p>
-        <button
-          type="button"
-          onClick={onActiver}
-          disabled={enCours}
-          className="shrink-0 rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {enCours ? 'Activation…' : 'Activer'}
-        </button>
-      </div>
-    );
-  }
-  if (etat === 'refuse') {
-    return (
-      <div className="flex items-start gap-3 border-b border-black/[0.06] px-4 py-3 text-xs text-black/60 dark:border-white/10 dark:text-white/60">
-        <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
-        Les notifications sont bloquées pour ce site. Autorisez-les dans les réglages du navigateur (icône à gauche de
-        l&apos;adresse) pour recevoir les alertes.
-      </div>
-    );
-  }
-  // Sur iPhone, le push web n'existe que pour un site ajouté à l'écran
-  // d'accueil : ailleurs, `PushManager` est tout simplement absent.
-  if (etat === 'indisponible' && typeof navigator !== 'undefined' && /iPhone|iPad/.test(navigator.userAgent)) {
-    return (
-      <div className="flex items-start gap-3 border-b border-black/[0.06] px-4 py-3 text-xs text-black/60 dark:border-white/10 dark:text-white/60">
-        <Smartphone className="mt-0.5 h-4 w-4 shrink-0" />
-        Sur iPhone, ajoutez l&apos;application à l&apos;écran d&apos;accueil (Partager → « Sur l&apos;écran
-        d&apos;accueil ») puis ouvrez-la de là pour recevoir les alertes.
-      </div>
-    );
-  }
-  return null;
 }

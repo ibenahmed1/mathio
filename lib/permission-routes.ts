@@ -115,6 +115,11 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/admin/tasks/**', permission: 'tasks:manage' },
   { pattern: '/admin/hubs/**', permission: 'hubs:manage' },
   { pattern: '/admin/parametres/**', permission: 'settings:manage' },
+  // NON MAPPÉ — /admin/notifications : le centre de notifications du compte
+  // CONNECTÉ (sa cloche, ses préférences), comme /api/notifications/**. Ouvert
+  // à tout l'espace, y compris aux rôles cantonnés (Kanban, Agent Hub), que le
+  // proxy laisse passer vers ce seul écran en plus du leur.
+  { pattern: '/admin/notifications/**', permission: null },
   // Intégrations partenaires (§ /admin/integrations) : émission et révocation
   // de clés d'API. Clé PROPRE plutôt qu'un rattachement à `settings:manage`,
   // que tout le back-office détient — une clé permet à une machine tierce de

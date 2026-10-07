@@ -14,7 +14,7 @@ import {
 import { getCoutsPrestataire } from '@/lib/prestataires';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutFacture } from '@/app/generated/prisma/enums';
-import { notifierFacture } from '@/lib/notifications';
+import { notifierFacture, notifierTransaction } from '@/lib/notifications';
 
 // § Facturation marchand (/admin/factures).
 //
@@ -187,6 +187,10 @@ export async function POST(request: Request) {
     // la facture devient visible du marchand — un seul message, le plus récent.
     if (finaliser !== 'brouillon') {
       await notifierFacture(facture.id, finaliser === 'emise' ? 'emise' : 'reglee', { sauf: session.sub });
+    }
+    // Réglée d'emblée : le règlement a aussi passé une écriture au journal.
+    if (finaliser === 'payee') {
+      await notifierTransaction(facture.transactionId, { sauf: session.sub });
     }
 
     return NextResponse.json(facture, { status: 201 });

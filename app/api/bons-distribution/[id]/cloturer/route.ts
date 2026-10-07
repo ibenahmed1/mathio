@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { getBilanTournee } from '@/lib/bon-distribution';
 import { idCategorieSysteme } from '@/lib/journal-comptable';
+import { notifierTransaction } from '@/lib/notifications';
 
 // § Clôture de tournée (/admin/bon-distribution/[id]/cloture), dernière
 // étape : le Planner a scanné tous les retours, il compte l'argent et ferme.
@@ -123,6 +124,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         },
       });
     });
+
+    // Remise de caisse : l'écriture d'entrée vient d'être passée au journal.
+    await notifierTransaction(bon.transactionId, { sauf: session.sub });
 
     return NextResponse.json(bon);
   } catch (error) {

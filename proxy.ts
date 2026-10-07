@@ -86,6 +86,14 @@ const PREFIXE_SCAN_RECEPTION_HUB = '/admin/scan/reception';
 // (création réservée admin, cf. PREFIXE_BON_ENVOI_CREER ci-dessous).
 const PREFIXE_BON_ENVOI = '/admin/bon-envoi';
 const PREFIXE_BON_ENVOI_CREER = '/admin/bon-envoi/creer';
+// § Notifications : le centre de notifications est à CHAQUE compte, rôles
+// cantonnés compris — un designer assigné à une tâche doit pouvoir régler ses
+// alertes. Seule page ouverte à tous en plus de leur sous-chemin.
+const PREFIXE_NOTIFICATIONS = '/admin/notifications';
+
+function estCentreNotifications(pathname: string): boolean {
+  return pathname === PREFIXE_NOTIFICATIONS || pathname.startsWith(`${PREFIXE_NOTIFICATIONS}/`);
+}
 
 // Racine de l'API machine des plateformes partenaires (§ lib/spaces.ts,
 // HOST_API). Ce préfixe est cloisonné dans les DEUX SENS : il n'existe que sur
@@ -241,7 +249,8 @@ export async function proxy(request: NextRequest) {
       ROLES_KANBAN_UNIQUEMENT.includes(session.role) &&
       !roleMatches(session, ROLES_BACKOFFICE) &&
       pathname !== PREFIXE_KANBAN &&
-      !pathname.startsWith(`${PREFIXE_KANBAN}/`)
+      !pathname.startsWith(`${PREFIXE_KANBAN}/`) &&
+      !estCentreNotifications(pathname)
     ) {
       return NextResponse.redirect(new URL(PREFIXE_KANBAN, origine));
     }
@@ -252,7 +261,8 @@ export async function proxy(request: NextRequest) {
     if (
       ROLES_HUB_UNIQUEMENT.includes(session.role) &&
       !roleMatches(session, ROLES_BACKOFFICE) &&
-      !estAccessibleAgentHub(pathname)
+      !estAccessibleAgentHub(pathname) &&
+      !estCentreNotifications(pathname)
     ) {
       return NextResponse.redirect(new URL(PREFIXE_SCAN_RECEPTION_HUB, origine));
     }

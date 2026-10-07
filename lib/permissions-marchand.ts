@@ -408,6 +408,9 @@ export const PAGES_MARCHAND: RouteMarchand[] = [
   // l'écran, et leurs écritures sont gardées ci-dessous côté API.
   { pattern: '/marchand/profil/**', permission: null },
   { pattern: '/marchand/acces-refuse', permission: null },
+  // Centre de notifications : celles du membre connecté et ses préférences,
+  // jamais celles de la boutique. Ouvert à tous, comme le profil.
+  { pattern: '/marchand/notifications/**', permission: null },
   { pattern: '/marchand', permission: 'tableau_de_bord.voir' },
 ];
 
