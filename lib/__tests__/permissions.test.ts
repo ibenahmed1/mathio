@@ -231,6 +231,8 @@ test('ouvrir les paramètres et y écrire ne sont pas la même clé', () => {
   assert.equal(pagePermissionFor('/admin/parametres'), 'settings:manage');
   assert.equal(apiPermissionFor('/api/villes', 'POST'), 'villes:manage');
   assert.equal(apiPermissionFor('/api/villes/abc-123', 'DELETE'), 'villes:manage');
+  // La liste des villes des champs de saisie reste ouverte à tout l'espace.
+  assert.equal(apiPermissionFor('/api/referentiel/villes', 'GET'), null);
   assert.equal(apiPermissionFor('/api/parametres/societe', 'PUT'), 'societe:manage');
   // La lecture reste ouverte : les vues d'impression en dépendent.
   assert.equal(apiPermissionFor('/api/parametres/societe', 'GET'), null);

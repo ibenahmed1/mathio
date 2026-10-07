@@ -9,6 +9,7 @@ import { LABELS_CHAMP_PROFIL, type ChampProfilMarchand } from '@/lib/marchand-ac
 import { useActivationMarchand } from '@/components/marchand/activation-context';
 import type { AdresseMarchand, Marchand } from '@/lib/types';
 import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
+import { ChampVille } from '@/components/form/ChampVille';
 import { readFileAsDataUrl } from '@/lib/read-file';
 import { Field, FormSection } from '@/components/form/Field';
 import { SupportProfilSubNav } from '../SupportProfilSubNav';
@@ -150,11 +151,7 @@ export default function MarchandProfilPage() {
                 />
               </Field>
               <Field label="Ville">
-                <input
-                  className="input-basic"
-                  value={marchand.ville ?? ''}
-                  onChange={(e) => setMarchand({ ...marchand, ville: e.target.value })}
-                />
+                <ChampVille value={marchand.ville ?? ''} onChange={(v) => setMarchand({ ...marchand, ville: v })} />
               </Field>
             </div>
           </FormSection>
@@ -236,18 +233,11 @@ export default function MarchandProfilPage() {
                 />
               </Field>
               <Field label="Ville de ramassage">
-                <select
-                  className="input-basic"
+                <ChampVille
                   value={marchand.villeRamassage ?? ''}
-                  onChange={(e) => setMarchand({ ...marchand, villeRamassage: e.target.value })}
-                >
-                  <option value="">—</option>
-                  {VILLES_RAMASSAGE.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setMarchand({ ...marchand, villeRamassage: v })}
+                  options={VILLES_RAMASSAGE}
+                />
               </Field>
               <Field label="Adresse" className="sm:col-span-2">
                 <input

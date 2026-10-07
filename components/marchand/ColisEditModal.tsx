@@ -7,6 +7,7 @@ import type { Commande, Marchandise } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { Affix, Field } from '@/components/form/Field';
 import { ProduitSelect } from '@/components/ProduitSelect';
+import { ChampVille } from '@/components/form/ChampVille';
 
 // Toute donnée saisie manuellement à la création reste modifiable ici — même
 // logique de pré-remplissage du prix (marchandise × quantité) que le
@@ -132,12 +133,7 @@ export function ColisEditModal({
         {!champsRestreints && (
           <label className="flex flex-col gap-1 text-sm">
             Ville <span className="text-red-600">*</span>
-            <input
-              className="input-basic"
-              value={form.ville}
-              onChange={(e) => setForm({ ...form, ville: e.target.value })}
-              required
-            />
+            <ChampVille value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} required />
           </label>
         )}
         <label className="sm:col-span-2 flex flex-col gap-1 text-sm">

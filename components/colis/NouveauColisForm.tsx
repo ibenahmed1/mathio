@@ -7,6 +7,7 @@ import { Info, PackagePlus, Sparkles } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { ProduitSelect } from '@/components/ProduitSelect';
 import { Affix, Field, FormSection, QuantiteInput } from '@/components/form/Field';
+import { ChampVille } from '@/components/form/ChampVille';
 import type { Marchand, Marchandise } from '@/lib/types';
 
 // Formulaire de création de colis, partagé entre l'admin et le marchand.
@@ -212,13 +213,7 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
               />
             </Field>
             <Field label="Ville" required>
-              <input
-                className="input-basic w-full"
-                placeholder="Ex. Casablanca"
-                value={form.ville}
-                onChange={(e) => set('ville', e.target.value)}
-                required
-              />
+              <ChampVille value={form.ville} onChange={(v) => set('ville', v)} placeholder="Ex. Casablanca" required />
             </Field>
             <Field label="Adresse" required className="sm:col-span-2">
               <textarea

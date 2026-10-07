@@ -6,6 +6,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Hub, Prestataire, Utilisateur, Ville } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { Field } from '@/components/form/Field';
+import { ChampVilleFormulaire } from '@/components/form/ChampVille';
 import './hubs.css';
 
 type ModalState =
@@ -566,7 +567,10 @@ export default function AdminHubsPage() {
               <input name="nom" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.hub.nom : ''} required />
             </Field>
             <Field label="Ville" required>
-              <input name="ville" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.hub.ville : ''} required />
+              {/* Libre : la ville d'implantation d'un nouveau hub peut ne pas
+                  encore être une ville livrée. La liste évite seulement de
+                  l'écrire autrement que le référentiel. */}
+              <ChampVilleFormulaire name="ville" defaultValue={modal.mode === 'edit' ? modal.hub.ville : ''} libre required />
             </Field>
             <div className="form-grid">
               <Field label="Adresse" optional>
@@ -623,8 +627,20 @@ export default function AdminHubsPage() {
       {modal?.kind === 'ville' && (
         <Modal title={modal.mode === 'create' ? 'Nouvelle ville' : 'Modifier la ville'} onClose={() => setModal(null)}>
           <form onSubmit={handleVilleSubmit} className="flex flex-col gap-4">
-            <Field label="Nom de la ville" required>
-              <input name="nom" className="input-basic" defaultValue={modal.mode === 'edit' ? modal.ville.nom : ''} required />
+            <Field
+              label="Nom de la ville"
+              required
+              hint="La liste montre les villes déjà livrées : vérifiez qu’elle n’existe pas déjà sous une autre graphie."
+            >
+              {/* Libre par nature : on crée une ville qui n'est pas encore dans
+                  la liste. Les propositions servent à repérer un doublon. */}
+              <ChampVilleFormulaire
+                name="nom"
+                defaultValue={modal.mode === 'edit' ? modal.ville.nom : ''}
+                libre
+                required
+                autoFocus
+              />
             </Field>
             <Field label="Hub" required>
               <select

@@ -7,6 +7,7 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import { Button } from '@/components/admin/Button';
 import type { Commande } from '@/lib/types';
 import type { BonDeLivraisonGenere } from '@/lib/bons-livraison';
+import { ChampVille } from '@/components/form/ChampVille';
 
 // § /admin/bon-livraison : pendant back-office de l'écran marchand
 // « Ajouter un bon de livraison ». Sert les dépôts que le marchand n'a pas
@@ -141,14 +142,14 @@ export default function AdminBonLivraisonCreerPage() {
             </option>
           ))}
         </select>
-        <select className="input-basic w-fit max-w-full" value={villeFiltre} onChange={(e) => setVilleFiltre(e.target.value)}>
-          <option value="">Toutes les villes</option>
-          {villes.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+        <ChampVille
+          value={villeFiltre}
+          onChange={setVilleFiltre}
+          options={villes}
+          placeholder="Toutes les villes"
+          aria-label="Filtrer par ville"
+          className="w-full sm:w-56"
+        />
       </div>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}

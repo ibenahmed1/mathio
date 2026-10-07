@@ -9,6 +9,7 @@ import { EtatPaiementBadge } from '@/components/EtatPaiementBadge';
 import { STATUTS_COMMANDE, LABELS_STATUT_COMMANDE, ETATS_PAIEMENT, LABELS_ETAT_PAIEMENT } from '@/lib/statuts';
 import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
+import { ChampVille } from '@/components/form/ChampVille';
 
 // Plafond serveur (voir GET /api/commandes) — au-delà, il faut paginer plutôt
 // que d'augmenter pageSize.
@@ -130,7 +131,15 @@ export default function AdminCommandesPage() {
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && load(1)}
         />
-        <input className="input-basic w-32" placeholder="Ville" value={ville} onChange={(e) => setVille(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load(1)} />
+        <ChampVille
+          value={ville}
+          onChange={setVille}
+          onEnter={() => load(1)}
+          libre
+          placeholder="Ville"
+          aria-label="Filtrer par ville"
+          className="w-48"
+        />
         <select className="input-basic" value={statutFiltre} onChange={(e) => setStatutFiltre(e.target.value)}>
           <option value="">Status (tous)</option>
           {STATUTS_COMMANDE.map((s) => (

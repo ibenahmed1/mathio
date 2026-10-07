@@ -7,6 +7,7 @@ import { Search, Printer, Tags, Truck, X, PackageCheck } from 'lucide-react';
 import { creerBonDeLivraison } from '../actions';
 import type { BonDeLivraisonGenere } from '@/lib/bons-livraison';
 import type { Commande } from '@/lib/types';
+import { ChampVille } from '@/components/form/ChampVille';
 
 type ColisLigne = Pick<Commande, 'id' | 'codeSuivi' | 'clientNom' | 'ville' | 'montantCod' | 'dateCreation'>;
 
@@ -99,14 +100,14 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="input-basic w-fit" value={villeFiltre} onChange={(e) => setVilleFiltre(e.target.value)}>
-          <option value="">Toutes les villes</option>
-          {villes.map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
+        <ChampVille
+          value={villeFiltre}
+          onChange={setVilleFiltre}
+          options={villes}
+          placeholder="Toutes les villes"
+          aria-label="Filtrer par ville"
+          className="w-full sm:w-56"
+        />
       </div>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}

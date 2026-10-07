@@ -475,6 +475,10 @@ export const API_MARCHAND: RouteMarchand[] = [
   // de la boutique. Ouvertes à tous, comme le profil — le tri de ce qu'il
   // reçoit est fait à l'envoi (destinatairesBoutique, lib/notifications.ts).
   { pattern: '/api/notifications/**', permission: null },
+
+  // Liste des villes des champs de saisie (noms seuls) : tout membre qui
+  // saisit un colis ou son profil en a besoin.
+  { pattern: '/api/referentiel/**', permission: null },
 ];
 
 function segments(pathname: string): string[] {

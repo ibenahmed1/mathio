@@ -24,6 +24,7 @@ import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
 import { ColisInfoModal } from '@/components/admin/ColisInfoModal';
 import { ProduitSelect } from '@/components/ProduitSelect';
+import { ChampVille } from '@/components/form/ChampVille';
 import { ActionsMenuPanel, actionsMenuItemClass, actionsMenuItemDangerClass } from '@/components/ActionsMenuPanel';
 
 type ActionKey =
@@ -252,7 +253,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
             </label>
             <label className="flex flex-col gap-1 text-sm">
               Ville <span className="text-red-600">*</span>
-              <input className="input-basic" value={ville} onChange={(e) => setVille(e.target.value)} required />
+              <ChampVille value={ville} onChange={setVille} required />
             </label>
             <label className="flex flex-col gap-1 text-sm sm:col-span-2">
               Adresse <span className="text-red-600">*</span>
@@ -376,7 +377,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
             </button>
             <button
               className="btn-primary"
-              disabled={busy}
+              disabled={busy || !ville.trim()}
               onClick={() =>
                 run(() =>
                   apiPatch(`/api/commandes/${commande.id}`, {
@@ -409,7 +410,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
         <Modal title="Changer la ville" onClose={closeAll}>
           <label className="flex flex-col gap-1 text-sm">
             Ville
-            <input className="input-basic" value={ville} onChange={(e) => setVille(e.target.value)} />
+            <ChampVille value={ville} onChange={setVille} autoFocus />
           </label>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">
