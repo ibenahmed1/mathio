@@ -406,6 +406,9 @@ export interface Utilisateur {
   // obligatoire pour un agent_hub ou un livreur.
   hubId?: string | null;
   hub?: { id: string; nom: string } | null;
+  // § Équipe & rôles : le rôle attribué (prédéfini si `cle` non nulle).
+  roleBackofficeId?: string | null;
+  roleBackoffice?: { id: string; nom: string; cle: string | null } | null;
 }
 
 export interface TarifLivreurVille {

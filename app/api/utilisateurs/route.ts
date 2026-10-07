@@ -11,6 +11,9 @@ import {
 } from '@/lib/auth';
 import { analyserIdentiteLivreur, cinRequise, hubRequis } from '@/lib/comptes-livreur';
 import type { Role } from '@/app/generated/prisma/enums';
+import { journaliserCompte } from '@/lib/journal-equipe-admin';
+import { nomFonction } from '@/lib/fonctions-equipe';
+import { assurerRolesPredefinis, idRolePredefini } from '@/lib/roles-backoffice-serveur';
 
 // Rôles créables via cet endpoint : les comptes équipe internes (RF-22).
 // "marchand" passe par /api/marchands/inscription (auto-inscription) et
@@ -52,6 +55,8 @@ export async function GET(request: NextRequest) {
     if (roleParam && !ROLES_EQUIPE.includes(roleParam as Role)) {
       throw new ApiError(400, `Rôle invalide : ${roleParam}`);
     }
+    // Rattache les comptes encore sans rôle au rôle prédéfini de leur fonction.
+    await assurerRolesPredefinis();
 
     const utilisateurs = await prisma.utilisateur.findMany({
       where: roleParam ? { role: roleParam as Role } : { role: { in: ROLES_EQUIPE } },
@@ -84,6 +89,8 @@ export async function GET(request: NextRequest) {
         permissions: true,
         hubId: true,
         hub: { select: { id: true, nom: true } },
+        roleBackofficeId: true,
+        roleBackoffice: { select: { id: true, nom: true, cle: true } },
       },
     });
 
@@ -106,12 +113,20 @@ export async function GET(request: NextRequest) {
 // champs) — jamais de génération automatique.
 export async function POST(request: Request) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const body = await request.json();
 
     const nomComplet = typeof body.nomComplet === 'string' ? body.nomComplet.trim() : '';
     const telephoneRaw = typeof body.telephone === 'string' ? body.telephone.trim() : '';
-    const role = body.role as Role | undefined;
+    // § Équipe & rôles : un rôle choisi impose sa fonction technique — c'est
+    // elle que vérifient les routes. Sans rôle, la fonction envoyée prend le
+    // rôle prédéfini qui lui correspond.
+    const roleChoisi =
+      typeof body.roleId === 'string' && body.roleId
+        ? await prisma.roleBackoffice.findUnique({ where: { id: body.roleId }, select: { id: true, fonction: true } })
+        : null;
+    if (typeof body.roleId === 'string' && body.roleId && !roleChoisi) throw new ApiError(400, 'Rôle introuvable');
+    const role = (roleChoisi?.fonction ?? body.role) as Role | undefined;
 
     if (!nomComplet || !telephoneRaw || !role) {
       throw new ApiError(400, 'nomComplet, telephone et role sont requis');
@@ -252,9 +267,20 @@ export async function POST(request: Request) {
       data.hub = { connect: { id: hubId } };
     }
 
+    const roleBackofficeId = roleChoisi?.id ?? (await idRolePredefini(role));
+    if (roleBackofficeId) data.roleBackoffice = { connect: { id: roleBackofficeId } };
+
     const utilisateur = await prisma.utilisateur.create({
       data,
       select: { id: true, nomComplet: true, telephone: true, role: true, actif: true, hubId: true },
+    });
+
+    await journaliserCompte({
+      request,
+      adminId: session.sub,
+      action: 'compte_cree',
+      cibleId: utilisateur.id,
+      details: nomFonction(role),
     });
 
     return NextResponse.json(utilisateur, { status: 201 });

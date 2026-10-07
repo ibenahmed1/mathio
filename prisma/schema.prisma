@@ -368,6 +368,15 @@ model Utilisateur {
   // n'en ont pas l'usage et gardent une liste vide.
   permissions String[] @default([])
 
+  // § Équipe & rôles (/admin/equipe) : le rôle attribué à ce compte de
+  // l'équipe — prédéfini ou personnalisé. Il PRÉ-COCHE les permissions au
+  // moment de l'attribution ; la liste ci-dessus reste ensuite ajustable
+  // compte par compte et c'est ELLE qui fait foi (décision du 07/10/2026).
+  // Modifier un rôle ne touche donc pas les comptes qui le portent déjà.
+  // Null pour les comptes hors équipe (admin, marchand, plateforme).
+  roleBackofficeId String?         @map("role_backoffice_id")
+  roleBackoffice   RoleBackoffice? @relation(fields: [roleBackofficeId], references: [id], onDelete: SetNull)
+
   // § Notifications (NOTIFICATIONS.md) : types dont ce compte a coupé le PUSH
   // (clés du catalogue de lib/notifications-catalogue.ts). Le push n'est
   // qu'un canal de plus que la cloche, réglé à part (cf. clocheCoupes).
@@ -548,6 +557,10 @@ model AuditLog {
   cibleType  String?     @map("cible_type")
   cibleId    String?     @map("cible_id")
   adresseIp  String?     @map("adresse_ip")
+  // Ce que la ligne doit dire SANS relire la cible : « Modérateur → Responsable »,
+  // ou le nom d'un compte supprimé, qu'aucune jointure ne retrouvera plus
+  // (§ journal de l'équipe, lib/journal-equipe-admin.ts).
+  details    String?
   horodatage DateTime    @default(now())
 
   @@index([adminId])
@@ -714,6 +727,34 @@ enum ModeAjoutMembre {
 // Les clés sont celles de lib/permissions-marchand.ts, en texte libre pour la
 // même raison que Utilisateur.permissions (le catalogue évolue avec les
 // écrans) ; les inconnues sont ignorées à la lecture.
+// § Équipe & rôles (/admin/equipe, onglet Rôles & permissions) — les rôles de
+// l'équipe interne. Pendant back-office de RoleMarchand, avec deux différences :
+//
+//   · un rôle repose sur une FONCTION technique (`fonction`, enum Role) : c'est
+//     elle que vérifient les routes de l'API (requireUser) et qui choisit
+//     l'espace. Un rôle personnalisé n'invente pas de fonction, il définit un
+//     autre jeu de permissions sur l'une d'elles ;
+//   · ses permissions PRÉ-COCHENT celles du compte à l'attribution, sans le
+//     gouverner ensuite (cf. Utilisateur.roleBackofficeId).
+//
+// Les rôles prédéfinis (`cle` = la fonction) sont créés à la première visite à
+// partir de ROLE_PERMISSIONS (lib/roles-backoffice-serveur.ts) ; modifiables,
+// jamais supprimables.
+model RoleBackoffice {
+  id               String   @id @default(uuid())
+  nom              String   @unique
+  description      String?
+  fonction         Role
+  cle              String?  @unique
+  permissions      String[] @default([])
+  dateCreation     DateTime @default(now()) @map("date_creation")
+  dateModification DateTime @updatedAt @map("date_modification")
+
+  utilisateurs Utilisateur[]
+
+  @@map("roles_backoffice")
+}
+
 model RoleMarchand {
   id               String   @id @default(uuid())
   marchandId       String   @map("marchand_id")
