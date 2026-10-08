@@ -10,6 +10,28 @@ commenté. Il décrit ce qui a été *décidé* faute de réponse.
 
 ---
 
+## Réseau en 11 hubs régionaux (06/10/2026)
+
+Les 24 agences ont été remplacées par **11 hubs**, chacun servi par un transporteur : Tanger (Amir),
+Oujda (EST), Agadir (Leader), Guelmim (Sahario), Rabat, Casablanca, El Jadida, Safi, Marrakech
+(Power), Fès (Meta, ex-9 agences), Béni Mellal (Colivraison, ex-6 agences). Le hub central, renommé
+**Hub Central**, reste séparé et n'est jamais une destination. Les anciens noms d'agence ne sont plus
+que des **villes** (aucune en double sur les 460).
+
+- Seule source du découpage : `lib/hubs-regionaux.ts`.
+- Conversion d'une base existante : `scripts/regrouper-hubs-regionaux.ts` (à blanc, `--oui` pour
+  appliquer), aussi lancé au début et à la fin de `npm run db:reseau`. **Sur une base existante (production),
+  il faut le lancer une fois à la main** : `db:deploy` ne recharge le référentiel que sur une base vide.
+  Les villes sont déplacées, pas recréées : `Commande.villeId` et les tarifs ne bougent pas.
+- Les tables de villes des API (`lib/*-villes.ts`) restent rangées par agence, **en interne** : c'est
+  la numérotation de chaque transporteur. Une remise cherche la ville du colis dans les agences du hub
+  visé, ou de tout le transporteur pour un bon direct (vérifié : 756 correspondances, aucune perdue).
+  Le bouton de remise Meta fonctionne désormais aussi sur un bon direct.
+- Le reste de ce document parle encore d'« agences » : lire « l'ancienne agence X, aujourd'hui dans
+  le hub Y ».
+
+---
+
 ## 1. Ce qui est en base
 
 **6 prestataires · 17 agences · 338 villes · 235 tarifs**, chargés par `npm run db:reseau`.
@@ -130,6 +152,24 @@ les porte. La base suit le **PDF**, sur décision.
 
 ### 2.9 Quatre villes appartiennent à deux réseaux
 
+> **Décidé le 5 octobre 2026 : une ville desservie par plusieurs réseaux part chez le moins cher.**
+> `meilleurHub()` (`lib/hub-envoi.ts`) compare désormais le tarif de livraison avant l'ordre
+> alphabétique, qui ne départage plus que les égalités. `VILLES_EQUIVALENTES` ramène les graphies
+> d'une même ville à une seule clé (« Bouleman » → Boulmane, « sidi fini » → Sidi ifni…).
+>
+> **Même jour : plus aucune ville n'est partagée.** Missour, Boulmane, Guigou, Timahdit et Outat el
+> haj restent à Meta Livraison seul (retirées de l'Agence Errachidia, Colivraison). La règle du moins
+> cher reste en place pour une ville partagée à venir.
+>
+> **Même jour : Sidi Ifni et Mirleft restent à Sahario Express seul** (25 dh) : « sidi fini » et
+> « merleft » sont retirées de l'Agence Agadir (Leader Colis).
+>
+> **Même jour : Taourirt, Tahla, Bouhlou, Aknoul, Ajdir Taza et Oued Amlil ne sont plus desservies
+> que par EST Livraison.** Elles sont retirées de l'Agence Taza (Meta) par
+> `scripts/decisions-villes-octobre-2026.ts` ; le paragraphe ci-dessous décrit l'ancien partage. `Commande.villeId` est posé sur la ville retenue
+> (`chargerReferentielRoutage()`), pour que le coût d'achat suive le transporteur choisi. Les
+> colis déjà créés ne sont pas réaffectés.
+
 `Aknoul`, `Bouhlou`, `Tahla` et `Taourirt` sont annoncées par Meta Livraison **et** par EST
 Livraison. Le modèle l'accepte — chaque agence tient sa propre liste — mais `Commande.ville` étant
 du texte libre, le routage doit en désigner **un**.
@@ -218,6 +258,8 @@ relation commerciale à écrire, et elle peut changer qui nous facture.
 
 ### 2.12 Choix de modèle
 
+> **Mise à jour du 3 octobre 2026 — Casablanca passe à Power Delivery.** Le paragraphe sur les 13 villes annoncées deux fois ci-dessous décrit l'ancien régime. Le Hub Casablanca ne dessert plus aucune ville (il reste le hub central) ; Casablanca et sa région sont routées chez Power, à 15 dh (Casablanca) ou 20 dh. SIDI HAJAJ et moulay brahim sont retirées, « l jadida » fusionnée dans « El Jadida » (20 dh), Oujda (EST) tarifée 15 dh. Appliqué par `scripts/decisions-villes-octobre-2026.ts`.
+
 - **Le mode de livraison se décide par ville, via son hub.** Un `Hub` sans `prestataireId` est
   interne (nos livreurs) ; avec, c'est une agence. Basculer une ville revient à la déplacer d'un
   hub à l'autre — aucune migration.
@@ -288,8 +330,9 @@ avertissement bloquant — ou pas.
 
 1. Quel est le prix de livraison des **103 villes de Meta Livraison** ? Un prix unique suffit s'il
    n'y a pas de zones.
-2. Combien coûte un colis **retourné** chez Power Delivery, Meta, Sahario et Amir ? Seul EST
-   l'annonce (0 DH).
+2. ~~Combien coûte un colis **retourné** chez Power Delivery, Meta, Sahario et Amir ? Seul EST
+   l'annonce (0 DH).~~ **Réglé le 5 octobre 2026 : 0 dh chez tous les transporteurs**
+   (`scripts/decisions-villes-octobre-2026.ts`).
 3. **À quel prix livrons-nous les cinq villes d'implantation d'agence** — Oujda, Taounate,
    El Jadida, Fès, Boulmane ? Elles sont désormais déclarées livrables (§2.10) mais leur coût est
    `null` : chaque colis qui y part fausse la marge tant que les transporteurs n'ont pas donné

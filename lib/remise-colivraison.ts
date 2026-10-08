@@ -12,7 +12,11 @@ import {
   creerColisColivraison,
   listerColisColivraison,
 } from '@/lib/colivraison';
-import { resoudreVilleColivraison, resoudreVilleToutesAgencesColivraison } from '@/lib/colivraison-villes';
+import {
+  adresseLivraisonColivraison,
+  resoudreVilleColivraison,
+} from '@/lib/colivraison-villes';
+import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
 
 // § Sous-traitance Colivraison — la REMISE d'un colis par leur API, depuis le
 // BON D'ENVOI, exactement comme pour Power Delivery (lib/remise-power-delivery.ts,
@@ -119,7 +123,10 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
     throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_COLIVRAISON}`);
   }
 
-  const agence = bon.hubDestination?.nom ?? null;
+  // § 11 hubs régionaux (lib/hubs-regionaux.ts) : la ville du colis est
+  // cherchée dans les agences du hub visé, ou de tout le réseau pour un bon
+  // direct. Plusieurs identifiants différents → Excel, jamais au hasard.
+  const agences = agencesARechercher({ hubNom: bon.hubDestination?.nom ?? null, prestataire: NOM_PRESTATAIRE_COLIVRAISON });
   const resultats: ResultatRemiseColis[] = [];
 
   // Un colis après l'autre : leur API n'annonce aucun quota, et un bon compte
@@ -136,9 +143,8 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
       continue;
     }
 
-    const ville = agence
-      ? resoudreVilleColivraison(agence, commande.ville)
-      : resoudreVilleToutesAgencesColivraison(commande.ville);
+    const ville =
+      resoudreParAgences(agences, commande.ville, resoudreVilleColivraison, (c) => String(c.cityId))?.resultat ?? null;
     if (!ville) {
       resultats.push({
         ...base,
@@ -175,7 +181,10 @@ export async function remettreBonEnvoiColivraison(bonEnvoiId: string, auteurId: 
 
     let codeExterne: string | null = null;
     try {
-      const creation = await creerColisColivraison(construireColisColivraison(commande, ville.nomColivraison));
+      // Une localité rattachée part sous la ville d'agence : son nom voyage
+      // dans l'adresse (`adresseLivraisonColivraison`).
+      const colis = { ...commande, adresse: adresseLivraisonColivraison(commande.adresse, ville) };
+      const creation = await creerColisColivraison(construireColisColivraison(colis, ville.nomColivraison));
       codeExterne = creation.codeExterne ?? (await chercherCodeExterneColivraison(codeEnvoye));
       await prisma.remisePrestataire.update({
         where: { id: remiseId },

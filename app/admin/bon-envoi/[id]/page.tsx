@@ -10,6 +10,8 @@ import { StatutBadge } from '@/components/StatutBadge';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
 import { RemisePowerDelivery } from '@/components/admin/RemisePowerDelivery';
 import { RemiseColivraison } from '@/components/admin/RemiseColivraison';
+import { RemiseMetaLivraison } from '@/components/admin/RemiseMetaLivraison';
+import { RemiseEstLivraison } from '@/components/admin/RemiseEstLivraison';
 
 interface CurrentUser {
   role: 'admin' | 'agent_hub' | string;
@@ -113,6 +115,17 @@ export default function DetailBonEnvoiPage() {
       {user?.role === 'admin' &&
         (bon.hubDestination?.prestataire?.nom === 'Colivraison' || bon.prestataire?.nom === 'Colivraison') && (
         <RemiseColivraison bonId={bon.id} onRemis={load} />
+      )}
+      {/* Meta Livraison : vers Hub Fès comme en direct — la ville du colis est
+          cherchée parmi leurs agences (cf. lib/remise-meta-livraison.ts). */}
+      {user?.role === 'admin' &&
+        (bon.hubDestination?.prestataire?.nom === 'Meta Livraison' || bon.prestataire?.nom === 'Meta Livraison') && (
+        <RemiseMetaLivraison bonId={bon.id} onRemis={load} />
+      )}
+      {/* EST Livraison : une seule agence, donc les deux voies comme Power. */}
+      {user?.role === 'admin' &&
+        (bon.hubDestination?.prestataire?.nom === 'EST Livraison' || bon.prestataire?.nom === 'EST Livraison') && (
+        <RemiseEstLivraison bonId={bon.id} onRemis={load} />
       )}
 
       <div className="overflow-x-auto">

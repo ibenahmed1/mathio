@@ -15,13 +15,20 @@ import { normaliserVille } from '@/lib/hub-stock';
 //                     accents repliés) : c'est celui-là ;
 //   · `orthographe` — sinon, la variante qui porte le suffixe de l'agence
 //                     (-bm, -khenifra, -khn, -er, -oarz), ou à défaut la seule
-//                     graphie proche. Jamais une ville voisine.
+//                     graphie proche. Jamais une ville voisine ;
+//   · `rattachee`   — localité absente de leur liste, que Colivraison dessert
+//                     quand même (décidé par l'exploitation le 03/10/2026) :
+//                     elle part sous la ville de son agence, son nom ajouté à
+//                     l'adresse (`adresseLivraisonColivraison`), comme chez
+//                     Meta et Power. Une décision, jamais une déduction : même
+//                     « Boulanouare », probablement leur « Boulanoir » #1425,
+//                     part sous Khouribga tant qu'ils ne l'ont pas confirmé.
 //
 // Ce qu'on leur envoie est le NOM (`city` de addcolis.php) — leur API ne prend
 // pas d'identifiant. L'identifiant est gardé dans `RemisePrestataire.cityId`
 // pour qu'une relecture retrouve exactement la ligne choisie dans leur liste.
 
-export type GroupeCorrespondanceColivraison = 'exact' | 'orthographe';
+export type GroupeCorrespondanceColivraison = 'exact' | 'orthographe' | 'rattachee';
 
 export interface CorrespondanceVilleColivraison {
   // Nom de l'agence (Hub.nom) et de la ville (Ville.nom), tels qu'en base.
@@ -118,8 +125,8 @@ export const CORRESPONDANCES_VILLES_COLIVRAISON: readonly CorrespondanceVilleCol
   { agence: 'Agence Azilal', ville: 'Tanant', cityId: 1070, nomColivraison: 'Tanant', groupe: 'exact' },
   { agence: 'Agence Azilal', ville: 'Foum Jamaa', cityId: 1124, nomColivraison: 'Foum jamaa', groupe: 'exact' },
   { agence: 'Agence Azilal', ville: 'Bin El Ouidane', cityId: 1754, nomColivraison: 'Bin el ouidane', groupe: 'exact' },
-  { agence: 'Agence Azilal', ville: 'Aghbala', cityId: 1640, nomColivraison: 'Aghbala', groupe: 'exact' },
-  { agence: 'Agence Azilal', ville: 'Tizi Nisly', cityId: 1074, nomColivraison: 'Tizi nisly', groupe: 'exact' },
+  { agence: 'Agence Azilal', ville: 'Aghbala', cityId: 2441, nomColivraison: 'Aghbala', groupe: 'exact' },
+  { agence: 'Agence Azilal', ville: 'Tizi Nisly', cityId: 2436, nomColivraison: 'Tizi nisly', groupe: 'exact' },
   { agence: 'Agence Azilal', ville: 'Ait Attab', cityId: 553, nomColivraison: 'Ait attab', groupe: 'exact' },
   { agence: 'Agence Azilal', ville: 'Ouaouizeght', cityId: 926, nomColivraison: 'Ouaouizeght', groupe: 'exact' },
   { agence: 'Agence Azilal', ville: 'Oulad Remich', cityId: 1647, nomColivraison: 'Oulad remich', groupe: 'exact' },
@@ -134,11 +141,6 @@ export const CORRESPONDANCES_VILLES_COLIVRAISON: readonly CorrespondanceVilleCol
   { agence: 'Agence Errachidia', ville: 'Arfoud', cityId: 832, nomColivraison: 'Arfoud', groupe: 'exact' },
   { agence: 'Agence Errachidia', ville: 'Er-rich', cityId: 920, nomColivraison: 'Er-rich', groupe: 'exact' },
   { agence: 'Agence Errachidia', ville: 'Aoufous', cityId: 1250, nomColivraison: 'Aoufous', groupe: 'exact' },
-  { agence: 'Agence Errachidia', ville: 'Missour', cityId: 132, nomColivraison: 'Missour', groupe: 'exact' },
-  { agence: 'Agence Errachidia', ville: 'Bouleman', cityId: 1110, nomColivraison: 'Boulemane', groupe: 'orthographe' },
-  { agence: 'Agence Errachidia', ville: 'Guigou', cityId: 136, nomColivraison: 'Guigou', groupe: 'exact' },
-  { agence: 'Agence Errachidia', ville: 'Timahdite', cityId: 1112, nomColivraison: 'Timahdite', groupe: 'exact' },
-  { agence: 'Agence Errachidia', ville: 'Outat Lhaj', cityId: 1206, nomColivraison: 'Outat el haj', groupe: 'orthographe' },
   { agence: 'Agence Errachidia', ville: 'Alnif', cityId: 387, nomColivraison: 'Alnif', groupe: 'exact' },
   { agence: 'Agence Errachidia', ville: 'Merzouga', cityId: 843, nomColivraison: 'Merzouga', groupe: 'exact' },
   { agence: 'Agence Errachidia', ville: 'Rissani', cityId: 842, nomColivraison: 'Rissani', groupe: 'exact' },
@@ -173,19 +175,30 @@ export const CORRESPONDANCES_VILLES_COLIVRAISON: readonly CorrespondanceVilleCol
   { agence: 'Agence Ouarzazate', ville: 'Tamegroute', cityId: 264, nomColivraison: 'Tamegroute-oarz', groupe: 'orthographe' },
   { agence: 'Agence Ouarzazate', ville: 'Toundoute', cityId: 622, nomColivraison: 'Toundoute-oarz', groupe: 'orthographe' },
   { agence: 'Agence Ouarzazate', ville: 'Tagounite', cityId: 271, nomColivraison: 'Tagounite-oarz', groupe: 'orthographe' },
-  { agence: 'Agence Ouarzazate', ville: 'Mhamid ghizlane', cityId: 267, nomColivraison: 'Mhamid ghizlane-oarz', groupe: 'orthographe' },];
-
-// Villes de leur grille qu'on ne retrouve pas dans leur API. Elles restent dans
-// le référentiel — routées et tarifées comme les autres — mais leur remise
-// passe par l'Excel du bon tant qu'ils n'ont pas dit sous quel nom les saisir.
-export const VILLES_COLIVRAISON_SANS_CORRESPONDANCE: readonly VilleColivraisonSansCorrespondance[] = [
-  { agence: 'Agence Béni Mellal', ville: 'Faryata', motif: 'absente de leur API sous tout nom' },
-  { agence: 'Agence Béni Mellal', ville: 'Ahl Merbaa', motif: 'absente de leur API sous tout nom' },
-  { agence: 'Agence Khouribga', ville: 'Tachrafat', motif: 'absente de leur API sous tout nom' },
-  // Probablement « Boulanoir » (#1425), mais rien ne le confirme : à leur
-  // demander avant de la rattacher.
-  { agence: 'Agence Khouribga', ville: 'Boulanouare', motif: 'absente de leur API ; seul « Boulanoir » existe' },
+  { agence: 'Agence Ouarzazate', ville: 'Mhamid ghizlane', cityId: 267, nomColivraison: 'Mhamid ghizlane-oarz', groupe: 'orthographe' },
+  // Rattachées à la ville de leur agence (03/10/2026).
+  { agence: 'Agence Béni Mellal', ville: 'Ahl Merbaa', cityId: 47, nomColivraison: 'Beni mellal', groupe: 'rattachee' },
+  { agence: 'Agence Béni Mellal', ville: 'Faryata', cityId: 47, nomColivraison: 'Beni mellal', groupe: 'rattachee' },
+  { agence: 'Agence Khouribga', ville: 'Boulanouare', cityId: 1424, nomColivraison: 'Khouribga', groupe: 'rattachee' },
+  { agence: 'Agence Khouribga', ville: 'Tachrafat', cityId: 1424, nomColivraison: 'Khouribga', groupe: 'rattachee' },
 ];
+
+// Villes de leur grille qu'on ne peut pas leur remettre par l'API : elles
+// restent dans le référentiel — routées et tarifées comme les autres — mais
+// leur remise passe par l'Excel du bon. Vide depuis le 03/10/2026 : les quatre
+// villes mises de côté le 01/10 sont rattachées ci-dessus. La liste reste le
+// point d'entrée d'une future ville sans correspondance.
+export const VILLES_COLIVRAISON_SANS_CORRESPONDANCE: readonly VilleColivraisonSansCorrespondance[] = [];
+
+// Leur propre graphie, recopiée par un marchand, est reconnue — sauf celle
+// d'une ligne rattachée, qui est le nom de la ville d'agence et non celui de
+// la localité.
+function correspond(c: CorrespondanceVilleColivraison, cible: string): boolean {
+  return (
+    normaliserVille(c.ville) === cible ||
+    (c.groupe !== 'rattachee' && normaliserVille(c.nomColivraison) === cible)
+  );
+}
 
 // Résolution à la remise, DANS L'AGENCE qui reçoit le colis. `Commande.ville`
 // est du texte libre : casse et accents repliés (`normaliserVille`). On accepte
@@ -196,7 +209,7 @@ export function resoudreVilleColivraison(agence: string, ville: string): Corresp
   const cible = normaliserVille(ville);
   return (
     CORRESPONDANCES_VILLES_COLIVRAISON.find(
-      (c) => c.agence === agence && (normaliserVille(c.ville) === cible || normaliserVille(c.nomColivraison) === cible)
+      (c) => c.agence === agence && correspond(c, cible)
     ) ?? null
   );
 }
@@ -206,9 +219,21 @@ export function resoudreVilleColivraison(agence: string, ville: string): Corresp
 // sinon l'Excel, où un humain tranche.
 export function resoudreVilleToutesAgencesColivraison(ville: string): CorrespondanceVilleColivraison | null {
   const cible = normaliserVille(ville);
-  const candidats = CORRESPONDANCES_VILLES_COLIVRAISON.filter(
-    (c) => normaliserVille(c.ville) === cible || normaliserVille(c.nomColivraison) === cible
-  );
+  const candidats = CORRESPONDANCES_VILLES_COLIVRAISON.filter((c) => correspond(c, cible));
   if (candidats.length === 0) return null;
   return new Set(candidats.map((c) => c.cityId)).size === 1 ? candidats[0] : null;
+}
+
+// Adresse transmise à Colivraison. Pour une localité `rattachee`, la ville
+// envoyée est celle de l'agence : sans le nom de la localité dans l'adresse,
+// leur livreur chercherait le destinataire en ville. Le nom n'est pas ajouté
+// s'il y figure déjà. Même règle que Meta et Power.
+export function adresseLivraisonColivraison(
+  adresse: string,
+  correspondance: CorrespondanceVilleColivraison | null
+): string {
+  const propre = adresse.trim();
+  if (correspondance?.groupe !== 'rattachee') return propre;
+  if (normaliserVille(propre).includes(normaliserVille(correspondance.ville))) return propre;
+  return propre ? `${propre}, ${correspondance.ville}` : correspondance.ville;
 }

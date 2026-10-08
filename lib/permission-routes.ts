@@ -102,6 +102,7 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/admin/factures/**', permission: 'facture:read' },
   { pattern: '/admin/comptabilite/**', permission: 'comptabilite:read' },
   { pattern: '/admin/depenses/**', permission: 'comptabilite:read' },
+  { pattern: '/admin/simulateur/**', permission: 'simulateur:use' },
 
   // Relations & support
   { pattern: '/admin/reclamations/**', permission: 'reclamations:manage' },
@@ -114,6 +115,11 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/admin/tasks/**', permission: 'tasks:manage' },
   { pattern: '/admin/hubs/**', permission: 'hubs:manage' },
   { pattern: '/admin/parametres/**', permission: 'settings:manage' },
+  // NON MAPPÉ — /admin/notifications : le centre de notifications du compte
+  // CONNECTÉ (sa cloche, ses préférences), comme /api/notifications/**. Ouvert
+  // à tout l'espace, y compris aux rôles cantonnés (Kanban, Agent Hub), que le
+  // proxy laisse passer vers ce seul écran en plus du leur.
+  { pattern: '/admin/notifications/**', permission: null },
   // Intégrations partenaires (§ /admin/integrations) : émission et révocation
   // de clés d'API. Clé PROPRE plutôt qu'un rattachement à `settings:manage`,
   // que tout le back-office détient — une clé permet à une machine tierce de
@@ -162,6 +168,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // § Colivraison : même responsabilité, même clé (consulter, actualiser).
   { pattern: '/api/commandes/*/colivraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/colivraison/**', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/meta-livraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/commandes/*/meta-livraison/**', permission: 'bon_envoi:manage' },
   { pattern: '/api/commandes/*/statut', permission: 'colis:confirm' },
   // Encaissement COD : sa propre clé, parce que le trio qui l'exerce
   // aujourd'hui (admin, superviseur, responsable) ne correspond ni à la
@@ -211,6 +219,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // composé relève de sa gestion, pas de sa création.
   { pattern: '/api/bons-envoi/*/remise-power-delivery', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*/remise-colivraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/bons-envoi/*/remise-meta-livraison', permission: 'bon_envoi:manage' },
+  { pattern: '/api/bons-envoi/*/remise-est-livraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi/**', permission: 'bon_envoi:create' },
@@ -243,6 +253,9 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/finance/*', permission: 'comptabilite:delete', methods: ['DELETE'] },
   { pattern: '/api/finance/**', permission: 'comptabilite:read', methods: SAFE_METHODS },
   { pattern: '/api/finance/**', permission: 'comptabilite:write' },
+
+  // § Simulateur de rentabilité : un seul geste pour lire et enregistrer.
+  { pattern: '/api/simulations/**', permission: 'simulateur:use' },
 
   // --- Relations & support -------------------------------------------------
   { pattern: '/api/reclamations/**', permission: 'reclamations:manage' },
@@ -333,6 +346,13 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // ensuite désignée par `data.store_id` ; inconnue ou déconnectée, elle est
   // refusée (lib/youcan.ts).
   { pattern: '/api/v1/webhooks/youcan', permission: null },
+  //
+  // NON GOUVERNÉ, et SANS requireUser ni requirePermission — la quatrième : les
+  // webhooks de Meta Livraison (`parcel.status.updated`). Même parade que Power
+  // Delivery : signature HMAC-SHA256 du corps brut (`X-MetaLivraison-Signature`),
+  // obligatoire, comparée en temps constant ; sans META_LIVRAISON_WEBHOOK_SECRET
+  // la route refuse tout (lib/meta-livraison-statuts.ts).
+  { pattern: '/api/v1/webhooks/meta-livraison', permission: null },
   { pattern: '/api/v1/**', permission: null },
 ];
 

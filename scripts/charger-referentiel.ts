@@ -12,6 +12,8 @@ import { importerEstLivraison } from './import-prestataire-est-livraison';
 import { importerColivraison } from './import-prestataire-colivraison';
 import { ajouterVillesAgences } from './ajouter-villes-agences';
 import { appliquerTarifsMetaLivraison } from './tarifs-meta-livraison';
+import { appliquerDecisionsVilles } from './decisions-villes-octobre-2026';
+import { regrouperHubsRegionaux } from './regrouper-hubs-regionaux';
 
 /**
  * Chargement du référentiel de sous-traitance — prestataires, agences, villes
@@ -63,6 +65,12 @@ const ETAPES: Etape[] = [
   { libelle: "Villes d'implantation des agences", executer: ajouterVillesAgences },
   // Après les villes d'implantation : « Fès » en fait partie.
   { libelle: 'Tarifs Meta Livraison (Fès 18 dh, autres 25 dh)', executer: appliquerTarifsMetaLivraison },
+  // En dernier : retire des villes que les imports viennent de créer, et tarife
+  // des villes d'implantation (El Jadida, Oujda).
+  { libelle: 'Décisions d’octobre 2026 (Casablanca à Power, retraits, tarifs)', executer: () => appliquerDecisionsVilles() },
+  // Tout dernier : ce qu'un import aurait encore rangé à part rejoint son hub
+  // régional (§ lib/hubs-regionaux.ts). Sans effet sur une base déjà regroupée.
+  { libelle: 'Regroupement en 11 hubs régionaux', executer: () => regrouperHubsRegionaux() },
 ];
 
 export type OptionsChargement = {
@@ -82,6 +90,12 @@ export async function chargerReferentiel(options: OptionsChargement = {}): Promi
   // qu'il signale — deux hubs pour la même ville, l'un recevant les villes et
   // les tarifs, l'autre gardant les colis et les utilisateurs — ne se voit
   // qu'une fois les dégâts faits.
+  // § 11 hubs régionaux : une base chargée AVANT ce découpage a encore ses
+  // agences et un hub central nommé « Hub Casablanca », que le contrôle
+  // ci-dessous prendrait pour un conflit avec le Hub Casablanca de Power. On la
+  // convertit d'abord — sans effet sur une base vierge ou déjà regroupée.
+  await regrouperHubsRegionaux();
+
   const blocages = await detecterBlocages();
   if (blocages.length > 0) {
     const liste = blocages.map((b) => `  ⚠ ${b}`).join('\n');

@@ -13,6 +13,7 @@ import {
   texteFacultatif,
 } from '@/lib/finance';
 import { verifierCategorie } from '@/lib/journal-comptable';
+import { notifierTransaction } from '@/lib/notifications';
 
 // § Comptabilité — Droits d'accès & sécurité (RBAC) : côté back-office,
 // création et consultation réservées à admin et responsable ; aucun autre rôle
@@ -204,6 +205,9 @@ export async function POST(request: Request) {
       omit: { preuveUrl: true },
       include: INCLUDE_LIGNE_JOURNAL,
     });
+
+    // Livre de la plateforme seulement : notifierTransaction ignore celui d'une boutique.
+    await notifierTransaction(transaction.id, { sauf: session.sub });
 
     return NextResponse.json(exposerLigne(transaction, preuveUrl ? cheminPreuve(transaction.id) : null), {
       status: 201,

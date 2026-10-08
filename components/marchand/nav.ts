@@ -9,6 +9,7 @@ import {
   Plug,
   UsersRound,
   Calculator,
+  TrendingUp,
 } from 'lucide-react';
 import type { NavItem } from '@/components/AppSidebar';
 
@@ -32,6 +33,8 @@ export const NAV_MARCHAND_MENU: NavItem[] = [
   // § Comptabilité de la boutique : le même écran que /admin/comptabilite,
   // sur les livres propres à la boutique.
   { label: 'Comptabilité', href: '/marchand/comptabilite', icon: Calculator, section: 'Finance' },
+  // § Simulateur de rentabilité : le même écran que /admin/simulateur.
+  { label: 'Simulateur', href: '/marchand/simulateur', icon: TrendingUp, section: 'Finance' },
 ];
 
 export const NAV_MARCHAND_AUTRE: NavItem[] = [

@@ -35,6 +35,7 @@ import {
   Network,
   Plug,
   ScanLine,
+  TrendingUp,
 } from 'lucide-react';
 import type { NavItem, NavLeaf } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
@@ -215,6 +216,13 @@ export const NAV_ADMIN: NavItem[] = [
     icon: Calculator,
     section: SECTION_FINANCE,
     permission: 'comptabilite:read',
+  },
+  {
+    label: 'Simulateur de rentabilité',
+    href: '/admin/simulateur',
+    icon: TrendingUp,
+    section: SECTION_FINANCE,
+    permission: 'simulateur:use',
   },
 
   /* ---------- Administration & paramètres ---------- */

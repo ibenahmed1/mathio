@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { lanceDirectement, lancerEnCli } from './cli-etape';
 import { resoudreVilleImport } from '../lib/prestataires';
 import { normaliserVille } from '../lib/hub-envoi';
+import { HUBS_REGIONAUX } from '../lib/hubs-regionaux';
 
 /**
  * Rend chaque agence sous-traitée livrable dans SA PROPRE VILLE
@@ -65,19 +66,30 @@ export async function ajouterVillesAgences(simulation = false): Promise<void> {
   let ajoutees = 0;
   let dejaLa = 0;
 
-  for (const agence of agences) {
-    if (!agence.ville?.trim()) {
-      console.log(`${agence.nom.padEnd(28)} pas de ville d'implantation déclarée — ignorée`);
-      continue;
-    }
+  // § Réseau en 11 hubs (lib/hubs-regionaux.ts) : un hub régional doit livrer
+  // la ville de CHACUNE des agences qu'il a absorbées (Meknès, Taza… pour Hub
+  // Fès) — les anciens noms d'agence sont devenus des villes. Le contrôle de
+  // présence porte sur TOUTES les villes et non sur le seul hub : une ville ne
+  // doit exister qu'une fois dans tout le réseau.
+  const existantes = new Set(
+    (await prisma.ville.findMany({ select: { nom: true } })).map((v) => normaliserVille(v.nom))
+  );
+  const sieges = agences.flatMap((agence) => {
+    const absorbees = HUBS_REGIONAUX.find((h) => h.nom === agence.nom)?.agences.map((a) => a.ville) ?? [];
+    const noms = [agence.ville, ...absorbees].filter((v): v is string => !!v?.trim());
+    if (noms.length === 0) console.log(`${agence.nom.padEnd(28)} pas de ville d'implantation déclarée — ignorée`);
+    return [...new Set(noms)].map((ville) => ({ ...agence, ville }));
+  });
 
+  for (const agence of sieges) {
     // Même rapprochement que le routage (accents et casse repliés) : sans lui,
     // « Fes » et « Fès » cohabiteraient comme deux destinations distinctes.
     const cible = normaliserVille(agence.ville);
-    if (agence.villes.some((v) => normaliserVille(v.nom) === cible)) {
+    if (existantes.has(cible)) {
       dejaLa += 1;
       continue;
     }
+    existantes.add(cible);
 
     if (simulation) {
       console.log(`${agence.nom.padEnd(28)} À AJOUTER : "${agence.ville}"`);
@@ -95,7 +107,7 @@ export async function ajouterVillesAgences(simulation = false): Promise<void> {
   }
 
   console.log(
-    `\n${ajoutees} ville(s) ${simulation ? 'à ajouter' : 'ajoutée(s)'}, ${dejaLa} agence(s) déjà en règle.`
+    `\n${ajoutees} ville(s) ${simulation ? 'à ajouter' : 'ajoutée(s)'}, ${dejaLa} déjà présente(s).`
   );
   if (ajoutees > 0 && !simulation) {
     console.log('Aucun tarif créé : le coût de ces villes reste inconnu (null), pas gratuit.');

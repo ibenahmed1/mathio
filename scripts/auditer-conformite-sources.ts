@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { normaliserVille } from '../lib/hub-stock';
+import { HUB_CENTRAL, nomHubActuel } from '../lib/hubs-regionaux';
 
 /**
  * Audit de conformité des grilles fournisseurs — `npx tsx
@@ -49,17 +50,14 @@ const zone = (
 
 const SOURCE: LigneSource[] = [
   // ══ Power Delivery — « ville Power.pdf » (91 lignes) ═══════════════════
-  ...zone('Hub Casablanca', 15, ['Casablanca'], null, 'Power Delivery'),
-  ...zone(
-    'Hub Casablanca',
-    20,
-    [
-      'Bouskoura', 'TIT MELIL', 'Dar bouazza', 'Deroua', 'NOUACER', 'TAMARIS', 'MEDIOUNA',
-      'Berrechid', 'SIDI HAJAJ', 'SETTAT', 'Ben ahmed', 'Lahraouyine',
-    ],
-    null,
-    'Power Delivery'
-  ),
+  // Lignes de Casablanca : longtemps portées par l'ancien hub interne, elles sont
+  // chez Power (Agence Casablanca, aujourd'hui Hub Casablanca) depuis la décision
+  // du 03/10/2026 — cf. decisions-villes-octobre-2026.ts, point 1.
+  ...zone('Agence Casablanca', 15, ['Casablanca']),
+  ...zone('Agence Casablanca', 20, [
+    'Bouskoura', 'TIT MELIL', 'Dar bouazza', 'Deroua', 'NOUACER', 'TAMARIS', 'MEDIOUNA',
+    'Berrechid', 'SIDI HAJAJ', 'SETTAT', 'Ben ahmed', 'Lahraouyine',
+  ]),
   ...zone('Agence El Jadida', 20, ['l jadida']),
   ...zone('Agence El Jadida', 23, [
     'SIDI RAHAL', 'Azemmour', 'Sidi bouzid', 'TNIN CHTOUKA - EL JADIDA', 'Bir jdid', 'SIDI SMAIL',
@@ -181,6 +179,42 @@ const SOURCE: LigneSource[] = [
     ],
     0
   ),
+
+  // ══ Colivraison — grille tableur, transcrite le 07/10/2026 depuis les
+  // captures fournies par l'exploitation (132 lignes, aucun tarif de retour).
+  // Noms repris sans la partie arabe, comme l'import.
+  ...zone('Agence Béni Mellal', 18, ['Beni Mellal']),
+  ...zone('Agence Béni Mellal', 25, [
+    'Riad Salam', 'Ait Tislit', 'Mghila', 'Ain-Elghazi Ali', 'Tifrit', 'Aourir BM', 'Oulad Moussa', 'SOUK SEBT OULED NEMMA',
+    'Fkih ben salah', 'Kasba Tadla', 'Oulad Mrah', 'Sidi Aissa Ben Ali', 'Foum Oudi', 'Oulad Mbarek', 'Timoulilte',
+    'Dar Oulad Zidouh', 'Laayayta-Oulad Gnaou', 'Afourar', 'Beni Ayat', 'Laajana', 'Sidi Jaber', 'Oulad Ali Loued',
+    'Had Lbradia', 'Oulad Zmam', 'Oulad Ayad Souk Sebt', 'LA ZONE INDUSTRIELLE (BM)', 'Lakraza Ouled Said',
+    'Zaouiat Cheikh', 'El Ksiba', 'Ighrem Laalam', 'Faryata', 'Oulad Yaich', 'Adouz', 'Tagzert', 'Ikhoureba', 'Zouair',
+    'Foum Zaouia', 'Tanougha', 'Foum El Anser', 'Ouled Driss', 'Ahl Merbaa', 'Ahl Souss', 'Lahlalma', 'Ouled Rguiaa',
+    'Harboulia', 'Oulad drid', 'El Bazzaza', 'Oulad Youssef', 'Oulad Said Louad',
+  ]),
+  ...zone('Agence Khouribga', 25, [
+    'Khouribga', 'Boulanouare', 'Bejaad', 'Oued Zem', 'Tachrafat', 'Ain Kaicher', 'Bir Mezoui', 'Boujniba', 'Lagfaf', 'Hattane',
+  ]),
+  ...zone('Agence Khénifra', 25, [
+    'Khenifra', 'Mrirt', 'Aguelmouss', 'El Kbab', 'Tighasaline', 'El Borj', 'Ait Ishaq', 'Lahri', 'Moulay Bouaza',
+    'Had Bouhsousen', 'Kahf Nssoure', 'OUAOUMANA', 'Aghbalou',
+  ]),
+  ...zone('Agence Azilal', 25, ['Azilal', 'Ouzoud', 'Tanant', 'Foum Jamaa', 'Bin El Ouidane']),
+  ...zone('Agence Azilal', 30, [
+    'Aghbala', 'Tizi Nisly', 'Ait attab', 'Ouaouizeght', 'Oulad Remich', 'Boukaroune', 'Ouad laabid', 'Bzou',
+  ]),
+  ...zone('Agence Errachidia', 25, ['Errachidia']),
+  ...zone('Agence Errachidia', 30, [
+    'Midelt', 'Tinejdad', 'Goulmima', 'Arfoud', 'Er-rich', 'Aoufous', 'Missour', 'BOULEMAN', 'GUIGOU', 'TIMAHDITE',
+    'OUTAT LHAJ', 'Alnif', 'Merzouga', 'Rissani', 'Boumia', 'Zaida', 'Itzer', 'Aghbalou nserdan', 'Boudnib', 'El jorf',
+  ]),
+  ...zone('Agence Ouarzazate', 25, ['Ouarzazate']),
+  ...zone('Agence Ouarzazate', 30, [
+    'Tinghir', 'Kelaat magouna', 'Zagora', 'Tabounte', 'Tarmigt', 'Boumalne Dades', 'Agdz', 'Skoura', 'Idelsane',
+    'Taznakht', 'Agouim', 'Tazarine', 'Nkoub', 'Tinzouline', 'Amerzgane', 'Ait zineb-oarz', 'Timadline',
+    'Ait Ben Haddou', 'Taghbalte-ouarz', 'Ighrem nougdal', 'Tamegroute', 'Toundoute', 'Tagounite', 'Mhamid ghizlane',
+  ]),
 ];
 
 // Doublons EXACTS d'une même agence : la base ne peut en porter qu'un (cf.
@@ -190,6 +224,47 @@ const DOUBLONS_ATTENDUS = [
   { agence: 'Agence Marrakech', nom: 'ouargui' },
   { agence: 'Agence Taounate', nom: 'Kantra Asqar' },
 ];
+
+// Lignes des fichiers RETIRÉES par décision de l'exploitation, après
+// transcription (§ scripts/decisions-villes-octobre-2026.ts) : attendues
+// absentes, donc non signalées comme manquantes.
+const RETIREES_PAR_DECISION = [
+  { agence: 'Agence Casablanca', nom: 'SIDI HAJAJ' },
+  { agence: 'Agence Marrakech', nom: 'moulay brahim' },
+  { agence: 'Agence El Jadida', nom: 'l jadida' },
+  // Confiées à EST Livraison seul le 05/10/2026.
+  ...['TAOURIRT', 'TAHLA', 'bouhlou', 'AKNOUL', 'AJDIR TAZA', 'OUAD AMLIL'].map((nom) => ({ agence: 'Agence Taza', nom })),
+  // Confiées à EST Livraison seul le 07/10/2026.
+  ...['TAZA', 'GUERCIF'].map((nom) => ({ agence: 'Agence Taza', nom })),
+  // Fusionnées dans la ville d'implantation de l'agence le 07/10/2026.
+  { agence: 'Agence Oujda', nom: 'Oujda (Centre & Quartiers)' },
+  { agence: 'Agence Taounate', nom: 'taounate centre' },
+  // Laissées à Sahario Express seul le 05/10/2026.
+  { agence: 'Agence Agadir', nom: 'merleft' },
+  { agence: 'Agence Agadir', nom: 'sidi fini' },
+  // Laissées à Meta Livraison seul le 05/10/2026.
+  ...['Missour', 'BOULEMAN', 'GUIGOU', 'TIMAHDITE', 'OUTAT LHAJ'].map((nom) => ({ agence: 'Agence Errachidia', nom })),
+];
+
+// Lignes qui ne viennent d'AUCUNE grille mais d'une décision : la ville
+// d'implantation de l'agence (scripts/ajouter-villes-agences.ts, décision du
+// 09/09/2026) et le prix que lui ont fixé les décisions ultérieures. Tenues à
+// part de SOURCE, qui ne transcrit que des documents ; contrôlées de la même
+// façon, prix compris.
+const DECIDEES: LigneSource[] = [
+  ...zone('Agence Fès', 18, ['Fès']), // scripts/tarifs-meta-livraison.ts : Fès 18 dh
+  ...zone('Agence Boulmane', 25, ['Boulmane']),
+  ...zone('Agence Taounate', 25, ['Taounate']),
+  ...zone('Agence Oujda', 15, ['Oujda'], 0), // decisions-villes-octobre-2026.ts, point 4
+  ...zone('Agence El Jadida', 20, ['El Jadida']), // decisions-villes-octobre-2026.ts, point 3
+];
+
+// Les fichiers sources parlent d'AGENCES ; la base, de hubs régionaux
+// (lib/hubs-regionaux.ts). « Hub Casablanca » y désigne l'ancien hub interne,
+// devenu le hub central.
+function hubSource(agence: string): string {
+  return agence === 'Hub Casablanca' ? HUB_CENTRAL : nomHubActuel(agence);
+}
 
 async function main() {
   const [villes, prestataires] = await Promise.all([
@@ -235,11 +310,15 @@ async function main() {
   const graphies: string[] = [];
   const vues = new Set<string>();
 
-  for (const ligne of SOURCE) {
-    const cle = `${ligne.agence}|${normaliserVille(ligne.nom)}`;
+  for (const ligne of [...SOURCE, ...DECIDEES]) {
+    const cle = `${hubSource(ligne.agence)}|${normaliserVille(ligne.nom)}`;
     const trouvee = enBase.get(cle);
 
     if (!trouvee) {
+      const retiree = RETIREES_PAR_DECISION.some(
+        (d) => d.agence === ligne.agence && normaliserVille(d.nom) === normaliserVille(ligne.nom)
+      );
+      if (retiree) continue;
       const attendu = DOUBLONS_ATTENDUS.some(
         (d) => d.agence === ligne.agence && normaliserVille(d.nom) === normaliserVille(ligne.nom)
       );
@@ -270,7 +349,7 @@ async function main() {
   // chaque exécution) sont hors périmètre : ils ne viennent d'aucune grille.
   const enTrop = [...enBase.entries()]
     .filter(([cle]) => !cle.startsWith('Hub Audit Tournée'))
-    .filter(([cle]) => !SOURCE.some((l) => `${l.agence}|${normaliserVille(l.nom)}` === cle))
+    .filter(([cle]) => ![...SOURCE, ...DECIDEES].some((l) => `${hubSource(l.agence)}|${normaliserVille(l.nom)}` === cle))
     .map(([cle, v]) => `${cle.split('|')[0]} / "${v.nom}"`);
 
   const bloc = (titre: string, lignes: string[]) => {
@@ -279,6 +358,7 @@ async function main() {
   };
 
   console.log(`Lignes transcrites depuis les documents : ${SOURCE.length}`);
+  console.log(`Lignes fixées par décision              : ${DECIDEES.length}`);
   console.log(`Villes en base                          : ${villes.length}`);
 
   bloc('LIGNES DU FICHIER ABSENTES DE LA BASE', manquantes);

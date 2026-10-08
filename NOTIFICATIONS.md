@@ -12,7 +12,12 @@ Messaging. Le destinataire **final** du colis n'est pas concerné : c'est le cha
 - **Push aux marchands seulement pour ce qui demande une réaction.** « Colis livré » = cloche seule
   (des centaines par jour noieraient les alertes) ; refusé, retourné, injoignable/numéro erroné =
   push immédiat.
-- Préférences : chacun peut **couper le push** d'un type ; la cloche, elle, ne se règle pas.
+- **Préférences (06/10/2026)** : chacun règle, type par type, la **cloche** et le **push** séparément
+  (`Utilisateur.clocheCoupes` / `pushCoupes`). Couper l'un ne coupe pas l'autre. Les types
+  « cloche seulement » (colis livré) n'ont pas d'interrupteur push.
+- **Centre de notifications** : `/admin|marchand|livreur|ramasseur/notifications` — historique
+  (toutes / non lues) et préférences. On y arrive par le panneau de la cloche (lien en pied, roue
+  dentée). Ouvert à tout compte de l'espace, rôles cantonnés compris (exception dans `proxy.ts`).
 
 ## Qui reçoit quoi
 
@@ -30,6 +35,7 @@ Messaging. Le destinataire **final** du colis n'est pas concerné : c'est le cha
 | `ramassage.demande` | demande de ramassage | back-office `demande_ramassage:manage` | oui |
 | `transporteur.erreur` | remise Power Delivery avec colis non remis | back-office `bon_envoi:manage` | oui |
 | `hub.colis_recus` | bon d'envoi interne réceptionné | planners du hub d'arrivée | oui |
+| `comptabilite.transaction` | écriture au journal de la **plateforme** : saisie, neutralisation, remise de caisse (clôture de tournée), paie (bon de paiement), règlement de facture | rôles `admin` et `responsable` (ceux qui lisent ce journal) | oui |
 | `tache.assignee` / `tache.mention` / `tache.commentaire` | Kanban | assigné, mentionnés, créateur — **s'ils peuvent lire la tâche** | oui |
 
 « Boutique » = le titulaire + les membres actifs dont le rôle donne la permission
@@ -49,7 +55,7 @@ se fait dans le helper. Un lot de colis au même statut d'une même boutique = *
 | `lib/push-client.ts` | abonnement du navigateur (SDK Firebase chargé à la demande) |
 | `public/sw-notifications.js` | service worker : affiche le push, ouvre le lien |
 | `app/api/notifications/**` | cloche, lues, appareils, préférences, config push |
-| `components/notifications/*` | provider (un par coquille) et cloche |
+| `components/notifications/*` | provider (un par coquille), cloche, centre de notifications, affichage commun |
 | `app/manifest.webmanifest/route.ts` | manifeste par domaine — condition du push sur iPhone |
 
 ## Mise en service
@@ -75,9 +81,9 @@ Sans ces variables : pas de bouton, pas d'erreur, un avertissement `[push]` dans
 
 ## Reste à faire
 
-- Écran de préférences (l'API `GET|PUT /api/notifications/preferences` existe).
 - Purge des notifications anciennes.
 - Erreurs du suivi Power Delivery (webhooks refusés, colis introuvable) : journalisées dans
   `EvenementPrestataire`, pas encore notifiées — volume à mesurer d'abord.
-- Test sur un vrai projet Firebase : le circuit FCM (jeton, envoi, réception par le service worker
-  sans SDK) n'a été validé que jusqu'au repli sans configuration.
+- Tests manuels restants : espace terrain (livreur, ramasseur), réglages cloche/push sur appareil.
+  Le circuit FCM réel est validé : push « colis refusé » reçu sur un téléphone Android, compte
+  marchand, le 06/10/2026.

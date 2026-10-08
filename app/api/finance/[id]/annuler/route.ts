@@ -4,6 +4,7 @@ import { ApiError, jsonError } from '@/lib/api-utils';
 import { perimetreComptable } from '@/lib/comptabilite-perimetre';
 import type { TypeTransaction } from '@/app/generated/prisma/enums';
 import { LONGUEUR_MAX_TITRE } from '@/lib/finance';
+import { notifierTransaction } from '@/lib/notifications';
 
 const TYPE_INVERSE: Record<TypeTransaction, TypeTransaction> = {
   revenu: 'depense',
@@ -75,6 +76,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         select: { id: true },
       }),
     ]);
+
+    await notifierTransaction(annulation.id, { sauf: session.sub });
 
     // L'écran recharge le journal après une annulation : l'identifiant suffit,
     // et aucun Decimal ne part dans la réponse.

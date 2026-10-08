@@ -13,8 +13,11 @@ import {
 // Intégrité du fichier
 // ------------------------------------------------------------
 
-test('les 106 villes Meta du référentiel sont couvertes', () => {
-  assert.equal(CORRESPONDANCES_VILLES_META.length, 106);
+// 100 = les 106 villes de « metalivraison.csv » moins les six confiées à EST
+// Livraison seul le 05/10/2026 (Taourirt, Tahla, Bouhlou, Aknoul, Ajdir Taza,
+// Oued Amlil).
+test('les 100 villes Meta du référentiel sont couvertes', () => {
+  assert.equal(CORRESPONDANCES_VILLES_META.length, 100);
 });
 
 test('une ville n’apparaît qu’une fois par agence', () => {
@@ -92,8 +95,8 @@ test('la localité n’est pas répétée si l’adresse la cite déjà', () => 
 });
 
 test('une adresse vide devient le nom de la localité', () => {
-  const c = resoudreVilleMeta('Agence Taza', 'bouhlou')!;
-  assert.equal(adresseLivraisonMeta('  ', c), 'bouhlou');
+  const c = resoudreVilleMeta('Agence Taza', 'jbarna')!;
+  assert.equal(adresseLivraisonMeta('  ', c), 'jbarna');
 });
 
 test('l’adresse d’une ville connue d’eux reste intacte', () => {

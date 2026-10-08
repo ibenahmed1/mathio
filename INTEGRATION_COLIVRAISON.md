@@ -39,7 +39,7 @@ Les points ci-dessous ont été relevés le 01/10/2026.
   2. sinon la variante suffixée par l'agence ;
   3. jamais une ville voisine.
 
-  Résultat : 105 villes en nom exact, 23 par orthographe proche, 4 mises de côté (remise par l'Excel du bon).
+  Résultat : 105 villes en nom exact, 23 par orthographe proche, 4 rattachées à la ville de leur agence (Ahl Merbaa et Faryata sous Beni mellal #47, Boulanouare et Tachrafat sous Khouribga #1424, localité ajoutée à l'adresse — décidé le 03/10/2026, Colivraison les dessert). Aucune ville ne passe plus par l'Excel.
 
 ## 3. Vérifié avec le vrai compte (01/10/2026), et ce qui reste ouvert
 
@@ -55,7 +55,7 @@ Première remise réelle : colis PD-101720, bon BE-2026-1001-001, devenu chez eu
 **Encore ouvert :**
 
 1. **La liste complète de leurs états.** On ne verra les suivants (livré, refusé, reporté…) qu'au fil des colis. Un libellé non reconnu est journalisé (`EvenementPrestataire`, issue `inconnu`) sans être appliqué ; il faut alors compléter `lib/colivraison-statuts.ts`.
-2. **Les 4 villes absentes de leur API** : Faryata, Ahl Merbaa, Tachrafat, Boulanouare. Cette dernière est probablement « Boulanoir » (#1425).
+2. **Les 4 villes absentes de leur API** (Faryata, Ahl Merbaa, Tachrafat, Boulanouare) : réglé le 03/10/2026, rattachées à la ville de leur agence. Boulanouare est probablement « Boulanoir » (#1425) : à basculer en `orthographe` si Colivraison le confirme.
 
 ## 4. Mise en service
 

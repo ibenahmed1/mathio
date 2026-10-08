@@ -169,6 +169,18 @@ export const PERMISSIONS_MARCHAND: PermissionMarchandCategorie[] = [
     ],
   },
   {
+    categorie: 'Outils',
+    permissions: [
+      // § Simulateur de rentabilité : calcul fait dans le navigateur, sans
+      // aucune donnée de la boutique — d'où l'absence de `sensible`.
+      {
+        key: 'simulateur.utiliser',
+        label: 'Simulateur de rentabilité',
+        description: 'Simuler la rentabilité d’un produit avant de le lancer.',
+      },
+    ],
+  },
+  {
     categorie: 'Support',
     permissions: [
       { key: 'reclamations.voir', label: 'Consulter les réclamations', description: 'Voir les réclamations et leurs réponses.' },
@@ -333,6 +345,7 @@ export const ROLES_SYSTEME_MARCHAND: RoleSystemeDef[] = [
       'comptabilite.saisir',
       'comptabilite.modifier',
       'comptabilite.supprimer',
+      'simulateur.utiliser',
     ]),
   },
   {
@@ -386,6 +399,7 @@ export const PAGES_MARCHAND: RouteMarchand[] = [
   { pattern: '/marchand/bons-retour/**', permission: 'bons.voir' },
   { pattern: '/marchand/factures/**', permission: 'factures.voir' },
   { pattern: '/marchand/comptabilite/**', permission: 'comptabilite.voir' },
+  { pattern: '/marchand/simulateur/**', permission: 'simulateur.utiliser' },
   { pattern: '/marchand/reclamations/**', permission: 'reclamations.voir' },
   { pattern: '/marchand/integrations/**', permission: 'integrations.gerer' },
   { pattern: '/marchand/equipe/**', permission: 'equipe.voir' },
@@ -394,6 +408,9 @@ export const PAGES_MARCHAND: RouteMarchand[] = [
   // l'écran, et leurs écritures sont gardées ci-dessous côté API.
   { pattern: '/marchand/profil/**', permission: null },
   { pattern: '/marchand/acces-refuse', permission: null },
+  // Centre de notifications : celles du membre connecté et ses préférences,
+  // jamais celles de la boutique. Ouvert à tous, comme le profil.
+  { pattern: '/marchand/notifications/**', permission: null },
   { pattern: '/marchand', permission: 'tableau_de_bord.voir' },
 ];
 
@@ -441,6 +458,7 @@ export const API_MARCHAND: RouteMarchand[] = [
   { pattern: '/api/finance/*', permission: 'comptabilite.supprimer', methods: ['DELETE'] },
   { pattern: '/api/finance/**', permission: 'comptabilite.voir', methods: LECTURES },
   { pattern: '/api/finance/**', permission: 'comptabilite.saisir' },
+  { pattern: '/api/simulations/**', permission: 'simulateur.utiliser' },
   { pattern: '/api/commandes-stock-hub/*/statut', permission: 'comptabilite.saisir' },
   { pattern: '/api/commandes-stock-hub/*/restaurer', permission: 'comptabilite.supprimer' },
   { pattern: '/api/commandes-stock-hub/*', permission: 'comptabilite.modifier', methods: ['PATCH'] },

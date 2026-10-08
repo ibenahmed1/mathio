@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, requireUser } from '@/lib/api-utils';
 import { getColisEligiblesEnvoi } from '@/lib/hub-envoi';
+import { HUBS_REGIONAUX } from '@/lib/hubs-regionaux';
 
 // § Étape 1 de la création d'un Bon d'Envoi (/admin/bon-envoi/creer) : liste
 // des hubs avec le compteur de colis actuellement éligibles à un transit
@@ -11,7 +12,10 @@ export async function GET() {
     await requireUser(['admin']);
 
     const [hubs, eligibles] = await Promise.all([
-      prisma.hub.findMany({ orderBy: { nom: 'asc' } }),
+      // § 11 hubs régionaux : seuls les hubs servis par un transporteur sont des
+      // destinations. Le hub central (d'où partent les bons) et les hubs de
+      // test n'en sont pas.
+      prisma.hub.findMany({ where: { prestataireId: { not: null } }, orderBy: { nom: 'asc' } }),
       getColisEligiblesEnvoi(),
     ]);
 
@@ -19,6 +23,13 @@ export async function GET() {
     for (const e of eligibles) {
       counts.set(e.hub.hubId, (counts.get(e.hub.hubId) ?? 0) + 1);
     }
+
+    // Dans l'ordre de la liste arrêtée (lib/hubs-regionaux.ts), pas alphabétique.
+    const rang = (nom: string) => {
+      const i = HUBS_REGIONAUX.findIndex((r) => r.nom === nom);
+      return i < 0 ? HUBS_REGIONAUX.length : i;
+    };
+    hubs.sort((a, b) => rang(a.nom) - rang(b.nom) || a.nom.localeCompare(b.nom, 'fr'));
 
     const data = hubs.map((h) => ({
       id: h.id,

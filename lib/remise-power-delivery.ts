@@ -10,7 +10,11 @@ import {
   construireColisPower,
   creerColisPower,
 } from '@/lib/power-delivery';
-import { resoudreVillePower, resoudreVilleToutesAgencesPower } from '@/lib/power-delivery-villes';
+import {
+  adresseLivraisonPower,
+  resoudreVillePower,
+} from '@/lib/power-delivery-villes';
+import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
 
 // § Sous-traitance Power Delivery — la REMISE d'un colis par leur API.
 //
@@ -122,7 +126,10 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
     throw new ApiError(400, `Ce bon d'envoi ne part pas chez ${NOM_PRESTATAIRE_POWER}`);
   }
 
-  const agence = bon.hubDestination?.nom ?? null;
+  // § 11 hubs régionaux (lib/hubs-regionaux.ts) : la ville du colis est
+  // cherchée dans les agences du hub visé, ou de tout le réseau pour un bon
+  // direct. Plusieurs identifiants différents → Excel, jamais au hasard.
+  const agences = agencesARechercher({ hubNom: bon.hubDestination?.nom ?? null, prestataire: NOM_PRESTATAIRE_POWER });
   const resultats: ResultatRemiseColis[] = [];
 
   // Un colis après l'autre, et non en parallèle : leur API n'annonce aucun
@@ -142,9 +149,8 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
     // `null` = ville mise de côté, hors contrat, ou — sur un bon sans agence —
     // revendiquée par plusieurs de leurs dépôts : jamais d'envoi par le nom,
     // et jamais de dépôt choisi au hasard.
-    const ville = agence
-      ? resoudreVillePower(agence, commande.ville)
-      : resoudreVilleToutesAgencesPower(commande.ville);
+    const ville =
+      resoudreParAgences(agences, commande.ville, resoudreVillePower, (c) => String(c.cityId))?.resultat ?? null;
     if (!ville) {
       resultats.push({
         ...base,
@@ -181,7 +187,10 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
 
     let codeExterne: string | null = null;
     try {
-      const creation = await creerColisPower(construireColisPower(commande, ville.cityId));
+      // Une localité rattachée part sous la ville d'agence : son nom voyage
+      // dans l'adresse (`adresseLivraisonPower`).
+      const colis = { ...commande, adresse: adresseLivraisonPower(commande.adresse, ville) };
+      const creation = await creerColisPower(construireColisPower(colis, ville.cityId));
       codeExterne = creation.codeExterne;
       await prisma.remisePrestataire.update({
         where: { id: remiseId },

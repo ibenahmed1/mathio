@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
+import { nomHubActuel } from '../lib/hubs-regionaux';
 
 /**
  * Restitution ligne à ligne des grilles fournisseurs — à exécuter UNE fois,
@@ -51,7 +52,9 @@ const RENOMMAGES: { agence: string; de: string; vers: string }[] = [
   { agence: 'Agence Agadir', de: 'Sidi Moussa (Oulad Teima)', vers: 'Sidi moussa' },
 
   // --- EST Livraison (PDF « GRILLE TARIFAIRE OFFICIELLE ») -----------------
-  { agence: 'Agence Oujda', de: 'Oujda', vers: 'Oujda (Centre & Quartiers)' },
+  // (« Oujda » → « Oujda (Centre & Quartiers) » retiré le 07/10/2026 : la ville
+  // garde son nom usuel, § decisions-villes-octobre-2026.ts point 10. Le
+  // renommage, rejoué, aurait défait cette décision.)
   { agence: 'Agence Oujda', de: 'Beni Drar', vers: 'Beni Drar (Bnidrar)' },
   { agence: 'Agence Oujda', de: 'Ras El Ma', vers: "Ras El Ma (Cap de l'Eau)" },
   { agence: 'Agence Oujda', de: 'Nador', vers: 'Nador Ville' },
@@ -99,7 +102,7 @@ const IRREDUCTIBLES = [
 
 async function hubParNom(nom: string) {
   const hub = await prisma.hub.findUnique({
-    where: { nom },
+    where: { nom: nomHubActuel(nom) },
     select: { id: true, nom: true, prestataireId: true },
   });
   if (!hub) throw new Error(`Hub introuvable : "${nom}"`);

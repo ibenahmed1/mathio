@@ -1,8 +1,10 @@
 import type { Role, StatutCommande } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
+import { ROLES_BACKOFFICE } from '@/lib/auth';
 import { permissionsDuRole } from '@/lib/permissions-marchand';
 import {
   contenuStatutColis,
+  doitAfficher,
   doitPousser,
   espaceDuLien,
   statutNotifie,
@@ -39,9 +41,25 @@ export async function notifier(
 
     const corps = notification.corps ?? null;
     const lien = notification.lien ?? null;
-    await prisma.notification.createMany({
-      data: ids.map((utilisateurId) => ({ utilisateurId, type: notification.type, titre: notification.titre, corps, lien })),
+
+    // Cloche et push se règlent séparément (Utilisateur.clocheCoupes /
+    // pushCoupes) : couper la cloche d'un type n'empêche pas son push.
+    const comptes = await prisma.utilisateur.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, clocheCoupes: true },
     });
+    const pourLaCloche = comptes.filter((c) => doitAfficher(notification.type, c.clocheCoupes)).map((c) => c.id);
+    if (pourLaCloche.length > 0) {
+      await prisma.notification.createMany({
+        data: pourLaCloche.map((utilisateurId) => ({
+          utilisateurId,
+          type: notification.type,
+          titre: notification.titre,
+          corps,
+          lien,
+        })),
+      });
+    }
 
     void pousser(ids, { type: notification.type, titre: notification.titre, corps, lien });
   } catch (erreur) {
@@ -124,7 +142,16 @@ export async function destinatairesBoutique(marchandId: string, permission: stri
 // back-office, qui ne peut donc pas être happé ici.
 export async function destinatairesBackoffice(permission: string): Promise<string[]> {
   const comptes = await prisma.utilisateur.findMany({
-    where: { actif: true, OR: [{ role: 'admin' }, { permissions: { has: permission } }] },
+    where: {
+      actif: true,
+      OR: [{ role: 'admin' }, { permissions: { has: permission } }],
+      // Back-office proprement dit (ROLES_BACKOFFICE) : un agent de hub détient
+      // `bon_envoi:manage` pour réceptionner les bons de SON quai, mais ne peut
+      // ni ouvrir un bon confié à un transporteur ni relancer une remise — le
+      // prévenir d'une remise refusée lui donnait une alerte sans issue (constaté
+      // le 07/10/2026 sur BE-2026-1001-001).
+      AND: [{ OR: [{ role: { in: ROLES_BACKOFFICE } }, { rolesSupplementaires: { hasSome: ROLES_BACKOFFICE } }] }],
+    },
     select: { id: true },
   });
   return comptes.map((c) => c.id);
@@ -206,6 +233,49 @@ export async function notifierFacture(
     );
   } catch (erreur) {
     console.error('[notifications] échec de notifierFacture()', erreur);
+  }
+}
+
+// --- Comptabilité de la plateforme ------------------------------------------
+
+// Mêmes rôles que la lecture du journal de la plateforme
+// (lib/comptabilite-perimetre.ts, ROLES_COMPTABILITE) : prévenir quelqu'un
+// d'une écriture qu'il ne peut pas ouvrir serait une alerte sans issue.
+const ROLES_COMPTABILITE: Role[] = ['admin', 'responsable'];
+
+// À appeler APRÈS la transaction qui a créé l'écriture. Relit elle-même ce
+// qu'elle affiche (sens, montant, titre) ; une écriture du livre d'une
+// boutique (marchandId non nul) ne notifie pas le back-office.
+export async function notifierTransaction(
+  transactionId: string | null | undefined,
+  options: { sauf?: string | null } = {}
+): Promise<void> {
+  try {
+    if (!transactionId) return;
+    const t = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      select: { titre: true, montant: true, type: true, marchandId: true },
+    });
+    if (!t || t.marchandId) return;
+    const comptes = await prisma.utilisateur.findMany({
+      where: {
+        actif: true,
+        OR: [{ role: { in: ROLES_COMPTABILITE } }, { rolesSupplementaires: { hasSome: ROLES_COMPTABILITE } }],
+      },
+      select: { id: true },
+    });
+    await notifier(
+      comptes.map((c) => c.id),
+      {
+        type: 'comptabilite.transaction',
+        titre: `${t.type === 'revenu' ? 'Entrée' : 'Sortie'} de ${montantDh(t.montant)}`,
+        corps: t.titre,
+        lien: '/admin/comptabilite',
+      },
+      options
+    );
+  } catch (erreur) {
+    console.error('[notifications] échec de notifierTransaction()', erreur);
   }
 }
 

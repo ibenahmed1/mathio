@@ -6,6 +6,7 @@ import {
   CORRESPONDANCES_VILLES_EST,
   VILLES_EST_SANS_CORRESPONDANCE,
   resoudreVilleEst,
+  resoudreVilleToutesAgencesEst,
 } from '../est-livraison-villes';
 import { normaliserVille } from '../hub-stock';
 
@@ -103,18 +104,32 @@ test('une ville inconnue rend null plutôt qu’un nom envoyé au jugé', () => 
   assert.equal(resoudreVilleEst('Agence Oujda', ''), null);
 });
 
-// Une seule ville est remettable : « Oujda (Centre & Quartiers) », vérifiée
-// contre leur API (`city_created: null`). Les 62 autres attendent leur liste,
-// et l'Excel du bon reste leur voie. Ce test tombe dès qu'une correspondance
-// est ajoutée : c'est le signal qu'il faut dire d'où elle vient.
-test('seule Oujda est remettable, et sa correspondance est vérifiée', () => {
-  assert.equal(CORRESPONDANCES_VILLES_EST.length, 1);
+// Oujda part sous le libellé VÉRIFIÉ contre leur API (`city_created: null`) ;
+// les 62 autres sous celui de leur grille, tel quel (décision du 03/10/2026).
+test('Oujda part sous son libellé vérifié, les 62 autres sous celui de leur grille', () => {
   const oujda = resoudreVilleEst('Agence Oujda', 'Oujda (Centre & Quartiers)');
   assert.equal(oujda?.nomEst, 'OUJDA');
+  assert.equal(oujda?.groupe, 'orthographe');
 
   const autres = GRILLE.filter((v) => normaliserVille(v) !== normaliserVille('Oujda (Centre & Quartiers)'));
   assert.equal(autres.length, 62);
   for (const ville of autres) {
-    assert.equal(resoudreVilleEst('Agence Oujda', ville), null);
+    const c = resoudreVilleEst('Agence Oujda', ville);
+    assert.equal(c?.nomEst, ville);
+    assert.equal(c?.groupe, 'grille');
   }
+});
+
+// Leur propre libellé, recopié par un marchand, part tel quel : il ne peut rien
+// créer chez eux, puisque c'est le nom même qu'on leur envoie.
+test('leur libellé est reconnu comme notre graphie', () => {
+  assert.equal(resoudreVilleEst('Agence Oujda', 'oujda')?.nomEst, 'OUJDA');
+  assert.equal(resoudreVilleEst('Agence Oujda', 'Oujda (Centre & Quartiers)')?.nomEst, 'OUJDA');
+});
+
+// Bon adressé directement au transporteur, sans agence : même table.
+test('sans agence, la résolution parcourt toutes les correspondances', () => {
+  assert.equal(resoudreVilleToutesAgencesEst('OUJDA')?.nomEst, 'OUJDA');
+  assert.equal(resoudreVilleToutesAgencesEst('Berkane')?.nomEst, 'Berkane');
+  assert.equal(resoudreVilleToutesAgencesEst('Casablanca'), null);
 });

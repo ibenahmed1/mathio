@@ -182,6 +182,19 @@ export const PERMISSION_CATALOG: PermissionCategory[] = [
       },
     ],
   },
+  // § Simulateur de rentabilité : un outil de calcul, il ne lit ni n'écrit
+  // aucune donnée de la plateforme. Détenu d'office par l'admin (catalogue
+  // entier) ; à cocher pour les autres rôles dans Équipe & rôles.
+  {
+    category: 'Outils',
+    permissions: [
+      {
+        key: 'simulateur:use',
+        label: 'Simulateur de rentabilité',
+        description: 'Simuler la rentabilité d’un produit en paiement à la livraison.',
+      },
+    ],
+  },
   {
     category: 'Relations & Support',
     permissions: [

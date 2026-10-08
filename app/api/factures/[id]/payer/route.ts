@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { parseReglement, reglerFacture } from '@/lib/facturation';
-import { notifierFacture } from '@/lib/notifications';
+import { notifierFacture, notifierTransaction } from '@/lib/notifications';
 
 const ROLES_FACTURATION = ['admin', 'responsable'] as const;
 
@@ -49,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
 
     await notifierFacture(id, 'reglee', { sauf: session.sub });
+    await notifierTransaction(reglee.transactionId, { sauf: session.sub });
 
     return NextResponse.json(reglee);
   } catch (error) {
