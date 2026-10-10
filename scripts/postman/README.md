@@ -45,9 +45,12 @@ l'onglet « Test Results » dit vert ou rouge, il n'y a rien à lire à l'œil.
    Pour que le dossier 1.3 passe, la clé `live` doit détenir le scope
    `marchands:creation_validee`.
 
+   La clé `test` doit détenir `produits:creation` en plus de `colis:creation` : les colis
+   désignent leur contenu par SKU, et ces SKU sont déclarés par le dossier « 1 bis ».
+
 ## Ordre d'exécution
 
-**Lancer le dossier « 1 » avant les autres.** Sa première requête fixe l'identifiant de passage
+**Lancer le dossier « 1 », puis « 1 bis », avant les autres.** Sa première requête fixe l'identifiant de passage
 (`{{passage}}`), refixé à chaque exécution, et crée les marchands dont dépendent les colis. Le
 Collection Runner exécute tout dans l'ordre : c'est la façon la plus simple de tout jouer.
 

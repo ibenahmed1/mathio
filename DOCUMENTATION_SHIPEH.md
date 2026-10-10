@@ -13,29 +13,32 @@ Version 1.0 — septembre 2026
 2. [Démarrer](#2-démarrer)
 3. [Authentification](#3-authentification)
 4. [`POST /v1/marchands`](#4-post-v1marchands)
-5. [`POST /v1/colis`](#5-post-v1colis)
-6. [`POST /v1/colis/lot`](#6-post-v1colislot)
-7. [`GET /v1/villes`](#7-get-v1villes)
-8. [Idempotence — à lire avant d'écrire du code](#8-idempotence--à-lire-avant-décrire-du-code)
-9. [Environnement de test](#9-environnement-de-test)
-10. [Passer en production](#10-passer-en-production)
-11. [Référence des erreurs](#11-référence-des-erreurs)
-12. [Quotas et rotation des clés](#12-quotas-et-rotation-des-clés)
-13. [Nous signaler un problème](#13-nous-signaler-un-problème)
+5. [`POST /v1/produits`](#5-post-v1produits)
+6. [`POST /v1/colis`](#6-post-v1colis)
+7. [`POST /v1/colis/lot`](#7-post-v1colislot)
+8. [`GET /v1/villes`](#8-get-v1villes)
+9. [Idempotence — à lire avant d'écrire du code](#9-idempotence--à-lire-avant-décrire-du-code)
+10. [Environnement de test](#10-environnement-de-test)
+11. [Passer en production](#11-passer-en-production)
+12. [Référence des erreurs](#12-référence-des-erreurs)
+13. [Quotas et rotation des clés](#13-quotas-et-rotation-des-clés)
+14. [Nous signaler un problème](#14-nous-signaler-un-problème)
 
 ---
 
 ## 1. Ce que l'intégration fait
 
-Deux automatisations, et rien d'autre.
+Trois automatisations, et rien d'autre.
 
 | | |
 |---|---|
 | **Synchronisation des comptes** | Un marchand s'inscrit chez vous → son compte est créé chez nous. Il s'y connecte avec **le même email et le même mot de passe que chez vous**, puis suit ses colis depuis son espace Mathio |
-| **Ingestion des colis** | Un colis est créé chez vous → il entre dans notre chaîne logistique, à l'unité ou par lot |
+| **Déclaration du stock** | Vous envoyez des produits à notre entrepôt pour un marchand → vous nous déclarez chaque produit, son SKU et la quantité envoyée. Le marchand les voit dans son inventaire |
+| **Ingestion des colis** | Un colis est créé chez vous → il entre dans notre chaîne logistique, à l'unité ou par lot. Il contient un ou plusieurs produits de ce stock, désignés par leur SKU, que nous préparons dans notre entrepôt |
 
-**Le flux est à sens unique : vous écrivez, vous ne lisez pas.** L'API n'expose aucun endpoint de
-consultation. Le suivi des colis se fait, pour le marchand, depuis son espace Mathio.
+**Le flux est à sens unique : vous écrivez, vous ne lisez pas.** En dehors de la liste de nos
+villes (§8), l'API n'expose aucun endpoint de consultation. Le suivi des colis et du stock se
+fait, pour le marchand, depuis son espace Mathio.
 
 > Le retour automatique des statuts vers vos serveurs (webhooks) n'est pas encore disponible.
 > Il fera l'objet d'une version ultérieure.
@@ -182,7 +185,7 @@ Trois issues possibles :
 `idExterne` qui fait référence dans tous nos échanges. Nous le renvoyons pour vos journaux.
 
 `statut` vaut `actif` ou `en_attente_validation` selon les droits de votre clé. En bac à sable,
-il vaut toujours `en_attente_validation` — voir §9.
+il vaut toujours `en_attente_validation` — voir §10.
 
 `motDePasseDefini` à `true` signifie que le compte a été créé avec le mot de passe transmis : le
 marchand peut se connecter tout de suite (une fois son compte actif). À `false` (`rattache`,
@@ -197,16 +200,105 @@ identifiants n'ouvrent pas forcément son compte.
 | `409` | `conflit_identifiants` | Le téléphone et l'email désignent **deux comptes différents** chez nous. Nous refusons de choisir |
 | `409` | `deja_lie` | Ce marchand est déjà rattaché à votre plateforme sous un autre `idExterne` |
 | `409` | `synchronisation_concurrente` | Deux de vos appels se sont croisés. **Rejouez** : vous obtiendrez `deja_synchronise` |
-| `409` | `marchand_de_test` | Vous utilisez une clé `live` sur des coordonnées créées en bac à sable. Voir §10 |
-| `409` | `marchand_de_production` | Vous utilisez une clé `test` sur des coordonnées d'un marchand réel. Voir §9 |
+| `409` | `marchand_de_test` | Vous utilisez une clé `live` sur des coordonnées créées en bac à sable. Voir §11 |
+| `409` | `marchand_de_production` | Vous utilisez une clé `test` sur des coordonnées d'un marchand réel. Voir §10 |
 | `400` | `champ_requis` | Le message nomme le champ manquant |
 | `400` | `telephone_invalide` · `email_invalide` · `mot_de_passe_invalide` · `rib_invalide` · `type_compte_invalide` | Format incorrect |
 
 ---
 
-## 5. `POST /v1/colis`
+## 5. `POST /v1/produits`
 
-Dépose un colis.
+Déclare un produit de stock d'un de vos marchands : le produit, son SKU et la quantité que vous
+envoyez à notre entrepôt. Demande le droit `produits:creation` sur votre clé.
+
+**Déclarez un produit avant de l'utiliser dans un colis** : un colis qui cite un SKU que nous ne
+connaissons pas est refusé (§6).
+
+### Champs
+
+Même format que l'ajout d'un produit depuis l'espace marchand, avec en plus le marchand concerné.
+
+| Champ | Format |
+|---|---|
+| `idExterneMarchand` | **Requis.** L'`idExterne` d'un marchand déjà synchronisé. Le stock est propre à chaque marchand |
+| `nom` | **Requis.** Nom du produit |
+| `reference` | **Requis.** **Votre SKU** du produit. Nous n'en générons pas |
+| `quantiteEnCours` | **Requis pour un produit sans variantes.** Quantité envoyée à notre entrepôt, entier positif ou nul |
+| `note` | Texte libre |
+| `photoUrl` | URL `https://…`, ou image embarquée `data:image/…;base64,…` de 2 Mo au plus |
+| `variantesActivees` | Booléen, défaut `false`. À `true`, le stock est suivi **variante par variante** |
+| `variantes` | Requis si `variantesActivees` vaut `true` : tableau de `{ "nom", "reference", "quantiteEnCours" }`, chaque variante avec **son propre SKU** |
+
+```json
+{
+  "idExterneMarchand": "SHIPEH-1",
+  "nom": "Robe d'été",
+  "reference": "PRD-K7M2Q9XA",
+  "note": "Tissu léger, lavage à 30°",
+  "photoUrl": "https://cdn.exemple.ma/robe.jpg",
+  "variantesActivees": true,
+  "variantes": [
+    { "nom": "Rouge / M", "reference": "PRD-K7M2Q9XA-ROUGE-M", "quantiteEnCours": 10 },
+    { "nom": "Rouge / L", "reference": "PRD-K7M2Q9XA-ROUGE-L", "quantiteEnCours": 6 },
+    { "nom": "Bleu / M",  "reference": "PRD-K7M2Q9XA-BLEU-M",  "quantiteEnCours": 8 }
+  ]
+}
+```
+
+Un produit sans variantes :
+
+```json
+{ "idExterneMarchand": "SHIPEH-1", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20 }
+```
+
+**Un SKU désigne une seule chose chez un marchand** : le SKU d'un produit et ceux de ses variantes
+ne peuvent servir à rien d'autre dans son stock. Les SKU sont comparés **sans tenir compte des
+majuscules**.
+
+### La quantité est annoncée, pas encore en stock
+
+La quantité déclarée est celle que vous **envoyez**. Elle devient du stock disponible quand notre
+entrepôt a **réceptionné et compté** la marchandise. D'ici là, le produit est
+`pas_encore_recu`.
+
+### Réponses
+
+```json
+{
+  "issue": "cree",
+  "reference": "PRD-K7M2Q9XA",
+  "produitId": "3f1c…",
+  "statutReception": "pas_encore_recu",
+  "variantes": [
+    { "reference": "PRD-K7M2Q9XA-BLEU-M", "varianteId": "…" },
+    { "reference": "PRD-K7M2Q9XA-ROUGE-L", "varianteId": "…" },
+    { "reference": "PRD-K7M2Q9XA-ROUGE-M", "varianteId": "…" }
+  ]
+}
+```
+
+| Code | `issue` | |
+|---|---|---|
+| `201` | `cree` | Le produit est créé dans le stock du marchand |
+| `200` | `deja_existant` | Ce SKU de produit est déjà déclaré pour ce marchand. **Aucune écriture**, et **la quantité n'est pas ajoutée une seconde fois** |
+
+### Refus spécifiques
+
+| Code | `code` | |
+|---|---|---|
+| `404` | `marchand_inconnu` | Aucun marchand synchronisé sous cet identifiant, dans l'environnement de votre clé |
+| `409` | `sku_deja_utilise` | Un des SKU désigne déjà un **autre** produit (ou une de ses variantes) de ce marchand |
+| `400` | `sku_duplique` | Le même SKU apparaît deux fois dans la requête (produit compris) |
+| `400` | `champ_requis` · `quantite_invalide` · `photo_invalide` · `variantes_trop_nombreuses` | Le message nomme le champ |
+| `403` | `scope_manquant` | Votre clé n'a pas le droit `produits:creation` |
+
+---
+
+## 6. `POST /v1/colis`
+
+Dépose un colis. **Chaque colis contient un ou plusieurs produits de stock** du marchand, désignés
+par leur SKU (§5). Un même produit peut figurer dans autant de colis que vous voulez.
 
 ### Champs
 
@@ -215,24 +307,48 @@ Dépose un colis.
 | Champ | Format |
 |---|---|
 | `idExterneMarchand` | L'`idExterne` d'un marchand déjà synchronisé |
-| `reference` | Votre référence du colis. **C'est la clé d'idempotence** — voir §8 |
+| `reference` | Votre référence du colis. **C'est la clé d'idempotence** — voir §9 |
 | `clientNom` | Destinataire |
 | `clientTelephone` | Téléphone du destinataire |
 | `ville` | Texte libre. Nous la rapprochons de notre référentiel quand nous la reconnaissons ; une ville inconnue n'est jamais refusée |
 | `adresse` | Adresse de livraison |
 | `montantCod` | Montant à encaisser, en dirhams. Strictement positif, maximum `99999999.99`. Arrondi à deux décimales. Une chaîne (`"349.90"`) est acceptée |
+| `produits` | Contenu du colis : tableau de 1 à 100 lignes `{ "sku", "quantite" }`. Le SKU est celui d'un produit sans variantes, ou **celui d'une variante**. La quantité est un entier positif. Un même SKU répété n'en fait qu'une ligne, quantités additionnées |
 
 **Optionnels** :
 
 | Champ | Format |
 |---|---|
 | `codePostal` | |
-| `produitDescription` | Description du contenu |
-| `quantite` | Entier positif, défaut `1` |
 | `poidsKg` | Nombre positif, maximum `9999.99` |
 | `notes` | Consigne de livraison |
 | `fragile` | Booléen, défaut `false` |
 | `ouvrir` | Booléen, défaut `false`. Le client est autorisé à ouvrir le colis avant de payer |
+
+```json
+{
+  "idExterneMarchand": "SHIPEH-1",
+  "reference": "SHP-2026-0001",
+  "clientNom": "Karim Idrissi",
+  "clientTelephone": "0655443322",
+  "ville": "Rabat",
+  "adresse": "18 avenue Mohammed V",
+  "montantCod": 349.90,
+  "produits": [
+    { "sku": "PRD-K7M2Q9XA-ROUGE-M", "quantite": 2 },
+    { "sku": "MUG-01", "quantite": 1 }
+  ]
+}
+```
+
+### Le SKU doit exister
+
+Avant de créer le colis, nous vérifions **chaque SKU** dans le stock **de ce marchand**. S'il en
+manque un seul, **le colis est refusé et rien n'est créé** : la réponse nomme tous les SKU
+inconnus, pour que vous corrigiez en un seul aller-retour. Déclarez le produit (§5), puis rejouez.
+
+Le stock disponible, lui, n'est pas vérifié à ce moment : il est réservé quand notre entrepôt
+prépare le colis.
 
 ### Réponses
 
@@ -263,15 +379,18 @@ accepté ; nous le traitons avec précaution.
 | Code | `code` | |
 |---|---|---|
 | `404` | `marchand_inconnu` | Aucun marchand synchronisé sous cet identifiant, **dans l'environnement de votre clé**. Créez-le d'abord |
+| `400` | `sku_inconnu` | Un ou plusieurs SKU n'existent pas dans le stock de ce marchand. Le message les nomme. Déclarez-les via §5 |
+| `400` | `sku_a_variantes` | Ce SKU est celui d'un produit à variantes : indiquez le SKU d'une de ses variantes (le message les liste) |
+| `400` | `produits_invalides` | `produits` n'est pas un tableau, est vide, ou dépasse 100 lignes |
 | `400` | `montant_invalide` · `quantite_invalide` · `poids_invalide` | Valeur hors bornes ou de mauvais type |
-| `400` | `champ_requis` | Le message nomme le champ |
+| `400` | `champ_requis` | Le message nomme le champ (`produits`, `produits[0].sku`…) |
 
 ---
 
-## 6. `POST /v1/colis/lot`
+## 7. `POST /v1/colis/lot`
 
 Dépose plusieurs colis en un appel. Le corps est un **tableau**, de 1 à **200** colis, chacun au
-format du §5.
+format du §6.
 
 ### Le lot est partiellement acceptable
 
@@ -323,7 +442,7 @@ Chaque ligne refusée porte son **`index`** dans le tableau que vous avez envoy�
 
 ---
 
-## 7. `GET /v1/villes`
+## 8. `GET /v1/villes`
 
 Liste les villes que nous desservons, avec pour chacune son code et le tarif de livraison.
 
@@ -364,7 +483,7 @@ Les villes sont triées par ordre alphabétique. La liste change rarement : la m
 
 ---
 
-## 8. Idempotence — à lire avant d'écrire du code
+## 9. Idempotence — à lire avant d'écrire du code
 
 C'est le point le plus important de cette documentation.
 
@@ -374,6 +493,7 @@ timeout, une coupure réseau, ou une redélivrance de votre file de messages.
 | Endpoint | Clé d'idempotence | Rejeu |
 |---|---|---|
 | `/v1/marchands` | `idExterne` | `200` + `issue: "deja_synchronise"` |
+| `/v1/produits` | `reference` (SKU du produit) + marchand | `200` + `issue: "deja_existant"`, **sans ajouter la quantité** |
 | `/v1/colis` | `reference` | `200` + `issue: "deja_ingere"` + **le code de suivi d'origine** |
 
 Deux conséquences pour votre code :
@@ -388,7 +508,7 @@ La garantie tient même si deux de vos serveurs appellent en même temps.
 
 ---
 
-## 9. Environnement de test
+## 10. Environnement de test
 
 Votre clé `mtk_test_…` travaille dans un espace séparé. Vous pouvez y envoyer n'importe quoi.
 
@@ -398,6 +518,7 @@ Votre clé `mtk_test_…` travaille dans un espace séparé. Vous pouvez y envoy
 |---|---|
 | Marchands créés | Restent **en attente de validation** — jamais actifs |
 | Visibilité | Une clé `test` ne voit **que** les marchands qu'elle a créés |
+| Produits déclarés | Rangés chez ces marchands de test, et supprimés avec eux à la purge du bac à sable |
 | Le reste | Identique : mêmes adresses, mêmes formats, mêmes validations, mêmes erreurs |
 
 ### Deux règles à respecter
@@ -421,7 +542,7 @@ recevriez `404 marchand_inconnu`, exactement comme pour un identifiant qui n'exi
 
 ---
 
-## 10. Passer en production
+## 11. Passer en production
 
 Dans cet ordre :
 
@@ -450,7 +571,7 @@ coordonnées fictives existe.
 
 ---
 
-## 11. Référence des erreurs
+## 12. Référence des erreurs
 
 Toutes les erreurs ont la même forme :
 
@@ -472,7 +593,13 @@ Toutes les erreurs ont la même forme :
 | `400` | `rib_invalide` | 24 chiffres exactement |
 | `400` | `type_compte_invalide` | Valeurs : `marchand`, `entreprise`, `dropshipping` |
 | `400` | `montant_invalide` | Doit être `> 0` et `≤ 99999999.99` |
-| `400` | `quantite_invalide` | Entier positif |
+| `400` | `quantite_invalide` | Entier positif (positif ou nul pour une quantité de stock) |
+| `400` | `produits_invalides` | Le contenu d'un colis : tableau de 1 à 100 lignes |
+| `400` | `sku_inconnu` | SKU absent du stock du marchand — le message les nomme |
+| `400` | `sku_a_variantes` | SKU d'un produit à variantes : indiquer celui d'une variante |
+| `400` | `sku_duplique` | Même SKU deux fois dans une déclaration de produit |
+| `400` | `photo_invalide` | URL https ou image `data:image/…;base64` de 2 Mo au plus |
+| `400` | `variantes_trop_nombreuses` | 200 variantes au plus par produit |
 | `400` | `poids_invalide` | Nombre positif, `≤ 9999.99` |
 | `400` | `lot_vide` | |
 | `400` | `requete_invalide` | Requête mal formée, cas non couvert ci-dessus |
@@ -486,14 +613,16 @@ Toutes les erreurs ont la même forme :
 | `409` | `synchronisation_concurrente` | Appels croisés — **rejouez** |
 | `409` | `marchand_de_test` | Clé `live` sur des coordonnées de bac à sable |
 | `409` | `marchand_de_production` | Clé `test` sur des coordonnées réelles |
+| `409` | `sku_deja_utilise` | SKU déjà porté par un autre produit du marchand |
 | `413` | `lot_trop_grand` | Plus de 200 colis |
-| `429` | `quota_depasse` | Voir §12 |
+| `429` | `quota_depasse` | Voir §13 |
 | `500` | `erreur_interne` | Chez nous. Réessayez, et signalez-le si ça persiste |
 
 ### Ce qu'il faut rejouer, ce qu'il ne faut pas
 
 | Rejouable tel quel | À corriger avant de rejouer |
 |---|---|
+| `deja_existant` (déjà un succès) | `400 sku_inconnu` — déclarez le produit d'abord |
 | `429`, `500`, `synchronisation_concurrente` | Tous les `400` |
 | `deja_ingere` / `deja_synchronise` (déjà un succès) | `404 marchand_inconnu` — créez le marchand d'abord |
 
@@ -502,7 +631,7 @@ réponse.
 
 ---
 
-## 12. Quotas et rotation des clés
+## 13. Quotas et rotation des clés
 
 ### Quotas
 
@@ -538,7 +667,7 @@ vite : une révocation coûte moins cher qu'une clé dans la nature.
 
 ---
 
-## 13. Nous signaler un problème
+## 14. Nous signaler un problème
 
 Nous conservons un journal de tous les appels reçus : horodatage, endpoint, code de réponse,
 durée, et la référence concernée. Pour que nous retrouvions un appel, envoyez-nous :
@@ -557,15 +686,17 @@ renvoyé. **Ne nous envoyez jamais un mot de passe de marchand** par email ou me
 
 ```
 POST /api/v1/marchands     synchroniser un marchand
-POST /api/v1/colis         déposer un colis
+POST /api/v1/produits      déclarer un produit de stock (SKU, variantes, quantité envoyée)
+POST /api/v1/colis         déposer un colis : produits [{ sku, quantite }] obligatoire
 POST /api/v1/colis/lot     déposer jusqu'à 200 colis
 GET  /api/v1/villes        nos villes : nom, code, tarif de livraison
 
 Authorization: Bearer mtk_<env>_<prefixe>_<secret>
 Content-Type: application/json
 
-Idempotence   marchands → idExterne     colis → reference
-Rejeu         200 deja_synchronise      200 deja_ingere + même codeSuivi
+Idempotence   marchands → idExterne     produits → SKU      colis → reference
+Rejeu         200 deja_synchronise      200 deja_existant   200 deja_ingere + même codeSuivi
+SKU inconnu   colis refusé (400 sku_inconnu), rien n'est créé
 Lot           toujours 207, lire lignes[].ok
 Erreurs       { "code": "...", "message": "..." } — brancher sur code
 ```

@@ -4,6 +4,8 @@ import { checkBlacklist } from '@/lib/blacklist';
 import { nextCodeSuivi } from '@/lib/codes';
 import { chargerReferentielRoutage, type ReferentielRoutage } from '@/lib/hub-envoi';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
+import { resumerLignes } from '@/lib/colis-lignes';
+import { resoudreSku } from '@/lib/stock-sku';
 
 // Ingestion des colis déposés par une plateforme partenaire
 // (§ POST /v1/colis et POST /v1/colis/lot).
@@ -36,6 +38,10 @@ const MONTANT_MAX = 99_999_999.99; // Decimal(10,2)
 const POIDS_MAX = 9_999.99; // Decimal(6,2)
 const QUANTITE_MAX = 2_147_483_647; // Int (4 octets)
 
+// Lignes de contenu par colis : bien au-delà d'un panier réel, assez bas pour
+// qu'un colis reste une écriture raisonnable.
+export const PRODUITS_MAX_PAR_COLIS = 100;
+
 // Arrondi à deux décimales à la frontière de `lib/`, comme partout où de
 // l'argent entre dans ce dépôt. Sans lui, PostgreSQL arrondirait quand même —
 // mais silencieusement, et un partenaire qui envoie 10.999 verrait sa
@@ -53,8 +59,10 @@ export interface EntreeColis {
   adresse: string;
   montantCod: number;
   codePostal: string | null;
-  produitDescription: string | null;
-  quantite: number;
+  // Contenu du colis : un ou plusieurs produits de stock, désignés par leur
+  // SKU (§ POST /v1/produits). Dédupliqué : deux lignes du même SKU n'en font
+  // qu'une, quantités additionnées.
+  produits: { sku: string; quantite: number }[];
   poidsKg: number | null;
   notes: string | null;
   ouvrir: boolean;
@@ -70,6 +78,44 @@ function requis(corps: Record<string, unknown>, cle: string): string {
 function optionnel(corps: Record<string, unknown>, cle: string): string | null {
   const valeur = typeof corps[cle] === 'string' ? (corps[cle] as string).trim() : '';
   return valeur || null;
+}
+
+function analyserProduits(brut: unknown): { sku: string; quantite: number }[] {
+  if (brut === undefined || brut === null) {
+    throw new ErreurPlateforme(400, 'champ_requis', 'Le champ « produits » est requis : au moins un produit de stock par colis');
+  }
+  if (!Array.isArray(brut) || brut.length === 0) {
+    throw new ErreurPlateforme(400, 'produits_invalides', '« produits » doit être un tableau d’au moins un produit');
+  }
+  if (brut.length > PRODUITS_MAX_PAR_COLIS) {
+    throw new ErreurPlateforme(
+      400,
+      'produits_invalides',
+      `Un colis ne peut pas contenir plus de ${PRODUITS_MAX_PAR_COLIS} lignes de produits`
+    );
+  }
+  const parSku = new Map<string, { sku: string; quantite: number }>();
+  for (const [index, ligne] of brut.entries()) {
+    const l = (typeof ligne === 'object' && ligne !== null ? ligne : {}) as Record<string, unknown>;
+    const sku = typeof l.sku === 'string' ? l.sku.trim() : '';
+    if (!sku) throw new ErreurPlateforme(400, 'champ_requis', `Le champ « produits[${index}].sku » est requis`);
+    const quantite = Number(l.quantite);
+    if (!Number.isInteger(quantite) || quantite <= 0 || quantite > QUANTITE_MAX) {
+      throw new ErreurPlateforme(400, 'quantite_invalide', `produits[${index}].quantite doit être un entier positif`);
+    }
+    // Le SKU est comparé sans casse, comme partout dans le stock.
+    const cle = sku.toLowerCase();
+    const deja = parSku.get(cle);
+    if (deja) {
+      deja.quantite += quantite;
+      if (deja.quantite > QUANTITE_MAX) {
+        throw new ErreurPlateforme(400, 'quantite_invalide', `Quantité totale trop grande pour le SKU « ${sku} »`);
+      }
+    } else {
+      parSku.set(cle, { sku, quantite });
+    }
+  }
+  return [...parSku.values()];
 }
 
 export function analyserEntreeColis(corpsBrut: unknown): EntreeColis {
@@ -97,10 +143,7 @@ export function analyserEntreeColis(corpsBrut: unknown): EntreeColis {
     );
   }
 
-  const quantiteBrute = corps.quantite === undefined || corps.quantite === null ? 1 : Number(corps.quantite);
-  if (!Number.isInteger(quantiteBrute) || quantiteBrute <= 0 || quantiteBrute > QUANTITE_MAX) {
-    throw new ErreurPlateforme(400, 'quantite_invalide', 'quantite doit être un entier positif');
-  }
+  const produits = analyserProduits(corps.produits);
 
   let poidsKg: number | null = null;
   if (corps.poidsKg !== undefined && corps.poidsKg !== null) {
@@ -123,8 +166,7 @@ export function analyserEntreeColis(corpsBrut: unknown): EntreeColis {
     adresse: requis(corps, 'adresse'),
     montantCod: arrondi(montantBrut),
     codePostal: optionnel(corps, 'codePostal'),
-    produitDescription: optionnel(corps, 'produitDescription'),
-    quantite: quantiteBrute,
+    produits,
     poidsKg,
     notes: optionnel(corps, 'notes'),
     ouvrir: Boolean(corps.ouvrir),
@@ -151,7 +193,7 @@ export interface ResultatColis {
 // connaît son identifiant externe. Aucun drapeau sur `commandes` n'est
 // nécessaire, et aucune règle applicative « ne pas facturer les colis de
 // test » n'a à être tenue plus tard.
-async function resoudreMarchand(contexte: ContextePlateforme, idExterne: string): Promise<string> {
+export async function resoudreMarchand(contexte: ContextePlateforme, idExterne: string): Promise<string> {
   // L'environnement fait partie de la CLÉ de recherche, il n'est plus comparé
   // après coup. La comparaison explicite qui vivait ici a disparu dans la
   // contrainte d'unicité : une clé `test` ne trouve pas un lien `live`, elle
@@ -203,6 +245,14 @@ export async function ingererColis(
 ): Promise<ResultatColis> {
   const marchandId = await resoudreMarchand(contexte, entree.idExterneMarchand);
 
+  // Rejeu d'un colis déjà reçu : on répond AVANT de revérifier ses SKU. Un
+  // produit retiré depuis ne doit pas transformer la confirmation d'un colis
+  // existant en refus (la contrainte d'unicité reste le filet en concurrence).
+  const dejaRecu = await colisDejaIngere(marchandId, entree.reference);
+  if (dejaRecu) return dejaRecu;
+
+  const lignes = await resoudreContenu(marchandId, entree.produits);
+
   // RG-08 : la liste noire s'applique au colis d'une plateforme comme à
   // n'importe quel autre. Un client signalé ne cesse pas de l'être parce que
   // la commande vient d'un canal tiers.
@@ -232,8 +282,18 @@ export async function ingererColis(
           ville: entree.ville,
           adresse: entree.adresse,
           codePostal: entree.codePostal,
-          produitDescription: entree.produitDescription,
-          quantite: entree.quantite,
+          // Résumé du contenu, lu par les transporteurs et les listes.
+          ...resumerLignes(lignes),
+          // Tout le contenu sort de notre entrepôt : colis « stock », dont la
+          // préparation réservera chaque ligne (lib/stock-colis.ts).
+          enStock: true,
+          // TRANSITOIRE : les écrans qui ne lisent pas encore les lignes
+          // retrouvent le produit d'un colis à une seule ligne. Les lignes font
+          // foi pour le stock (lignesEffectives ignore ces colonnes dès qu'il y
+          // en a).
+          produitId: lignes.length === 1 ? lignes[0].produitId : null,
+          varianteId: lignes.length === 1 ? lignes[0].varianteId : null,
+          lignes: { create: lignes.map((l, position) => ({ ...l, position })) },
           poidsKg: entree.poidsKg,
           montantCod: entree.montantCod,
           notes: entree.notes,
@@ -278,23 +338,92 @@ export async function ingererColis(
     // renvoyer le code existant est précisément ce dont l'appelant a besoin
     // pour se réconcilier.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      const existante = await prisma.commande.findFirst({
-        where: { marchandId, codeSuiviPartenaire: entree.reference },
-        select: { codeSuivi: true, statut: true, aRisque: true },
-      });
-      if (existante) {
-        return {
-          issue: 'deja_ingere',
-          reference: entree.reference,
-          codeSuivi: existante.codeSuivi,
-          marchandId,
-          statut: existante.statut,
-          aRisque: existante.aRisque,
-        };
-      }
+      const existante = await colisDejaIngere(marchandId, entree.reference);
+      if (existante) return existante;
     }
     throw error;
   }
+}
+
+async function colisDejaIngere(marchandId: string, reference: string): Promise<ResultatColis | null> {
+  const existante = await prisma.commande.findFirst({
+    where: { marchandId, codeSuiviPartenaire: reference },
+    select: { codeSuivi: true, statut: true, aRisque: true },
+  });
+  if (!existante) return null;
+  return {
+    issue: 'deja_ingere',
+    reference,
+    codeSuivi: existante.codeSuivi,
+    marchandId,
+    statut: existante.statut,
+    aRisque: existante.aRisque,
+  };
+}
+
+interface LigneResolue {
+  produitId: string;
+  varianteId: string | null;
+  sku: string;
+  libelle: string;
+  quantite: number;
+}
+
+// Rapproche chaque SKU du stock DE CE MARCHAND (produit simple ou variante,
+// sans tenir compte de la casse). Le colis est BLOQUÉ — rien n'est créé — si
+// un seul SKU est inconnu : un colis dont une partie du contenu n'existe pas
+// dans notre entrepôt ne pourrait jamais être préparé. Tous les SKU fautifs
+// sont nommés d'un coup, pour une correction en un seul aller-retour.
+//
+// Le SKU d'un produit qui suit ses variantes ne désigne aucune unité de stock
+// (c'est la variante qui porte le stock) : refusé lui aussi, avec les SKU de
+// variante à utiliser.
+//
+// Le stock DISPONIBLE n'est pas contrôlé ici (décision du 10/10/2026) : il est
+// réservé au passage en préparation, qui bloque en tout ou rien.
+async function resoudreContenu(
+  marchandId: string,
+  produits: { sku: string; quantite: number }[]
+): Promise<LigneResolue[]> {
+  const resolus = await Promise.all(produits.map((p) => resoudreSku(marchandId, p.sku)));
+
+  const inconnus = produits.filter((_, i) => !resolus[i]).map((p) => p.sku);
+  if (inconnus.length > 0) {
+    throw new ErreurPlateforme(
+      400,
+      'sku_inconnu',
+      `SKU inconnu${inconnus.length > 1 ? 's' : ''} dans le stock de ce marchand : ${inconnus.join(', ')}. ` +
+        'Déclarer le produit d’abord via POST /v1/produits.'
+    );
+  }
+
+  const parent = resolus.find((r) => r && r.produit.variantesActivees && !r.variante);
+  if (parent) {
+    const variantes = await prisma.produitVariante.findMany({
+      where: { produitId: parent.produit.id },
+      select: { reference: true },
+      orderBy: { reference: 'asc' },
+    });
+    throw new ErreurPlateforme(
+      400,
+      'sku_a_variantes',
+      `« ${parent.produit.reference} » est un produit à variantes : indiquer le SKU d’une variante ` +
+        `(${variantes.map((v) => v.reference).join(', ')})`
+    );
+  }
+
+  // Deux SKU résolus vers la même unité ne peuvent pas coexister : la casse
+  // étant ignorée à l'analyse comme à la résolution, ils ont déjà été fusionnés.
+  return produits.map((p, i) => {
+    const { produit, variante } = resolus[i]!;
+    return {
+      produitId: produit.id,
+      varianteId: variante?.id ?? null,
+      sku: variante?.reference ?? produit.reference,
+      libelle: variante ? `${produit.nom} — ${variante.nom}` : produit.nom,
+      quantite: p.quantite,
+    };
+  });
 }
 
 export interface LigneLot {

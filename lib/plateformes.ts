@@ -811,6 +811,11 @@ export async function purgerDonneesTest(plateformeId: string): Promise<VolumeTes
     await tx.compteMarchandExterne.deleteMany({ where: { plateformeId, environnement: 'test' } });
 
     if (supprimables.length > 0) {
+      // Les produits de stock déclarés en bac à sable (§ POST /v1/produits)
+      // partent avec leur marchand ; variantes et historique suivent en
+      // cascade. Les lignes de colis qui les désignaient sont déjà parties
+      // avec leurs colis.
+      await tx.produit.deleteMany({ where: { marchandId: { in: supprimables } } });
       const marchands = await tx.marchand.findMany({
         where: { id: { in: supprimables } },
         select: { utilisateurId: true },

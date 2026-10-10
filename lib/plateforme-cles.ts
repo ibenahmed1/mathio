@@ -33,6 +33,10 @@ export const CATALOGUE_SCOPES: Record<string, string> = {
   'marchands:creation_validee': 'Créer un compte marchand déjà validé',
   // Déposer des colis, à l'unité ou par lot.
   'colis:creation': 'Déposer des colis',
+  // Déclarer les produits de stock d'un marchand, avec leurs SKU et la
+  // quantité envoyée à l'entrepôt (§ POST /api/v1/produits). Sans danger pour
+  // la production : le stock annoncé ne devient réel qu'à la réception.
+  'produits:creation': 'Déclarer des produits de stock',
   // Lire nos villes desservies et le tarif facturé à un marchand pour chacune
   // (§ GET /api/v1/villes). Lecture seule, sans danger pour la production :
   // n'expose ni transporteur ni prix d'achat.

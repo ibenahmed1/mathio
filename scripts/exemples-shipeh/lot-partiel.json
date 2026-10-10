@@ -6,7 +6,8 @@
     "clientTelephone": "0611223344",
     "ville": "Casablanca",
     "adresse": "12 rue des Orangers",
-    "montantCod": 120
+    "montantCod": 120,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }]
   },
   {
     "idExterneMarchand": "SHIPEH-M1",
@@ -15,7 +16,8 @@
     "clientTelephone": "0622334455",
     "ville": "",
     "adresse": "22 boulevard Zerktouni",
-    "montantCod": 80
+    "montantCod": 80,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }]
   },
   {
     "idExterneMarchand": "SHIPEH-M1",
@@ -25,6 +27,7 @@
     "ville": "Tanger",
     "adresse": "8 avenue Hassan II",
     "montantCod": 210.5,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }],
     "quantite": 2,
     "fragile": true
   },
@@ -35,6 +38,7 @@
     "clientTelephone": "0644556677",
     "ville": "Agadir",
     "adresse": "3 rue de la Plage",
-    "montantCod": 95
+    "montantCod": 95,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }]
   }
 ]

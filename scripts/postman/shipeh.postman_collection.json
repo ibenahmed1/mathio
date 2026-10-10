@@ -824,6 +824,198 @@
       ]
     },
     {
+      "name": "1 bis — Produits de stock",
+      "description": "À jouer après le dossier 1 : déclare le stock du marchand de test, que les colis des dossiers 2 à 4 désignent par SKU.",
+      "item": [
+        {
+          "name": "1b.1 Déclarer un produit simple → 201, en attente de réception",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('issue = cree', () => pm.expect(pm.response.json().issue).to.eql('cree'));",
+                  "pm.test('stock annoncé, pas encore reçu', () => pm.expect(pm.response.json().statutReception).to.eql('pas_encore_recu'));"
+                ],
+                "type": "text/javascript",
+                "id": "09118628-5123-4793-b939-bc64a550a05f"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Mug blanc\",\n  \"reference\": \"MUG-{{passage}}\",\n  \"quantiteEnCours\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/produits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "produits"
+              ]
+            },
+            "description": "Le SKU est le vôtre. La quantité est celle envoyée à l’entrepôt."
+          },
+          "response": []
+        },
+        {
+          "name": "1b.2 Rejeu du même SKU → 200 deja_existant, quantité non ajoutée",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('issue = deja_existant', () => pm.expect(pm.response.json().issue).to.eql('deja_existant'));"
+                ],
+                "type": "text/javascript",
+                "id": "fc8e4d36-51f7-40ab-ad7f-1b1916379b36"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Mug blanc\",\n  \"reference\": \"MUG-{{passage}}\",\n  \"quantiteEnCours\": 20\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/produits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "produits"
+              ]
+            },
+            "description": "Un rejeu ne double jamais un stock annoncé."
+          },
+          "response": []
+        },
+        {
+          "name": "1b.3 Produit à variantes → 201, une variante = un SKU",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));",
+                  "pm.test('issue = cree', () => pm.expect(pm.response.json().issue).to.eql('cree'));",
+                  "pm.test('deux variantes', () => pm.expect(pm.response.json().variantes).to.have.length(2));"
+                ],
+                "type": "text/javascript",
+                "id": "f27e27b9-f0b3-4b91-9c11-fe6fe88b97ee"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Robe d'été\",\n  \"reference\": \"ROBE-{{passage}}\",\n  \"note\": \"Tissu léger, lavage à 30°\",\n  \"variantesActivees\": true,\n  \"variantes\": [\n    { \"nom\": \"Rouge / M\", \"reference\": \"ROBE-{{passage}}-ROUGE\", \"quantiteEnCours\": 10 },\n    { \"nom\": \"Bleu / M\", \"reference\": \"ROBE-{{passage}}-BLEU\", \"quantiteEnCours\": 8 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/produits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "produits"
+              ]
+            },
+            "description": "Chaque variante porte son SKU et sa quantité."
+          },
+          "response": []
+        },
+        {
+          "name": "1b.4 SKU déjà porté par un autre produit → 409 sku_deja_utilise",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = sku_deja_utilise', () => pm.expect(pm.response.json().code).to.eql('sku_deja_utilise'));"
+                ],
+                "type": "text/javascript",
+                "id": "5d50f4d4-60fc-4d1e-a225-1551528f23b5"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Copie\",\n  \"reference\": \"COPIE-{{passage}}\",\n  \"variantesActivees\": true,\n  \"variantes\": [{ \"nom\": \"X\", \"reference\": \"ROBE-{{passage}}-ROUGE\", \"quantiteEnCours\": 1 }]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/produits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "produits"
+              ]
+            },
+            "description": "Un SKU désigne une seule unité de stock chez un marchand."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "2 — Colis",
       "item": [
         {
@@ -858,7 +1050,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-001\",\n  \"clientNom\": \"Karim Idrissi\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"18 avenue Mohammed V\",\n  \"montantCod\": 349.90\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-001\",\n  \"clientNom\": \"Karim Idrissi\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"18 avenue Mohammed V\",\n  \"montantCod\": 349.90,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -908,7 +1100,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-001\",\n  \"clientNom\": \"Karim Idrissi\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"18 avenue Mohammed V\",\n  \"montantCod\": 349.90\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-001\",\n  \"clientNom\": \"Karim Idrissi\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"18 avenue Mohammed V\",\n  \"montantCod\": 349.90,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -953,7 +1145,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-002\",\n  \"clientNom\": \"Nadia Cherkaoui\",\n  \"clientTelephone\": \"0611223344\",\n  \"ville\": \"Casablanca\",\n  \"adresse\": \"12 rue des Orangers, appartement 4\",\n  \"montantCod\": 1250.999,\n\n  \"codePostal\": \"20000\",\n  \"produitDescription\": \"Casque audio sans fil\",\n  \"quantite\": 2,\n  \"poidsKg\": 0.85,\n  \"notes\": \"Livrer avant 18h, interphone 4B\",\n  \"fragile\": true,\n  \"ouvrir\": false\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-002\",\n  \"clientNom\": \"Nadia Cherkaoui\",\n  \"clientTelephone\": \"0611223344\",\n  \"ville\": \"Casablanca\",\n  \"adresse\": \"12 rue des Orangers, appartement 4\",\n  \"montantCod\": 1250.999,\n  \"produits\": [\n    { \"sku\": \"MUG-{{passage}}\", \"quantite\": 2 },\n    { \"sku\": \"ROBE-{{passage}}-ROUGE\", \"quantite\": 1 }\n  ],\n\n  \"codePostal\": \"20000\",\n  \"poidsKg\": 0.85,\n  \"notes\": \"Livrer avant 18h, interphone 4B\",\n  \"fragile\": true,\n  \"ouvrir\": false\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -999,7 +1191,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"MARCHAND-QUI-NEXISTE-PAS\",\n  \"reference\": \"SHP-{{passage}}-404\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"MARCHAND-QUI-NEXISTE-PAS\",\n  \"reference\": \"SHP-{{passage}}-404\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -1046,7 +1238,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-OVF\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 1000000000000\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-OVF\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 1000000000000,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -1093,7 +1285,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-Z\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 0\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-Z\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 0,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -1110,7 +1302,7 @@
           "response": []
         },
         {
-          "name": "2.7 Quantité non entière → 400 quantite_invalide",
+          "name": "2.7 Quantité d’une ligne non entière → 400 quantite_invalide",
           "event": [
             {
               "listen": "test",
@@ -1138,7 +1330,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-Q\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"quantite\": 2.5\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-Q\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 2.5 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -1184,7 +1376,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-P\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"poidsKg\": 100000\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-P\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }],\n  \"poidsKg\": 100000\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -1234,7 +1426,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",
@@ -1247,6 +1439,145 @@
                 "colis"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "2.10 SKU inconnu → 400 sku_inconnu, rien n’est créé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = sku_inconnu', () => pm.expect(pm.response.json().code).to.eql('sku_inconnu'));",
+                  "pm.test('le SKU absent est nommé', () => pm.expect(pm.response.json().message).to.include('FANTOME'));"
+                ],
+                "type": "text/javascript",
+                "id": "11b0a4ca-83d3-4acd-b338-e4f3c0256ba3"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-SKU\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }, { \"sku\": \"FANTOME-{{passage}}\", \"quantite\": 1 }]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "Le colis entier est bloqué tant qu’un seul SKU manque au stock du marchand."
+          },
+          "response": []
+        },
+        {
+          "name": "2.11 SKU d’un produit à variantes → 400 sku_a_variantes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = sku_a_variantes', () => pm.expect(pm.response.json().code).to.eql('sku_a_variantes'));"
+                ],
+                "type": "text/javascript",
+                "id": "45f62d05-022d-4b76-8653-3374b4cb9430"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-PARENT\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"ROBE-{{passage}}\", \"quantite\": 1 }]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "C’est la variante qui porte le stock : indiquer son SKU."
+          },
+          "response": []
+        },
+        {
+          "name": "2.12 Colis sans produits → 400 champ_requis",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = champ_requis', () => pm.expect(pm.response.json().code).to.eql('champ_requis'));"
+                ],
+                "type": "text/javascript",
+                "id": "aad081dc-7651-4db6-a7d2-537f252a19a6"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cleTest}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"reference\": \"SHP-{{passage}}-VIDE\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/colis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "colis"
+              ]
+            },
+            "description": "Chaque colis contient au moins un produit de stock."
           },
           "response": []
         }
@@ -1288,7 +1619,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-1\",\n    \"clientNom\": \"Sara Alaoui\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-2\",\n    \"clientNom\": \"Youssef Nait\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"Tanger\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80.5\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-3\",\n    \"clientNom\": \"Nadia Cherkaoui\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"quantite\": 2,\n    \"fragile\": true\n  }\n]"
+              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-1\",\n    \"clientNom\": \"Sara Alaoui\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-2\",\n    \"clientNom\": \"Youssef Nait\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"Tanger\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80.5,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-3\",\n    \"clientNom\": \"Nadia Cherkaoui\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }],\n    \"quantite\": 2,\n    \"fragile\": true\n  }\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis/lot",
@@ -1337,7 +1668,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-1\",\n    \"clientNom\": \"Sara Alaoui\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-2\",\n    \"clientNom\": \"Youssef Nait\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"Tanger\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80.5\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-3\",\n    \"clientNom\": \"Nadia Cherkaoui\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"quantite\": 2,\n    \"fragile\": true\n  }\n]"
+              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-1\",\n    \"clientNom\": \"Sara Alaoui\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-2\",\n    \"clientNom\": \"Youssef Nait\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"Tanger\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80.5,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"LOT-{{passage}}-3\",\n    \"clientNom\": \"Nadia Cherkaoui\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }],\n    \"quantite\": 2,\n    \"fragile\": true\n  }\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis/lot",
@@ -1389,7 +1720,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-1\",\n    \"clientNom\": \"Ligne saine\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-2\",\n    \"clientNom\": \"Ville vide\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-3\",\n    \"clientNom\": \"Ligne saine\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5\n  },\n  {\n    \"idExterneMarchand\": \"MARCHAND-INCONNU\",\n    \"reference\": \"MIX-{{passage}}-4\",\n    \"clientNom\": \"Marchand inconnu\",\n    \"clientTelephone\": \"0644556677\",\n    \"ville\": \"Rabat\",\n    \"adresse\": \"3 rue de la Plage\",\n    \"montantCod\": 95\n  }\n]"
+              "raw": "[\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-1\",\n    \"clientNom\": \"Ligne saine\",\n    \"clientTelephone\": \"0611223344\",\n    \"ville\": \"Casablanca\",\n    \"adresse\": \"12 rue des Orangers\",\n    \"montantCod\": 120,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-2\",\n    \"clientNom\": \"Ville vide\",\n    \"clientTelephone\": \"0622334455\",\n    \"ville\": \"\",\n    \"adresse\": \"22 boulevard Zerktouni\",\n    \"montantCod\": 80,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n    \"reference\": \"MIX-{{passage}}-3\",\n    \"clientNom\": \"Ligne saine\",\n    \"clientTelephone\": \"0633445566\",\n    \"ville\": \"Agadir\",\n    \"adresse\": \"8 avenue Hassan II\",\n    \"montantCod\": 210.5,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  },\n  {\n    \"idExterneMarchand\": \"MARCHAND-INCONNU\",\n    \"reference\": \"MIX-{{passage}}-4\",\n    \"clientNom\": \"Marchand inconnu\",\n    \"clientTelephone\": \"0644556677\",\n    \"ville\": \"Rabat\",\n    \"adresse\": \"3 rue de la Plage\",\n    \"montantCod\": 95,\n    \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n  }\n]"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis/lot",
@@ -1604,7 +1935,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-L{{passage}}\",\n  \"reference\": \"ENV-{{passage}}\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-L{{passage}}\",\n  \"reference\": \"ENV-{{passage}}\",\n  \"clientNom\": \"Test\",\n  \"clientTelephone\": \"0655443322\",\n  \"ville\": \"Rabat\",\n  \"adresse\": \"X\",\n  \"montantCod\": 100,\n  \"produits\": [{ \"sku\": \"MUG-{{passage}}\", \"quantite\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/colis",

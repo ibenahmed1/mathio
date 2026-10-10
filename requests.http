@@ -127,10 +127,36 @@ Content-Type: application/json
   "ville": "Rabat",
   "adresse": "18 avenue Mohammed V",
   "montantCod": 349.90,
-  "produitDescription": "Casque audio",
-  "quantite": 1,
+  "produits": [
+    { "sku": "PRD-K7M2Q9XA-ROUGE-M", "quantite": 2 },
+    { "sku": "MUG-01", "quantite": 1 }
+  ],
   "fragile": true
 }
+
+### v3a. Déclarer un produit de stock (scope produits:creation) -> 201, puis 200 "deja_existant" au rejeu
+### À faire AVANT de déposer des colis : un colis dont un SKU est inconnu est refusé (400 sku_inconnu).
+POST {{apiUrl}}/api/v1/produits
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{
+  "idExterneMarchand": "shipeh-12345",
+  "nom": "Robe d'été",
+  "reference": "PRD-K7M2Q9XA",
+  "variantesActivees": true,
+  "variantes": [
+    { "nom": "Rouge / M", "reference": "PRD-K7M2Q9XA-ROUGE-M", "quantiteEnCours": 10 },
+    { "nom": "Bleu / M", "reference": "PRD-K7M2Q9XA-BLEU-M", "quantiteEnCours": 8 }
+  ]
+}
+
+### v3a bis. Produit sans variantes
+POST {{apiUrl}}/api/v1/produits
+Authorization: Bearer {{cle}}
+Content-Type: application/json
+
+{ "idExterneMarchand": "shipeh-12345", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20 }
 
 ### v3b. Nos villes : nom, code, tarif de livraison (scope villes:lecture)
 GET {{apiUrl}}/api/v1/villes
@@ -148,7 +174,8 @@ Content-Type: application/json
   "clientTelephone": "0655443322",
   "ville": "Rabat",
   "adresse": "18 avenue Mohammed V",
-  "montantCod": 349.90
+  "montantCod": 349.90,
+  "produits": [{ "sku": "MUG-01", "quantite": 1 }]
 }
 
 ### v5. Déposer un lot -> 207, une ligne de résultat par colis
@@ -165,7 +192,8 @@ Content-Type: application/json
     "clientTelephone": "0611223344",
     "ville": "Fès",
     "adresse": "5 rue Talaa",
-    "montantCod": 120
+    "montantCod": 120,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }]
   },
   {
     "idExterneMarchand": "shipeh-12345",
@@ -174,7 +202,8 @@ Content-Type: application/json
     "clientTelephone": "0622334455",
     "ville": "",
     "adresse": "22 bd Zerktouni",
-    "montantCod": 80
+    "montantCod": 80,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }]
   },
   {
     "idExterneMarchand": "shipeh-12345",
@@ -183,7 +212,8 @@ Content-Type: application/json
     "clientTelephone": "0633445566",
     "ville": "Agadir",
     "adresse": "8 avenue Hassan II",
-    "montantCod": 210.5
+    "montantCod": 210.5,
+    "produits": [{ "sku": "MUG-01", "quantite": 1 }]
   }
 ]
 

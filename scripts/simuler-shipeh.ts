@@ -184,8 +184,8 @@ async function amorcer(): Promise<Amorce> {
     return { cleComplete, id: creee.id };
   }
 
-  const live = await poser('live', ['marchands:creation_validee', 'colis:creation']);
-  const test = await poser('test', ['marchands:creation', 'colis:creation']);
+  const live = await poser('live', ['marchands:creation_validee', 'colis:creation', 'produits:creation']);
+  const test = await poser('test', ['marchands:creation', 'colis:creation', 'produits:creation']);
   const sansColis = await poser('live', ['marchands:creation']);
   const revoquee = await poser('live', ['colis:creation'], { revoqueeLe: new Date() });
   const expiree = await poser('live', ['colis:creation'], { expireLe: new Date(Date.now() - 60_000) });
@@ -247,6 +247,9 @@ async function nettoyer() {
       where: { id: { in: tous } },
       select: { utilisateurId: true },
     });
+    // Produits de stock déclarés par la simulation : variantes, historique et
+    // lignes de colis suivent en cascade ou sont déjà partis avec les colis.
+    await prisma.produit.deleteMany({ where: { marchandId: { in: tous } } });
     await prisma.marchand.deleteMany({ where: { id: { in: tous } } });
     await prisma.utilisateur.deleteMany({
       where: { id: { in: marchands.map((m) => m.utilisateurId) } },
@@ -276,6 +279,17 @@ function marchand(suffixe: string, telephone: string) {
   };
 }
 
+// SKU déclarés pour le marchand A (§ 4 bis) : un produit simple, et un
+// produit à variantes dont seules les variantes portent du stock.
+const SKU_MUG = `${PREFIXE}-MUG`;
+const SKU_ROBE = `${PREFIXE}-ROBE`;
+const SKU_ROBE_ROUGE = `${PREFIXE}-ROBE-ROUGE`;
+const SKU_ROBE_BLEU = `${PREFIXE}-ROBE-BLEU`;
+
+function produitSimple(idExterneMarchand: string, sku = SKU_MUG, quantiteEnCours = 20) {
+  return { idExterneMarchand, nom: `${PREFIXE} Mug`, reference: sku, quantiteEnCours };
+}
+
 function colis(reference: string, idExterneMarchand: string, surcharges: Record<string, unknown> = {}) {
   return {
     idExterneMarchand,
@@ -285,6 +299,7 @@ function colis(reference: string, idExterneMarchand: string, surcharges: Record<
     ville: 'Rabat',
     adresse: '18 avenue Mohammed V',
     montantCod: 299.9,
+    produits: [{ sku: SKU_MUG, quantite: 1 }],
     ...surcharges,
   };
 }
@@ -489,6 +504,61 @@ async function main() {
   });
 
   // ----------------------------------------------------------
+  console.log('\n4 bis. Produits de stock');
+
+  await verifie('déclarer un produit simple : 201, en attente de réception, chez le marchand', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(mA.idExterne));
+    attendu(r, 201);
+    if (r.json?.issue !== 'cree') throw new Error(`issue « ${String(r.json?.issue)} »`);
+    if (r.json?.statutReception !== 'pas_encore_recu') throw new Error('le stock annoncé ne doit pas être réputé reçu');
+    const p = await prisma.produit.findUnique({ where: { id: String(r.json?.produitId) }, include: { marchand: true } });
+    if (p?.quantiteEnCours !== 20 || p.quantiteRecue !== 0) throw new Error('quantité annoncée mal rangée');
+    if (!p.marchand.nomBoutique.startsWith(`${PREFIXE} Boutique A`)) throw new Error('rattaché au mauvais marchand');
+  });
+
+  await verifie('rejeu du même SKU : 200, et la quantité n’est PAS ajoutée une seconde fois', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(mA.idExterne, SKU_MUG.toLowerCase(), 99));
+    attendu(r, 200);
+    if (r.json?.issue !== 'deja_existant') throw new Error(`issue « ${String(r.json?.issue)} »`);
+    const p = await prisma.produit.findUnique({ where: { id: String(r.json?.produitId) } });
+    if (p?.quantiteEnCours !== 20) throw new Error(`quantité ${p?.quantiteEnCours} au lieu de 20`);
+  });
+
+  await verifie('déclarer un produit à variantes : chaque variante a son SKU et sa quantité', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, {
+      idExterneMarchand: mA.idExterne,
+      nom: `${PREFIXE} Robe`,
+      reference: SKU_ROBE,
+      note: 'Tissu léger',
+      variantesActivees: true,
+      variantes: [
+        { nom: 'Rouge / M', reference: SKU_ROBE_ROUGE, quantiteEnCours: 10 },
+        { nom: 'Bleu / M', reference: SKU_ROBE_BLEU, quantiteEnCours: 8 },
+      ],
+    });
+    attendu(r, 201);
+    const variantes = (r.json?.variantes ?? []) as { reference: string }[];
+    if (variantes.length !== 2) throw new Error(`${variantes.length} variante(s) renvoyée(s) au lieu de 2`);
+  });
+
+  await verifie('un SKU déjà porté par un autre produit du marchand : 409', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, {
+      ...produitSimple(mA.idExterne, `${PREFIXE}-AUTRE`),
+      variantesActivees: true,
+      variantes: [{ nom: 'Copie', reference: SKU_ROBE_ROUGE, quantiteEnCours: 1 }],
+    });
+    attendu(r, 409, 'sku_deja_utilise');
+  });
+
+  await verifie('sans le droit produits:creation : 403', async () => {
+    attendu(await appel('POST', '/api/v1/produits', a.cleSansScopeColis, produitSimple(mA.idExterne)), 403, 'scope_manquant');
+  });
+
+  await verifie('produit pour un marchand inconnu : 404', async () => {
+    attendu(await appel('POST', '/api/v1/produits', a.cleLive, produitSimple('inexistant')), 404, 'marchand_inconnu');
+  });
+
+  // ----------------------------------------------------------
   console.log('\n5. Ingestion des colis');
 
   let codeSuiviInitial = '';
@@ -498,6 +568,69 @@ async function main() {
     attendu(r, 201);
     codeSuiviInitial = String(r.json?.codeSuivi ?? '');
     if (!codeSuiviInitial.startsWith('PD-')) throw new Error(`code de suivi inattendu : ${codeSuiviInitial}`);
+  });
+
+  await verifie('colis à plusieurs produits : une ligne par SKU, colis « stock », résumé tenu', async () => {
+    const r = await appel(
+      'POST',
+      '/api/v1/colis',
+      a.cleLive,
+      colis(`${PREFIXE}-MULTI`, mA.idExterne, {
+        produits: [
+          { sku: SKU_ROBE_ROUGE, quantite: 2 },
+          { sku: SKU_MUG.toLowerCase(), quantite: 1 },
+        ],
+      })
+    );
+    attendu(r, 201);
+    const c = await prisma.commande.findFirst({
+      where: { codeSuiviPartenaire: `${PREFIXE}-MULTI` },
+      include: { lignes: { orderBy: { position: 'asc' } } },
+    });
+    if (!c) throw new Error('colis introuvable');
+    if (!c.enStock) throw new Error('un colis Shipeh doit sortir du stock');
+    if (c.lignes.length !== 2) throw new Error(`${c.lignes.length} ligne(s) au lieu de 2`);
+    if (c.lignes[0].sku !== SKU_ROBE_ROUGE || !c.lignes[0].varianteId) throw new Error('variante non rattachée');
+    if (c.lignes[1].sku !== SKU_MUG) throw new Error('le SKU doit être celui du stock, pas la saisie');
+    if (c.quantite !== 3) throw new Error(`quantité totale ${c.quantite} au lieu de 3`);
+    if (!c.produitDescription?.includes('2 × ')) throw new Error(`description « ${c.produitDescription} »`);
+  });
+
+  await verifie('SKU inconnu : 400 qui nomme les SKU absents, et aucun colis créé', async () => {
+    const r = await appel(
+      'POST',
+      '/api/v1/colis',
+      a.cleLive,
+      colis(`${PREFIXE}-SKU-X`, mA.idExterne, {
+        produits: [
+          { sku: SKU_MUG, quantite: 1 },
+          { sku: 'FANTOME-1', quantite: 1 },
+          { sku: 'FANTOME-2', quantite: 1 },
+        ],
+      })
+    );
+    attendu(r, 400, 'sku_inconnu');
+    const message = String(r.json?.message ?? '');
+    if (!message.includes('FANTOME-1') || !message.includes('FANTOME-2')) throw new Error(`message : ${message}`);
+    if (await prisma.commande.count({ where: { codeSuiviPartenaire: `${PREFIXE}-SKU-X` } })) {
+      throw new Error('un colis a été créé malgré le SKU inconnu');
+    }
+  });
+
+  await verifie('SKU d’un produit à variantes : 400, la variante est exigée', async () => {
+    const r = await appel(
+      'POST',
+      '/api/v1/colis',
+      a.cleLive,
+      colis(`${PREFIXE}-SKU-P`, mA.idExterne, { produits: [{ sku: SKU_ROBE, quantite: 1 }] })
+    );
+    attendu(r, 400, 'sku_a_variantes');
+    if (!String(r.json?.message ?? '').includes(SKU_ROBE_BLEU)) throw new Error('les SKU de variante ne sont pas proposés');
+  });
+
+  await verifie('colis sans produits : 400', async () => {
+    const { produits: _produits, ...sansProduits } = colis(`${PREFIXE}-VIDE`, mA.idExterne);
+    attendu(await appel('POST', '/api/v1/colis', a.cleLive, sansProduits), 400, 'champ_requis');
   });
 
   await verifie('rejeu de la même référence : 200 et LE MÊME code de suivi', async () => {
@@ -556,17 +689,19 @@ async function main() {
     lot[2] = colis(`${PREFIXE}-MIX-2`, mA.idExterne, { ville: '' });
     lot[5] = colis(`${PREFIXE}-MIX-5`, mA.idExterne, { montantCod: 0 });
     lot[8] = colis(`${PREFIXE}-MIX-8`, 'marchand-inexistant');
+    lot[9] = colis(`${PREFIXE}-MIX-9`, mA.idExterne, { produits: [{ sku: 'FANTOME', quantite: 1 }] });
 
     const r = await appel('POST', '/api/v1/colis/lot', a.cleLive, lot);
     attendu(r, 207);
-    if (r.json?.crees !== 7) throw new Error(`${String(r.json?.crees)} créés au lieu de 7`);
-    if (r.json?.refuses !== 3) throw new Error(`${String(r.json?.refuses)} refusés au lieu de 3`);
+    if (r.json?.crees !== 6) throw new Error(`${String(r.json?.crees)} créés au lieu de 6`);
+    if (r.json?.refuses !== 4) throw new Error(`${String(r.json?.refuses)} refusés au lieu de 4`);
 
     // Chaque ligne refusée doit être désignable : sans index ni référence, le
     // partenaire ne saurait pas laquelle rejouer.
     const lignes = r.json?.lignes as { index: number; ok: boolean; code?: string }[];
     const refusees = lignes.filter((l) => !l.ok).map((l) => l.index);
-    if (refusees.join(',') !== '2,5,8') throw new Error(`lignes refusées : ${refusees.join(',')}`);
+    if (refusees.join(',') !== '2,5,8,9') throw new Error(`lignes refusées : ${refusees.join(',')}`);
+    if (lignes[9].code !== 'sku_inconnu') throw new Error(`ligne 9 refusée en « ${lignes[9].code} »`);
   });
 
   await verifie(`lot au-delà de ${TAILLE_MAX_LOT} colis : 413`, async () => {
@@ -633,8 +768,14 @@ async function main() {
     // C'est le scénario qui échouait en 404 avant que l'environnement entre
     // dans les clés d'unicité : la synchronisation live répondait « déjà
     // synchronisé » puis le dépôt refusait le marchand.
+    // Le stock est propre à chaque marchand : le SKU du marchand A n'existe pas
+    // chez celui-ci tant qu'il ne l'a pas déclaré.
+    attendu(await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-BASC-0`, ID_DOUBLE)), 400, 'sku_inconnu');
+    attendu(await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(ID_DOUBLE)), 201);
     const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-BASC-1`, ID_DOUBLE));
     attendu(r, 201);
+    // Et un produit déclaré en bac à sable, que la purge devra emporter.
+    attendu(await appel('POST', '/api/v1/produits', a.cleTest, produitSimple(ID_DOUBLE, `${PREFIXE}-TEST-MUG`)), 201);
   });
 
   // ----------------------------------------------------------
@@ -740,6 +881,15 @@ async function main() {
       where: { nomBoutique: `${PREFIXE} Boutique Direct` },
     });
     if (!direct) throw new Error('le marchand inscrit en direct a été supprimé par la purge');
+  });
+
+  await verifie('la purge emporte les produits de test, pas ceux de production', async () => {
+    if (await prisma.produit.count({ where: { reference: `${PREFIXE}-TEST-MUG` } })) {
+      throw new Error('un produit déclaré en bac à sable survit à la purge');
+    }
+    if ((await prisma.produit.count({ where: { reference: SKU_MUG } })) !== 2) {
+      throw new Error('la purge a touché des produits de production');
+    }
   });
 
   await verifie('les colis de production survivent à la purge', async () => {
