@@ -13,7 +13,9 @@ import { resoudreSku, skuDejaPris } from '../lib/stock-sku';
 //  3. rattachement d'un colis : variante exigée sur un produit à variantes ;
 //  4. réservation au passage en préparation : variante décrémentée, colis
 //     sans produit refusé, stock insuffisant refusé en tout ou rien ;
-//  5. réintégration : stock rendu une seule fois.
+//  5. réintégration : stock rendu une seule fois ;
+//  6. colis multi-produits (LigneColis) : chaque ligne puise dans son unité,
+//     et la réintégration rend chacune.
 // Toutes les données créées sont préfixées et supprimées en fin d'exécution.
 
 const PREFIXE = `AUDIT-VAR-${Date.now()}`;
@@ -58,8 +60,17 @@ async function main() {
   const rouge = robe.variantes.find((v) => v.nom === 'Rouge')!;
   const bleu = robe.variantes.find((v) => v.nom === 'Bleu')!;
   const colisIds: string[] = [];
+  const mug = await prisma.produit.create({
+    data: { marchandId: marchand.id, nom: `${PREFIXE} Mug`, reference: `${PREFIXE}-MUG`, statutReception: 'recu', quantiteRecue: 10 },
+  });
 
-  async function creerColis(data: { produitId?: string | null; varianteId?: string | null; quantite: number }) {
+  type LigneAudit = { produitId: string | null; varianteId?: string | null; libelle: string; quantite: number };
+  async function creerColis(data: {
+    produitId?: string | null;
+    varianteId?: string | null;
+    quantite: number;
+    lignes?: LigneAudit[];
+  }) {
     const c = await prisma.commande.create({
       data: {
         codeSuivi: await nextCodeSuivi(),
@@ -73,6 +84,9 @@ async function main() {
         produitId: data.produitId ?? null,
         varianteId: data.varianteId ?? null,
         quantite: data.quantite,
+        lignes: data.lignes
+          ? { create: data.lignes.map((l, position) => ({ ...l, varianteId: l.varianteId ?? null, position })) }
+          : undefined,
       },
       select: {
         id: true,
@@ -160,11 +174,42 @@ async function main() {
       const v2 = await prisma.produitVariante.findUniqueOrThrow({ where: { id: rouge.id } });
       assert.equal(v2.quantiteRecue, 4);
     });
+
+    console.log('6. Colis multi-produits');
+    const bleuAvant = (await prisma.produitVariante.findUniqueOrThrow({ where: { id: bleu.id } })).quantiteRecue;
+    const multi = await creerColis({
+      quantite: 4,
+      lignes: [
+        { produitId: robe.id, varianteId: bleu.id, libelle: 'Robe — Bleu', quantite: 1 },
+        { produitId: mug.id, libelle: 'Mug', quantite: 3 },
+      ],
+    });
+    await verifie('un colis à deux produits décrémente chacun de sa quantité', async () => {
+      await prisma.$transaction((tx) => reserverStockColis(tx, [multi], admin.id));
+      assert.equal((await prisma.produitVariante.findUniqueOrThrow({ where: { id: bleu.id } })).quantiteRecue, bleuAvant - 1);
+      assert.equal((await prisma.produit.findUniqueOrThrow({ where: { id: mug.id } })).quantiteRecue, 7);
+    });
+    await verifie('une ligne hors stock bloque tout le colis', async () => {
+      const mixte = await creerColis({
+        quantite: 2,
+        lignes: [
+          { produitId: mug.id, libelle: 'Mug', quantite: 1 },
+          { produitId: null, libelle: 'Carte cadeau', quantite: 1 },
+        ],
+      });
+      await rejette(() => prisma.$transaction((tx) => reserverStockColis(tx, [mixte], admin.id)), /Carte cadeau/);
+      assert.equal((await prisma.produit.findUniqueOrThrow({ where: { id: mug.id } })).quantiteRecue, 7);
+    });
+    await verifie('la réintégration rend chaque ligne à son unité', async () => {
+      await prisma.$transaction((tx) => reintegrerStockColis(tx, multi.id, admin.id, 'audit multi'));
+      assert.equal((await prisma.produitVariante.findUniqueOrThrow({ where: { id: bleu.id } })).quantiteRecue, bleuAvant);
+      assert.equal((await prisma.produit.findUniqueOrThrow({ where: { id: mug.id } })).quantiteRecue, 10);
+    });
   } finally {
     await prisma.commentaireCommande.deleteMany({ where: { commandeId: { in: colisIds } } });
     await prisma.historiqueStatutCommande.deleteMany({ where: { commandeId: { in: colisIds } } });
     await prisma.commande.deleteMany({ where: { id: { in: colisIds } } });
-    await prisma.produit.delete({ where: { id: robe.id } });
+    await prisma.produit.deleteMany({ where: { id: { in: [robe.id, mug.id] } } });
   }
 
   console.log(`\n${reussis} réussi(s), ${echoues} échoué(s)`);

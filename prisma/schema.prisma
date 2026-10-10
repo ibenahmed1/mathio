@@ -805,7 +805,8 @@ model Marchandise {
   prix         Decimal  @db.Decimal(10, 2)
   dateCreation DateTime @default(now()) @map("date_creation")
 
-  commandes Commande[]
+  commandes   Commande[]
+  lignesColis LigneColis[]
 
   // § Intégration Shopify : renseigné quand cette marchandise a été importée
   // d'une boutique Shopify — c'est ce lien qui porte le tag « Shopify ».
@@ -878,9 +879,10 @@ model Produit {
   variantesActivees Boolean                @default(false) @map("variantes_activees")
   dateCreation      DateTime               @default(now()) @map("date_creation")
 
-  variantes  ProduitVariante[]
-  historique HistoriqueProduit[]
-  commandes  Commande[]
+  variantes   ProduitVariante[]
+  historique  HistoriqueProduit[]
+  commandes   Commande[]
+  lignesColis LigneColis[]
 
   @@unique([marchandId, reference])
   @@index([marchandId])
@@ -897,7 +899,8 @@ model ProduitVariante {
   quantiteRecue   Int     @default(0) @map("quantite_recue")
   rayonnage       String? @map("rayonnage")
 
-  commandes Commande[]
+  commandes   Commande[]
+  lignesColis LigneColis[]
 
   @@unique([produitId, reference])
   @@index([produitId])
@@ -941,8 +944,8 @@ model HistoriqueProduit {
 // ============================================================
 
 model Commande {
-  id                  String         @id @default(uuid())
-  codeSuivi           String         @unique @map("code_suivi")
+  id                  String           @id @default(uuid())
+  codeSuivi           String           @unique @map("code_suivi")
   // Référence de suivi du partenaire/marchand fournie à l'import Excel en
   // masse (colonne "Code Suivi" du fichier, cf. app/api/commandes/import/route.ts)
   // — sert de clé métier anti-doublon (@@unique ci-dessous, un même fichier
@@ -951,25 +954,25 @@ model Commande {
   // Nullable : PostgreSQL ne compare pas les NULL entre eux dans un index
   // unique, donc les colis sans référence partenaire (création manuelle,
   // import "stock") ne sont jamais bloqués entre eux.
-  codeSuiviPartenaire String?        @map("code_suivi_partenaire")
-  marchandId          String         @map("marchand_id")
-  marchand            Marchand       @relation(fields: [marchandId], references: [id])
-  clientNom           String         @map("client_nom")
-  clientTelephone     String         @map("client_telephone")
+  codeSuiviPartenaire String?          @map("code_suivi_partenaire")
+  marchandId          String           @map("marchand_id")
+  marchand            Marchand         @relation(fields: [marchandId], references: [id])
+  clientNom           String           @map("client_nom")
+  clientTelephone     String           @map("client_telephone")
   ville               String
   adresse             String
-  codePostal          String?        @map("code_postal")
-  produitDescription  String?        @map("produit_description")
-  marchandiseId       String?        @map("marchandise_id")
-  marchandise         Marchandise?   @relation(fields: [marchandiseId], references: [id])
+  codePostal          String?          @map("code_postal")
+  produitDescription  String?          @map("produit_description")
+  marchandiseId       String?          @map("marchandise_id")
+  marchandise         Marchandise?     @relation(fields: [marchandiseId], references: [id])
   // Résolution propre d'un colis "en stock" (enStock=true) vers sa fiche
   // Produit (inventaire, § import Excel mode "stock" : la colonne Ref est
   // rapprochée du SKU Produit.reference du marchand) — permet notamment
   // d'afficher la vraie photo (Produit.photoUrl) sans repasser par un
   // matching texte. Reste null pour un colis normal ou une Ref non résolue
   // (produitDescription garde alors le texte brut en repli).
-  produitId           String?        @map("produit_id")
-  produit             Produit?       @relation(fields: [produitId], references: [id])
+  produitId           String?          @map("produit_id")
+  produit             Produit?         @relation(fields: [produitId], references: [id])
   // Variante précise du produit (§ Gestion de stock) : obligatoire dès que le
   // produit suit ses variantes individuellement — c'est elle, et non le
   // produit, qui porte alors le stock à décrémenter.
@@ -979,29 +982,29 @@ model Commande {
   // la réservation a lieu au passage en préparation, la réintégration est une
   // action admin explicite sur un colis qui n'a pas été livré. Les deux dates
   // empêchent de décrémenter ou de réintégrer deux fois le même colis.
-  stockReserveLe      DateTime?      @map("stock_reserve_le")
-  stockReintegreLe    DateTime?      @map("stock_reintegre_le")
-  quantite            Int            @default(1)
-  poidsKg             Decimal?       @map("poids_kg") @db.Decimal(6, 2)
-  montantCod          Decimal        @map("montant_cod") @db.Decimal(10, 2)
+  stockReserveLe      DateTime?        @map("stock_reserve_le")
+  stockReintegreLe    DateTime?        @map("stock_reintegre_le")
+  quantite            Int              @default(1)
+  poidsKg             Decimal?         @map("poids_kg") @db.Decimal(6, 2)
+  montantCod          Decimal          @map("montant_cod") @db.Decimal(10, 2)
   notes               String?
   // RG colis échange : un colis peut remplacer un colis déjà livré/retourné
   // chez le même client (auto-relation, résolue côté API via le code_suivi saisi).
-  colisARemplacerId   String?        @map("colis_a_remplacer_id")
-  colisARemplacer     Commande?      @relation("ColisRemplacement", fields: [colisARemplacerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  remplacements       Commande[]     @relation("ColisRemplacement")
-  ouvrir              Boolean        @default(false)
-  fragile             Boolean        @default(false)
+  colisARemplacerId   String?          @map("colis_a_remplacer_id")
+  colisARemplacer     Commande?        @relation("ColisRemplacement", fields: [colisARemplacerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  remplacements       Commande[]       @relation("ColisRemplacement")
+  ouvrir              Boolean          @default(false)
+  fragile             Boolean          @default(false)
   // Échange : le livreur doit récupérer l'ancien colis chez le client et
   // livrer celui-ci à la place (distinct de colisARemplacer, qui ne fait que
   // lier deux commandes — ce booléen pilote le comportement de la tournée).
-  aRemplacer          Boolean        @default(false)
+  aRemplacer          Boolean          @default(false)
   // Marchandise stockée dans l'entrepôt de la société (par opposition à un
   // envoi géré directement depuis le stock du marchand).
-  enStock             Boolean        @default(false)
-  statut              StatutCommande @default(nouveau_colis)
-  etatPaiement        EtatPaiement   @default(non_paye) @map("etat_paiement")
-  aRisque             Boolean        @default(false) @map("a_risque")
+  enStock             Boolean          @default(false)
+  statut              StatutCommande   @default(nouveau_colis)
+  etatPaiement        EtatPaiement     @default(non_paye) @map("etat_paiement")
+  aRisque             Boolean          @default(false) @map("a_risque")
 
   ramasseurId String?      @map("ramasseur_id")
   ramasseur   Utilisateur? @relation("CommandeRamasseur", fields: [ramasseurId], references: [id])
@@ -1107,6 +1110,11 @@ model Commande {
   // anti-double-facturation.
   ligneFacture LigneFacture?
 
+  // § Colis multi-produits : le contenu du colis, une ligne par produit
+  // (cf. LigneColis). `quantite` et `produitDescription` ci-dessus en sont le
+  // résumé, tenu à jour à chaque écriture des lignes.
+  lignes LigneColis[]
+
   // § Sous-traitance par API : les remises de ce colis à un prestataire, dont
   // une seule active à la fois (cf. RemisePrestataire).
   remisesPrestataire RemisePrestataire[]
@@ -1139,6 +1147,47 @@ model Commande {
   @@index([bonRetourId])
   @@index([villeId])
   @@map("commandes")
+}
+
+// § Colis multi-produits — le contenu d'un colis, une ligne par produit.
+//
+// Un colis contient un ou plusieurs produits, et un produit figure dans
+// autant de colis qu'on veut : c'est la table de jonction entre Commande et
+// le catalogue. Une ligne désigne au plus UNE source :
+//   - une unité de stock (produitId, + varianteId quand le produit suit ses
+//     variantes) — c'est elle que la préparation décrémente ;
+//   - une marchandise du catalogue simple (marchandiseId), hors stock ;
+//   - rien, pour un article décrit en texte libre (libelle seul).
+//
+// `sku` et `libelle` sont FIGÉS à l'écriture : renommer un produit ou
+// corriger sa référence ne réécrit pas le contenu d'un colis déjà parti — le
+// bon de préparation et l'étiquette doivent continuer de dire ce qui a été
+// demandé. `sku` garde aussi la référence telle que l'a envoyée une
+// plateforme (Shipeh), même avant que le produit ne soit rapproché.
+//
+// onDelete SetNull vers le catalogue : supprimer un produit ne doit jamais
+// effacer le contenu d'un colis ; la ligne garde son libellé et son SKU.
+model LigneColis {
+  id            String           @id @default(uuid())
+  commandeId    String           @map("commande_id")
+  commande      Commande         @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  // Ordre d'affichage, celui de la saisie ou de la charge utile reçue.
+  position      Int              @default(0)
+  produitId     String?          @map("produit_id")
+  produit       Produit?         @relation(fields: [produitId], references: [id], onDelete: SetNull)
+  varianteId    String?          @map("variante_id")
+  variante      ProduitVariante? @relation(fields: [varianteId], references: [id], onDelete: SetNull)
+  marchandiseId String?          @map("marchandise_id")
+  marchandise   Marchandise?     @relation(fields: [marchandiseId], references: [id], onDelete: SetNull)
+  sku           String?
+  libelle       String
+  quantite      Int
+
+  @@index([commandeId])
+  @@index([produitId])
+  @@index([varianteId])
+  @@index([marchandiseId])
+  @@map("lignes_colis")
 }
 
 // ============================================================

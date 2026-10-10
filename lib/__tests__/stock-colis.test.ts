@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { colisReintegrable, regrouperBesoinsStock, stockColisVerrouille, type ColisBesoin } from '../stock-quantites';
+import {
+  colisReintegrable,
+  lignesEffectives,
+  regrouperBesoinsStock,
+  stockColisVerrouille,
+  type ColisBesoin,
+  type LigneBesoin,
+} from '../stock-quantites';
 import { trouverUniteParSku, unitesStock } from '../stock-unites';
 import { referenceVariante } from '../sku';
 
-function colis(partiel: Partial<ColisBesoin> & { codeSuivi: string }): ColisBesoin {
+function ligne(partiel: Partial<LigneBesoin> = {}): LigneBesoin {
   return {
-    id: partiel.codeSuivi,
+    libelle: 'T-shirt',
     quantite: 1,
     produitId: 'p-simple',
     varianteId: null,
@@ -16,10 +23,14 @@ function colis(partiel: Partial<ColisBesoin> & { codeSuivi: string }): ColisBeso
   };
 }
 
+function colis(codeSuivi: string, ...lignes: LigneBesoin[]): ColisBesoin {
+  return { id: codeSuivi, codeSuivi, lignes: lignes.length > 0 ? lignes : [ligne()] };
+}
+
 test('besoins : un produit simple se décrémente sur le produit, cumulé entre colis', () => {
   const { besoins, anomalies } = regrouperBesoinsStock([
-    colis({ codeSuivi: 'A', quantite: 2 }),
-    colis({ codeSuivi: 'B', quantite: 3 }),
+    colis('A', ligne({ quantite: 2 })),
+    colis('B', ligne({ quantite: 3 })),
   ]);
   assert.deepEqual(anomalies, []);
   assert.equal(besoins.size, 1);
@@ -32,9 +43,9 @@ test('besoins : un produit simple se décrémente sur le produit, cumulé entre 
 test('besoins : un produit à variantes se décrémente sur chaque variante', () => {
   const produit = { nom: 'Robe', variantesActivees: true };
   const { besoins, anomalies } = regrouperBesoinsStock([
-    colis({ codeSuivi: 'A', produitId: 'robe', varianteId: 'rouge', produit, quantite: 1 }),
-    colis({ codeSuivi: 'B', produitId: 'robe', varianteId: 'bleu', produit, quantite: 2 }),
-    colis({ codeSuivi: 'C', produitId: 'robe', varianteId: 'rouge', produit, quantite: 4 }),
+    colis('A', ligne({ produitId: 'robe', varianteId: 'rouge', produit, quantite: 1 })),
+    colis('B', ligne({ produitId: 'robe', varianteId: 'bleu', produit, quantite: 2 })),
+    colis('C', ligne({ produitId: 'robe', varianteId: 'rouge', produit, quantite: 4 })),
   ]);
   assert.deepEqual(anomalies, []);
   assert.equal(besoins.get('variante:rouge')?.quantite, 5);
@@ -42,15 +53,45 @@ test('besoins : un produit à variantes se décrémente sur chaque variante', ()
   assert.equal(besoins.get('variante:rouge')?.produitId, 'robe');
 });
 
-test('besoins : un colis sans produit ou sans variante est une anomalie, jamais ignoré', () => {
+test('besoins : un colis à plusieurs produits puise dans chacun, et un même produit s’additionne', () => {
+  const mug = { nom: 'Mug', variantesActivees: false };
   const { besoins, anomalies } = regrouperBesoinsStock([
-    colis({ codeSuivi: 'SANS-PRODUIT', produitId: null, produit: null }),
-    colis({ codeSuivi: 'SANS-VARIANTE', produitId: 'robe', produit: { nom: 'Robe', variantesActivees: true } }),
+    colis('A', ligne({ quantite: 2 }), ligne({ libelle: 'Mug', produitId: 'mug', produit: mug, quantite: 1 })),
+    // Deux lignes du même produit dans un colis : un seul besoin, un seul code.
+    colis('B', ligne({ libelle: 'Mug', produitId: 'mug', produit: mug, quantite: 3 }), ligne({ libelle: 'Mug', produitId: 'mug', produit: mug, quantite: 1 })),
   ]);
-  assert.equal(besoins.size, 0);
-  assert.equal(anomalies.length, 2);
-  assert.match(anomalies[0], /SANS-PRODUIT/);
+  assert.deepEqual(anomalies, []);
+  assert.equal(besoins.get('produit:p-simple')?.quantite, 2);
+  assert.equal(besoins.get('produit:mug')?.quantite, 5);
+  assert.deepEqual(besoins.get('produit:mug')?.codes, ['A', 'B']);
+});
+
+test('besoins : un colis sans contenu, ou une ligne hors stock, est une anomalie, jamais ignoré', () => {
+  const { besoins, anomalies } = regrouperBesoinsStock([
+    { id: 'VIDE', codeSuivi: 'VIDE', lignes: [] },
+    colis('SANS-VARIANTE', ligne({ produitId: 'robe', produit: { nom: 'Robe', variantesActivees: true } })),
+    // Une ligne saine à côté d'une ligne texte libre : le colis reste en anomalie.
+    colis('MIXTE', ligne(), ligne({ libelle: 'Cadeau', produitId: null, produit: null })),
+  ]);
+  assert.equal(anomalies.length, 3);
+  assert.match(anomalies[0], /VIDE.*aucun produit/);
   assert.match(anomalies[1], /SANS-VARIANTE.*variante/);
+  assert.match(anomalies[2], /MIXTE.*Cadeau/);
+  // La ligne saine est comptée, mais l'anomalie suffit à tout bloquer en amont.
+  assert.equal(besoins.size, 1);
+});
+
+test('repli transitoire : un colis sans lignes reprend son ancien produit unique', () => {
+  const produit = { nom: 'Mug', variantesActivees: false };
+  const ancien = { quantite: 4, produitId: 'mug', varianteId: null, produit, lignes: [] };
+  assert.deepEqual(lignesEffectives(ancien), [
+    { libelle: 'Mug', quantite: 4, produitId: 'mug', varianteId: null, produit },
+  ]);
+  // Dès qu'il a des lignes, l'ancien produit unique est ignoré.
+  const avecLignes = { ...ancien, lignes: [ligne({ quantite: 2 })] };
+  assert.equal(lignesEffectives(avecLignes)[0].produitId, 'p-simple');
+  // Ni lignes ni produit : aucun contenu, pas de ligne inventée.
+  assert.deepEqual(lignesEffectives({ ...ancien, produitId: null, produit: null }), []);
 });
 
 test('réintégration : seulement un colis stock réservé, non réintégré, non livré', () => {

@@ -12,7 +12,7 @@ import { reserverStockColis } from '@/lib/stock-colis';
 //
 // C'est également ici que le stock réel est réservé (décision produit du
 // 2026-08-10) : sur la variante quand le produit suit ses variantes, sur le
-// produit sinon (lib/stock-colis.ts). Tout-ou-rien : un colis sans produit
+// produit sinon, pour chaque ligne du colis (lib/stock-colis.ts). Tout-ou-rien : un colis sans produit
 // (ou sans variante) rattaché, ou un stock insuffisant, et rien n'est
 // décrémenté ni fait avancer — un colis "stock" ne quitte jamais l'entrepôt
 // sans avoir été compté.
@@ -28,14 +28,8 @@ export async function POST(request: NextRequest) {
 
     const colis = await prisma.commande.findMany({
       where: { id: { in: ids }, enStock: true, statut: 'nouveau_colis' },
-      select: {
-        id: true,
-        codeSuivi: true,
-        quantite: true,
-        produitId: true,
-        varianteId: true,
-        produit: { select: { nom: true, variantesActivees: true } },
-      },
+      // Le contenu (lignes) est relu par reserverStockColis dans la transaction.
+      select: { id: true },
     });
     if (colis.length !== ids.length) {
       throw new ApiError(400, "Un ou plusieurs colis sélectionnés ne sont plus éligibles (déjà pris en charge ou hors stock)");

@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { ApiError } from '@/lib/api-utils';
-import { regrouperBesoinsStock, type ColisBesoin } from '@/lib/stock-quantites';
+import { lignesEffectives, regrouperBesoinsStock, type ColisBesoin } from '@/lib/stock-quantites';
 
 // § Gestion de stock — le stock vu depuis un colis.
 //
@@ -11,9 +11,33 @@ import { regrouperBesoinsStock, type ColisBesoin } from '@/lib/stock-quantites';
 //   3. la RÉINTÉGRATION, action admin explicite sur un colis non livré
 //      (/api/commandes/[id]/reintegrer-stock).
 // Une unité de stock est une variante quand le produit suit ses variantes,
-// le produit lui-même sinon (lib/stock-quantites.ts).
+// le produit lui-même sinon (lib/stock-quantites.ts). Un colis puise dans
+// autant d'unités qu'il a de lignes (§ Colis multi-produits, LigneColis).
 
 type Db = Prisma.TransactionClient | typeof prisma;
+
+const UNITE_PRODUIT = { select: { nom: true, variantesActivees: true } } as const;
+
+// Ce qu'il faut lire d'un colis pour savoir ce qu'il prend au stock : ses
+// lignes, et l'ancien produit unique pour le repli transitoire
+// (lignesEffectives).
+const SELECT_CONTENU_STOCK = {
+  id: true,
+  codeSuivi: true,
+  quantite: true,
+  produitId: true,
+  varianteId: true,
+  produit: UNITE_PRODUIT,
+  lignes: {
+    orderBy: { position: 'asc' },
+    select: { libelle: true, quantite: true, produitId: true, varianteId: true, produit: UNITE_PRODUIT },
+  },
+} as const;
+
+async function chargerContenuStock(db: Db, ids: string[]): Promise<ColisBesoin[]> {
+  const colis = await db.commande.findMany({ where: { id: { in: ids } }, select: SELECT_CONTENU_STOCK });
+  return colis.map((c) => ({ id: c.id, codeSuivi: c.codeSuivi, lignes: lignesEffectives(c) }));
+}
 
 // Valide le couple produit/variante d'un colis dans le périmètre du marchand
 // propriétaire. Un produit à variantes exige sa variante : sans elle, le colis
@@ -44,10 +68,16 @@ export async function verifierUniteStock(
   return { produitId: produit.id, varianteId: variante.id, libelle: `${produit.nom} — ${variante.nom}` };
 }
 
-// Réserve (décrémente) le stock réel des colis donnés, en tout ou rien : un
-// seul colis sans unité de stock, ou une seule unité insuffisante, et rien
-// n'est décrémenté. À appeler dans la transaction qui fait avancer les colis.
-export async function reserverStockColis(tx: Prisma.TransactionClient, colis: ColisBesoin[], utilisateurId: string) {
+// Réserve (décrémente) le stock réel des colis donnés, toutes leurs lignes,
+// en tout ou rien : un seul colis sans unité de stock, ou une seule unité
+// insuffisante, et rien n'est décrémenté. À appeler dans la transaction qui
+// fait avancer les colis — le contenu est relu dans cette transaction.
+export async function reserverStockColis(
+  tx: Prisma.TransactionClient,
+  colisDemandes: { id: string }[],
+  utilisateurId: string
+) {
+  const colis = await chargerContenuStock(tx, colisDemandes.map((c) => c.id));
   const { besoins, anomalies } = regrouperBesoinsStock(colis);
   if (anomalies.length > 0) {
     throw new ApiError(409, `Stock non identifié — ${anomalies.join(' ; ')}`);
@@ -95,32 +125,27 @@ export async function reintegrerStockColis(tx: Prisma.TransactionClient, command
     throw new ApiError(409, 'Le stock de ce colis a déjà été réintégré, ou n’a jamais été réservé');
   }
 
-  const colis = await tx.commande.findUniqueOrThrow({
-    where: { id: commandeId },
-    select: { codeSuivi: true, quantite: true, produitId: true, varianteId: true, produit: { select: { variantesActivees: true } } },
-  });
-  if (!colis.produitId || !colis.produit) {
-    throw new ApiError(409, 'Ce colis n’est plus rattaché à un produit du stock');
+  const [colis] = await chargerContenuStock(tx, [commandeId]);
+  const { besoins, anomalies } = regrouperBesoinsStock([colis]);
+  if (anomalies.length > 0) {
+    throw new ApiError(409, `Stock non identifié — ${anomalies.join(' ; ')}`);
   }
 
-  const parVariante = colis.produit.variantesActivees;
-  if (parVariante && !colis.varianteId) {
-    throw new ApiError(409, 'Ce colis n’indique pas la variante à réintégrer');
+  for (const { unite, quantite, produitId } of besoins.values()) {
+    if (unite.type === 'variante') {
+      await tx.produitVariante.update({ where: { id: unite.id }, data: { quantiteRecue: { increment: quantite } } });
+    } else {
+      await tx.produit.update({ where: { id: unite.id }, data: { quantiteRecue: { increment: quantite } } });
+    }
+    const libelle = await libelleUnite(tx, unite.type, unite.id, produitId);
+    await tx.historiqueProduit.create({
+      data: {
+        produitId,
+        texte: `${quantite}, ${libelle} réintégré(s) — retour du colis ${colis.codeSuivi}${motif ? ` — ${motif}` : ''}`,
+        utilisateurId,
+      },
+    });
   }
-  if (parVariante) {
-    await tx.produitVariante.update({ where: { id: colis.varianteId! }, data: { quantiteRecue: { increment: colis.quantite } } });
-  } else {
-    await tx.produit.update({ where: { id: colis.produitId }, data: { quantiteRecue: { increment: colis.quantite } } });
-  }
-
-  const libelle = await libelleUnite(tx, parVariante ? 'variante' : 'produit', parVariante ? colis.varianteId! : colis.produitId, colis.produitId);
-  await tx.historiqueProduit.create({
-    data: {
-      produitId: colis.produitId,
-      texte: `${colis.quantite}, ${libelle} réintégré(s) — retour du colis ${colis.codeSuivi}${motif ? ` — ${motif}` : ''}`,
-      utilisateurId,
-    },
-  });
 }
 
 async function libelleUnite(db: Db, type: 'produit' | 'variante', id: string, produitId: string): Promise<string> {

@@ -79,20 +79,58 @@ export function stockColisVerrouille(colis: Pick<ColisStock, 'stockReserveLe' | 
   return colis.stockReserveLe != null && colis.stockReintegreLe == null;
 }
 
-export interface ColisBesoin {
-  id: string;
-  codeSuivi: string;
+// Une ligne du contenu d'un colis, vue du stock (cf. LigneColis).
+export interface LigneBesoin {
+  libelle: string;
   quantite: number;
   produitId: string | null;
   varianteId: string | null;
   produit: { nom: string; variantesActivees: boolean } | null;
 }
 
+export interface ColisBesoin {
+  id: string;
+  codeSuivi: string;
+  lignes: LigneBesoin[];
+}
+
+// Forme d'un colis telle que la lit la base pendant la transition vers le
+// multi-produits : ses lignes, et l'ancien produit unique porté par le colis.
+export interface ColisAvecLignes {
+  quantite: number;
+  produitId: string | null;
+  varianteId: string | null;
+  produit: { nom: string; variantesActivees: boolean } | null;
+  lignes: LigneBesoin[];
+}
+
+// Les lignes qui font foi pour le stock. REPLI TRANSITOIRE : un colis écrit
+// par un chemin qui ne connaît pas encore les lignes (formulaire, import…)
+// n'a que l'ancien produit unique — on en fait une ligne, plutôt que de le
+// déclarer sans contenu. À supprimer avec les colonnes produit_id /
+// variante_id de `commandes`.
+export function lignesEffectives(colis: ColisAvecLignes): LigneBesoin[] {
+  if (colis.lignes.length > 0) return colis.lignes;
+  if (!colis.produitId) return [];
+  return [
+    {
+      libelle: colis.produit?.nom ?? 'Produit',
+      quantite: colis.quantite,
+      produitId: colis.produitId,
+      varianteId: colis.varianteId,
+      produit: colis.produit,
+    },
+  ];
+}
+
 export type UniteStock = { type: 'produit' | 'variante'; id: string };
 
 // Regroupe les quantités demandées par unité de stock (produit simple ou
-// variante). Un colis sans unité exploitable n'est pas ignoré : il est
-// renvoyé en anomalie, pour que rien ne sorte de l'entrepôt sans être compté.
+// variante), toutes lignes de tous les colis confondues : deux colis — ou
+// deux lignes d'un même colis — qui puisent dans la même unité s'additionnent.
+// Rien n'est ignoré : un colis sans contenu, ou une ligne qui ne désigne pas
+// une unité de stock exploitable, est renvoyé en anomalie, pour que rien ne
+// sorte de l'entrepôt sans être compté.
 export function regrouperBesoinsStock(colis: ColisBesoin[]): {
   besoins: Map<string, { unite: UniteStock; quantite: number; produitId: string; codes: string[] }>;
   anomalies: string[];
@@ -100,22 +138,28 @@ export function regrouperBesoinsStock(colis: ColisBesoin[]): {
   const besoins = new Map<string, { unite: UniteStock; quantite: number; produitId: string; codes: string[] }>();
   const anomalies: string[] = [];
   for (const c of colis) {
-    if (!c.produitId || !c.produit) {
+    if (c.lignes.length === 0) {
       anomalies.push(`${c.codeSuivi} : aucun produit du stock rattaché`);
       continue;
     }
-    if (c.produit.variantesActivees && !c.varianteId) {
-      anomalies.push(`${c.codeSuivi} : choisissez la variante de « ${c.produit.nom} »`);
-      continue;
+    for (const ligne of c.lignes) {
+      if (!ligne.produitId || !ligne.produit) {
+        anomalies.push(`${c.codeSuivi} : « ${ligne.libelle} » n’est pas un produit du stock`);
+        continue;
+      }
+      if (ligne.produit.variantesActivees && !ligne.varianteId) {
+        anomalies.push(`${c.codeSuivi} : choisissez la variante de « ${ligne.produit.nom} »`);
+        continue;
+      }
+      const unite: UniteStock = ligne.produit.variantesActivees
+        ? { type: 'variante', id: ligne.varianteId! }
+        : { type: 'produit', id: ligne.produitId };
+      const cle = `${unite.type}:${unite.id}`;
+      const besoin = besoins.get(cle) ?? { unite, quantite: 0, produitId: ligne.produitId, codes: [] };
+      besoin.quantite += ligne.quantite;
+      if (!besoin.codes.includes(c.codeSuivi)) besoin.codes.push(c.codeSuivi);
+      besoins.set(cle, besoin);
     }
-    const unite: UniteStock = c.produit.variantesActivees
-      ? { type: 'variante', id: c.varianteId! }
-      : { type: 'produit', id: c.produitId };
-    const cle = `${unite.type}:${unite.id}`;
-    const besoin = besoins.get(cle) ?? { unite, quantite: 0, produitId: c.produitId, codes: [] };
-    besoin.quantite += c.quantite;
-    besoin.codes.push(c.codeSuivi);
-    besoins.set(cle, besoin);
   }
   return { besoins, anomalies };
 }
