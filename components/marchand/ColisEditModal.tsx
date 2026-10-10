@@ -40,6 +40,7 @@ export function ColisEditModal({
     montantCod: commande.montantCod,
     produitDescription: commande.produitDescription ?? '',
     produitId: commande.produitId ?? '',
+    varianteId: commande.varianteId ?? '',
     notes: commande.notes ?? '',
     colisARemplacerCode: commande.colisARemplacer?.codeSuivi ?? '',
     ouvrir: commande.ouvrir,
@@ -75,6 +76,7 @@ export function ColisEditModal({
               montantCod: form.montantCod,
               produitDescription: form.produitDescription,
               produitId: form.produitId || null,
+              varianteId: form.varianteId || null,
               notes: form.notes,
               colisARemplacerCode: form.colisARemplacerCode,
               ouvrir: form.ouvrir,
@@ -260,7 +262,12 @@ export function ColisEditModal({
                   className="check-basic"
                   checked={form.enStock}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, enStock: e.target.checked, produitId: e.target.checked ? f.produitId : '' }))
+                    setForm((f) => ({
+                      ...f,
+                      enStock: e.target.checked,
+                      produitId: e.target.checked ? f.produitId : '',
+                      varianteId: e.target.checked ? f.varianteId : '',
+                    }))
                   }
                 />
                 En stock (entrepôt)
@@ -270,11 +277,17 @@ export function ColisEditModal({
               <Field label="Produit du stock" className="sm:col-span-2">
                 <ProduitSelect
                   value={form.produitId}
-                  onSelect={(produit) =>
+                  varianteId={form.varianteId}
+                  onSelect={(produit, variante) =>
                     setForm((f) => ({
                       ...f,
                       produitId: produit?.id ?? '',
-                      produitDescription: produit ? produit.nom : f.produitDescription,
+                      varianteId: variante?.id ?? '',
+                      produitDescription: produit
+                        ? variante
+                          ? `${produit.nom} — ${variante.nom}`
+                          : produit.nom
+                        : f.produitDescription,
                     }))
                   }
                 />

@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { Download, FileSpreadsheet, UploadCloud, CheckCircle2, XCircle, AlertTriangle, UserPlus, RefreshCw } from 'lucide-react';
 import { apiGet, apiPost, ApiRequestError } from '@/lib/api-client';
 import type { Marchand, Produit } from '@/lib/types';
+import { trouverUniteParSku, unitesStock } from '@/lib/stock-unites';
 
 type TypeImport = 'normal' | 'stock';
 
@@ -236,9 +237,14 @@ export default function AdminImportColisPage() {
         erreurs.push(type === 'normal' ? 'Produit manquant' : 'Ref manquante');
       } else if (type === 'stock' && marchandId) {
         const produits = produitsParMarchand[marchandId];
-        if (produits && !produits.some((p) => p.reference === refEffective)) {
+        if (produits && !trouverUniteParSku(unitesStock(produits), refEffective)) {
           refInvalide = true;
-          erreurs.push(`Référence stock introuvable : "${refEffective}"`);
+          const parent = produits.find((p) => p.variantesActivees && p.reference.toLowerCase() === refEffective.trim().toLowerCase());
+          erreurs.push(
+            parent
+              ? `« ${parent.nom} » a des variantes : indiquez le SKU de la variante`
+              : `Référence stock introuvable : "${refEffective}"`
+          );
         }
       }
 
@@ -533,9 +539,9 @@ export default function AdminImportColisPage() {
                             <option value="" disabled>
                               — corriger la référence —
                             </option>
-                            {produitsParMarchand[e.marchandId].map((p) => (
-                              <option key={p.id} value={p.reference}>
-                                {p.reference} — {p.nom}
+                            {unitesStock(produitsParMarchand[e.marchandId]).map((u) => (
+                              <option key={u.variante?.id ?? u.produit.id} value={u.reference}>
+                                {u.reference} — {u.libelle}
                               </option>
                             ))}
                           </select>

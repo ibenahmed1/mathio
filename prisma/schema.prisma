@@ -855,7 +855,11 @@ enum StatutReceptionProduit {
 // que l'admin déplace vers quantiteRecue une fois la marchandise physiquement
 // vérifiée et réceptionnée en entrepôt (voir POST /api/produits/[id]/reception
 // et /api/produits/variantes/[id]/reception). Suivi au niveau variante quand
-// variantesActivees est vrai, sinon directement sur le produit.
+// variantesActivees est vrai, sinon directement sur le produit — dans le
+// premier cas, les compteurs du produit restent à 0 (lib/stock-quantites.ts).
+// Les SKU produit ET variante d'un même marchand partagent un seul espace de
+// noms, insensible à la casse (lib/stock-sku.ts) : les @@unique ci-dessous
+// n'en sont que le filet en base.
 model Produit {
   id                String                 @id @default(uuid())
   marchandId        String                 @map("marchand_id")
@@ -892,6 +896,8 @@ model ProduitVariante {
   quantiteEnCours Int     @default(0) @map("quantite_en_cours")
   quantiteRecue   Int     @default(0) @map("quantite_recue")
   rayonnage       String? @map("rayonnage")
+
+  commandes Commande[]
 
   @@unique([produitId, reference])
   @@index([produitId])
@@ -964,6 +970,17 @@ model Commande {
   // (produitDescription garde alors le texte brut en repli).
   produitId           String?        @map("produit_id")
   produit             Produit?       @relation(fields: [produitId], references: [id])
+  // Variante précise du produit (§ Gestion de stock) : obligatoire dès que le
+  // produit suit ses variantes individuellement — c'est elle, et non le
+  // produit, qui porte alors le stock à décrémenter.
+  varianteId          String?          @map("variante_id")
+  variante            ProduitVariante? @relation(fields: [varianteId], references: [id])
+  // Mouvements de stock du colis (§ Gestion de stock, lib/stock-colis.ts) :
+  // la réservation a lieu au passage en préparation, la réintégration est une
+  // action admin explicite sur un colis qui n'a pas été livré. Les deux dates
+  // empêchent de décrémenter ou de réintégrer deux fois le même colis.
+  stockReserveLe      DateTime?      @map("stock_reserve_le")
+  stockReintegreLe    DateTime?      @map("stock_reintegre_le")
   quantite            Int            @default(1)
   poidsKg             Decimal?       @map("poids_kg") @db.Decimal(6, 2)
   montantCod          Decimal        @map("montant_cod") @db.Decimal(10, 2)
@@ -1113,6 +1130,7 @@ model Commande {
   @@index([livreurId])
   @@index([marchandiseId])
   @@index([produitId])
+  @@index([varianteId])
   @@index([colisARemplacerId])
   @@index([bonPreparationId])
   @@index([hubActuelId])

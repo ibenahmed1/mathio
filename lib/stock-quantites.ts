@@ -39,3 +39,83 @@ export function reliquatReception(produit: ProduitQuantites): number {
     ? (produit.variantes ?? []).reduce((somme, v) => somme + v.quantiteEnCours, 0)
     : produit.quantiteEnCours;
 }
+
+// ─── Mouvements de stock d'un colis ────────────────────────────────────────
+//
+// Même raison d'être que ci-dessus : l'écran n'affiche l'action « Réintégrer
+// au stock » que là où l'API l'accepte (lib/stock-colis.ts).
+
+// Statuts d'un colis non livré dont la marchandise peut revenir sur l'étagère.
+// La réintégration n'est jamais automatique : c'est l'agent qui constate le
+// retour physique, comme pour la réception d'un produit.
+export const STATUTS_REINTEGRATION_STOCK = [
+  'annule',
+  'annule_par_vendeur',
+  'refuse',
+  'retourne',
+  'retourne_au_hub',
+] as const;
+
+export interface ColisStock {
+  enStock: boolean;
+  statut: string;
+  stockReserveLe: Date | string | null;
+  stockReintegreLe: Date | string | null;
+}
+
+export function colisReintegrable(colis: ColisStock): boolean {
+  return (
+    colis.enStock &&
+    colis.stockReserveLe != null &&
+    colis.stockReintegreLe == null &&
+    (STATUTS_REINTEGRATION_STOCK as readonly string[]).includes(colis.statut)
+  );
+}
+
+// Tant que le stock d'un colis est réservé (et pas encore réintégré), ce qui
+// détermine la quantité réservée — produit, variante, quantité, enStock — ne
+// peut plus changer : l'écart ne serait rendu nulle part.
+export function stockColisVerrouille(colis: Pick<ColisStock, 'stockReserveLe' | 'stockReintegreLe'>): boolean {
+  return colis.stockReserveLe != null && colis.stockReintegreLe == null;
+}
+
+export interface ColisBesoin {
+  id: string;
+  codeSuivi: string;
+  quantite: number;
+  produitId: string | null;
+  varianteId: string | null;
+  produit: { nom: string; variantesActivees: boolean } | null;
+}
+
+export type UniteStock = { type: 'produit' | 'variante'; id: string };
+
+// Regroupe les quantités demandées par unité de stock (produit simple ou
+// variante). Un colis sans unité exploitable n'est pas ignoré : il est
+// renvoyé en anomalie, pour que rien ne sorte de l'entrepôt sans être compté.
+export function regrouperBesoinsStock(colis: ColisBesoin[]): {
+  besoins: Map<string, { unite: UniteStock; quantite: number; produitId: string; codes: string[] }>;
+  anomalies: string[];
+} {
+  const besoins = new Map<string, { unite: UniteStock; quantite: number; produitId: string; codes: string[] }>();
+  const anomalies: string[] = [];
+  for (const c of colis) {
+    if (!c.produitId || !c.produit) {
+      anomalies.push(`${c.codeSuivi} : aucun produit du stock rattaché`);
+      continue;
+    }
+    if (c.produit.variantesActivees && !c.varianteId) {
+      anomalies.push(`${c.codeSuivi} : choisissez la variante de « ${c.produit.nom} »`);
+      continue;
+    }
+    const unite: UniteStock = c.produit.variantesActivees
+      ? { type: 'variante', id: c.varianteId! }
+      : { type: 'produit', id: c.produitId };
+    const cle = `${unite.type}:${unite.id}`;
+    const besoin = besoins.get(cle) ?? { unite, quantite: 0, produitId: c.produitId, codes: [] };
+    besoin.quantite += c.quantite;
+    besoin.codes.push(c.codeSuivi);
+    besoins.set(cle, besoin);
+  }
+  return { besoins, anomalies };
+}

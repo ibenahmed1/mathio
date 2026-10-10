@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Trash2, Plus, ImagePlus, Check, X, Loader2, PackagePlus } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
-import { genererReferenceProduit } from '@/lib/sku';
+import { genererReferenceProduit, referenceVariante } from '@/lib/sku';
 import { Field, FormSection } from '@/components/form/Field';
 import { InventaireSubNav } from '../InventaireSubNav';
 
@@ -12,14 +12,6 @@ interface VarianteForm {
   nom: string;
   reference: string;
   quantite: string;
-}
-
-function slugifyReference(nom: string): string {
-  return nom
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 }
 
 type StatutReference = 'idle' | 'verification' | 'disponible' | 'prise' | 'erreur';
@@ -76,6 +68,19 @@ export default function NouveauProduitPage() {
     reader.readAsDataURL(file);
   }
 
+  // Les SKU de variante proposés suivent aussi le SKU du produit (saisi ou
+  // régénéré) — sauf ceux que le marchand a modifiés à la main.
+  function changerReferenceProduit(nouvelle: string) {
+    setVariantes((v) =>
+      v.map((variante) =>
+        variante.nom && variante.reference === referenceVariante(reference, variante.nom)
+          ? { ...variante, reference: referenceVariante(nouvelle, variante.nom) }
+          : variante
+      )
+    );
+    setReference(nouvelle);
+  }
+
   function ajouterVariante() {
     setVariantes((v) => [...v, { nom: '', reference: '', quantite: '0' }]);
   }
@@ -89,10 +94,10 @@ export default function NouveauProduitPage() {
       v.map((variante, i) => {
         if (i !== index) return variante;
         const next = { ...variante, ...patch };
-        const referenceAuto = variante.nom ? `${reference}-${slugifyReference(variante.nom)}` : '';
+        const referenceAuto = referenceVariante(reference, variante.nom);
         // La référence de variante suit le nom tant qu'elle n'a pas été éditée à la main.
         if (patch.nom !== undefined && (variante.reference === '' || variante.reference === referenceAuto)) {
-          next.reference = next.nom ? `${reference}-${slugifyReference(next.nom)}` : '';
+          next.reference = referenceVariante(reference, next.nom);
         }
         return next;
       })
@@ -183,7 +188,7 @@ export default function NouveauProduitPage() {
                     <input
                       className="input-basic w-full pr-8"
                       value={reference}
-                      onChange={(e) => setReference(e.target.value)}
+                      onChange={(e) => changerReferenceProduit(e.target.value)}
                       required
                     />
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2">
@@ -194,7 +199,7 @@ export default function NouveauProduitPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setReference(genererReferenceProduit())}
+                    onClick={() => changerReferenceProduit(genererReferenceProduit())}
                     className="btn-outline flex items-center gap-1.5 whitespace-nowrap"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
+import { reserverStockColis } from '@/lib/stock-colis';
 
 // § Gestion de stock (/admin/stock/nouveaux) : fait avancer des colis stock
 // (enStock=true) tout juste arrivés au Hub depuis "nouveau_colis" vers
@@ -9,12 +10,12 @@ import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-
 // admin qui joue le rôle de "prise en charge" pour le pipeline stock, avant
 // leur regroupement en Bon de Préparation (/admin/stock/prets).
 //
-// C'est également ici que le stock réel (Produit.quantiteRecue) est
-// décrémenté (décision produit du 2026-08-10) : dès que l'admin marque ces
-// colis "prêts pour la préparation", la quantité est réservée, avant même
-// leur regroupement en Bon de Préparation. Tout-ou-rien : si le stock réel
-// d'un produit est insuffisant pour couvrir la somme des quantités demandées
-// par cette sélection, rien n'est décrémenté ni fait avancer.
+// C'est également ici que le stock réel est réservé (décision produit du
+// 2026-08-10) : sur la variante quand le produit suit ses variantes, sur le
+// produit sinon (lib/stock-colis.ts). Tout-ou-rien : un colis sans produit
+// (ou sans variante) rattaché, ou un stock insuffisant, et rien n'est
+// décrémenté ni fait avancer — un colis "stock" ne quitte jamais l'entrepôt
+// sans avoir été compté.
 export async function POST(request: NextRequest) {
   try {
     const session = await requireUser(['admin']);
@@ -27,46 +28,33 @@ export async function POST(request: NextRequest) {
 
     const colis = await prisma.commande.findMany({
       where: { id: { in: ids }, enStock: true, statut: 'nouveau_colis' },
+      select: {
+        id: true,
+        codeSuivi: true,
+        quantite: true,
+        produitId: true,
+        varianteId: true,
+        produit: { select: { nom: true, variantesActivees: true } },
+      },
     });
     if (colis.length !== ids.length) {
       throw new ApiError(400, "Un ou plusieurs colis sélectionnés ne sont plus éligibles (déjà pris en charge ou hors stock)");
     }
 
-    // Un même produit peut être demandé par plusieurs colis de la sélection —
-    // on décrémente la somme en une seule opération atomique par produit
-    // plutôt que colis par colis.
-    const besoinsParProduit = new Map<string, number>();
-    for (const c of colis) {
-      if (!c.produitId) continue;
-      besoinsParProduit.set(c.produitId, (besoinsParProduit.get(c.produitId) ?? 0) + c.quantite);
-    }
-
     await prisma.$transaction(async (tx) => {
-      for (const [produitId, quantiteNecessaire] of besoinsParProduit) {
-        const resultat = await tx.produit.updateMany({
-          where: { id: produitId, quantiteRecue: { gte: quantiteNecessaire } },
-          data: { quantiteRecue: { decrement: quantiteNecessaire } },
-        });
-        if (resultat.count === 0) {
-          const produit = await tx.produit.findUnique({ where: { id: produitId } });
-          throw new ApiError(409, `Stock réel insuffisant pour « ${produit?.nom ?? produitId} » (besoin : ${quantiteNecessaire})`);
-        }
-      }
-
-      if (besoinsParProduit.size > 0) {
-        await tx.historiqueProduit.createMany({
-          data: Array.from(besoinsParProduit.entries()).map(([produitId, quantite]) => ({
-            produitId,
-            texte: `${quantite} retiré(s) — passage en préparation`,
-            utilisateurId: session.sub,
-          })),
-        });
-      }
-
-      await tx.commande.updateMany({
-        where: { id: { in: ids } },
+      // Garde check-then-act : le statut est re-vérifié dans l'écriture même.
+      // Si un autre agent a fait avancer l'un de ces colis entre la lecture et
+      // ici, on annule tout plutôt que de réserver son stock une seconde fois.
+      const avances = await tx.commande.updateMany({
+        where: { id: { in: ids }, enStock: true, statut: 'nouveau_colis' },
         data: { statut: 'pret_pour_preparation' },
       });
+      if (avances.count !== ids.length) {
+        throw new ApiError(409, 'Un ou plusieurs colis viennent d’être pris en charge par quelqu’un d’autre — rechargez la liste');
+      }
+
+      await reserverStockColis(tx, colis, session.sub);
+
       await tx.historiqueStatutCommande.createMany({
         data: colis.map((c) => ({
           commandeId: c.id,

@@ -16,6 +16,7 @@ import {
   MessageSquarePlus,
   Sparkles,
   Trash2,
+  PackagePlus,
 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost, apiDelete } from '@/lib/api-client';
 import type { Commande, Marchandise } from '@/lib/types';
@@ -24,6 +25,7 @@ import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
 import { ColisInfoModal } from '@/components/admin/ColisInfoModal';
 import { ProduitSelect } from '@/components/ProduitSelect';
+import { colisReintegrable } from '@/lib/stock-quantites';
 import { ChampVille } from '@/components/form/ChampVille';
 import { ActionsMenuPanel, actionsMenuItemClass, actionsMenuItemDangerClass } from '@/components/ActionsMenuPanel';
 
@@ -37,6 +39,7 @@ type ActionKey =
   | 'prix'
   | 'remboursement'
   | 'commentaire'
+  | 'reintegrer'
   | 'supprimer';
 
 const ACTIONS: { key: ActionKey; label: string; icon: typeof Info }[] = [
@@ -67,6 +70,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
   const [adresse, setAdresse] = useState(commande.adresse);
   const [produitDescription, setProduitDescription] = useState(commande.produitDescription ?? '');
   const [produitId, setProduitId] = useState(commande.produitId ?? '');
+  const [varianteId, setVarianteId] = useState(commande.varianteId ?? '');
   const [marchandiseId, setMarchandiseId] = useState(commande.marchandiseId ?? '');
   const [marchandises, setMarchandises] = useState<Marchandise[]>([]);
   const [prixAuto, setPrixAuto] = useState(false);
@@ -184,6 +188,17 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
         >
           <FileText className="h-4 w-4" /> Imprimer E-Ticket
         </button>
+        {colisReintegrable(commande) && (
+          <button
+            onClick={() => {
+              setOpen(false);
+              setModal('reintegrer');
+            }}
+            className={actionsMenuItemClass}
+          >
+            <PackagePlus className="h-4 w-4" /> Réintégrer au stock
+          </button>
+        )}
         {commande.statut === 'nouveau_colis' && (
           <>
             <div className="my-1 border-t border-black/10 dark:border-white/10" />
@@ -349,7 +364,10 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
                 checked={enStockModif}
                 onChange={(e) => {
                   setEnStockModif(e.target.checked);
-                  if (!e.target.checked) setProduitId('');
+                  if (!e.target.checked) {
+                    setProduitId('');
+                    setVarianteId('');
+                  }
                 }}
               />
               En stock (entrepôt)
@@ -360,9 +378,11 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
                 <ProduitSelect
                   marchandId={commande.marchandId}
                   value={produitId}
-                  onSelect={(produit) => {
+                  varianteId={varianteId}
+                  onSelect={(produit, variante) => {
                     setProduitId(produit?.id ?? '');
-                    if (produit) setProduitDescription(produit.nom);
+                    setVarianteId(variante?.id ?? '');
+                    if (produit) setProduitDescription(variante ? `${produit.nom} — ${variante.nom}` : produit.nom);
                   }}
                 />
                 <span className="text-xs opacity-50">Recherche par nom ou référence — pré-remplit la description</span>
@@ -388,6 +408,7 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
                     marchandiseId: marchandiseId || null,
                     produitDescription,
                     produitId: produitId || null,
+                    varianteId: varianteId || null,
                     quantite: Number(quantite) || 1,
                     montantCod,
                     colisARemplacerCode,
@@ -516,6 +537,41 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
               onClick={() => run(() => apiPatch(`/api/commandes/${commande.id}/paiement`, { etatPaiement: 'rembourse' }))}
             >
               Confirmer
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {modal === 'reintegrer' && (
+        <Modal title={`Réintégrer au stock — ${commande.codeSuivi}`} onClose={closeAll}>
+          <p className="text-sm">
+            Remettre {commande.quantite} unité(s) de{' '}
+            <span className="font-medium">
+              {commande.produit?.nom ?? commande.produitDescription ?? 'ce produit'}
+              {commande.variante ? ` — ${commande.variante.nom}` : ''}
+            </span>{' '}
+            en entrepôt. À faire seulement une fois la marchandise physiquement revenue sur l&apos;étagère : l&apos;action
+            est tracée à votre nom et ne peut pas être refaite.
+          </p>
+          <input
+            className="input-basic"
+            placeholder="Motif (facultatif) — ex. colis refusé, emballage intact"
+            value={texte}
+            onChange={(e) => setTexte(e.target.value)}
+          />
+          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button className="btn-outline" onClick={closeAll} disabled={busy}>
+              Annuler
+            </button>
+            <button
+              className="btn-primary"
+              disabled={busy}
+              onClick={() =>
+                run(() => apiPost(`/api/commandes/${commande.id}/reintegrer-stock`, { motif: texte.trim() || undefined }))
+              }
+            >
+              Réintégrer
             </button>
           </div>
         </Modal>

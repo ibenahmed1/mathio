@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { PackagePlus, Trash2, Boxes, ImageOff, TriangleAlert } from 'lucide-react';
+import { PackagePlus, Trash2, Boxes, ImageOff, TriangleAlert, PackageOpen, Plus } from 'lucide-react';
 import { apiDelete, apiGet } from '@/lib/api-client';
 import type { Produit } from '@/lib/types';
 import { InventaireSubNav } from './InventaireSubNav';
 import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
+import { quantiteRecueTotale } from '@/lib/stock-quantites';
+import { AjouterVarianteModal, ReassortModal } from './ModalesStock';
 
 const OPTIONS_PAR_PAGE = [10, 25, 50, 100];
 
@@ -19,6 +21,7 @@ export default function InventairePage() {
   const [recherche, setRecherche] = useState('');
   const [parPage, setParPage] = useState(OPTIONS_PAR_PAGE[0]);
   const [page, setPage] = useState(1);
+  const [modale, setModale] = useState<{ type: 'reassort' | 'variante'; produit: Produit } | null>(null);
 
   async function load() {
     setChargement(true);
@@ -184,15 +187,39 @@ export default function InventairePage() {
                         </td>
                       </>
                     )}
-                    <td className="w-8">
+                    <td className="w-24">
                       {peutGerer && (
-                        <button
-                          onClick={() => handleDelete(p.id, p.nom)}
-                          className="btn-icon -m-2 text-red-600 hover:opacity-70"
-                          aria-label={`Supprimer ${p.nom}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setModale({ type: 'reassort', produit: p })}
+                            className="btn-icon -m-2 hover:opacity-70"
+                            aria-label={`Réassort de ${p.nom}`}
+                            title="Réassort : déclarer un nouvel envoi"
+                          >
+                            <PackageOpen className="h-4 w-4" />
+                          </button>
+                          {p.variantesActivees && (
+                            <button
+                              onClick={() => setModale({ type: 'variante', produit: p })}
+                              className="btn-icon -m-2 hover:opacity-70"
+                              aria-label={`Ajouter une variante à ${p.nom}`}
+                              title="Ajouter une variante"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          )}
+                          {/* Un produit déjà réceptionné ne se supprime plus
+                              (historique d'entrepôt, cf. DELETE /api/produits/[id]). */}
+                          {p.statutReception !== 'recu' && quantiteRecueTotale(p) === 0 && (
+                            <button
+                              onClick={() => handleDelete(p.id, p.nom)}
+                              className="btn-icon -m-2 text-red-600 hover:opacity-70"
+                              aria-label={`Supprimer ${p.nom}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -222,6 +249,13 @@ export default function InventairePage() {
           </table>
         </div>
       </div>
+
+      {modale?.type === 'reassort' && (
+        <ReassortModal produit={modale.produit} onClose={() => setModale(null)} onDone={load} />
+      )}
+      {modale?.type === 'variante' && (
+        <AjouterVarianteModal produit={modale.produit} onClose={() => setModale(null)} onDone={load} />
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm opacity-70">
         <span>

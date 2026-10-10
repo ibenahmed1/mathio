@@ -20,20 +20,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(400, 'Marquez le produit comme « Reçu » avant de retirer une quantité');
     }
 
-    const resultat = await prisma.produitVariante.updateMany({
-      where: { id, quantiteRecue: { gte: quantite } },
-      data: { quantiteRecue: { decrement: quantite } },
-    });
-    if (resultat.count === 0) {
-      throw new ApiError(409, 'Quantité reçue insuffisante pour ce retrait');
-    }
+    // Mouvement et trace dans la même transaction : un compteur modifié sans
+    // sa ligne d'historique serait un écart que personne ne peut expliquer.
+    await prisma.$transaction(async (tx) => {
+      const resultat = await tx.produitVariante.updateMany({
+        where: { id, quantiteRecue: { gte: quantite } },
+        data: { quantiteRecue: { decrement: quantite } },
+      });
+      if (resultat.count === 0) {
+        throw new ApiError(409, 'Quantité reçue insuffisante pour ce retrait');
+      }
 
-    await prisma.historiqueProduit.create({
-      data: {
-        produitId: variante.produitId,
-        texte: `${quantite}, ${variante.nom} a été retiré`,
-        utilisateurId: session.sub,
-      },
+      await tx.historiqueProduit.create({
+        data: {
+          produitId: variante.produitId,
+          texte: `${quantite}, ${variante.nom} a été retiré`,
+          utilisateurId: session.sub,
+        },
+      });
     });
 
     const varianteMiseAJour = await prisma.produitVariante.findUnique({ where: { id } });

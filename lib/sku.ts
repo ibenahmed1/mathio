@@ -11,3 +11,17 @@ export function genererReferenceProduit(): string {
   }
   return `PRD-${suffixe}`;
 }
+
+// SKU proposé pour une variante : SKU du produit suivi du nom de la variante,
+// en majuscules sans accents (« Rouge foncé » → PRD-XXXX-ROUGE-FONCE). Simple
+// proposition, comme genererReferenceProduit : le marchand peut la modifier.
+export function referenceVariante(referenceProduit: string, nomVariante: string): string {
+  const slug = nomVariante
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug ? `${referenceProduit}-${slug}` : '';
+}

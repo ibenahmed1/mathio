@@ -11,6 +11,11 @@ export interface Commande {
   produitDescription: string | null;
   marchandiseId: string | null;
   produitId: string | null;
+  // § Gestion de stock : variante consommée (produit à variantes) et
+  // mouvements de stock du colis (lib/stock-colis.ts).
+  varianteId: string | null;
+  stockReserveLe: string | null;
+  stockReintegreLe: string | null;
   quantite: number;
   notes: string | null;
   colisARemplacerId: string | null;
@@ -87,6 +92,7 @@ export interface Commande {
   ramassage?: { ramasseur?: { nomComplet: string } | null } | null;
   marchandise?: { id: string; nom: string; prix: string } | null;
   produit?: { id: string; nom: string; reference: string; photoUrl: string | null } | null;
+  variante?: { id: string; nom: string; reference: string } | null;
   colisARemplacer?: { id: string; codeSuivi: string } | null;
   hubActuel?: { id: string; nom: string; ville: string } | null;
   // § Intégration Shopify : présent quand le colis vient d'une commande Shopify.

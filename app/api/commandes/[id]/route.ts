@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
+import { verifierUniteStock } from '@/lib/stock-colis';
+import { stockColisVerrouille } from '@/lib/stock-quantites';
 
 const ROLES_LECTURE_COMMANDE = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur'] as const;
 
@@ -21,6 +23,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         ramassage: { include: { ramasseur: { select: { nomComplet: true } } } },
         marchandise: { select: { id: true, nom: true, prix: true } },
         produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },
+        variante: { select: { id: true, nom: true, reference: true } },
         colisARemplacer: { select: { id: true, codeSuivi: true } },
         hubActuel: { select: { id: true, nom: true, ville: true } },
       },
@@ -128,16 +131,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     // Produit du stock : réassignable, toujours vérifié dans le périmètre du
-    // marchand propriétaire du colis (même garde que marchandiseId ci-dessus).
+    // marchand propriétaire du colis (même garde que marchandiseId ci-dessus),
+    // avec sa variante quand le produit en a (lib/stock-colis.ts).
     if (body.produitId !== undefined) {
       if (body.produitId === null || body.produitId === '') {
         data.produitId = null;
+        data.varianteId = null;
       } else {
-        const produit = await prisma.produit.findUnique({ where: { id: body.produitId } });
-        if (!produit || produit.marchandId !== commande.marchandId) {
-          throw new ApiError(400, 'produitId invalide pour ce marchand');
-        }
-        data.produitId = produit.id;
+        const unite = await verifierUniteStock(
+          commande.marchandId,
+          body.produitId,
+          typeof body.varianteId === 'string' && body.varianteId ? body.varianteId : null
+        );
+        data.produitId = unite.produitId;
+        data.varianteId = unite.varianteId;
+      }
+    }
+
+    // Une fois le stock du colis réservé, ce qui fixe la quantité réservée ne
+    // bouge plus : l'écart ne serait rendu nulle part. Pour corriger, il faut
+    // d'abord réintégrer le stock (colis non livré), comme pour un retour.
+    if (stockColisVerrouille(commande)) {
+      const change =
+        ('produitId' in data && data.produitId !== commande.produitId) ||
+        ('varianteId' in data && data.varianteId !== commande.varianteId) ||
+        ('quantite' in data && data.quantite !== commande.quantite) ||
+        ('enStock' in data && data.enStock !== commande.enStock);
+      if (change) {
+        throw new ApiError(
+          409,
+          'Le stock de ce colis est déjà réservé : produit, variante, quantité et « En stock » ne sont plus modifiables.'
+        );
       }
     }
 

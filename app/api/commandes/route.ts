@@ -4,6 +4,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { checkBlacklist } from '@/lib/blacklist';
 import { nextCodeSuivi } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { verifierUniteStock } from '@/lib/stock-colis';
 import { buildCommandesWhere } from '@/lib/commandes-filters';
 import { chargerReferentielRoutage } from '@/lib/hub-envoi';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
           livreur: { select: { id: true, nomComplet: true } },
           marchandise: { select: { id: true, nom: true, prix: true } },
           produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },
+          variante: { select: { id: true, nom: true, reference: true } },
           colisARemplacer: { select: { id: true, codeSuivi: true } },
           hubActuel: { select: { id: true, nom: true, ville: true } },
           // Tags « Shopify » / « YouCan » de la liste (§ intégrations boutique).
@@ -106,18 +108,25 @@ export async function POST(request: NextRequest) {
       if (!produitDescription) produitDescription = marchandise.nom;
     }
 
-    // Produit du stock (autocomplétion "Produit du stock") : optionnel, mais
-    // s'il est fourni il doit appartenir au même marchand — même garde que
-    // marchandiseId ci-dessus. Permet à ColisInfoModal d'afficher la vraie
-    // photo du produit (cf. Commande.produitId dans le schéma).
+    // Produit du stock (autocomplétion "Produit du stock") : il doit appartenir
+    // au même marchand — même garde que marchandiseId ci-dessus — et désigner
+    // sa variante quand le produit en a (lib/stock-colis.ts). Obligatoire pour
+    // un colis "stock" : c'est lui qui dit quoi décrémenter au passage en
+    // préparation.
+    const enStock = Boolean(body.enStock);
     let produitId: string | null = null;
+    let varianteId: string | null = null;
     if (typeof body.produitId === 'string' && body.produitId) {
-      const produit = await prisma.produit.findUnique({ where: { id: body.produitId } });
-      if (!produit || produit.marchandId !== marchandId) {
-        throw new ApiError(400, 'produitId invalide pour ce marchand');
-      }
-      produitId = produit.id;
-      if (!produitDescription) produitDescription = produit.nom;
+      const unite = await verifierUniteStock(
+        marchandId,
+        body.produitId,
+        typeof body.varianteId === 'string' && body.varianteId ? body.varianteId : null
+      );
+      produitId = unite.produitId;
+      varianteId = unite.varianteId;
+      if (!produitDescription) produitDescription = unite.libelle;
+    } else if (enStock) {
+      throw new ApiError(400, 'Choisissez le produit du stock à expédier');
     }
 
     // Prix (montant COD) : saisi manuellement, ou par défaut prix de la
@@ -177,6 +186,7 @@ export async function POST(request: NextRequest) {
           produitDescription,
           marchandiseId,
           produitId,
+          varianteId,
           quantite,
           poidsKg: body.poidsKg != null ? Number(body.poidsKg) : null,
           montantCod,
@@ -185,7 +195,7 @@ export async function POST(request: NextRequest) {
           ouvrir: Boolean(body.ouvrir),
           fragile: Boolean(body.fragile),
           aRemplacer: Boolean(body.aRemplacer),
-          enStock: Boolean(body.enStock),
+          enStock,
           statut: 'nouveau_colis',
           aRisque,
           source: 'manuel',

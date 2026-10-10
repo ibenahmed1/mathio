@@ -10,10 +10,26 @@ import { AutoPrint } from '@/components/AutoPrint';
 type BonAvecDetails = Prisma.BonDePreparationGetPayload<{
   include: {
     marchand: true;
-    commandes: { include: { produit: { select: { nom: true; reference: true; rayonnage: true } } } };
+    commandes: {
+      include: {
+        produit: { select: { nom: true; reference: true; rayonnage: true } };
+        variante: { select: { nom: true; reference: true; rayonnage: true } };
+      };
+    };
   };
 }>;
 type Commande = BonAvecDetails['commandes'][number];
+
+// Ce que le préparateur doit prendre sur l'étagère : la variante quand le
+// colis en désigne une (son SKU et son emplacement propres), le produit sinon.
+function article(c: Commande) {
+  const nomProduit = c.produit?.nom ?? c.produitDescription ?? '—';
+  return {
+    nom: c.variante ? `${nomProduit} — ${c.variante.nom}` : nomProduit,
+    reference: c.variante?.reference ?? c.produit?.reference ?? null,
+    rayonnage: c.variante?.rayonnage ?? c.produit?.rayonnage ?? null,
+  };
+}
 
 // Fiche de préparation (PDF/impression) — dédiée à la personne qui prépare
 // physiquement le stock en entrepôt, donc volontairement dépourvue des
@@ -52,7 +68,10 @@ export default async function BonDePreparationDetailPage({
       marchand: true,
       commandes: {
         orderBy: { codeSuivi: 'asc' },
-        include: { produit: { select: { nom: true, reference: true, rayonnage: true } } },
+        include: {
+          produit: { select: { nom: true, reference: true, rayonnage: true } },
+          variante: { select: { nom: true, reference: true, rayonnage: true } },
+        },
       },
     },
   });
@@ -136,9 +155,9 @@ function VueFichePreparation({ bon, societe }: { bon: BonAvecDetails; societe: P
             <tr key={c.id} className="border-b border-black/20">
               <td className="py-2 pr-3 align-top">{i + 1}</td>
               <td className="py-2 pr-3 align-top font-mono">{c.codeSuivi}</td>
-              <td className="py-2 pr-3 align-top">{c.produit?.nom ?? c.produitDescription ?? '—'}</td>
-              <td className="py-2 pr-3 align-top font-mono text-xs">{c.produit?.reference ?? '—'}</td>
-              <td className="py-2 pr-3 align-top">{c.produit?.rayonnage ?? '—'}</td>
+              <td className="py-2 pr-3 align-top">{article(c).nom}</td>
+              <td className="py-2 pr-3 align-top font-mono text-xs">{article(c).reference ?? '—'}</td>
+              <td className="py-2 pr-3 align-top">{article(c).rayonnage ?? '—'}</td>
               <td className="py-2 pr-3 text-right align-top">{c.quantite}</td>
               <td className="py-2 align-top">{c.ville}</td>
             </tr>
@@ -191,13 +210,13 @@ function VueETickets({ bon }: { bon: BonAvecDetails }) {
                 <span className="opacity-60">Magasin :</span> {bon.marchand.nomBoutique}
               </p>
               <p>
-                <span className="opacity-60">Produit :</span> {c.produit?.nom ?? c.produitDescription ?? '—'}
+                <span className="opacity-60">Produit :</span> {article(c).nom}
               </p>
               <p>
-                <span className="opacity-60">Référence :</span> {c.produit?.reference ?? '—'}
+                <span className="opacity-60">Référence :</span> {article(c).reference ?? '—'}
               </p>
               <p>
-                <span className="opacity-60">Rayonnage :</span> {c.produit?.rayonnage ?? '—'}
+                <span className="opacity-60">Rayonnage :</span> {article(c).rayonnage ?? '—'}
               </p>
               <p>
                 <span className="opacity-60">Quantité :</span> {c.quantite}
@@ -293,11 +312,11 @@ function Etiquette({
         {/* Produit — utile à l'entrepôt lors de l'emballage */}
         <div className="border-b-2 border-black pb-1 text-[11px] leading-tight">
           <p>
-            PRODUIT : {c.produit?.nom ?? c.produitDescription ?? '—'} · Qté {c.quantite}
+            PRODUIT : {article(c).nom} · Qté {c.quantite}
           </p>
           <p>
-            Réf. {c.produit?.reference ?? '—'}
-            {c.produit?.rayonnage && <> · Rayonnage {c.produit.rayonnage}</>}
+            Réf. {article(c).reference ?? '—'}
+            {article(c).rayonnage && <> · Rayonnage {article(c).rayonnage}</>}
           </p>
         </div>
 

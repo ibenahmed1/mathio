@@ -16,7 +16,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         validateur: { select: { nomComplet: true } },
         commandes: {
           orderBy: { codeSuivi: 'asc' },
-          include: { produit: { select: { id: true, nom: true, reference: true, photoUrl: true } } },
+          include: {
+            produit: { select: { id: true, nom: true, reference: true, photoUrl: true } },
+            variante: { select: { id: true, nom: true, reference: true } },
+          },
         },
       },
     });
