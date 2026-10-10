@@ -1,5 +1,8 @@
 # Déploiement du 7 octobre 2026 — réseau en 11 hubs et référentiel des villes
 
+> **⚠️ NOTE REMPLACÉE — ne plus suivre.** Ce déploiement n'a pas été fait ; il est entièrement repris,
+> avec les décisions prises depuis, dans `DEPLOIEMENT_2026-10-10.md`.
+
 Branche : `dev`, commit « Regrouper le réseau en 11 hubs régionaux et arrêter le référentiel des villes ».
 
 Ce déploiement porte deux décisions de l'exploitation :

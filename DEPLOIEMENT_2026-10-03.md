@@ -1,5 +1,8 @@
 # Déploiement du 3 octobre 2026 — transporteurs et référentiel des villes
 
+> **⚠️ NOTE REMPLACÉE — ne plus suivre.** Ce déploiement n'a pas été fait ; il est entièrement repris,
+> avec les décisions prises depuis, dans `DEPLOIEMENT_2026-10-10.md`.
+
 Branche : `feat/notifications`. Les commits suivants sont à déployer ensemble :
 
 - `246ecce` — remise par API pour Meta Livraison et EST Livraison, rattachement des villes Power et Colivraison ;

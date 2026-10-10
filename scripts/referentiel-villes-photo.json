@@ -1,0 +1,5579 @@
+{
+  "prise": "2026-10-10",
+  "hubs": [
+    {
+      "nom": "Hub Agadir",
+      "ville": "Agadir",
+      "isCentral": false,
+      "prestataire": "Leader Colis"
+    },
+    {
+      "nom": "Hub Béni Mellal",
+      "ville": "Beni Mellal",
+      "isCentral": false,
+      "prestataire": "Colivraison"
+    },
+    {
+      "nom": "Hub Casablanca",
+      "ville": "Casablanca",
+      "isCentral": false,
+      "prestataire": "Power Delivery"
+    },
+    {
+      "nom": "Hub Central",
+      "ville": "Casablanca",
+      "isCentral": true,
+      "prestataire": null
+    },
+    {
+      "nom": "Hub El Jadida",
+      "ville": "El Jadida",
+      "isCentral": false,
+      "prestataire": "Power Delivery"
+    },
+    {
+      "nom": "Hub Fès",
+      "ville": "Fès",
+      "isCentral": false,
+      "prestataire": "Meta Livraison"
+    },
+    {
+      "nom": "Hub Guelmim",
+      "ville": "Guelmim",
+      "isCentral": false,
+      "prestataire": "Sahario Express"
+    },
+    {
+      "nom": "Hub Marrakech",
+      "ville": "Marrakech",
+      "isCentral": false,
+      "prestataire": "Power Delivery"
+    },
+    {
+      "nom": "Hub Oujda",
+      "ville": "Oujda",
+      "isCentral": false,
+      "prestataire": "EST Livraison"
+    },
+    {
+      "nom": "Hub Rabat",
+      "ville": "Rabat",
+      "isCentral": false,
+      "prestataire": "Power Delivery"
+    },
+    {
+      "nom": "Hub Safi",
+      "ville": "Safi",
+      "isCentral": false,
+      "prestataire": "Power Delivery"
+    },
+    {
+      "nom": "Hub Tanger",
+      "ville": "Tanger",
+      "isCentral": false,
+      "prestataire": "Amir Livraison"
+    }
+  ],
+  "villes": [
+    {
+      "hub": "Hub Agadir",
+      "nom": "Agadir",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "aglou",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Ain seddaq",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Ait aamira",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Ait aiaaza",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "ait jraj",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "ait mlloul",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Anza",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Anzi",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Aourir",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "awlouz",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Azrou-agadir",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Belfaa",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Biougra",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "bounaiman",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Chtouka ait baha",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "dchaira",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Douar sulad",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Drarga",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "El koudia",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "El nouwayle",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "idawsmlal",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "iferkane",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "imi wadar",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "inzgane",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Lagfifat",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Lakhnafif",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "lakhssas",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Leqliaa",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "lhamri",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "lmaader",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "massa",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Oulad aarfa",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "oulad berhil",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Oulad Teima",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "rasmouka",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "said Qrarma",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Sebt el guerdane",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Sidi bibi",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Sidi moussa",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "sihll",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Tadart anza",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "tafraout",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "taghazout",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "taliwin",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "tamait",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "TAMGHART",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Tamraght",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Tarast",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Taroudant",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Temsia",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "tighmi",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Tikiwine",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Tiznit",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "wijan",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Agadir",
+      "nom": "Zaouiat",
+      "tarifs": [
+        {
+          "prestataire": "Leader Colis",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Adouz",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Afourar",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Agdz",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Aghbala",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Aghbalou",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Aghbalou nserdan",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Agouim",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Aguelmouss",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ahl Merbaa",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ahl Souss",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ain Kaicher",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ain-Elghazi Ali",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ait Attab",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ait Ben Haddou",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ait Ishaq",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ait Tislit",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ait zineb-oarz",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Alnif",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Amerzgane",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Aoufous",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Aourir BM",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Arfoud",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Azilal",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Bejaad",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Beni Ayat",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Beni Mellal",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 18,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Bin El Ouidane",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Bir Mezoui",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Boudnib",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Boujniba",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Boukaroune",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Boulanouare",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Boumalne Dades",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Boumia",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Bzou",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Dar Oulad Zidouh",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "El Bazzaza",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "El Borj",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "El Gara",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "El jorf",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "El Kbab",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "El Ksiba",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Er-rich",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Errachidia",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Faryata",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Fkih Ben Salah",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Foum El Anser",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Foum Jamaa",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Foum Oudi",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Foum Zaouia",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Goulmima",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Guisser",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Had Bouhsousen",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Had Boumoussa",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Had Lbradia",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Harboulia",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Hattane",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Idelsane",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ighrem Laalam",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ighrem nougdal",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ikhoureba",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Itzer",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Kahf Nssoure",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Kasba Tadla",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Kelaat magouna",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Khenifra",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Khouribga",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "La Zone Industrielle (BM)",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Laajana",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Laayayta-Oulad Gnaou",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Lagfaf",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Lahlalma",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Lahri",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Lakhlalta",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Lakraza Ouled Said",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "LKHORBA",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Merzouga",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "MFASSIS",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Mghila",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Mhamid ghizlane",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Midelt",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Moulay Bouaza",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Mrirt",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Nkoub",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouad Laabid",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouaouizeght",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouaoumana",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouarzazate",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oued Zem",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Ali Loued",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Ayad Souk Sebt",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Drid",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Mbarek",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Moussa",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Mrah",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Remich",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Said Louad",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Yaich",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Youssef",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Oulad Zmam",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "OULED ABDOUN",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouled Driss",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouled Rguiaa",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Ouzoud",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Riad Salam",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Rissani",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Sidi Aissa Ben Ali",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Sidi Jaber",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Skoura",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Souk Sebt Ouled Nemma",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tabounte",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tachrafat",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Taghbalte-ouarz",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tagounite",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tagzert",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tamegroute",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tanant",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tanougha",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tarmigt",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tazarine",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Taznakht",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tifrit",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tighasaline",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Timadline",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Timoulilte",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tinejdad",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tinghir",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tinzouline",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Tizi Nisly",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Toundoute",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Wawla",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Zagora",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Zaida",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Zaouiat Cheikh",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Béni Mellal",
+      "nom": "Zouair",
+      "tarifs": [
+        {
+          "prestataire": "Colivraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Ain Harrouda",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Ben ahmed",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Berrechid",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Bouskoura",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Casablanca",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Dar bouazza",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Deroua",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Lahraouyine",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "MEDIOUNA",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "Mohammedia",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "NOUACER",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "SETTAT",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "TAMARIS",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Casablanca",
+      "nom": "TIT MELIL",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "Azemmour",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "Bir jdid",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "El Jadida",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "Had soualem",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "Khemis des zemamra",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "MOULAY ABDELLAH",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "SIDI BENNOUR",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "Sidi bouzid",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "SIDI RAHAL",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "SIDI SMAIL",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub El Jadida",
+      "nom": "TNIN CHTOUKA - EL JADIDA",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "AGOURAY",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "AIN AICHA",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Ain chkaf",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ain karma",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ain louh",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ain madyouna",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ain sbiit",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Ain Taoujdate",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Ain-Cheggag",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ait amour ouali",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ait ya3zem",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ait yahya oualla",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Azrou (Ifrane)",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "AZZABA",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "bab jbah",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "BAB MARZOKA",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "BHALIL",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "BIR TAMTAM",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "bni ftaah",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "bni wlid",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "BODRAHM",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "bouadil",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "boufakrane",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "bouhouda",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Boulmane",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "BOURED",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "dar oum soultan",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Dayet Aoua",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "dchiyar",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "dkhissa",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "EL MENZEL",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Fès",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 18,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "firma pla",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "fricha",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "galaz",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "guigo",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "hajriya",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "hjar ma3dan",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ifrane",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ikaouen",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "imghden",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Imouzzer du Kandar",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "imouzzer marmocha",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "jbarna",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "JERI",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "jm3at hodran",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "kanssara",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "kantina",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "kantra asqar",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "kantra jdida",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Kariat Ba Mohamed",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "khemisset",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "khlalfa",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "lhaj 9adour",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "lhajeb",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "lma3ziz",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "M'haya",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "machkour",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "marnissa",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "marzou9a",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "mazraoua",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "mejjat",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "meknes",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "missour",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "moulay driss zerhouni",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "MOULAY YAACOUB",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "mrouj",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ouad jdida",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "oualmas",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Ouislane",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Oulad Tayeb",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "outat el haj",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Rafsay",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ragouba",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "RAS TBOUDA",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "REBAT LKHIR",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "rmila",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "romani",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sabt bou9lal",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sahla botahr",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "SEBA AYOUN",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sebt jehjouh",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "SEFROU",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sidi 3edi",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sidi 3llal lbahraoui kamoni",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sidi ali",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "SIDI ALI BOUREKBA",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "SIDI HRAZEM",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Sidi Kacem",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sidi mkhfi",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Sidi Slimane",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "sidi slimen moul lkifan",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Sidi Yahya El Gharb",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "TADDART GUERCI",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "tandit",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "taounat aqchour",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "Taounate",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "tedass",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "thar souk",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "tifelt",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "timahdit",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "timzgana",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "tissa",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "TIZIOUSLI",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "wlad azam",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "wlad daouad",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "wrtzag",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "ZAOUIAT BOUGRINE",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Fès",
+      "nom": "zrizer",
+      "tarifs": [
+        {
+          "prestataire": "Meta Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Assa",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Bouizakarn",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Boujdour",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Dakhla",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "El ouatia",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Es semara",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Guelmim",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Laayoune",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Laayoune porte",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Marsa - laayoun",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Mirleft",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Sidi ifni",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Tantan",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Tarfaya",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Guelmim",
+      "nom": "Zag",
+      "tarifs": [
+        {
+          "prestataire": "Sahario Express",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "aghmat",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "ait aourir",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Aït ourir",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Amizmiz",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "ASNI",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Ben Guerir",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Chichaoua",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "choueiter",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Demnat",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Echemmaia",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "El attaouia",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "El Kelaâ des Sraghna",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "el ouidane",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Imintanoute",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "kettara",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "lalla takerkoust",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "lamnabeha",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "loudaya",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Marrakech",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Mzouda",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "mzoudia",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Ouaht sidi brahim",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "ouargui",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "ouled hassoune",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "ouled yahya",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Ourika",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "ras elain erhamna",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "sid mokhtar",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Sidi bou othmane",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "sidi ghiat",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Sidi moussa - Marrakech",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Sidi zouine",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "skhour rehamna",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "souihla",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "tahannaout",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "Tamallalt",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "TAMANSOURT",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "tamelelt",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "tameslouhte",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "tassaout",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "tassoultante",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Marrakech",
+      "nom": "YOUSSOUFIA",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ahfir",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ain Bni Mathar",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ajdir",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ajdir-Taza",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Aklim",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Aknoul",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Al Hoceima Ville",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Azlaf",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ben Tayeb",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Beni Bouayach",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Beni Chiker",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Beni Drar (Bnidrar)",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Berkane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bni Ansar",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bni Boufrah",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bni Hadifa",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bni Oukil",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bni Tajjit",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bodinar",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bouanane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bouarfa",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bouarg",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Bouhlou",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Boukidaren",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Cafimour",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Dar El Kebdani",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Debdo",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Driouch",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "El Aroui",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Farkhana",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Fezouane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Figuig",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Gueldamane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Guenfouda",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Guercif Ville",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Had Msila",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Had Oulad Zbair",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ihdaden",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Imzouren",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Issaguen",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Jerada",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Kariat Arekmane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Kassita",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Lamriss",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Layoun Charkia",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Madagh",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Midar",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Nador Ville",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Oued Amlil",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Oujda",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 15,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Ras El Ma (Cap de l'Eau)",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Saidia",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Selouane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "SIDI YAHYA OUJDA",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Taddart",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Tafersit",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Tahla",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Talsint",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Tandrara",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Taourirt",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Targuist",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Taza Ville",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Temsamane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Tizi Ouzli",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Zaio",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Oujda",
+      "nom": "Zeghanghane",
+      "tarifs": [
+        {
+          "prestataire": "EST Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Ain aouda",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Ain atiq",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Allal tazi",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Bassatine elmnzah",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Benslimane",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Bouknadel",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Bouznika",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "El arjat",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "El Mansouria",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Harhoura",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Kenitra",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Khenichet",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Lalla Mimouna",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Mechra Bel Ksiri",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Mers el kheir",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Moulay Bousselham",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Rabat",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Sale",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Sale el jadida",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Sidi taibi",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Sidi Yahya Zaïr",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Skhirate",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Souk El Arbaa Du Gharb",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Tamssna",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "Temara",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Rabat",
+      "nom": "TEMSENA",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Safi",
+      "nom": "Essaouira",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Safi",
+      "nom": "Jemaa shaim",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Safi",
+      "nom": "SAFI",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Safi",
+      "nom": "SEBT GZOULA",
+      "tarifs": [
+        {
+          "prestataire": "Power Delivery",
+          "livraison": 23,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Ain Drij",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "AOUAMA",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Asilah",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Bab Berred",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Bab Taza",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Cabo Negro",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Chaoune",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Chefchaouen",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "DALIA",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "El Jebha",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Fnideq",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Jorf El Melha",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 35,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Ksar El Kebir",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Ksar El Seghir",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Larache",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "M'diq",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Martil",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Oued Laou",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Ouezzane",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Tanger",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 20,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Tétouan",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 25,
+          "retour": 0
+        }
+      ]
+    },
+    {
+      "hub": "Hub Tanger",
+      "nom": "Zoumi",
+      "tarifs": [
+        {
+          "prestataire": "Amir Livraison",
+          "livraison": 30,
+          "retour": 0
+        }
+      ]
+    }
+  ]
+}
