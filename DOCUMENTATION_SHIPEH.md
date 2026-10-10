@@ -450,7 +450,8 @@ Chaque ligne refusée porte son **`index`** dans le tableau que vous avez envoy�
 
 ## 8. `GET /v1/villes`
 
-Liste les villes que nous desservons, avec pour chacune son code et le tarif de livraison.
+Liste les villes que nous desservons — environ 500, partout au Maroc — avec pour chacune son
+code et notre tarif de livraison.
 
 Cet appel ne fait que lire. Il demande le droit `villes:lecture` sur votre clé. Si votre clé ne l'a pas, l'appel renvoie `403 scope_manquant` : demandez-nous de l'ajouter.
 
@@ -464,11 +465,11 @@ Authorization: Bearer mtk_live_…
 ```json
 {
   "devise": "MAD",
-  "nombre": 457,
+  "nombre": 500,
   "villes": [
-    { "nom": "Agadir", "code": "0b6f6c2e-…", "tarifLivraison": 15 },
-    { "nom": "Casablanca", "code": "5d0e9a41-…", "tarifLivraison": 15 },
-    { "nom": "Fès", "code": "9c27b7d3-…", "tarifLivraison": 18 }
+    { "nom": "Agadir", "code": "0b6f6c2e-…", "tarifLivraison": 35 },
+    { "nom": "Casablanca", "code": "5d0e9a41-…", "tarifLivraison": 35 },
+    { "nom": "Fès", "code": "9c27b7d3-…", "tarifLivraison": 35 }
   ]
 }
 ```
@@ -477,7 +478,7 @@ Authorization: Bearer mtk_live_…
 |---|---|
 | `nom` | Le nom de la ville dans notre référentiel. **Utilisez-le tel quel dans le champ `ville` de `POST /v1/colis`** : la ville est alors reconnue à coup sûr |
 | `code` | L'identifiant de la ville chez nous. Il ne change pas, même si le nom est corrigé : utilisez-le pour rapprocher vos villes des nôtres |
-| `tarifLivraison` | Tarif de livraison, en dirhams. `null` s'il n'est pas encore fixé : ce n'est pas un tarif gratuit |
+| `tarifLivraison` | Tarif de livraison Mathio, en dirhams. **Prix unique de 35 dh pour toutes les villes**, Casablanca comprise |
 
 Les villes sont triées par ordre alphabétique. La liste change rarement : la mettre en cache quelques heures suffit.
 

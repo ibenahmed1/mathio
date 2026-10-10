@@ -1,11 +1,14 @@
 import { chargerVillesRoutage, villesRetenues, type VilleAvecHub } from '@/lib/hub-envoi';
+import { TARIF_LIVRAISON_MATHIO } from '@/lib/tarif-mathio';
 
 // § GET /api/v1/villes — les villes que nous desservons, avec le tarif de
-// livraison du transporteur qui livre chacune.
+// livraison Mathio.
 //
-// CE QUI SORT, décidé par l'exploitation le 05/10/2026 : le nom, le code
-// (Ville.id) et le tarif de livraison du transporteur (TarifPrestataireVille).
-// Rien d'autre — ni le nom du transporteur, ni l'agence, ni le tarif de retour.
+// CE QUI SORT : le nom, le code (Ville.id) et le tarif de livraison MATHIO,
+// prix unique pour tout le Maroc (TARIF_LIVRAISON_MATHIO, lib/tarif-mathio.ts —
+// décision du 10/10/2026, qui remplace celle du 05/10 où sortait le tarif du
+// transporteur). Rien d'autre — ni le transporteur, ni l'agence, ni son prix,
+// ni le tarif de retour.
 //
 // UNE VILLE PAR CLÉ DE ROUTAGE. Le nom et le code renvoyés sont ceux de la
 // ville que retient le routage (§ villesRetenues, lib/hub-envoi.ts) : le nom
@@ -20,15 +23,15 @@ const PREFIXE_HUB_DE_TEST = 'Hub Audit Tournée';
 export interface VilleCatalogue {
   nom: string;
   code: string;
-  // Tarif de livraison du transporteur, en dirhams ; null s'il n'est pas connu.
-  tarifLivraison: number | null;
+  // Tarif de livraison Mathio, en dirhams.
+  tarifLivraison: number;
 }
 
 // Partie pure, testable sans base.
 export function construireCatalogue(villes: VilleAvecHub[]): VilleCatalogue[] {
   const destinations = villes.filter((v) => !v.hub.nom.startsWith(PREFIXE_HUB_DE_TEST));
   return [...villesRetenues(destinations).values()]
-    .map((v): VilleCatalogue => ({ nom: v.nom, code: v.id, tarifLivraison: v.tarif }))
+    .map((v): VilleCatalogue => ({ nom: v.nom, code: v.id, tarifLivraison: TARIF_LIVRAISON_MATHIO }))
     .sort((a, b) => a.nom.localeCompare(b.nom, 'fr', { sensitivity: 'base' }));
 }
 

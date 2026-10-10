@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import type { VilleAvecHub } from '../hub-envoi';
 import { construireCatalogue } from '../plateforme-villes';
+import { TARIF_LIVRAISON_MATHIO } from '../tarif-mathio';
 
 const ville = (id: string, nom: string, hub: string, tarif: number | null = 25): VilleAvecHub => ({
   id,
@@ -19,11 +20,12 @@ const VILLES = [
   ville('v5', 'VilleAuditTournee', 'Hub Audit Tournée'),
 ];
 
-test('chaque ville sort avec son nom, son code et le tarif de livraison du transporteur', () => {
+test('chaque ville sort avec son nom, son code et le tarif Mathio, 35 dh partout', () => {
+  assert.equal(TARIF_LIVRAISON_MATHIO, 35);
   assert.deepEqual(construireCatalogue(VILLES), [
-    { nom: 'Boulmane', code: 'v2', tarifLivraison: 25 },
-    { nom: 'Fès', code: 'v4', tarifLivraison: 18 },
-    { nom: 'Oujda (Centre & Quartiers)', code: 'v1', tarifLivraison: 15 },
+    { nom: 'Boulmane', code: 'v2', tarifLivraison: 35 },
+    { nom: 'Fès', code: 'v4', tarifLivraison: 35 },
+    { nom: 'Oujda (Centre & Quartiers)', code: 'v1', tarifLivraison: 35 },
   ]);
 });
 
@@ -44,8 +46,9 @@ test('ni transporteur ni agence ne sortent', () => {
   }
 });
 
-test('un tarif inconnu sort à null, jamais à 0', () => {
-  assert.deepEqual(construireCatalogue([ville('v9', 'Tinghir', 'Agence Ouarzazate', null)]), [
-    { nom: 'Tinghir', code: 'v9', tarifLivraison: null },
-  ]);
+test('le tarif du transporteur ne sort jamais, même quand il est inconnu', () => {
+  // Prix d'achat : 15 dh ici. Le catalogue n'expose que le prix Mathio.
+  const [v] = construireCatalogue([ville('v9', 'Tinghir', 'Agence Ouarzazate', null), ville('v1', 'Oujda', 'Agence Oujda', 15)]);
+  assert.equal(v.tarifLivraison, TARIF_LIVRAISON_MATHIO);
+  assert.ok(!JSON.stringify(construireCatalogue([ville('v1', 'Oujda', 'Agence Oujda', 15)])).includes('15'));
 });
