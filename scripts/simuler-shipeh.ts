@@ -541,6 +541,47 @@ async function main() {
     if (variantes.length !== 2) throw new Error(`${variantes.length} variante(s) renvoyée(s) au lieu de 2`);
   });
 
+  const VARIANTES_SANS_SKU = [
+    { nom: 'Noir / S', reference: `${PREFIXE}-VESTE-NOIR-S`, quantiteEnCours: 4 },
+    { nom: 'Noir / M', reference: `${PREFIXE}-VESTE-NOIR-M`, quantiteEnCours: 5 },
+  ];
+
+  await verifie('produit à variantes sans SKU propre : 201, une référence interne lui est attribuée', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, {
+      idExterneMarchand: mA.idExterne,
+      nom: `${PREFIXE} Veste`,
+      variantesActivees: true,
+      variantes: VARIANTES_SANS_SKU,
+    });
+    attendu(r, 201);
+    if (!/^PRD-[A-Z0-9]{8}$/.test(String(r.json?.reference))) throw new Error(`référence « ${String(r.json?.reference)} »`);
+  });
+
+  await verifie('son rejeu est reconnu à ses variantes : 200, rien d’ajouté', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, {
+      idExterneMarchand: mA.idExterne,
+      nom: `${PREFIXE} Veste`,
+      variantesActivees: true,
+      variantes: VARIANTES_SANS_SKU.map((v) => ({ ...v, quantiteEnCours: 99 })),
+    });
+    attendu(r, 200);
+    if (r.json?.issue !== 'deja_existant') throw new Error(`issue « ${String(r.json?.issue)} »`);
+    const n = await prisma.produit.count({ where: { nom: `${PREFIXE} Veste` } });
+    if (n !== 1) throw new Error(`${n} produits « Veste » au lieu d’un seul`);
+    const v = await prisma.produitVariante.findFirst({ where: { reference: VARIANTES_SANS_SKU[0].reference } });
+    if (v?.quantiteEnCours !== 4) throw new Error(`quantité ${v?.quantiteEnCours} au lieu de 4`);
+  });
+
+  await verifie('une variante d’un produit existant mêlée à une nouvelle : 409, pas un rejeu', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, {
+      idExterneMarchand: mA.idExterne,
+      nom: `${PREFIXE} Veste bis`,
+      variantesActivees: true,
+      variantes: [VARIANTES_SANS_SKU[0], { nom: 'Noir / L', reference: `${PREFIXE}-VESTE-NOIR-L`, quantiteEnCours: 1 }],
+    });
+    attendu(r, 409, 'sku_deja_utilise');
+  });
+
   await verifie('un SKU déjà porté par un autre produit du marchand : 409', async () => {
     const r = await appel('POST', '/api/v1/produits', a.cleLive, {
       ...produitSimple(mA.idExterne, `${PREFIXE}-AUTRE`),

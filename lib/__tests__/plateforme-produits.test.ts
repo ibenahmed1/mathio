@@ -69,6 +69,15 @@ test('une quantité est un entier positif ou nul', () => {
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: [variante] }), 'quantite_invalide');
 });
 
+test('avec variantes, le SKU du produit est facultatif ; sans variantes, il est requis', () => {
+  const sansSku = analyserEntreeProduit({ ...A_VARIANTES, reference: undefined });
+  assert.equal(sansSku.reference, null);
+  assert.equal(sansSku.variantes.length, 2);
+  assert.equal(analyserEntreeProduit({ ...A_VARIANTES, reference: '  ' }).reference, null);
+  // Un produit simple n'a que ce SKU pour unité de stock.
+  assert.equal(codeRefus({ ...SIMPLE, reference: undefined }), 'champ_requis');
+});
+
 test('variantes activées sans variante : refus', () => {
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: [] }), 'champ_requis');
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: undefined }), 'champ_requis');

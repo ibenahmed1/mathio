@@ -223,7 +223,7 @@ Même format que l'ajout d'un produit depuis l'espace marchand, avec en plus le 
 |---|---|
 | `idExterneMarchand` | **Requis.** L'`idExterne` d'un marchand déjà synchronisé. Le stock est propre à chaque marchand |
 | `nom` | **Requis.** Nom du produit |
-| `reference` | **Requis.** **Votre SKU** du produit. Nous n'en générons pas |
+| `reference` | **Votre SKU** du produit. **Requis pour un produit sans variantes** (c'est son unité de stock). **Facultatif pour un produit à variantes** : à défaut, nous lui attribuons une référence interne (`PRD-…`), renvoyée dans la réponse, dont vous n'avez pas à vous servir |
 | `quantiteEnCours` | **Requis pour un produit sans variantes.** Quantité envoyée à notre entrepôt, entier positif ou nul |
 | `note` | Texte libre |
 | `photoUrl` | URL `https://…`, ou image embarquée `data:image/…;base64,…` de 2 Mo au plus |
@@ -251,6 +251,12 @@ Un produit sans variantes :
 ```json
 { "idExterneMarchand": "SHIPEH-1", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20 }
 ```
+
+**Produit à variantes : ce sont les SKU des variantes qui comptent.** Chaque variante est une
+unité de stock à part, et c'est son SKU que vos colis citent (§6). Le SKU du produit ne sert qu'à
+regrouper ses variantes : envoyez-y votre identifiant de produit parent si vous en avez un. Un
+préfixe commun (`ROBE-ETE`, `ROBE-ETE-ROUGE-M`) est lisible mais pas exigé : nous rattachons les
+variantes à leur produit parce qu'elles arrivent dans le même appel, jamais en comparant les SKU.
 
 **Un SKU désigne une seule chose chez un marchand** : le SKU d'un produit et ceux de ses variantes
 ne peuvent servir à rien d'autre dans son stock. Les SKU sont comparés **sans tenir compte des
@@ -281,7 +287,7 @@ entrepôt a **réceptionné et compté** la marchandise. D'ici là, le produit e
 | Code | `issue` | |
 |---|---|---|
 | `201` | `cree` | Le produit est créé dans le stock du marchand |
-| `200` | `deja_existant` | Ce SKU de produit est déjà déclaré pour ce marchand. **Aucune écriture**, et **la quantité n'est pas ajoutée une seconde fois** |
+| `200` | `deja_existant` | Ce produit est déjà déclaré pour ce marchand : reconnu à son SKU, ou, sans SKU de produit, parce que **toutes** ses variantes existent déjà sous un même produit. **Aucune écriture**, et **la quantité n'est pas ajoutée une seconde fois** |
 
 ### Refus spécifiques
 
@@ -493,7 +499,7 @@ timeout, une coupure réseau, ou une redélivrance de votre file de messages.
 | Endpoint | Clé d'idempotence | Rejeu |
 |---|---|---|
 | `/v1/marchands` | `idExterne` | `200` + `issue: "deja_synchronise"` |
-| `/v1/produits` | `reference` (SKU du produit) + marchand | `200` + `issue: "deja_existant"`, **sans ajouter la quantité** |
+| `/v1/produits` | SKU du produit (à défaut, SKU de ses variantes) + marchand | `200` + `issue: "deja_existant"`, **sans ajouter la quantité** |
 | `/v1/colis` | `reference` | `200` + `issue: "deja_ingere"` + **le code de suivi d'origine** |
 
 Deux conséquences pour votre code :
