@@ -3,7 +3,11 @@ import { test } from 'node:test';
 
 import {
   colisReintegrable,
+  estStockBas,
+  franchitSeuilStockBas,
   lignesEffectives,
+  SEUIL_STOCK_BAS,
+  unitesStockBas,
   regrouperBesoinsStock,
   stockColisVerrouille,
   type ColisBesoin,
@@ -135,4 +139,40 @@ test('unités : un produit à variantes ne se choisit que par ses variantes, sto
 test('SKU de variante proposé : majuscules, sans accents ni ponctuation', () => {
   assert.equal(referenceVariante('PRD-AB12', 'Rouge foncé / XL'), 'PRD-AB12-ROUGE-FONCE-XL');
   assert.equal(referenceVariante('PRD-AB12', '  '), '');
+});
+
+test('stock bas : le seuil est 10, inclus', () => {
+  assert.equal(SEUIL_STOCK_BAS, 10);
+  assert.equal(estStockBas(10), true);
+  assert.equal(estStockBas(11), false);
+  assert.equal(estStockBas(0), true);
+});
+
+test('stock bas : l’alerte part au franchissement, une seule fois', () => {
+  assert.equal(franchitSeuilStockBas(15, 8), true);
+  assert.equal(franchitSeuilStockBas(11, 10), true);
+  // Déjà sous le seuil : plus d'alerte à chaque sortie.
+  assert.equal(franchitSeuilStockBas(8, 6), false);
+  assert.equal(franchitSeuilStockBas(10, 9), false);
+  // Toujours au-dessus.
+  assert.equal(franchitSeuilStockBas(30, 11), false);
+});
+
+test('stock bas : par unité de stock, et jamais sur un produit pas encore reçu', () => {
+  const simple = { statutReception: 'recu', variantesActivees: false, quantiteRecue: 4, variantes: [] };
+  assert.deepEqual(unitesStockBas(simple), [{ nom: null, quantiteRecue: 4 }]);
+  assert.deepEqual(unitesStockBas({ ...simple, quantiteRecue: 40 }), []);
+  // Créé à 0 par une plateforme, en attente de livraison : rien à signaler.
+  assert.deepEqual(unitesStockBas({ ...simple, statutReception: 'pas_encore_recu', quantiteRecue: 0 }), []);
+  const robe = {
+    statutReception: 'recu',
+    variantesActivees: true,
+    quantiteRecue: 0,
+    variantes: [
+      { nom: 'Rouge', quantiteRecue: 3 },
+      { nom: 'Bleu', quantiteRecue: 25 },
+    ],
+  };
+  // Le compteur du produit à variantes (toujours 0) ne compte pas : seules ses variantes.
+  assert.deepEqual(unitesStockBas(robe), [{ nom: 'Rouge', quantiteRecue: 3 }]);
 });

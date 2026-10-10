@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { ApiError } from '@/lib/api-utils';
-import { lignesEffectives, regrouperBesoinsStock, type ColisBesoin } from '@/lib/stock-quantites';
+import { lignesEffectives, regrouperBesoinsStock, type ColisBesoin, type MouvementStockSortant } from '@/lib/stock-quantites';
 
 // § Gestion de stock — le stock vu depuis un colis.
 //
@@ -72,17 +72,21 @@ export async function verifierUniteStock(
 // en tout ou rien : un seul colis sans unité de stock, ou une seule unité
 // insuffisante, et rien n'est décrémenté. À appeler dans la transaction qui
 // fait avancer les colis — le contenu est relu dans cette transaction.
+//
+// Renvoie les mouvements écrits (stock avant/après par unité), que
+// l'appelant passe à notifierStockBas() APRÈS la transaction.
 export async function reserverStockColis(
   tx: Prisma.TransactionClient,
   colisDemandes: { id: string }[],
   utilisateurId: string
-) {
+): Promise<MouvementStockSortant[]> {
   const colis = await chargerContenuStock(tx, colisDemandes.map((c) => c.id));
   const { besoins, anomalies } = regrouperBesoinsStock(colis);
   if (anomalies.length > 0) {
     throw new ApiError(409, `Stock non identifié — ${anomalies.join(' ; ')}`);
   }
 
+  const mouvements: MouvementStockSortant[] = [];
   for (const { unite, quantite, produitId } of besoins.values()) {
     const resultat =
       unite.type === 'variante'
@@ -97,6 +101,8 @@ export async function reserverStockColis(
     if (resultat.count === 0) {
       throw new ApiError(409, `Stock réel insuffisant pour « ${await libelleUnite(tx, unite.type, unite.id, produitId)} » (besoin : ${quantite})`);
     }
+    const apres = await stockReelUnite(tx, unite.type, unite.id);
+    mouvements.push({ unite, produitId, avant: apres + quantite, apres });
   }
 
   if (besoins.size > 0) {
@@ -111,6 +117,16 @@ export async function reserverStockColis(
   }
 
   await tx.commande.updateMany({ where: { id: { in: colis.map((c) => c.id) } }, data: { stockReserveLe: new Date() } });
+  return mouvements;
+}
+
+// Stock réel validé d'une unité, lu dans la transaction en cours.
+export async function stockReelUnite(db: Db, type: 'produit' | 'variante', id: string): Promise<number> {
+  const unite =
+    type === 'variante'
+      ? await db.produitVariante.findUnique({ where: { id }, select: { quantiteRecue: true } })
+      : await db.produit.findUnique({ where: { id }, select: { quantiteRecue: true } });
+  return unite?.quantiteRecue ?? 0;
 }
 
 // Remet sur l'étagère le stock d'un colis non livré. La garde sur

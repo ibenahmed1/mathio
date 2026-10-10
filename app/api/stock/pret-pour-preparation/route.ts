@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
 import { reserverStockColis } from '@/lib/stock-colis';
+import { notifierStockBas } from '@/lib/notifications';
 
 // § Gestion de stock (/admin/stock/nouveaux) : fait avancer des colis stock
 // (enStock=true) tout juste arrivés au Hub depuis "nouveau_colis" vers
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
       throw new ApiError(400, "Un ou plusieurs colis sélectionnés ne sont plus éligibles (déjà pris en charge ou hors stock)");
     }
 
-    await prisma.$transaction(async (tx) => {
+    const mouvements = await prisma.$transaction(async (tx) => {
       // Garde check-then-act : le statut est re-vérifié dans l'écriture même.
       // Si un autre agent a fait avancer l'un de ces colis entre la lecture et
       // ici, on annule tout plutôt que de réserver son stock une seconde fois.
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
         throw new ApiError(409, 'Un ou plusieurs colis viennent d’être pris en charge par quelqu’un d’autre — rechargez la liste');
       }
 
-      await reserverStockColis(tx, colis, session.sub);
+      const sortis = await reserverStockColis(tx, colis, session.sub);
 
       await tx.historiqueStatutCommande.createMany({
         data: colis.map((c) => ({
@@ -57,8 +58,12 @@ export async function POST(request: NextRequest) {
           utilisateurId: session.sub,
         })),
       });
+      return sortis;
     });
 
+    // Sans `sauf` : l'alerte dit l'état du stock, pas l'action — l'agent qui
+    // vient de vider l'étagère doit la recevoir aussi.
+    await notifierStockBas(mouvements);
     return NextResponse.json({ updated: colis.length });
   } catch (error) {
     return jsonError(error);

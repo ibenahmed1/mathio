@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Boxes, ImageOff, Pencil } from 'lucide-react';
+import { AlertTriangle, Boxes, ImageOff, Pencil } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { Produit } from '@/lib/types';
+import { estStockBas, SEUIL_STOCK_BAS, unitesStockBas } from '@/lib/stock-quantites';
 
 const OPTIONS_PAR_PAGE = [10, 25, 50, 100];
 
@@ -14,6 +15,13 @@ const OPTIONS_PAR_PAGE = [10, 25, 50, 100];
 function StatutBadgeProduit({ statut }: { statut: Produit['statutReception'] }) {
   if (statut === 'recu') return <span className="badge bg-green-500/15 text-green-700 dark:text-green-400">Reçu</span>;
   return <span className="badge badge-neutral">Pas encore reçu</span>;
+}
+
+// Stock bas (§ lib/stock-quantites.ts) : seulement sur un produit reçu — un
+// produit en attente de livraison n'a pas encore de stock à surveiller.
+const CLASSE_STOCK_BAS = 'font-semibold text-amber-700 dark:text-amber-400';
+function bas(produit: Produit, quantiteRecue: number): boolean {
+  return produit.statutReception === 'recu' && estStockBas(quantiteRecue);
 }
 
 // Vue admin transverse (tous marchands) de l'inventaire produit : chaque
@@ -27,6 +35,7 @@ export default function AdminStockInventairePage() {
   const [recherche, setRecherche] = useState('');
   const [parPage, setParPage] = useState(OPTIONS_PAR_PAGE[0]);
   const [page, setPage] = useState(1);
+  const [stockBasSeul, setStockBasSeul] = useState(false);
 
   async function load() {
     setChargement(true);
@@ -48,12 +57,15 @@ export default function AdminStockInventairePage() {
     const qMagasin = rechercheMagasin.trim().toLowerCase();
     const q = recherche.trim().toLowerCase();
     return produits.filter((p) => {
+      if (stockBasSeul && unitesStockBas(p).length === 0) return false;
       if (qMagasin && !(p.marchand?.nomBoutique ?? '').toLowerCase().includes(qMagasin)) return false;
       if (!q) return true;
       if (p.nom.toLowerCase().includes(q) || p.reference.toLowerCase().includes(q)) return true;
       return (p.variantes ?? []).some((v) => v.nom.toLowerCase().includes(q) || v.reference.toLowerCase().includes(q));
     });
-  }, [produits, rechercheMagasin, recherche]);
+  }, [produits, rechercheMagasin, recherche, stockBasSeul]);
+
+  const nombreStockBas = useMemo(() => produits.filter((p) => unitesStockBas(p).length > 0).length, [produits]);
 
   const totalPages = Math.max(1, Math.ceil(filtres.length / parPage));
   const pageCourante = Math.min(page, totalPages);
@@ -66,6 +78,21 @@ export default function AdminStockInventairePage() {
       <h1 className="page-title">Inventaire</h1>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+
+      {nombreStockBas > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setStockBasSeul((v) => !v);
+            setPage(1);
+          }}
+          className="flex w-fit items-center gap-2 rounded-lg bg-amber-500/15 px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-500/25 dark:text-amber-300"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          {nombreStockBas} produit{nombreStockBas > 1 ? 's' : ''} en stock bas (≤ {SEUIL_STOCK_BAS})
+          <span className="font-normal opacity-80">— {stockBasSeul ? 'tout afficher' : 'n’afficher qu’eux'}</span>
+        </button>
+      )}
 
       <input
         className="input-basic max-w-xs"
@@ -144,13 +171,13 @@ export default function AdminStockInventairePage() {
                       {lignes ? (
                         <div className="flex flex-col gap-1 py-1 text-xs">
                           {lignes.map((v) => (
-                            <span key={v.id}>
+                            <span key={v.id} className={bas(p, v.quantiteRecue) ? CLASSE_STOCK_BAS : undefined}>
                               <span className="font-semibold">{v.nom} :</span> {v.quantiteRecue} | {v.quantiteEnCours}
                             </span>
                           ))}
                         </div>
                       ) : (
-                        <span className="text-xs">
+                        <span className={`text-xs ${bas(p, p.quantiteRecue) ? CLASSE_STOCK_BAS : ''}`}>
                           {p.quantiteRecue} | {p.quantiteEnCours}
                         </span>
                       )}

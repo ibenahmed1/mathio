@@ -40,6 +40,44 @@ export function reliquatReception(produit: ProduitQuantites): number {
     : produit.quantiteEnCours;
 }
 
+// ─── Stock bas ──────────────────────────────────────────────────────────────
+//
+// Une unité de stock (produit simple, ou chaque variante) est « bas » quand
+// son stock réel validé tombe à SEUIL_STOCK_BAS ou en dessous : c'est le
+// moment de demander au marchand (ou à sa plateforme) de réapprovisionner.
+// Seuil unique décidé par l'exploitation le 10/10/2026.
+export const SEUIL_STOCK_BAS = 10;
+
+export function estStockBas(quantiteRecue: number): boolean {
+  return quantiteRecue <= SEUIL_STOCK_BAS;
+}
+
+// L'alerte part au FRANCHISSEMENT du seuil, pas à chaque mouvement sous le
+// seuil : 15 → 8 alerte, 8 → 6 n'alerte plus. Un réassort qui repasse
+// au-dessus réarme l'alerte pour la fois suivante.
+export function franchitSeuilStockBas(avant: number, apres: number): boolean {
+  return avant > SEUIL_STOCK_BAS && apres <= SEUIL_STOCK_BAS;
+}
+
+// Les unités d'un produit à signaler dans l'inventaire. Un produit que
+// l'entrepôt n'a pas encore reçu n'a pas de stock « bas » : il n'en a pas
+// encore — le signaler noierait les vraies alertes sous les produits en
+// attente de livraison (dont ceux créés à 0 par une plateforme).
+export function unitesStockBas(produit: {
+  statutReception: string;
+  variantesActivees: boolean;
+  quantiteRecue: number;
+  variantes?: { nom: string; quantiteRecue: number }[] | null;
+}): { nom: string | null; quantiteRecue: number }[] {
+  if (produit.statutReception !== 'recu') return [];
+  if (produit.variantesActivees) {
+    return (produit.variantes ?? [])
+      .filter((v) => estStockBas(v.quantiteRecue))
+      .map((v) => ({ nom: v.nom, quantiteRecue: v.quantiteRecue }));
+  }
+  return estStockBas(produit.quantiteRecue) ? [{ nom: null, quantiteRecue: produit.quantiteRecue }] : [];
+}
+
 // ─── Mouvements de stock d'un colis ────────────────────────────────────────
 //
 // Même raison d'être que ci-dessus : l'écran n'affiche l'action « Réintégrer
@@ -124,6 +162,16 @@ export function lignesEffectives(colis: ColisAvecLignes): LigneBesoin[] {
 }
 
 export type UniteStock = { type: 'produit' | 'variante'; id: string };
+
+// Un mouvement de stock SORTANT tel qu'il vient d'être écrit, avant/après lus
+// dans la même transaction : de quoi décider d'une alerte de stock bas sans
+// relire la base après coup (où un autre mouvement aurait pu passer).
+export interface MouvementStockSortant {
+  unite: UniteStock;
+  produitId: string;
+  avant: number;
+  apres: number;
+}
 
 // Regroupe les quantités demandées par unité de stock (produit simple ou
 // variante), toutes lignes de tous les colis confondues : deux colis — ou

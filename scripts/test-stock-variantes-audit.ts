@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { nextCodeSuivi } from '../lib/codes';
 import { reserverStockColis, reintegrerStockColis, verifierUniteStock } from '../lib/stock-colis';
 import { resoudreSku, skuDejaPris } from '../lib/stock-sku';
+import { notifierStockBas } from '../lib/notifications';
 
 // Audit local du stock par variante (§ Gestion de stock), sur la vraie base :
 // `npx tsx scripts/test-stock-variantes-audit.ts`. Exerce les fonctions que
@@ -15,7 +16,8 @@ import { resoudreSku, skuDejaPris } from '../lib/stock-sku';
 //     sans produit refusé, stock insuffisant refusé en tout ou rien ;
 //  5. réintégration : stock rendu une seule fois ;
 //  6. colis multi-produits (LigneColis) : chaque ligne puise dans son unité,
-//     et la réintégration rend chacune.
+//     et la réintégration rend chacune ;
+//  7. alerte stock bas : notifiée au franchissement de 10, une seule fois.
 // Toutes les données créées sont préfixées et supprimées en fin d'exécution.
 
 const PREFIXE = `AUDIT-VAR-${Date.now()}`;
@@ -60,6 +62,9 @@ async function main() {
   const rouge = robe.variantes.find((v) => v.nom === 'Rouge')!;
   const bleu = robe.variantes.find((v) => v.nom === 'Bleu')!;
   const colisIds: string[] = [];
+  const lampe = await prisma.produit.create({
+    data: { marchandId: marchand.id, nom: `${PREFIXE} Lampe`, reference: `${PREFIXE}-LAMPE`, statutReception: 'recu', quantiteRecue: 12 },
+  });
   const mug = await prisma.produit.create({
     data: { marchandId: marchand.id, nom: `${PREFIXE} Mug`, reference: `${PREFIXE}-MUG`, statutReception: 'recu', quantiteRecue: 10 },
   });
@@ -205,11 +210,28 @@ async function main() {
       assert.equal((await prisma.produitVariante.findUniqueOrThrow({ where: { id: bleu.id } })).quantiteRecue, bleuAvant);
       assert.equal((await prisma.produit.findUniqueOrThrow({ where: { id: mug.id } })).quantiteRecue, 10);
     });
+
+    console.log('7. Alerte stock bas');
+    const lien = `/admin/stock/inventaire/${lampe.id}`;
+    const alertes = () => prisma.notification.count({ where: { type: 'stock.bas', lien, utilisateurId: admin.id } });
+    await verifie('12 → 9 : l’admin reçoit une alerte stock bas', async () => {
+      const c = await creerColis({ quantite: 3, lignes: [{ produitId: lampe.id, libelle: 'Lampe', quantite: 3 }] });
+      const mouvements = await prisma.$transaction((tx) => reserverStockColis(tx, [c], admin.id));
+      assert.deepEqual(mouvements.map((m) => [m.avant, m.apres]), [[12, 9]]);
+      await notifierStockBas(mouvements);
+      assert.equal(await alertes(), 1);
+    });
+    await verifie('9 → 8 : déjà sous le seuil, pas de seconde alerte', async () => {
+      const c = await creerColis({ quantite: 1, lignes: [{ produitId: lampe.id, libelle: 'Lampe', quantite: 1 }] });
+      await notifierStockBas(await prisma.$transaction((tx) => reserverStockColis(tx, [c], admin.id)));
+      assert.equal(await alertes(), 1);
+    });
   } finally {
+    await prisma.notification.deleteMany({ where: { type: 'stock.bas', lien: `/admin/stock/inventaire/${lampe.id}` } });
     await prisma.commentaireCommande.deleteMany({ where: { commandeId: { in: colisIds } } });
     await prisma.historiqueStatutCommande.deleteMany({ where: { commandeId: { in: colisIds } } });
     await prisma.commande.deleteMany({ where: { id: { in: colisIds } } });
-    await prisma.produit.deleteMany({ where: { id: { in: [robe.id, mug.id] } } });
+    await prisma.produit.deleteMany({ where: { id: { in: [robe.id, mug.id, lampe.id] } } });
   }
 
   console.log(`\n${reussis} réussi(s), ${echoues} échoué(s)`);
