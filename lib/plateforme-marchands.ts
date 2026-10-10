@@ -2,14 +2,10 @@ import { Prisma } from '@/app/generated/prisma/client';
 import type { StatutMarchand, TypeCompteMarchand } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
 import {
-  INVITATION_TOKEN_TTL_MS,
-  generateResetToken,
-  hashSecretImpossible,
+  hashSecret,
   isValidEmail,
   normalizePhoneMaroc,
-  spaceOrigin,
 } from '@/lib/auth';
-import { sendPasswordResetEmail } from '@/lib/mailer';
 import { TYPES_COMPTE } from '@/lib/marchand-form-options';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 
@@ -30,12 +26,20 @@ import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth
 
 const RIB_REGEX = /^\d{24}$/;
 
+// bcrypt ne lit que les 72 premiers octets : au-delà, deux mots de passe
+// différents donneraient le même hash. On refuse plutôt que de tronquer en
+// silence.
+const MOT_DE_PASSE_OCTETS_MAX = 72;
+
 export interface EntreeMarchandExterne {
   idExterne: string;
   nomComplet: string;
   nomBoutique: string;
   telephone: string;
   email: string;
+  // Mot de passe EN CLAIR du marchand chez la plateforme, haché dès la
+  // création du compte et jamais conservé ni journalisé tel quel.
+  motDePasse: string;
   ville: string | null;
   adresse: string | null;
   rib: string | null;
@@ -65,10 +69,14 @@ function optionnel(corps: Record<string, unknown>, cle: string): string | null {
 //
 // Le jeu de champs REQUIS est volontairement plus court que celui de
 // l'auto-inscription (app/api/marchands/inscription) : une plateforme ne
-// détient ni photo du RIB, ni mot de passe choisi par le marchand. Exiger
-// l'un ou l'autre rendrait la synchronisation impossible, et exiger une
-// valeur bidon serait pire — on préfère une fiche incomplète, complétable
-// ensuite depuis le back-office, à une fiche fausse.
+// détient pas la photo du RIB, ni toujours le nom de la boutique. On préfère
+// une fiche incomplète, complétable ensuite depuis le back-office, à une
+// fiche fausse.
+//
+// L'email et le mot de passe sont REQUIS ensemble : ce sont les identifiants
+// du marchand chez la plateforme, et ils deviennent les siens chez nous
+// (décision de l'exploitation du 10/10/2026). Il se connecte donc avec le
+// même login et le même mot de passe des deux côtés.
 export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExterne {
   if (typeof corpsBrut !== 'object' || corpsBrut === null || Array.isArray(corpsBrut)) {
     throw new ErreurPlateforme(400, 'corps_invalide', 'Le corps de la requête doit être un objet JSON');
@@ -77,7 +85,9 @@ export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExtern
 
   const idExterne = requis(corps, 'idExterne');
   const nomComplet = requis(corps, 'nomComplet');
-  const nomBoutique = requis(corps, 'nomBoutique');
+  // `nom_boutique` n'est pas nullable en base : à défaut, la boutique porte le
+  // nom du marchand, corrigeable ensuite depuis le back-office.
+  const nomBoutique = optionnel(corps, 'nomBoutique') ?? nomComplet;
 
   const telephone = normalizePhoneMaroc(requis(corps, 'telephone'));
   if (!telephone) {
@@ -88,13 +98,31 @@ export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExtern
     );
   }
 
-  // Email REQUIS, contrairement au reste des coordonnées : c'est par lui que
-  // passe le lien « définir mon mot de passe », donc le seul chemin du
-  // marchand vers son espace. Un compte créé sans email serait un compte que
-  // personne ne peut ouvrir.
+  // Le login du marchand chez nous. Normalisé en minuscules : la colonne est
+  // UNIQUE, et la connexion le compare tel quel.
   const email = requis(corps, 'email').toLowerCase();
   if (!isValidEmail(email)) {
     throw new ErreurPlateforme(400, 'email_invalide', 'Adresse électronique invalide');
+  }
+
+  // Pris tel quel, sans `trim` : une espace peut faire partie d'un mot de
+  // passe. Notre politique de robustesse (getPasswordPolicyError) n'est PAS
+  // appliquée : le marchand a choisi ce mot de passe sous les règles de la
+  // plateforme, et le refuser ici bloquerait sa synchronisation pour une
+  // décision qui n'est pas la sienne.
+  const motDePasse = corps.motDePasse;
+  if (motDePasse === undefined || motDePasse === null || (typeof motDePasse === 'string' && motDePasse.trim() === '')) {
+    throw new ErreurPlateforme(400, 'champ_requis', 'Le champ « motDePasse » est requis');
+  }
+  if (typeof motDePasse !== 'string') {
+    throw new ErreurPlateforme(400, 'mot_de_passe_invalide', 'motDePasse doit être une chaîne de caractères');
+  }
+  if (Buffer.byteLength(motDePasse, 'utf8') > MOT_DE_PASSE_OCTETS_MAX) {
+    throw new ErreurPlateforme(
+      400,
+      'mot_de_passe_invalide',
+      `motDePasse ne doit pas dépasser ${MOT_DE_PASSE_OCTETS_MAX} octets`
+    );
   }
 
   const rib = optionnel(corps, 'rib');
@@ -117,6 +145,7 @@ export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExtern
     nomBoutique,
     telephone,
     email,
+    motDePasse,
     ville: optionnel(corps, 'ville'),
     adresse: optionnel(corps, 'adresse'),
     rib,
@@ -140,11 +169,12 @@ export interface ResultatSynchro {
   nomBoutique: string;
   statut: StatutMarchand;
   /**
-   * Faux quand aucun email n'est parti : SMTP non configuré, envoi en échec,
-   * ou environnement de test. Le compte existe quand même — un admin peut
-   * relancer une réinitialisation depuis /admin/utilisateurs.
+   * Vrai quand le compte a été CRÉÉ avec le mot de passe transmis. Faux sur
+   * `rattache` et `deja_synchronise` : le mot de passe d'un compte existant
+   * n'est jamais remplacé par une synchronisation — la plateforme sait ainsi
+   * que les identifiants qu'elle détient n'ouvrent pas forcément ce compte.
    */
-  invitationEnvoyee: boolean;
+  motDePasseDefini: boolean;
 }
 
 export async function synchroniserMarchand(
@@ -182,7 +212,7 @@ export async function synchroniserMarchand(
       marchandId: lienExistant.marchand.id,
       nomBoutique: lienExistant.marchand.nomBoutique,
       statut: lienExistant.marchand.statut,
-      invitationEnvoyee: false,
+      motDePasseDefini: false,
     };
   }
 
@@ -324,15 +354,16 @@ export async function synchroniserMarchand(
       marchandId: existant.marchand.id,
       nomBoutique: existant.marchand.nomBoutique,
       statut: existant.marchand.statut,
-      invitationEnvoyee: false,
+      // Le mot de passe transmis est ignoré : ce client avait déjà le sien
+      // chez nous, et une machine tierce n'a pas à le remplacer.
+      motDePasseDefini: false,
     };
   }
 
-  // 4. Création. Le compte naît sans mot de passe utilisable : la plateforme
-  // ne doit JAMAIS nous transmettre celui de son marchand, et nous n'avons
-  // pas à en inventer un. Seul le lien d'invitation ouvre le compte — même
-  // mécanique que l'invitation d'un membre à un pôle du Kanban.
-  const { token, tokenHash, expiresAt } = generateResetToken(INVITATION_TOKEN_TTL_MS);
+  // 4. Création, avec le mot de passe transmis par la plateforme : il est
+  // haché ici, et le marchand se connecte chez nous avec les mêmes
+  // identifiants que chez elle. Aucun lien d'invitation n'est donc préparé.
+  const motDePasseHash = await hashSecret(entree.motDePasse);
 
   // Les contrôles d'existence de l'étape 2 ne verrouillent rien : entre eux et
   // cette création, un appel concurrent — la même synchronisation redélivrée
@@ -349,14 +380,12 @@ export async function synchroniserMarchand(
         nomComplet: entree.nomComplet,
         telephone: entree.telephone,
         email: entree.email,
-        motDePasseHash: await hashSecretImpossible(),
+        motDePasseHash,
         role: 'marchand',
         // `activer` vient du SCOPE de la clé, pas de la charge utile : une
         // plateforme ne décide pas elle-même que son marchand est validé
         // (cf. marchands:creation vs marchands:creation_validee).
         actif: options.activer,
-        resetTokenHash: tokenHash,
-        resetTokenExpire: expiresAt,
       },
     });
 
@@ -405,37 +434,12 @@ export async function synchroniserMarchand(
   }
 
   const { marchand } = creation;
-  const invitationEnvoyee = await envoyerInvitation(contexte, entree.email, token);
-
   return {
     issue: 'cree',
     idExterne: entree.idExterne,
     marchandId: marchand.id,
     nomBoutique: marchand.nomBoutique,
     statut: marchand.statut,
-    invitationEnvoyee,
+    motDePasseDefini: true,
   };
-}
-
-// Le lien part par email et n'est JAMAIS renvoyé à la plateforme : quiconque
-// le détient peut choisir le mot de passe du compte. C'est une différence
-// assumée avec l'invitation Kanban, qui affiche le lien à l'écran quand
-// l'envoi échoue — là, le destinataire du repli est notre propre admin ; ici
-// ce serait un tiers.
-//
-// `spaceOrigin('marchand')` et non l'origine de la requête : l'appel arrive
-// sur l'hôte de l'API machine, où aucune session ne peut être posée. Le lien
-// doit ramener sur le domaine marchand, seul endroit où son cookie existera.
-async function envoyerInvitation(
-  contexte: ContextePlateforme,
-  email: string,
-  token: string
-): Promise<boolean> {
-  // Pas d'email en bac à sable : les identifiants de test sont souvent des
-  // adresses inventées ou, pire, celles de vrais marchands recopiées. Le
-  // compte est créé, le jeton existe, seul l'envoi est court-circuité.
-  if (contexte.environnement === 'test') return false;
-
-  const lien = `${spaceOrigin('marchand')}/reinitialiser-mot-de-passe?token=${token}`;
-  return sendPasswordResetEmail(email, lien);
 }

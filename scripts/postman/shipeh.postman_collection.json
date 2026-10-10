@@ -361,7 +361,6 @@
                   "const j = pm.response.json();",
                   "pm.test('issue = cree', () => pm.expect(j.issue).to.eql('cree'));",
                   "pm.test('une clé TEST ne crée jamais un compte actif', () => pm.expect(j.statut).to.eql('en_attente_validation'));",
-                  "pm.test('aucun email envoyé en bac à sable', () => pm.expect(j.invitationEnvoyee).to.be.false);",
                   "pm.collectionVariables.set('marchandTestId', j.marchandId);"
                 ],
                 "type": "text/javascript",
@@ -383,7 +382,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"ville\": \"Casablanca\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\",\n  \"ville\": \"Casablanca\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -433,7 +432,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"ville\": \"Casablanca\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\",\n  \"ville\": \"Casablanca\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -481,7 +480,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-L{{passage}}\",\n  \"nomComplet\": \"Sara Alaoui\",\n  \"nomBoutique\": \"Sara Cosmetics {{passage}}\",\n  \"telephone\": \"066{{passage}}\",\n  \"email\": \"l{{passage}}@mathio.test\",\n  \"ville\": \"Marrakech\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-L{{passage}}\",\n  \"nomComplet\": \"Sara Alaoui\",\n  \"nomBoutique\": \"Sara Cosmetics {{passage}}\",\n  \"telephone\": \"066{{passage}}\",\n  \"email\": \"l{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\",\n  \"ville\": \"Marrakech\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -526,7 +525,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-C{{passage}}\",\n  \"nomComplet\": \"Hicham Bennani\",\n  \"nomBoutique\": \"Bennani Electro {{passage}}\",\n  \"telephone\": \"067{{passage}}\",\n  \"email\": \"c{{passage}}@mathio.test\",\n\n  \"ville\": \"Tanger\",\n  \"adresse\": \"45 avenue Mohammed VI\",\n  \"cin\": \"AB123456\",\n  \"rib\": \"123456789012345678901234\",\n  \"nomBanque\": \"CIH\",\n  \"registreCommerce\": \"RC-2026-4471\",\n  \"siteWeb\": \"https://bennani-electro.ma\",\n  \"villeRamassage\": \"Tanger\",\n  \"raisonSociale\": \"Bennani Electro SARL\",\n  \"iceRc\": \"002458796000071\",\n  \"typeCompte\": \"entreprise\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-C{{passage}}\",\n  \"nomComplet\": \"Hicham Bennani\",\n  \"nomBoutique\": \"Bennani Electro {{passage}}\",\n  \"telephone\": \"067{{passage}}\",\n  \"email\": \"c{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\",\n\n  \"ville\": \"Tanger\",\n  \"adresse\": \"45 avenue Mohammed VI\",\n  \"cin\": \"AB123456\",\n  \"rib\": \"123456789012345678901234\",\n  \"nomBanque\": \"CIH\",\n  \"registreCommerce\": \"RC-2026-4471\",\n  \"siteWeb\": \"https://bennani-electro.ma\",\n  \"villeRamassage\": \"Tanger\",\n  \"raisonSociale\": \"Bennani Electro SARL\",\n  \"iceRc\": \"002458796000071\",\n  \"typeCompte\": \"entreprise\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -622,7 +621,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Tel\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0900990099\",\n  \"email\": \"x{{passage}}@mathio.test\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Tel\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0900990099\",\n  \"email\": \"x{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -669,7 +668,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Mail\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000901\",\n  \"email\": \"pas-un-email\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Mail\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000901\",\n  \"email\": \"pas-un-email\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -714,7 +713,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Rib\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000902\",\n  \"email\": \"rib{{passage}}@mathio.test\",\n  \"rib\": \"123\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Rib\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000902\",\n  \"email\": \"rib{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\",\n  \"rib\": \"123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -759,7 +758,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Type\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000903\",\n  \"email\": \"typ{{passage}}@mathio.test\",\n  \"typeCompte\": \"grossiste\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-X{{passage}}\",\n  \"nomComplet\": \"Test Type\",\n  \"nomBoutique\": \"Test\",\n  \"telephone\": \"0612000903\",\n  \"email\": \"typ{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\",\n  \"typeCompte\": \"grossiste\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -1654,7 +1653,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-REPRISE-{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-REPRISE-{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store {{passage}}\",\n  \"telephone\": \"061{{passage}}\",\n  \"email\": \"t{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",
@@ -1703,7 +1702,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store LIVE {{passage}}\",\n  \"telephone\": \"062{{passage}}\",\n  \"email\": \"live-t{{passage}}@mathio.test\"\n}"
+              "raw": "{\n  \"idExterne\": \"SHIPEH-T{{passage}}\",\n  \"nomComplet\": \"Ahmed Benali\",\n  \"nomBoutique\": \"Atlas Store LIVE {{passage}}\",\n  \"telephone\": \"062{{passage}}\",\n  \"email\": \"live-t{{passage}}@mathio.test\",\n  \"motDePasse\": \"mdp-shipeh-{{passage}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/marchands",

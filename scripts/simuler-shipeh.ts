@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { HOST_API } from '../lib/spaces';
+import { verifySecret } from '../lib/auth';
 import { genererCle } from '../lib/plateforme-cles';
 import { TAILLE_MAX_LOT } from '../lib/plateforme-colis';
 import { purgerDonneesTest } from '../lib/plateformes';
@@ -269,6 +270,7 @@ function marchand(suffixe: string, telephone: string) {
     nomBoutique: `${PREFIXE} Boutique ${suffixe}`,
     telephone,
     email: `sim-shipeh-${suffixe.toLowerCase()}@mathio.test`,
+    motDePasse: `mdp shipeh ${suffixe}`,
     ville: 'Casablanca',
     adresse: '12 rue de la Simulation',
   };
@@ -362,6 +364,29 @@ async function main() {
     if (n !== 1) throw new Error(`${n} marchands portent ce nom au lieu d'un seul`);
   });
 
+  await verifie('login email + mot de passe Shipeh : ils ouvrent le compte, sans nom de boutique', async () => {
+    const { nomBoutique: _nomBoutique, ...sansBoutique } = marchand('P', '0612000011');
+    const r = await appel('POST', '/api/v1/marchands', a.cleLive, sansBoutique);
+    attendu(r, 201);
+    if (r.json?.motDePasseDefini !== true) throw new Error('motDePasseDefini devrait être vrai');
+    if (r.json?.nomBoutique !== sansBoutique.nomComplet) {
+      throw new Error(`nomBoutique « ${String(r.json?.nomBoutique)} » au lieu du nom du marchand`);
+    }
+    const compte = await prisma.utilisateur.findUnique({ where: { email: sansBoutique.email } });
+    if (!compte) throw new Error('compte introuvable par son email');
+    // Haché, jamais stocké en clair, et c'est bien CE mot de passe qui ouvre.
+    if (compte.motDePasseHash.includes('mdp shipeh')) throw new Error('mot de passe stocké en clair');
+    if (!(await verifySecret(sansBoutique.motDePasse, compte.motDePasseHash))) {
+      throw new Error('le mot de passe n’ouvre pas');
+    }
+    if (compte.resetTokenHash !== null) throw new Error('un lien d’invitation a été préparé pour rien');
+  });
+
+  await verifie('sans mot de passe : 400, le marchand ne pourrait pas se connecter', async () => {
+    const { motDePasse: _motDePasse, ...sansMdp } = marchand('Q', '0612000012');
+    attendu(await appel('POST', '/api/v1/marchands', a.cleLive, sansMdp), 400, 'champ_requis');
+  });
+
   await verifie('une clé de test crée un marchand EN ATTENTE, jamais actif', async () => {
     const r = await appel('POST', '/api/v1/marchands', a.cleTest, marchand('T', '0612000009'));
     attendu(r, 201);
@@ -421,12 +446,16 @@ async function main() {
     const r = await appel('POST', '/api/v1/marchands', a.cleLive, {
       ...marchand('D', '0612000002'),
       email: 'sim-shipeh-direct@mathio.test',
+      motDePasse: 'ne doit rien remplacer',
     });
     attendu(r, 200);
     if (r.json?.issue !== 'rattache') throw new Error(`issue « ${String(r.json?.issue)} »`);
     if (r.json?.marchandId !== direct.marchand!.id) {
       throw new Error('rattaché au mauvais marchand');
     }
+    // Son mot de passe chez nous reste le sien.
+    const apres = await prisma.utilisateur.findUnique({ where: { id: direct.id } });
+    if (apres?.motDePasseHash !== 'simulation') throw new Error('le mot de passe d’un client existant a été remplacé');
   });
 
   await verifie('coordonnées d’un compte non marchand : 409, pas de conversion', async () => {

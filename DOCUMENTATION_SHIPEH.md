@@ -31,7 +31,7 @@ Deux automatisations, et rien d'autre.
 
 | | |
 |---|---|
-| **Synchronisation des comptes** | Un marchand s'inscrit chez vous → son compte est créé chez nous. Il reçoit un email pour définir son mot de passe, puis suit ses colis depuis son espace Mathio |
+| **Synchronisation des comptes** | Un marchand s'inscrit chez vous → son compte est créé chez nous. Il s'y connecte avec **le même email et le même mot de passe que chez vous**, puis suit ses colis depuis son espace Mathio |
 | **Ingestion des colis** | Un colis est créé chez vous → il entre dans notre chaîne logistique, à l'unité ou par lot |
 
 **Le flux est à sens unique : vous écrivez, vous ne lisez pas.** L'API n'expose aucun endpoint de
@@ -74,9 +74,9 @@ curl -X POST https://api.<domaine-mathio>/api/v1/marchands \
   -d '{
     "idExterne": "SHIPEH-1",
     "nomComplet": "Ahmed Benali",
-    "nomBoutique": "Atlas Store",
     "telephone": "0612345678",
-    "email": "ahmed@exemple.test"
+    "email": "ahmed@exemple.test",
+    "motDePasse": "le-mot-de-passe-du-marchand"
   }'
 ```
 
@@ -122,20 +122,31 @@ Crée chez nous le compte d'un de vos marchands, ou le rattache s'il existe déj
 
 ### Champs
 
-**Requis** — cinq :
+**Requis** — trois, plus les identifiants de connexion ci-dessous :
 
 | Champ | Format |
 |---|---|
 | `idExterne` | Votre identifiant du marchand. **C'est la clé de la synchronisation** : c'est par lui que vous nous parlerez de ce marchand ensuite |
 | `nomComplet` | Nom de la personne |
-| `nomBoutique` | Nom commercial |
 | `telephone` | Numéro marocain : `0` puis `5`, `6` ou `7`, puis 8 chiffres. Les écritures `+212…`, `212…` et les espaces sont acceptées et normalisées |
-| `email` | **Obligatoire.** C'est par lui que le marchand reçoit le lien pour définir son mot de passe — sans email, il ne peut jamais accéder à son espace |
+
+**Identifiants de connexion** — requis tous les deux. Ce sont ceux du marchand chez vous ; ils
+deviennent les siens chez nous :
+
+| Champ | Format |
+|---|---|
+| `email` | Son login. Normalisé en minuscules |
+| `motDePasse` | Son mot de passe, **en clair**. Pris tel quel, sans suppression d'espaces ; 72 octets au maximum. Nous le chiffrons dès réception (bcrypt) et ne le conservons ni ne le journalisons jamais en clair |
+
+Le mot de passe n'est pris en compte **qu'à la création** du compte. Sur un rattachement
+(`rattache`) ou un rejeu (`deja_synchronise`), il est ignoré : le marchand garde le mot de passe
+qu'il a déjà chez nous. Un changement de mot de passe fait ensuite chez vous n'est pas répercuté.
 
 **Optionnels** :
 
 | Champ | Format |
 |---|---|
+| `nomBoutique` | Nom commercial. À défaut, la boutique porte le `nomComplet` |
 | `ville`, `adresse` | Texte libre |
 | `rib` | Exactement 24 chiffres |
 | `cin` | Numéro de carte d'identité |
@@ -143,8 +154,8 @@ Crée chez nous le compte d'un de vos marchands, ou le rattache s'il existe déj
 | `typeCompte` | `marchand` (défaut), `entreprise` ou `dropshipping` |
 
 Nous demandons volontairement **moins** que notre propre formulaire d'inscription : vous ne
-détenez ni photo de RIB ni mot de passe choisi par le marchand. Une fiche incomplète, complétable
-ensuite chez nous, vaut mieux qu'une fiche inventée.
+détenez pas la photo du RIB. Une fiche incomplète, complétable ensuite chez nous, vaut mieux
+qu'une fiche inventée.
 
 ### Réponses
 
@@ -155,7 +166,7 @@ ensuite chez nous, vaut mieux qu'une fiche inventée.
   "marchandId": "6a1d1e40-8642-4859-98eb-b086bd6d68cf",
   "nomBoutique": "Atlas Store",
   "statut": "actif",
-  "invitationEnvoyee": true
+  "motDePasseDefini": true
 }
 ```
 
@@ -163,7 +174,7 @@ Trois issues possibles :
 
 | Code | `issue` | Signification |
 |---|---|---|
-| `201` | `cree` | Le compte a été créé. Un email d'invitation est parti |
+| `201` | `cree` | Le compte a été créé avec l'email et le mot de passe transmis |
 | `200` | `rattache` | Ce marchand **était déjà notre client**, inscrit directement chez nous. Nous avons créé le lien, sans modifier sa fiche |
 | `200` | `deja_synchronise` | Cet `idExterne` nous est déjà connu. **Aucune écriture** |
 
@@ -173,8 +184,10 @@ Trois issues possibles :
 `statut` vaut `actif` ou `en_attente_validation` selon les droits de votre clé. En bac à sable,
 il vaut toujours `en_attente_validation` — voir §9.
 
-`invitationEnvoyee` à `false` signifie que le compte existe mais qu'aucun email n'est parti.
-C'est normal en bac à sable. En production, signalez-le nous.
+`motDePasseDefini` à `true` signifie que le compte a été créé avec le mot de passe transmis : le
+marchand peut se connecter tout de suite (une fois son compte actif). À `false` (`rattache`,
+`deja_synchronise`), le marchand garde le mot de passe qu'il avait déjà chez nous : vos
+identifiants n'ouvrent pas forcément son compte.
 
 ### Refus spécifiques
 
@@ -187,7 +200,7 @@ C'est normal en bac à sable. En production, signalez-le nous.
 | `409` | `marchand_de_test` | Vous utilisez une clé `live` sur des coordonnées créées en bac à sable. Voir §10 |
 | `409` | `marchand_de_production` | Vous utilisez une clé `test` sur des coordonnées d'un marchand réel. Voir §9 |
 | `400` | `champ_requis` | Le message nomme le champ manquant |
-| `400` | `telephone_invalide` · `email_invalide` · `rib_invalide` · `type_compte_invalide` | Format incorrect |
+| `400` | `telephone_invalide` · `email_invalide` · `mot_de_passe_invalide` · `rib_invalide` · `type_compte_invalide` | Format incorrect |
 
 ---
 
@@ -384,7 +397,6 @@ Votre clé `mtk_test_…` travaille dans un espace séparé. Vous pouvez y envoy
 | | En bac à sable |
 |---|---|
 | Marchands créés | Restent **en attente de validation** — jamais actifs |
-| Email d'invitation | **Jamais envoyé** |
 | Visibilité | Une clé `test` ne voit **que** les marchands qu'elle a créés |
 | Le reste | Identique : mêmes adresses, mêmes formats, mêmes validations, mêmes erreurs |
 
@@ -456,6 +468,7 @@ Toutes les erreurs ont la même forme :
 | `400` | `champ_requis` | Un champ obligatoire manque — le message le nomme |
 | `400` | `telephone_invalide` | Format marocain attendu |
 | `400` | `email_invalide` | |
+| `400` | `mot_de_passe_invalide` | Chaîne de caractères, 72 octets au maximum |
 | `400` | `rib_invalide` | 24 chiffres exactement |
 | `400` | `type_compte_invalide` | Valeurs : `marchand`, `entreprise`, `dropshipping` |
 | `400` | `montant_invalide` | Doit être `> 0` et `≤ 99999999.99` |
@@ -536,7 +549,7 @@ durée, et la référence concernée. Pour que nous retrouvions un appel, envoye
 
 Inutile de nous envoyer le corps de vos requêtes : nous ne le conservons pas — il contiendrait
 des données de vos clients finaux — mais nous avons le message d'erreur exact que nous vous avons
-renvoyé.
+renvoyé. **Ne nous envoyez jamais un mot de passe de marchand** par email ou messagerie.
 
 ---
 

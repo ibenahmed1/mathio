@@ -15,6 +15,7 @@ const VALIDE = {
   nomBoutique: 'Atlas Store',
   telephone: '0612345678',
   email: 'ahmed@atlas-store.ma',
+  motDePasse: 'mdp-chez-shipeh',
 };
 
 /** Code d'erreur levé par `analyserEntreeMarchand`, ou null si elle a accepté. */
@@ -42,7 +43,7 @@ test('une entrée minimale valide est acceptée', () => {
 });
 
 test('les cinq champs requis le sont vraiment', () => {
-  for (const champ of ['idExterne', 'nomComplet', 'nomBoutique', 'telephone', 'email']) {
+  for (const champ of ['idExterne', 'nomComplet', 'telephone', 'email', 'motDePasse']) {
     const ampute = { ...VALIDE, [champ]: undefined };
     assert.equal(codeRefus(ampute), 'champ_requis', `${champ} devrait être requis`);
     // Une chaîne d'espaces ne vaut pas mieux qu'une absence.
@@ -50,13 +51,31 @@ test('les cinq champs requis le sont vraiment', () => {
   }
 });
 
-test('l’email est requis parce qu’il est le seul chemin vers le compte', () => {
-  // Sans email, pas de lien « définir mon mot de passe » — donc un compte que
-  // personne ne peut jamais ouvrir. C'est la raison pour laquelle il est le
-  // seul champ de coordonnées obligatoire.
-  assert.equal(codeRefus({ ...VALIDE, email: undefined }), 'champ_requis');
+test('sans nom de boutique, la boutique porte le nom du marchand', () => {
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, nomBoutique: undefined }).nomBoutique, 'Ahmed Benali');
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, nomBoutique: '  ' }).nomBoutique, 'Ahmed Benali');
+});
+
+test('l’email, login du marchand, doit être valide', () => {
   assert.equal(codeRefus({ ...VALIDE, email: 'pas-un-email' }), 'email_invalide');
   assert.equal(codeRefus({ ...VALIDE, email: 'a@b' }), 'email_invalide');
+});
+
+test('le mot de passe est pris tel quel, sans notre politique de robustesse', () => {
+  // Choisi sous les règles de la plateforme : le refuser bloquerait la synchro.
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, motDePasse: 'abc123' }).motDePasse, 'abc123');
+  // Pas de trim : une espace peut en faire partie.
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, motDePasse: ' mon mdp ' }).motDePasse, ' mon mdp ');
+});
+
+test('un mot de passe mal typé ou au-delà de la limite de bcrypt est refusé', () => {
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: null }), 'champ_requis');
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: 12345678 }), 'mot_de_passe_invalide');
+  // bcrypt ignore tout au-delà de 72 octets : 73 serait tronqué en silence.
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: 'a'.repeat(73) }), 'mot_de_passe_invalide');
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, motDePasse: 'a'.repeat(72) }).motDePasse?.length, 72);
+  // Compté en octets, pas en caractères : « é » en vaut deux.
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: 'é'.repeat(37) }), 'mot_de_passe_invalide');
 });
 
 test('l’email est normalisé en minuscules', () => {
