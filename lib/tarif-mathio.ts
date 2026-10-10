@@ -10,3 +10,12 @@
 //
 // Module PUR, sans import : lisible par les routes comme par les écrans.
 export const TARIF_LIVRAISON_MATHIO = 35;
+
+// Tarif de livraison appliqué aux marchands de SHIPEH : 30 dh partout au
+// Maroc (décision du 10/10/2026), en dérogation au plan « Par défaut »
+// ci-dessus. C'est lui que Shipeh lit dans GET /v1/villes.
+//
+// Constante plutôt que réglage par plateforme : Shipeh est aujourd'hui la
+// seule plateforme de vente branchée. Une seconde plateforme à un autre prix
+// demandera un tarif porté par PlateformePartenaire.
+export const TARIF_LIVRAISON_SHIPEH = 30;

@@ -16,7 +16,7 @@ Ce que le déploiement apporte :
 - **Stock** : un colis peut contenir plusieurs produits ; stock suivi par variante ; alerte quand
   un produit tombe à 10.
 - **Shipeh** : identifiants des marchands, produits de stock, colis à plusieurs produits, liste
-  des villes au tarif Mathio de 35 dh.
+  des villes au tarif Shipeh de 30 dh.
 - Notifications (cloche et push), comptabilité marchand, équipe et rôles back-office,
   simulateur de rentabilité.
 
@@ -150,7 +150,7 @@ Les API partenaires sont servies sur le domaine `HOST_API`, sous `/api/v1` :
 | `POST /v1/marchands` | créer le compte d'un marchand, avec son email et son mot de passe Shipeh |
 | `POST /v1/produits` | déclarer un produit de stock (SKU, variantes, quantité envoyée) |
 | `POST /v1/colis`, `POST /v1/colis/lot` | déposer des colis contenant un ou plusieurs produits de stock |
-| `GET /v1/villes` | nos 500 villes, au tarif Mathio de 35 dh |
+| `GET /v1/villes` | nos 500 villes, au tarif Shipeh de 30 dh |
 
 Les droits d'une clé ne se modifient pas. Il faut donc, dans `/admin/integrations`, sur la
 plateforme Shipeh :
@@ -169,7 +169,7 @@ Vérification :
 
 ```
 curl -H "Authorization: Bearer <clé>" https://<HOST_API>/api/v1/villes
-# attendu : 200, { "devise": "MAD", "nombre": 500, "villes": [ { "nom", "code", "tarifLivraison": 35 }, … ] }
+# attendu : 200, { "devise": "MAD", "nombre": 500, "villes": [ { "nom", "code", "tarifLivraison": 30 }, … ] }
 ```
 
 ## Conséquences pour l'exploitation
