@@ -10,7 +10,8 @@ import { lanceDirectement, lancerEnCli } from './cli-etape';
  *   npx tsx scripts/referentiel-villes-photo.ts            (prend la photo de la base courante)
  *
  * Écrit `scripts/referentiel-villes-photo.json` : les hubs (nom, ville,
- * transporteur, central ou non), chaque ville avec son hub, et ses tarifs
+ * transporteur, central ou non), chaque ville avec son hub, son numéro (d'où
+ * son code partenaire V001…) et ses tarifs
  * d'achat (livraison, retour) par transporteur. C'est la référence que
  * `scripts/deployer-referentiel-villes.ts` impose à la production et contre
  * laquelle il se contrôle.
@@ -34,6 +35,8 @@ export interface TarifPhoto {
 export interface VillePhoto {
   hub: string;
   nom: string;
+  // Ville.numero : le code partenaire est « V » + ce numéro (lib/ville-code.ts).
+  numero: number;
   tarifs: TarifPhoto[];
 }
 export interface HubPhoto {
@@ -61,6 +64,7 @@ export async function lireReferentiel(db: Lecteur = prisma): Promise<Omit<Photo,
     where: { hub: { NOT: { nom: { startsWith: PREFIXE_HUB_DE_TEST } } } },
     select: {
       nom: true,
+      numero: true,
       hub: { select: { nom: true } },
       tarifsPrestataires: {
         select: { tarifLivraison: true, tarifRetour: true, prestataire: { select: { nom: true } } },
@@ -76,6 +80,7 @@ export async function lireReferentiel(db: Lecteur = prisma): Promise<Omit<Photo,
       .map((v) => ({
         hub: v.hub.nom,
         nom: v.nom,
+        numero: v.numero,
         tarifs: v.tarifsPrestataires
           .map((t) => ({
             prestataire: t.prestataire.nom,

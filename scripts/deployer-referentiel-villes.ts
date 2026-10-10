@@ -6,6 +6,7 @@ import { regrouperHubsRegionaux } from './regrouper-hubs-regionaux';
 import { appliquerDecisionsVilles } from './decisions-villes-octobre-2026';
 import { appliquerRoutageMoinsCher } from './appliquer-routage-moins-cher';
 import { lirePhoto, lireReferentiel, type Photo } from './referentiel-villes-photo';
+import { codeVille } from '../lib/ville-code';
 
 /**
  * Déploiement du référentiel des villes — UNE commande, qui amène la base à
@@ -61,14 +62,15 @@ export interface Ecarts {
   villesManquantes: string[];
   villesEnTrop: string[];
   tarifs: string[];
+  numeros: string[];
 }
 
 export function nbEcarts(e: Ecarts): number {
-  return e.hubs.length + e.villesManquantes.length + e.villesEnTrop.length + e.tarifs.length;
+  return e.hubs.length + e.villesManquantes.length + e.villesEnTrop.length + e.tarifs.length + e.numeros.length;
 }
 
 export function comparer(photo: Omit<Photo, 'prise'>, base: Omit<Photo, 'prise'>): Ecarts {
-  const ecarts: Ecarts = { hubs: [], villesManquantes: [], villesEnTrop: [], tarifs: [] };
+  const ecarts: Ecarts = { hubs: [], villesManquantes: [], villesEnTrop: [], tarifs: [], numeros: [] };
 
   const hubsBase = new Map(base.hubs.map((h) => [h.nom, h]));
   for (const h of photo.hubs) {
@@ -89,6 +91,7 @@ export function comparer(photo: Omit<Photo, 'prise'>, base: Omit<Photo, 'prise'>
       ecarts.villesManquantes.push(`${v.hub} / « ${v.nom} »`);
       continue;
     }
+    if (b.numero !== v.numero) ecarts.numeros.push(`${v.hub} / « ${v.nom} » : n° ${b.numero} au lieu de ${v.numero}`);
     const attendu = JSON.stringify(v.tarifs);
     const trouve = JSON.stringify(b.tarifs);
     if (attendu !== trouve) ecarts.tarifs.push(`${v.hub} / « ${v.nom} » : ${decrireTarifs(b.tarifs)} au lieu de ${decrireTarifs(v.tarifs)}`);
@@ -110,6 +113,7 @@ function afficherEcarts(e: Ecarts): void {
     ['Villes absentes de la base', e.villesManquantes],
     ['Villes en base absentes de la photo', e.villesEnTrop],
     ['Tarifs différents', e.tarifs],
+    ['Numéros (codes V…) différents', e.numeros],
   ];
   for (const [titre, lignes] of sections) {
     if (lignes.length === 0) continue;
@@ -144,6 +148,16 @@ export async function aligner(tx: Tx, photo: Photo): Promise<string[]> {
     (await tx.prestataire.findMany({ select: { id: true, nom: true } })).map((p) => [p.nom, p.id])
   );
 
+  // Numéros (codes V…) : la photo fait foi. Pour les poser sans buter sur
+  // l'index unique en cours de route, tous les numéros passent d'abord en
+  // NÉGATIF, puis chaque ville de la photo reçoit le sien ; celles qui restent
+  // négatives (hors photo) en reçoivent un neuf au-delà du dernier. Seuls les
+  // numéros qui changent RÉELLEMENT sont rapportés.
+  const numeroAvant = new Map(
+    (await tx.ville.findMany({ select: { id: true, numero: true } })).map((x) => [x.id, x.numero])
+  );
+  await tx.$executeRaw`UPDATE "villes" SET "numero" = -"numero" WHERE "numero" > 0`;
+
   for (const v of photo.villes) {
     const hubId = hubs.get(v.hub)!;
     const duHub = await tx.ville.findMany({ where: { hubId }, select: { id: true, nom: true } });
@@ -159,9 +173,17 @@ export async function aligner(tx: Tx, photo: Photo): Promise<string[]> {
         lignes.push(`${v.hub} / « ${proche[0].nom} » renommée « ${v.nom} »`);
         ville = { id: proche[0].id, nom: v.nom };
       } else {
-        ville = await tx.ville.create({ data: { hubId, nom: v.nom }, select: { id: true, nom: true } });
+        // Numéro explicite : la séquence pourrait en donner un que la photo
+        // attribue à une autre ville plus loin dans cette boucle.
+        ville = await tx.ville.create({ data: { hubId, nom: v.nom, numero: v.numero }, select: { id: true, nom: true } });
         lignes.push(`${v.hub} / « ${v.nom} » créée`);
       }
+    }
+
+    await tx.ville.update({ where: { id: ville.id }, data: { numero: v.numero } });
+    const avant = numeroAvant.get(ville.id);
+    if (avant !== undefined && avant !== v.numero) {
+      lignes.push(`${v.hub} / « ${v.nom} » : code ${codeVille(avant)} → ${codeVille(v.numero)}`);
     }
 
     // 3b. Ses tarifs : exactement ceux de la photo, ni plus ni moins.
@@ -194,6 +216,22 @@ export async function aligner(tx: Tx, photo: Photo): Promise<string[]> {
       lignes.push(`${v.hub} / « ${v.nom} » : tarif ${e.prestataire.nom} retiré (absent de la photo)`);
     }
   }
+
+  // Villes hors photo (hubs de test, villes en trop) : un numéro neuf, après
+  // le dernier de la photo, dans leur ordre d'origine ; puis la séquence
+  // repart après le plus grand.
+  const maxPhoto = Math.max(0, ...photo.villes.map((v) => v.numero));
+  const horsPhoto = await tx.ville.findMany({
+    where: { numero: { lt: 0 } },
+    select: { id: true, nom: true, numero: true },
+    orderBy: { numero: 'desc' },
+  });
+  for (const [i, x] of horsPhoto.entries()) {
+    const nouveau = maxPhoto + i + 1;
+    await tx.ville.update({ where: { id: x.id }, data: { numero: nouveau } });
+    if (-x.numero !== nouveau) lignes.push(`« ${x.nom} » (hors photo) : code ${codeVille(-x.numero)} → ${codeVille(nouveau)}`);
+  }
+  await tx.$executeRaw`SELECT setval(pg_get_serial_sequence('"villes"', 'numero'), GREATEST((SELECT MAX("numero") FROM "villes"), 1))`;
 
   return lignes;
 }

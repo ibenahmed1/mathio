@@ -39,7 +39,7 @@ l'étape 5 avant de toucher la production (voir la remarque « À blanc » de ce
 npx prisma migrate deploy
 ```
 
-Huit migrations, toutes en **ajout seul**, sans perte de données :
+Neuf migrations, toutes en **ajout seul**, sans perte de données :
 
 | Migration | Effet |
 |---|---|
@@ -51,6 +51,7 @@ Huit migrations, toutes en **ajout seul**, sans perte de données :
 | `20261007130000_roles_backoffice` | rôles de l'équipe interne |
 | `20261010120000_stock_variantes_colis` | variante consommée par un colis, dates de réservation et de réintégration du stock |
 | `20261010130000_colis_multi_produits` | table `lignes_colis` (contenu des colis) ; chaque colis existant reçoit sa ligne |
+| `20261010140000_numero_villes` | numéro de chaque ville, d'où son code partenaire `V001`… ; numérotation provisoire, remplacée à l'étape 5 par celle de l'état validé |
 
 Si la production a déjà certaines de ces migrations, `migrate deploy` ne joue que les autres.
 
@@ -82,14 +83,14 @@ npx tsx scripts/deployer-referentiel-villes.ts --oui    # applique
 ```
 
 Le script amène la base **exactement** à l'état validé le 10 octobre, enregistré dans
-`scripts/referentiel-villes-photo.json` (12 hubs, 500 villes, un transporteur et un tarif par
-ville). Il enchaîne cinq étapes et s'arrête à la première qui échoue :
+`scripts/referentiel-villes-photo.json` (12 hubs, 500 villes, un transporteur, un tarif et un
+code `V001`… par ville). Il enchaîne cinq étapes et s'arrête à la première qui échoue :
 
 | Étape | Ce qu'elle fait |
 |---|---|
 | 1. Regroupement en hubs régionaux | Les agences des transporteurs deviennent **11 hubs régionaux** ; le hub central devient « Hub Central ». Villes, colis, comptes, bons et historique sont **déplacés**, jamais recréés. |
 | 2. Décisions de villes d'octobre | Casablanca chez Power ; villes retirées ou fusionnées, **leurs colis rattachés à la ville restante** ; une ville = un transporteur ; tarifs ; retour à 0 dh partout ; les 46 villes de l'API Power ajoutées avec leur tarif ; Tata retirée ; « azrou » devient « Azrou (Ifrane) ». |
-| 3. Alignement sur la photo | Corrige ce qui diffère encore de l'état validé : tarif modifié depuis, ville manquante, ville écrite autrement. Chaque correction est listée. **Ne supprime jamais rien.** |
+| 3. Alignement sur la photo | Corrige ce qui diffère encore de l'état validé : tarif modifié depuis, ville manquante, ville écrite autrement. **Donne à chaque ville son code `V…` validé** (la migration n'a posé qu'une numérotation provisoire) ; une ville absente de la photo reçoit un code après le dernier. Chaque correction est listée. **Ne supprime jamais rien.** |
 | 4. Une ville, un transporteur | Vérifie qu'aucune ville n'a deux transporteurs ; rattache les colis en attente à la bonne ville. Un colis déjà confié à un transporteur n'est jamais modifié. |
 | 5. Contrôle final | Compare la base à la photo. Doit être identique. |
 
@@ -185,7 +186,7 @@ curl -H "Authorization: Bearer <clé>" https://<HOST_API>/api/v1/villes
   au passage en préparation. Quand un produit tombe à 10, l'admin et les agents d'inventaire
   reçoivent une alerte « Stock bas ».
 - **Shipeh** : leurs colis doivent citer des SKU déclarés au préalable ; un SKU inconnu bloque le
-  colis. **La liste des villes change** (codes retirés, 46 villes ajoutées) : leur demander de la
+  colis. **La liste des villes change** (villes retirées, 46 villes ajoutées, et **nouveaux codes `V001`…** à la place des anciens identifiants) : leur demander de la
   recharger après le déploiement.
 
 ## À ne pas faire

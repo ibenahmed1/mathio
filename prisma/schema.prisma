@@ -1586,10 +1586,19 @@ model Hub {
 }
 
 model Ville {
-  id    String @id @default(uuid())
-  nom   String
-  hubId String @map("hub_id")
-  hub   Hub    @relation(fields: [hubId], references: [id])
+  id     String @id @default(uuid())
+  nom    String
+  // § Code de ville communiqué aux partenaires (GET /v1/villes) : « V » suivi
+  // de ce numéro sur trois chiffres — V001, V002… (lib/ville-code.ts). Attribué
+  // une fois pour toutes et JAMAIS réutilisé ni modifié : ni quand le nom est
+  // corrigé, ni quand la ville change de hub. Numéroté par la base à la
+  // création, quelle que soit la voie de création. Les villes existantes ont
+  // été numérotées par ordre alphabétique le 10/10/2026 ; la production reçoit
+  // les mêmes numéros par le déploiement du référentiel
+  // (scripts/deployer-referentiel-villes.ts).
+  numero Int    @unique @default(autoincrement())
+  hubId  String @map("hub_id")
+  hub    Hub    @relation(fields: [hubId], references: [id])
 
   tarifsLivreurs     TarifLivreurVille[]
   tarifsMarchands    TarifMarchandVille[]

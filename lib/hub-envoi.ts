@@ -118,11 +118,12 @@ export function cleRoutage(ville: string): string {
   return CLE_EQUIVALENTE.get(cle) ?? cle;
 }
 
-export async function chargerVillesRoutage(): Promise<VilleAvecHub[]> {
+export async function chargerVillesRoutage(): Promise<(VilleAvecHub & { numero: number })[]> {
   const villes = await prisma.ville.findMany({
     select: {
       id: true,
       nom: true,
+      numero: true,
       hub: { select: { id: true, nom: true, isCentral: true, prestataireId: true } },
       tarifsPrestataires: { select: { prestataireId: true, tarifLivraison: true } },
     },
