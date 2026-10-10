@@ -1,9 +1,20 @@
 # API Mathio Delivery — intégration Shipeh
 
 Documentation destinée aux **développeurs de Shipeh**. Elle décrit tout ce qu'il faut pour
-envoyer vos marchands et vos colis à Mathio Delivery.
+envoyer à Mathio Delivery vos marchands, le stock que vous déposez dans notre entrepôt, et vos
+colis.
 
-Version 1.0 — septembre 2026
+Version 2.0 — octobre 2026
+
+### Ce qui change depuis la version 1.0
+
+| | |
+|---|---|
+| **Marchands** (§4) | `email` **et** `motDePasse` sont désormais **obligatoires** : ce sont les identifiants du marchand chez vous, et ils deviennent les siens chez nous. Plus d'email d'invitation. `nomBoutique` devient facultatif. Le champ `invitationEnvoyee` de la réponse est remplacé par `motDePasseDefini` |
+| **Produits de stock** (§5) | **Nouvel endpoint** `POST /v1/produits` : vous déclarez chaque produit, son SKU (ou ceux de ses variantes) et la quantité envoyée à notre entrepôt |
+| **Colis** (§6, §7) | Le champ **`produits`** (`[{ "sku", "quantite" }]`) est **obligatoire** : chaque colis contient un ou plusieurs produits de stock. Un SKU inconnu bloque le colis. Les champs `quantite` et `produitDescription` ne sont plus lus |
+| **Villes** (§8) | `code` est un code court **`V001`…** (il remplace l'ancien identifiant) ; `tarifLivraison` vaut **30 dh** pour toutes les villes |
+| **Clés** | Ces nouveautés demandent les droits `produits:creation` et `villes:lecture` : nous vous émettons de **nouvelles clés** |
 
 ---
 
@@ -354,7 +365,9 @@ manque un seul, **le colis est refusé et rien n'est créé** : la réponse nomm
 inconnus, pour que vous corrigiez en un seul aller-retour. Déclarez le produit (§5), puis rejouez.
 
 Le stock disponible, lui, n'est pas vérifié à ce moment : il est réservé quand notre entrepôt
-prépare le colis.
+prépare le colis. Si la quantité manque alors (stock annoncé pas encore réceptionné, ou déjà
+consommé par d'autres colis), le colis reste en attente chez nous jusqu'au réapprovisionnement ;
+il n'est ni refusé ni perdu.
 
 ### Réponses
 
@@ -453,7 +466,9 @@ Chaque ligne refusée porte son **`index`** dans le tableau que vous avez envoy�
 Liste les villes que nous desservons — environ 500, partout au Maroc — avec pour chacune son
 code et notre tarif de livraison.
 
-Cet appel ne fait que lire. Il demande le droit `villes:lecture` sur votre clé. Si votre clé ne l'a pas, l'appel renvoie `403 scope_manquant` : demandez-nous de l'ajouter.
+Cet appel ne fait que lire. Il demande le droit `villes:lecture` sur votre clé. Si votre clé ne
+l'a pas, l'appel renvoie `403 scope_manquant`. Les droits d'une clé ne se modifient pas : nous
+vous émettons une nouvelle clé qui le porte.
 
 ```
 GET /api/v1/villes
@@ -557,7 +572,9 @@ Dans cet ordre :
 2. Nous vous transmettons votre clé `mtk_live_…`.
 3. Vous changez la clé dans votre configuration. **Rien d'autre ne change** — ni adresse, ni
    format, ni code.
-4. Vous resynchronisez vos marchands avec la clé `live`.
+4. Avec la clé `live`, vous resynchronisez vos marchands (§4), **puis redéclarez leurs produits
+   de stock** (§5) avant d'envoyer leurs premiers colis : les produits du bac à sable ne passent
+   pas en production.
 
 ### Un point à connaître
 
@@ -629,9 +646,9 @@ Toutes les erreurs ont la même forme :
 
 | Rejouable tel quel | À corriger avant de rejouer |
 |---|---|
-| `deja_existant` (déjà un succès) | `400 sku_inconnu` — déclarez le produit d'abord |
 | `429`, `500`, `synchronisation_concurrente` | Tous les `400` |
-| `deja_ingere` / `deja_synchronise` (déjà un succès) | `404 marchand_inconnu` — créez le marchand d'abord |
+| `deja_synchronise`, `deja_existant`, `deja_ingere` (déjà des succès) | `400 sku_inconnu` — déclarez le produit d'abord (§5) |
+| | `404 marchand_inconnu` — créez le marchand d'abord (§4) |
 
 Sur `429`, le message indique le délai d'attente. Une temporisation exponentielle est la bonne
 réponse.
