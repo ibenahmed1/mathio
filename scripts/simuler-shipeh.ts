@@ -825,52 +825,84 @@ async function main() {
     })),
   });
 
-  type Evt = { evenementId: string; reference: string; codeSuivi: string; statut: string; libelle: string; final: boolean; statutDate: string };
-  async function toutLire(cle: string, limite: number): Promise<Evt[]> {
-    const vus: Evt[] = [];
-    let url = `/api/v1/colis?modifiesDepuis=${debutSuivi}&limite=${limite}`;
+  type ColisLu = {
+    reference: string;
+    codeSuivi: string;
+    statut: string;
+    libelle: string;
+    final: boolean;
+    statutDate: string;
+    montantEncaisse: number;
+    montantCod: number;
+    transporteur: unknown;
+  };
+  // Lit tout depuis un départ (date ou curseur) et rend aussi le dernier curseur.
+  async function toutLire(cle: string, limite: number, depart?: string): Promise<{ colis: ColisLu[]; curseur: string | null }> {
+    const vus: ColisLu[] = [];
+    let url = depart
+      ? `/api/v1/colis?curseur=${depart}&limite=${limite}`
+      : `/api/v1/colis?modifiesDepuis=${debutSuivi}&limite=${limite}`;
     for (let i = 0; i < 500; i++) {
       const r = await appel('GET', url, cle);
       attendu(r, 200);
-      vus.push(...((r.json?.evenements ?? []) as Evt[]));
-      if (r.json?.fin) return vus;
+      if (!Array.isArray(r.json?.colis)) throw new Error('la réponse doit porter un tableau « colis »');
+      vus.push(...(r.json.colis as ColisLu[]));
+      if (r.json?.fin) return { colis: vus, curseur: (r.json?.curseurSuivant as string | null) ?? null };
       url = `/api/v1/colis?curseur=${String(r.json?.curseurSuivant)}&limite=${limite}`;
     }
     throw new Error('pagination sans fin');
   }
+  const cle = (c: ColisLu) => `${c.reference}|${c.statut}|${c.statutDate}`;
 
-  let flux: Evt[] = [];
-  await verifie('les événements des colis déposés sortent, dans l’ordre, avec nos statuts tels quels', async () => {
-    flux = await toutLire(a.cleLive, 200);
-    if (flux.length !== 21) throw new Error(`${flux.length} événement(s) au lieu de 21 (20 en distribution + 1 livré)`);
-    const nonTransmis = flux.filter((e) => !['mise_en_distribution', 'livre'].includes(e.statut));
+  let lus: ColisLu[] = [];
+  let curseurFin: string | null = null;
+  await verifie('une ligne par colis, avec son statut actuel, au format demandé', async () => {
+    ({ colis: lus, curseur: curseurFin } = await toutLire(a.cleLive, 200));
+    if (lus.length !== 21) throw new Error(`${lus.length} colis au lieu de 21 (20 en distribution + 1 livré)`);
+    if (new Set(lus.map((c) => c.reference)).size !== lus.length) throw new Error('un colis apparaît deux fois');
+    const nonTransmis = lus.filter((c) => !['mise_en_distribution', 'livre'].includes(c.statut));
     if (nonTransmis.length) throw new Error(`statut non retenu transmis : ${nonTransmis[0].statut}`);
-    const dates = flux.map((e) => e.statutDate);
-    if (dates.join() !== [...dates].sort().join()) throw new Error('flux non trié par date');
-    const etapes = flux.filter((e) => e.reference === `${PREFIXE}-C-1`);
-    // « nouveau_colis » n'est pas transmis : seul « livre » sort pour C-1.
-    if (etapes.map((e) => e.statut).join(',') !== 'livre') {
-      throw new Error(`étapes de C-1 : ${etapes.map((e) => e.statut).join(',')}`);
-    }
-    if (etapes[0].libelle !== 'Livré' || etapes[0].final !== true) throw new Error('libellé ou « final » faux sur « livre »');
-    if (flux.find((e) => e.statut === 'mise_en_distribution')?.final !== false) throw new Error('« mise_en_distribution » marqué final');
+    const dates = lus.map((c) => c.statutDate);
+    if (dates.join() !== [...dates].sort().join()) throw new Error('liste non triée par date');
+    const c1 = lus.find((c) => c.reference === `${PREFIXE}-C-1`);
+    // « nouveau_colis » n'est pas transmis : C-1 sort avec son statut actuel, « livre ».
+    if (!c1 || c1.statut !== 'livre' || c1.libelle !== 'Livré' || c1.final !== true) throw new Error('C-1 doit sortir « livre », final');
+    if (c1.montantEncaisse !== c1.montantCod || c1.montantCod !== 299.9) throw new Error(`montantEncaisse ${c1.montantEncaisse} sur un colis livré`);
+    if (!('transporteur' in c1) || c1.transporteur !== null) throw new Error('« transporteur » doit être présent et vide');
+    const enCours = lus.find((c) => c.statut === 'mise_en_distribution');
+    if (enCours?.final !== false || enCours.montantEncaisse !== 0) throw new Error('colis non livré : final faux et montantEncaisse 0 attendus');
   });
 
-  await verifie('page par page (limite=7), le curseur ne saute ni ne double aucun événement', async () => {
-    const pages = await toutLire(a.cleLive, 7);
-    if (pages.map((e) => e.evenementId).join() !== flux.map((e) => e.evenementId).join()) {
-      throw new Error(`${pages.length} événements par pages contre ${flux.length} d’un coup`);
-    }
+  await verifie('page par page (limite=7), le curseur ne saute ni ne double aucun colis', async () => {
+    const { colis } = await toutLire(a.cleLive, 7);
+    if (colis.map(cle).join() !== lus.map(cle).join()) throw new Error(`${colis.length} colis par pages contre ${lus.length} d’un coup`);
   });
 
-  await verifie('relire la même fenêtre rend les mêmes événements', async () => {
-    const encore = await toutLire(a.cleLive, 200);
-    if (encore.map((e) => e.evenementId).join() !== flux.map((e) => e.evenementId).join()) throw new Error('relecture différente');
+  await verifie('relire la même fenêtre rend les mêmes colis', async () => {
+    const { colis } = await toutLire(a.cleLive, 200);
+    if (colis.map(cle).join() !== lus.map(cle).join()) throw new Error('relecture différente');
+  });
+
+  await verifie('un colis déjà lu qui change ensuite de statut ressort, une fois, avec le nouveau', async () => {
+    const lot0 = colisSim.find((c) => c.codeSuiviPartenaire === `${PREFIXE}-LOT-0`)!;
+    await prisma.historiqueStatutCommande.create({
+      data: {
+        commandeId: lot0.id,
+        ancienStatut: 'mise_en_distribution',
+        nouveauStatut: 'livre',
+        utilisateurId: technique.id,
+        horodatage: new Date(Date.now() - 20_000),
+      },
+    });
+    const { colis } = await toutLire(a.cleLive, 200, curseurFin!);
+    if (colis.length !== 1 || colis[0].reference !== `${PREFIXE}-LOT-0` || colis[0].statut !== 'livre') {
+      throw new Error(`après le curseur : ${colis.map((c) => `${c.reference}:${c.statut}`).join(', ') || 'rien'}`);
+    }
   });
 
   await verifie('une clé de test ne voit pas les colis de production', async () => {
-    const vus = await toutLire(a.cleTest, 200);
-    if (vus.some((e) => flux.some((f) => f.evenementId === e.evenementId))) throw new Error('fuite live → test');
+    const { colis } = await toutLire(a.cleTest, 200);
+    if (colis.some((c) => lus.some((l) => l.reference === c.reference))) throw new Error('fuite live → test');
   });
 
   await verifie('sans le droit colis:lecture : 403 ; sans borne : 400', async () => {

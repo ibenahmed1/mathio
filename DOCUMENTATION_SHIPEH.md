@@ -12,7 +12,7 @@ Version 2.1 — octobre 2026
 |---|---|
 | **Marchands** (§4) | `email` **et** un mot de passe sont désormais **obligatoires** : ce sont les identifiants du marchand chez vous, et ils deviennent les siens chez nous. Le mot de passe s'envoie **en clair (`motDePasse`) ou en empreinte bcrypt (`motDePasseHash`)** : vous pouvez synchroniser vos marchands déjà inscrits sans détenir leur mot de passe. Plus d'email d'invitation. `nomBoutique` devient facultatif. Le champ `invitationEnvoyee` de la réponse est remplacé par `motDePasseDefini` |
 | **Produits de stock** (§5) | **Nouvel endpoint** `POST /v1/produits` : vous déclarez chaque produit, son SKU (ou ceux de ses variantes) et la quantité envoyée à notre entrepôt |
-| **Suivi des statuts** (§8) | **Nouvel endpoint** `GET /v1/colis` : le flux des changements de statut de vos colis, avec **nos codes de statut** (`livre`, `refuse`, `retourne`…), à interroger périodiquement |
+| **Suivi des statuts** (§8) | **Nouvel endpoint** `GET /v1/colis` : vos colis dont le statut a changé, chacun avec son **statut actuel** (nos codes : `livre`, `refuse`, `retourne`…), à interroger périodiquement |
 | **Colis** (§6, §7) | Le champ **`produits`** (`[{ "sku", "quantite" }]`) est **obligatoire** : chaque colis contient un ou plusieurs produits de stock. Un SKU inconnu bloque le colis. Les champs `quantite` et `produitDescription` ne sont plus lus |
 | **Villes** (§9) | `code` est un code court **`V001`…** (il remplace l'ancien identifiant) ; `tarifLivraison` vaut **30 dh** pour toutes les villes |
 | **Clés** | Ces nouveautés demandent les droits `produits:creation`, `colis:lecture` et `villes:lecture` : nous vous émettons de **nouvelles clés** |
@@ -472,13 +472,11 @@ Chaque ligne refusée porte son **`index`** dans le tableau que vous avez envoy�
 
 ## 8. `GET /v1/colis` — suivre les statuts
 
-Le flux des **changements de statut** de vos colis : chaque fois qu'un colis change d'état chez
-nous (pris en charge, en livraison, livré, refusé, retourné…), un **événement** s'ajoute à ce
-flux. Interrogez-le périodiquement — toutes les 10 à 15 minutes convient — pour savoir quand un
-colis est livré et payer vos vendeurs. Demande le droit `colis:lecture` sur votre clé.
+La liste de **vos colis dont le statut a changé**, chacun avec son **statut actuel**.
+Interrogez-la périodiquement — toutes les 10 à 15 minutes convient — pour savoir quand un colis
+est livré et payer vos vendeurs. Demande le droit `colis:lecture` sur votre clé.
 
-Le flux ne contient que les colis **que vous avez déposés** (§6, §7), dans l'environnement de
-votre clé.
+Seuls les colis **que vous avez déposés** (§6, §7) y figurent, dans l'environnement de votre clé.
 
 ```
 GET /api/v1/colis?modifiesDepuis=2026-10-10T08:00:00Z&limite=200
@@ -487,43 +485,54 @@ Authorization: Bearer mtk_live_…
 
 | Paramètre | |
 |---|---|
-| `modifiesDepuis` | Date ISO 8601. Les événements survenus **à partir de** cette date. Requis au premier appel |
-| `curseur` | À la place de `modifiesDepuis` : le `curseurSuivant` de la réponse précédente. Reprend exactement après le dernier événement reçu |
-| `limite` | Nombre d'événements par page, de 1 à 500. Défaut : 200 |
+| `modifiesDepuis` | Date ISO 8601. Les colis dont le statut a changé **à partir de** cette date. Requis au premier appel |
+| `curseur` | À la place de `modifiesDepuis` : le `curseurSuivant` de la réponse précédente. Reprend exactement après le dernier colis reçu |
+| `limite` | Nombre de colis par page, de 1 à 500. Défaut : 200 |
 
 ### Réponse
 
 ```json
 {
-  "evenements": [
+  "colis": [
     {
-      "evenementId": "8c1f0b6e-…",
       "reference": "SHP-2026-0001",
       "codeSuivi": "PD-101066",
       "statut": "livre",
       "libelle": "Livré",
       "final": true,
       "statutDate": "2026-10-09T14:22:11.000Z",
-      "montantCod": 349.9
+      "montantEncaisse": 349.9,
+      "montantCod": 349.9,
+      "transporteur": null
     }
   ],
-  "curseurSuivant": "MjAyNi0xMC0wOVQxNDoyMjoxMS4wMDBafDhjMWYwYjZlLeKApg",
+  "curseurSuivant": "MjAyNi0xMC0wOVQxNDoyMjoxMS4wMDBafDZhMWQ…",
   "fin": true
 }
 ```
 
 | Champ | |
 |---|---|
-| `evenementId` | Identifiant unique de l'événement. **Servez-vous-en pour écarter les doublons** |
 | `reference` | Votre référence du colis |
 | `codeSuivi` | Notre numéro de suivi |
-| `statut` | Le nouvel état du colis : **notre code de statut**, tel que nous l'utilisons (liste ci-dessous) |
+| `statut` | Le statut **actuel** du colis : **notre code de statut**, tel que nous l'utilisons (liste ci-dessous) |
 | `libelle` | Son libellé en français, pour l'affichage |
 | `final` | `true` pour un statut final (livré, retourné, annulé) : le colis est clos |
-| `statutDate` | Date du changement de statut |
-| `montantCod` | Le montant à encaisser sur ce colis |
-| `curseurSuivant` | À garder pour l'appel suivant. Toujours présent dès qu'un événement a été lu |
+| `statutDate` | Date à laquelle le colis a pris ce statut |
+| `montantEncaisse` | Le montant encaissé auprès du destinataire : le COD du colis quand il est **livré**, `0` sinon |
+| `montantCod` | Le montant à encaisser sur ce colis (le COD de votre dépôt) |
+| `transporteur` | **Réservé** : contiendra le nom et le numéro du livreur. Toujours `null` pour l'instant ; le champ est déjà là pour que son arrivée ne change pas la forme de la réponse |
+| `curseurSuivant` | À garder pour l'appel suivant. Toujours présent dès qu'une page a été lue |
 | `fin` | `true` : vous avez tout lu pour l'instant. `false` : rappelez tout de suite avec `curseurSuivant` |
+
+**Un colis apparaît une seule fois par lecture**, avec son statut du moment. S'il change de statut
+plus tard, il **réapparaît** dans une lecture suivante avec son nouveau statut : mettez à jour
+votre colis à chaque fois, en vous fiant à `statutDate`. Les étapes intermédiaires survenues entre
+deux de vos lectures ne sont pas rendues : seul le statut actuel compte.
+
+`montantEncaisse` est le montant que le destinataire a payé à la livraison. Ce n'est pas encore
+une confirmation du reversement par le transporteur : le suivi des reversements fera l'objet
+d'une version ultérieure.
 
 ### Les statuts
 
@@ -534,8 +543,8 @@ alors le dernier statut reçu. La liste est fermée : branchez votre code sur le
 (`livre`), jamais sur le libellé. Si nous devions un jour la modifier, nous vous prévenons
 **avant** la mise en service.
 
-Un même colis peut passer plusieurs fois par le même statut (plusieurs tentatives, plusieurs
-appels).
+Un même colis peut reprendre plusieurs fois le même statut (plusieurs tentatives, plusieurs
+appels) : il réapparaît alors avec une nouvelle `statutDate`.
 
 | `statut` | Libellé | Signification | Final |
 |---|---|---|---|
@@ -565,21 +574,22 @@ vers le vendeur (`retourne`).
 
 **Un statut final peut, exceptionnellement, être corrigé.** Nos transporteurs et nos équipes ne
 peuvent plus le modifier, mais un administrateur Mathio le peut, pour réparer une erreur de
-saisie. Un nouvel événement apparaît alors après `livre`. Appliquez donc toujours **le dernier
-événement reçu** pour un colis, et ne tenez pas un `livre` pour acquis définitivement.
+saisie. Le colis réapparaît alors avec son statut corrigé. Appliquez donc toujours **le statut le
+plus récent reçu** pour un colis, et ne tenez pas un `livre` pour acquis définitivement.
 
 ### Les garanties
 
-- **Ordre** : les événements sortent par date, puis par identifiant quand deux ont la même date.
-  Un curseur ne saute jamais un événement.
-- **Rejouable** : relire la même période rend les mêmes événements. Interrogez avec un
-  recouvrement volontaire (repartir quelques minutes avant votre dernier passage) et dédoublonnez
-  sur `evenementId`.
-- **Délai de stabilisation** : un événement apparaît dans le flux une dizaine de secondes après
-  être survenu. C'est ce qui garantit qu'un curseur ne passe jamais devant un événement encore en
-  cours d'enregistrement.
-- **Quota** : le même que le reste de l'API (§14). Une page de 500 événements compte pour une
-  requête.
+- **Ordre** : les colis sortent par `statutDate`, puis par identifiant quand deux ont la même
+  date. Un curseur ne saute jamais un colis.
+- **Rien de perdu** : un colis qui change de statut après votre lecture ressort à la suivante,
+  avec son nouveau statut.
+- **Rejouable** : relire la même période rend les mêmes colis, sauf ceux qui ont changé depuis
+  (ils ressortent alors plus loin). Vous pouvez interroger avec un recouvrement volontaire
+  (repartir quelques minutes avant votre dernier passage) sans risque.
+- **Délai de stabilisation** : un changement de statut est visible une dizaine de secondes après
+  être survenu. C'est ce qui garantit qu'un curseur ne passe jamais devant un changement encore
+  en cours d'enregistrement.
+- **Quota** : le même que le reste de l'API (§14). Une page de 500 colis compte pour une requête.
 
 ### Refus spécifiques
 
@@ -671,7 +681,7 @@ Votre clé `mtk_test_…` travaille dans un espace séparé. Vous pouvez y envoy
 | | En bac à sable |
 |---|---|
 | Marchands créés | Restent **en attente de validation** — jamais actifs |
-| Suivi (§8) | Une clé `test` ne lit que les événements des colis déposés en bac à sable |
+| Suivi (§8) | Une clé `test` ne lit que les colis déposés en bac à sable |
 | Visibilité | Une clé `test` ne voit **que** les marchands qu'elle a créés |
 | Produits déclarés | Rangés chez ces marchands de test, et supprimés avec eux à la purge du bac à sable |
 | Le reste | Identique : mêmes adresses, mêmes formats, mêmes validations, mêmes erreurs |
@@ -859,6 +869,6 @@ Idempotence   marchands → idExterne     produits → SKU      colis → refere
 Rejeu         200 deja_synchronise      200 deja_existant   200 deja_ingere + même codeSuivi
 SKU inconnu   colis refusé (400 sku_inconnu), rien n'est créé
 Lot           toujours 207, lire lignes[].ok
-Suivi         dédoublonner sur evenementId ; fin=false → rappeler avec curseurSuivant
+Suivi         un colis par ligne, statut actuel ; fin=false → rappeler avec curseurSuivant
 Erreurs       { "code": "...", "message": "..." } — brancher sur code
 ```

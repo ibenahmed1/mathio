@@ -9,7 +9,7 @@ import {
   type ContextePlateforme,
 } from '@/lib/plateforme-auth';
 import { analyserEntreeColis, chargerReferentielVilles, ingererColis } from '@/lib/plateforme-colis';
-import { analyserRequeteSuivi, listerEvenementsColis } from '@/lib/plateforme-suivi';
+import { analyserRequeteSuivi, listerColisModifies } from '@/lib/plateforme-suivi';
 
 // POST /v1/colis — dépôt d'un colis à l'unité.
 //
@@ -18,16 +18,17 @@ import { analyserRequeteSuivi, listerEvenementsColis } from '@/lib/plateforme-su
 // l'appelant a besoin du code pour se réconcilier, pas d'un refus.
 const CHEMIN = '/v1/colis';
 
-// GET /v1/colis — les événements de statut des colis déposés par la
-// plateforme (§ lib/plateforme-suivi.ts). Scope `colis:lecture`, distinct de
-// `colis:creation` : lire et déposer sont deux droits.
+// GET /v1/colis — les colis déposés par la plateforme dont le statut a
+// changé, chacun avec son statut actuel (§ lib/plateforme-suivi.ts). Scope
+// `colis:lecture`, distinct de `colis:creation` : lire et déposer sont deux
+// droits.
 export async function GET(request: Request) {
   const debutMs = performance.now();
   let contexte: ContextePlateforme | null = null;
   try {
     contexte = await requirePlateforme(request, ['colis:lecture']);
     const requete = analyserRequeteSuivi(new URL(request.url).searchParams);
-    const page = await listerEvenementsColis(contexte, requete);
+    const page = await listerColisModifies(contexte, requete);
     await journaliserAppel({
       plateformeId: contexte.plateformeId,
       cleId: contexte.cleId,

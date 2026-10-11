@@ -1,14 +1,15 @@
 import type { StatutCommande } from '@/app/generated/prisma/enums';
+import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { LABELS_STATUT_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 
 // Les statuts TRANSMIS aux plateformes, choisis par l'exploitation le
-// 11/10/2026 (« client intéressé » retiré le même jour). Les autres étapes internes (enregistrement, ramassage, transits,
-// remise au transporteur, centre d'appel en cours, retour par transporteur) ne
-// sortent pas : le colis garde chez la plateforme le dernier statut transmis.
-// Ajouter ou retirer un statut ici change le contrat : prévenir les
-// plateformes avant de déployer.
+// 11/10/2026 (« client intéressé » retiré le même jour). Les autres étapes
+// internes (enregistrement, ramassage, transits, remise au transporteur,
+// centre d'appel en cours, retour par transporteur) ne sortent pas : le colis
+// garde chez la plateforme le dernier statut transmis. Ajouter ou retirer un
+// statut ici change le contrat : prévenir les plateformes avant de déployer.
 export const STATUTS_TRANSMIS: StatutCommande[] = [
   'pret_pour_preparation',
   'mise_en_distribution',
@@ -31,33 +32,33 @@ export const STATUTS_TRANSMIS: StatutCommande[] = [
   'annule_par_vendeur',
 ];
 
-// § GET /v1/colis — les événements de statut des colis d'une plateforme.
+// § GET /v1/colis — les colis d'une plateforme dont le statut a changé.
 //
 // Demande de Shipeh du 10/10/2026 : elle paie ses vendeurs à la livraison, et
-// notre API ne lui rendait rien. Les statuts sortent TELS QUELS — nos codes
-// internes (StatutCommande) et leur libellé français — par décision de
-// l'exploitation du 11/10/2026 : Shipeh n'imposait aucun vocabulaire, et
-// leur exemple était le nôtre (« livre »). Conséquence à connaître : ajouter,
-// renommer ou retirer un statut interne change le contrat de cette API, il
-// faut prévenir les plateformes AVANT de déployer. Plutôt qu'un état « dernier statut » (qui
-// perdrait les étapes intermédiaires et ne se rejoue pas), on expose le FLUX
-// des changements de statut : chaque ligne de HistoriqueStatutCommande (RG-10,
-// tout changement de statut est historisé) devient un événement daté et
-// identifié.
+// notre API ne lui rendait rien. Format de LEUR demande : un tableau `colis`,
+// UNE LIGNE PAR COLIS, avec son statut ACTUEL (le dernier transmis) et la date
+// de ce statut — et non un flux d'événements (première version du 11/10,
+// remplacée le jour même à la demande de l'exploitation).
 //
-// Garanties, dans l'ordre où le partenaire en a besoin :
-//   - ORDRE TOTAL : tri par (horodatage, id). Deux événements de la même
-//     milliseconde sont départagés par l'identifiant : un curseur ne saute
-//     jamais une ligne ;
-//   - REJOUABLE : relire la même fenêtre rend les mêmes événements, et
-//     `evenementId` permet d'écarter les doublons d'un recouvrement volontaire ;
-//   - STABILISATION : les événements des STABILISATION_MS dernières
-//     millisecondes ne sont pas encore servis. Une transaction peut valider un
-//     horodatage légèrement antérieur à celui d'une autre déjà visible ; sans
-//     ce délai, un curseur passé au-delà le manquerait pour toujours ;
+// Les statuts sortent TELS QUELS — nos codes internes (StatutCommande) et leur
+// libellé français — par décision de l'exploitation du 11/10/2026, limités à
+// STATUTS_TRANSMIS.
+//
+// Garanties :
+//   - ORDRE TOTAL : tri par (statutDate, identifiant du colis). Un curseur ne
+//     saute jamais un colis ;
+//   - RIEN DE PERDU : un colis dont le statut change APRÈS avoir été lu
+//     ressort au passage suivant (sa nouvelle date est postérieure au
+//     curseur), avec son nouveau statut. Les étapes intermédiaires entre deux
+//     lectures ne sont pas rendues : seul l'état actuel compte ici ;
+//   - REJOUABLE : relire la même fenêtre rend les mêmes colis, sauf ceux qui
+//     ont changé depuis — ils ressortent alors plus loin ;
+//   - STABILISATION : un changement des STABILISATION_MS dernières
+//     millisecondes n'est pas encore pris en compte. Une transaction peut
+//     valider un horodatage légèrement antérieur à celui d'une autre déjà
+//     visible ; sans ce délai, un curseur passé au-delà le manquerait ;
 //   - PÉRIMÈTRE : seuls les colis DÉPOSÉS PAR CETTE PLATEFORME (source api)
-//     chez SES marchands, dans l'environnement de la clé. Un marchand rattaché
-//     garde ses autres colis pour lui.
+//     chez SES marchands, dans l'environnement de la clé.
 
 export const LIMITE_DEFAUT = 200;
 export const LIMITE_MAX = 500;
@@ -69,25 +70,31 @@ export interface RequeteSuivi {
   limite: number;
 }
 
-export interface EvenementColis {
-  evenementId: string;
+export interface ColisSuivi {
   reference: string | null;
   codeSuivi: string;
   // Code interne du statut (« livre », « refuse », « injoignable »…).
   statut: StatutCommande;
   libelle: string;
   // Statut terminal (STATUTS_TERMINAUX) : livré, retourné, annulé. Seul un
-  // admin peut encore le corriger, ce qui produit un nouvel événement.
+  // admin peut encore le corriger : le colis ressort alors avec son statut
+  // corrigé.
   final: boolean;
   statutDate: string;
-  // COD à encaisser sur ce colis. Le montant RÉELLEMENT encaissé par le
-  // transporteur n'est pas encore connu de nous colis par colis : il viendra
-  // avec le journal financier.
+  // COD encaissé : le COD du colis quand il est livré (c'est à la livraison
+  // qu'il est encaissé), 0 sinon. Montant ATTENDU, non confirmé par le
+  // transporteur : le montant réellement reversé viendra avec le journal
+  // financier.
+  montantEncaisse: number;
   montantCod: number;
+  // Réservé (décision du 11/10/2026) : nom et numéro du livreur, fournis
+  // ultérieurement. Toujours `null` pour l'instant, mais présent dans le
+  // contrat pour que son arrivée ne change pas la forme de la réponse.
+  transporteur: null;
 }
 
 export interface PageSuivi {
-  evenements: EvenementColis[];
+  colis: ColisSuivi[];
   curseurSuivant: string | null;
   fin: boolean;
 }
@@ -106,8 +113,8 @@ export function decoderCurseur(brut: string): { horodatage: Date; id: string } {
   return { horodatage, id };
 }
 
-// Paramètres de l'URL. `modifiesDepuis` est REQUIS sans curseur : un flux sans
-// borne basse renverrait tout l'historique à chaque appel.
+// Paramètres de l'URL. `modifiesDepuis` est REQUIS sans curseur : sans borne
+// basse, chaque appel renverrait tous les colis.
 export function analyserRequeteSuivi(params: URLSearchParams): RequeteSuivi {
   const curseurBrut = params.get('curseur');
   const depuisBrut = params.get('modifiesDepuis');
@@ -130,7 +137,16 @@ export function analyserRequeteSuivi(params: URLSearchParams): RequeteSuivi {
   return { depuis, curseur: null, limite };
 }
 
-export async function listerEvenementsColis(
+interface LigneSql {
+  commande_id: string;
+  nouveau_statut: string;
+  horodatage: Date;
+  code_suivi: string;
+  code_suivi_partenaire: string | null;
+  montant_cod: Prisma.Decimal | number | string;
+}
+
+export async function listerColisModifies(
   contexte: ContextePlateforme,
   requete: RequeteSuivi,
   maintenant: Date = new Date()
@@ -140,57 +156,63 @@ export async function listerEvenementsColis(
     select: { marchandId: true },
   });
   const marchandIds = liens.map((l) => l.marchandId);
-  if (marchandIds.length === 0) return { evenements: [], curseurSuivant: null, fin: true };
+  if (marchandIds.length === 0) return { colis: [], curseurSuivant: null, fin: true };
 
+  const stabilise = new Date(maintenant.getTime() - STABILISATION_MS);
   const borne = requete.curseur
-    ? {
-        OR: [
-          { horodatage: { gt: requete.curseur.horodatage } },
-          { horodatage: requete.curseur.horodatage, id: { gt: requete.curseur.id } },
-        ],
-      }
-    : { horodatage: { gte: requete.depuis! } };
+    ? Prisma.sql`(d."horodatage", d."commande_id") > (${requete.curseur.horodatage}, ${requete.curseur.id})`
+    : Prisma.sql`d."horodatage" >= ${requete.depuis!}`;
 
-  const lignes = await prisma.historiqueStatutCommande.findMany({
-    where: {
-      AND: [
-        borne,
-        { horodatage: { lte: new Date(maintenant.getTime() - STABILISATION_MS) } },
-        { nouveauStatut: { in: STATUTS_TRANSMIS } },
-        { commande: { source: 'api', marchandId: { in: marchandIds } } },
-      ],
-    },
-    orderBy: [{ horodatage: 'asc' }, { id: 'asc' }],
-    take: requete.limite + 1,
-    select: {
-      id: true,
-      nouveauStatut: true,
-      horodatage: true,
-      commande: { select: { codeSuivi: true, codeSuiviPartenaire: true, montantCod: true } },
-    },
-  });
+  // Pour chaque colis du périmètre : son DERNIER changement vers un statut
+  // transmis (DISTINCT ON), puis la page triée par (date, colis).
+  const lignes = await prisma.$queryRaw<LigneSql[]>`
+    WITH dernier AS (
+      SELECT DISTINCT ON (h."commande_id")
+             h."commande_id", h."nouveau_statut"::text AS "nouveau_statut", h."horodatage"
+      FROM "historique_statuts_commande" h
+      JOIN "commandes" c ON c."id" = h."commande_id"
+      WHERE c."source"::text = 'api'
+        AND c."marchand_id" = ANY(${marchandIds})
+        AND h."nouveau_statut"::text = ANY(${STATUTS_TRANSMIS as string[]})
+        AND h."horodatage" <= ${stabilise}
+      ORDER BY h."commande_id", h."horodatage" DESC, h."id" DESC
+    )
+    SELECT d."commande_id", d."nouveau_statut", d."horodatage",
+           c."code_suivi", c."code_suivi_partenaire", c."montant_cod"
+    FROM dernier d
+    JOIN "commandes" c ON c."id" = d."commande_id"
+    WHERE ${borne}
+    ORDER BY d."horodatage" ASC, d."commande_id" ASC
+    LIMIT ${requete.limite + 1}
+  `;
 
   const fin = lignes.length <= requete.limite;
   const page = lignes.slice(0, requete.limite);
   const derniere = page.at(-1);
 
   return {
-    evenements: page.map((l) => {
-      const statut = l.nouveauStatut as StatutCommande;
+    colis: page.map((l) => {
+      const statut = l.nouveau_statut as StatutCommande;
+      const montantCod = Number(l.montant_cod);
       return {
-        evenementId: l.id,
-        reference: l.commande.codeSuiviPartenaire,
-        codeSuivi: l.commande.codeSuivi,
+        reference: l.code_suivi_partenaire,
+        codeSuivi: l.code_suivi,
         statut,
         libelle: LABELS_STATUT_COMMANDE[statut],
         final: STATUTS_TERMINAUX.includes(statut),
         statutDate: l.horodatage.toISOString(),
-        montantCod: Number(l.commande.montantCod),
+        montantEncaisse: statut === 'livre' ? montantCod : 0,
+        montantCod,
+        transporteur: null,
       };
     }),
-    // Toujours renvoyé quand la page n'est pas vide, même en fin de flux : le
-    // partenaire le garde pour son prochain passage et ne relit rien deux fois.
-    curseurSuivant: derniere ? encoderCurseur(derniere.horodatage, derniere.id) : requete.curseur ? encoderCurseur(requete.curseur.horodatage, requete.curseur.id) : null,
+    // Toujours renvoyé dès qu'une page a été lue, même en fin de liste : le
+    // partenaire le garde pour son prochain passage.
+    curseurSuivant: derniere
+      ? encoderCurseur(derniere.horodatage, derniere.commande_id)
+      : requete.curseur
+        ? encoderCurseur(requete.curseur.horodatage, requete.curseur.id)
+        : null,
     fin,
   };
 }
