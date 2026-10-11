@@ -812,7 +812,7 @@ async function main() {
     },
   });
 
-  type Evt = { evenementId: string; reference: string; codeSuivi: string; statut: string; statutDate: string };
+  type Evt = { evenementId: string; reference: string; codeSuivi: string; statut: string; libelle: string; final: boolean; statutDate: string };
   async function toutLire(cle: string, limite: number): Promise<Evt[]> {
     const vus: Evt[] = [];
     let url = `/api/v1/colis?modifiesDepuis=${debutSuivi}&limite=${limite}`;
@@ -827,14 +827,18 @@ async function main() {
   }
 
   let flux: Evt[] = [];
-  await verifie('les événements des colis déposés sortent, dans l’ordre, au vocabulaire public', async () => {
+  await verifie('les événements des colis déposés sortent, dans l’ordre, avec nos statuts tels quels', async () => {
     flux = await toutLire(a.cleLive, 200);
     if (flux.length < 50) throw new Error(`${flux.length} événement(s) seulement`);
     const dates = flux.map((e) => e.statutDate);
     if (dates.join() !== [...dates].sort().join()) throw new Error('flux non trié par date');
-    const etapes = flux.filter((e) => e.reference === `${PREFIXE}-C-1`).map((e) => e.statut);
-    if (etapes.join(',') !== 'created,delivered') throw new Error(`étapes de C-1 : ${etapes.join(',')}`);
-    if (flux.some((e) => !['created', 'delivered'].includes(e.statut))) throw new Error('statut hors vocabulaire attendu');
+    const etapes = flux.filter((e) => e.reference === `${PREFIXE}-C-1`);
+    if (etapes.map((e) => e.statut).join(',') !== 'nouveau_colis,livre') {
+      throw new Error(`étapes de C-1 : ${etapes.map((e) => e.statut).join(',')}`);
+    }
+    const livraison = etapes[1];
+    if (livraison.libelle !== 'Livré' || livraison.final !== true) throw new Error('libellé ou « final » faux sur « livre »');
+    if (etapes[0].final !== false) throw new Error('« nouveau_colis » marqué final');
   });
 
   await verifie('page par page (limite=7), le curseur ne saute ni ne double aucun événement', async () => {

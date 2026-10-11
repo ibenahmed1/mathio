@@ -10,7 +10,7 @@ import {
   decoderCurseur,
   encoderCurseur,
 } from '../plateforme-suivi';
-import { STATUTS_PUBLICS, STATUT_INTERNE_VERS_PUBLIC } from '../statut-public';
+import { LABELS_STATUT_COMMANDE, STATUTS_COMMANDE, STATUTS_TERMINAUX } from '../statuts';
 
 function codeRefus(params: string): string | null {
   try {
@@ -22,20 +22,13 @@ function codeRefus(params: string): string | null {
   }
 }
 
-test('chaque statut interne a une projection publique, dans le vocabulaire fermé', () => {
-  for (const interne of Object.values(StatutCommande)) {
-    const p = STATUT_INTERNE_VERS_PUBLIC[interne];
-    assert.ok(p, `${interne} sans projection`);
-    assert.ok((STATUTS_PUBLICS as readonly string[]).includes(p.statut), `${interne} → ${p.statut}`);
+test('chaque statut a un libellé : c’est ce qui sort tel quel vers la plateforme', () => {
+  for (const statut of Object.values(StatutCommande)) {
+    assert.ok(LABELS_STATUT_COMMANDE[statut], `${statut} sans libellé`);
+    assert.ok(STATUTS_COMMANDE.includes(statut), `${statut} absent de la liste documentée`);
   }
-  // Les états qui comptent pour le paiement d'un vendeur.
-  assert.deepEqual(STATUT_INTERNE_VERS_PUBLIC.livre, { statut: 'delivered', motif: null });
-  assert.deepEqual(STATUT_INTERNE_VERS_PUBLIC.retourne, { statut: 'returned', motif: null });
-  assert.equal(STATUT_INTERNE_VERS_PUBLIC.refuse.motif, 'refused_by_recipient');
-});
-
-test('le rang d’un appel n’est jamais exposé', () => {
-  assert.deepEqual(STATUT_INTERNE_VERS_PUBLIC.deuxieme_appel_pas_reponse, STATUT_INTERNE_VERS_PUBLIC.troisieme_appel_pas_reponse);
+  // Les statuts finaux, sur lesquels une plateforme paie ou clôt.
+  assert.deepEqual([...STATUTS_TERMINAUX].sort(), ['annule', 'annule_par_vendeur', 'livre', 'retourne']);
 });
 
 test('modifiesDepuis est requis sans curseur, et doit être une date ISO', () => {

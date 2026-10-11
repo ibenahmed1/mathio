@@ -12,7 +12,7 @@ Version 2.1 — octobre 2026
 |---|---|
 | **Marchands** (§4) | `email` **et** un mot de passe sont désormais **obligatoires** : ce sont les identifiants du marchand chez vous, et ils deviennent les siens chez nous. Le mot de passe s'envoie **en clair (`motDePasse`) ou en empreinte bcrypt (`motDePasseHash`)** : vous pouvez synchroniser vos marchands déjà inscrits sans détenir leur mot de passe. Plus d'email d'invitation. `nomBoutique` devient facultatif. Le champ `invitationEnvoyee` de la réponse est remplacé par `motDePasseDefini` |
 | **Produits de stock** (§5) | **Nouvel endpoint** `POST /v1/produits` : vous déclarez chaque produit, son SKU (ou ceux de ses variantes) et la quantité envoyée à notre entrepôt |
-| **Suivi des statuts** (§8) | **Nouvel endpoint** `GET /v1/colis` : le flux des changements de statut de vos colis (livré, refusé, retourné…), à interroger périodiquement |
+| **Suivi des statuts** (§8) | **Nouvel endpoint** `GET /v1/colis` : le flux des changements de statut de vos colis, avec **nos codes de statut** (`livre`, `refuse`, `retourne`…), à interroger périodiquement |
 | **Colis** (§6, §7) | Le champ **`produits`** (`[{ "sku", "quantite" }]`) est **obligatoire** : chaque colis contient un ou plusieurs produits de stock. Un SKU inconnu bloque le colis. Les champs `quantite` et `produitDescription` ne sont plus lus |
 | **Villes** (§9) | `code` est un code court **`V001`…** (il remplace l'ancien identifiant) ; `tarifLivraison` vaut **30 dh** pour toutes les villes |
 | **Clés** | Ces nouveautés demandent les droits `produits:creation`, `colis:lecture` et `villes:lecture` : nous vous émettons de **nouvelles clés** |
@@ -500,8 +500,9 @@ Authorization: Bearer mtk_live_…
       "evenementId": "8c1f0b6e-…",
       "reference": "SHP-2026-0001",
       "codeSuivi": "PD-101066",
-      "statut": "delivered",
-      "motif": null,
+      "statut": "livre",
+      "libelle": "Livré",
+      "final": true,
       "statutDate": "2026-10-09T14:22:11.000Z",
       "montantCod": 349.9
     }
@@ -516,31 +517,65 @@ Authorization: Bearer mtk_live_…
 | `evenementId` | Identifiant unique de l'événement. **Servez-vous-en pour écarter les doublons** |
 | `reference` | Votre référence du colis |
 | `codeSuivi` | Notre numéro de suivi |
-| `statut` | Le nouvel état du colis, dans le vocabulaire ci-dessous |
-| `motif` | Pourquoi, quand c'est utile (tentative échouée, colis en attente…), sinon `null` |
+| `statut` | Le nouvel état du colis : **notre code de statut**, tel que nous l'utilisons (liste ci-dessous) |
+| `libelle` | Son libellé en français, pour l'affichage |
+| `final` | `true` pour un statut final (livré, retourné, annulé) : le colis est clos |
 | `statutDate` | Date du changement de statut |
 | `montantCod` | Le montant à encaisser sur ce colis |
 | `curseurSuivant` | À garder pour l'appel suivant. Toujours présent dès qu'un événement a été lu |
 | `fin` | `true` : vous avez tout lu pour l'instant. `false` : rappelez tout de suite avec `curseurSuivant` |
 
-### Vocabulaire des statuts
+### Les statuts
 
-**Fermé et stable** : branchez votre code sur ces codes, jamais sur un libellé. Un même colis
-peut passer plusieurs fois par le même statut (plusieurs tentatives de livraison).
+Ce sont **nos propres statuts**, tels que nous les utilisons. La liste est fermée : branchez votre
+code sur le **code** (`livre`), jamais sur le libellé. Si nous devions un jour en ajouter, en
+renommer ou en retirer un, nous vous prévenons **avant** la mise en service.
 
-| `statut` | Signification | `motif` possibles |
+Un même colis peut passer plusieurs fois par le même statut (plusieurs tentatives de livraison,
+plusieurs appels).
+
+| `statut` | Libellé | Final |
 |---|---|---|
-| `created` | Colis enregistré, pas encore pris en charge | `registered`, `awaiting_pickup` |
-| `picked_up` | Ramassé | — |
-| `at_facility` | Dans un de nos entrepôts | `awaiting_preparation`, `back_at_facility` (revenu après un échec) |
-| `in_transit` | En route entre deux sites, ou confié à un transporteur | `handed_to_carrier` |
-| `out_for_delivery` | En cours de livraison | — |
-| **`delivered`** | **Livré.** État final | — |
-| `attempt_failed` | Tentative de livraison échouée ; d'autres peuvent suivre | `voicemail`, `no_answer`, `unreachable`, `wrong_number`, `rescheduled`, `out_of_area`, `refused_by_recipient` |
-| `on_hold` | En attente (client à recontacter, livraison programmée…) | `processing`, `awaiting_customer`, `scheduled` |
-| `returning` | En retour vers nous | `carrier_return` |
-| **`returned`** | **Retourné** au marchand. État final | — |
-| **`cancelled`** | **Annulé.** État final | `cancelled_by_carrier`, `cancelled_by_shipper` |
+| `nouveau_colis` | Nouveau Colis |  |
+| `attente_de_ramassage` | Attente De Ramassage |  |
+| `ramasse` | Ramassé |  |
+| `recu` | Reçu |  |
+| `pret_pour_preparation` | Prêt pour préparation |  |
+| `recu_au_hub` | Reçu au Hub |  |
+| `en_transit` | En transit |  |
+| `expedie` | Expédié |  |
+| `expedier_par_amana` | Remis à un transporteur |  |
+| `en_voyage` | En Voyage |  |
+| `mise_en_distribution` | Mise en distribution |  |
+| `livre` | Livré | **oui** |
+| `en_cours` | En cours |  |
+| `boite_vocale` | Boite Vocal |  |
+| `deuxieme_appel_pas_reponse` | Deuxième Appel Pas Réponse |  |
+| `troisieme_appel_pas_reponse` | Troisième Appel Pas Réponse |  |
+| `pas_de_reponse_sms` | Pas de réponse + SMS |  |
+| `injoignable` | Injoignable |  |
+| `numero_errone` | Numero_Erroné |  |
+| `client_interesse` | Client intéressé |  |
+| `relance_nouveau_client` | Relancé nouveau client |  |
+| `attente_de_relancer` | Attente de relancer |  |
+| `programme` | Programmé |  |
+| `reporte` | Reporté |  |
+| `hors_zone` | Hors-zone |  |
+| `refuse` | Refusé |  |
+| `retourne` | Retourné | **oui** |
+| `retourne_au_hub` | Retourné au Hub |  |
+| `en_retour_par_amana` | En retour par un transporteur |  |
+| `annule` | Annulé | **oui** |
+| `annule_par_vendeur` | Annulé par Vendeur | **oui** |
+
+**Pour payer vos vendeurs, appuyez-vous sur `livre`.** `retourne`, `annule` et `annule_par_vendeur`
+signifient qu'il n'y a rien à payer. `refuse` n'est pas final : le colis repart vers nous, puis
+vers le vendeur (`retourne`).
+
+**Un statut final peut, exceptionnellement, être corrigé.** Nos transporteurs et nos équipes ne
+peuvent plus le modifier, mais un administrateur Mathio le peut, pour réparer une erreur de
+saisie. Un nouvel événement apparaît alors après `livre`. Appliquez donc toujours **le dernier
+événement reçu** pour un colis, et ne tenez pas un `livre` pour acquis définitivement.
 
 ### Les garanties
 

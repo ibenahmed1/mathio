@@ -1,12 +1,17 @@
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
-import { statutPublic, type StatutPublic } from '@/lib/statut-public';
+import { LABELS_STATUT_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 
 // § GET /v1/colis — les événements de statut des colis d'une plateforme.
 //
 // Demande de Shipeh du 10/10/2026 : elle paie ses vendeurs à la livraison, et
-// notre API ne lui rendait rien. Plutôt qu'un état « dernier statut » (qui
+// notre API ne lui rendait rien. Les statuts sortent TELS QUELS — nos codes
+// internes (StatutCommande) et leur libellé français — par décision de
+// l'exploitation du 11/10/2026 : Shipeh n'imposait aucun vocabulaire, et
+// leur exemple était le nôtre (« livre »). Conséquence à connaître : ajouter,
+// renommer ou retirer un statut interne change le contrat de cette API, il
+// faut prévenir les plateformes AVANT de déployer. Plutôt qu'un état « dernier statut » (qui
 // perdrait les étapes intermédiaires et ne se rejoue pas), on expose le FLUX
 // des changements de statut : chaque ligne de HistoriqueStatutCommande (RG-10,
 // tout changement de statut est historisé) devient un événement daté et
@@ -40,8 +45,12 @@ export interface EvenementColis {
   evenementId: string;
   reference: string | null;
   codeSuivi: string;
-  statut: StatutPublic;
-  motif: string | null;
+  // Code interne du statut (« livre », « refuse », « injoignable »…).
+  statut: StatutCommande;
+  libelle: string;
+  // Statut terminal (STATUTS_TERMINAUX) : livré, retourné, annulé. Seul un
+  // admin peut encore le corriger, ce qui produit un nouvel événement.
+  final: boolean;
   statutDate: string;
   // COD à encaisser sur ce colis. Le montant RÉELLEMENT encaissé par le
   // transporteur n'est pas encore connu de nous colis par colis : il viendra
@@ -138,13 +147,14 @@ export async function listerEvenementsColis(
 
   return {
     evenements: page.map((l) => {
-      const { statut, motif } = statutPublic(l.nouveauStatut as StatutCommande);
+      const statut = l.nouveauStatut as StatutCommande;
       return {
         evenementId: l.id,
         reference: l.commande.codeSuiviPartenaire,
         codeSuivi: l.commande.codeSuivi,
         statut,
-        motif,
+        libelle: LABELS_STATUT_COMMANDE[statut],
+        final: STATUTS_TERMINAUX.includes(statut),
         statutDate: l.horodatage.toISOString(),
         montantCod: Number(l.commande.montantCod),
       };
