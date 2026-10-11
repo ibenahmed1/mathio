@@ -33,6 +33,9 @@ export const CATALOGUE_SCOPES: Record<string, string> = {
   'marchands:creation_validee': 'Créer un compte marchand déjà validé',
   // Déposer des colis, à l'unité ou par lot.
   'colis:creation': 'Déposer des colis',
+  // Lire les événements de statut des colis qu'on a déposés (§ GET
+  // /api/v1/colis). Lecture seule, limitée aux colis de la plateforme.
+  'colis:lecture': 'Suivre les statuts de ses colis',
   // Déclarer les produits de stock d'un marchand, avec leurs SKU et la
   // quantité envoyée à l'entrepôt (§ POST /api/v1/produits). Sans danger pour
   // la production : le stock annoncé ne devient réel qu'à la réception.

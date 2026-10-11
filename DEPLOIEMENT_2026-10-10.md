@@ -39,7 +39,7 @@ l'étape 5 avant de toucher la production (voir la remarque « À blanc » de ce
 npx prisma migrate deploy
 ```
 
-Neuf migrations, toutes en **ajout seul**, sans perte de données :
+Dix migrations, toutes en **ajout seul**, sans perte de données :
 
 | Migration | Effet |
 |---|---|
@@ -52,6 +52,7 @@ Neuf migrations, toutes en **ajout seul**, sans perte de données :
 | `20261010120000_stock_variantes_colis` | variante consommée par un colis, dates de réservation et de réintégration du stock |
 | `20261010130000_colis_multi_produits` | table `lignes_colis` (contenu des colis) ; chaque colis existant reçoit sa ligne |
 | `20261010140000_numero_villes` | numéro de chaque ville, d'où son code partenaire `V001`… ; numérotation provisoire, remplacée à l'étape 5 par celle de l'état validé |
+| `20261011090000_historique_horodatage` | index sur l'historique des statuts, pour le suivi des colis par Shipeh |
 
 Si la production a déjà certaines de ces migrations, `migrate deploy` ne joue que les autres.
 
@@ -151,15 +152,16 @@ Les API partenaires sont servies sur le domaine `HOST_API`, sous `/api/v1` :
 | `POST /v1/marchands` | créer le compte d'un marchand, avec son email et son mot de passe Shipeh |
 | `POST /v1/produits` | déclarer un produit de stock (SKU, variantes, quantité envoyée) |
 | `POST /v1/colis`, `POST /v1/colis/lot` | déposer des colis contenant un ou plusieurs produits de stock |
+| `GET /v1/colis` | suivre les changements de statut de leurs colis (livré, refusé, retourné…) |
 | `GET /v1/villes` | nos 500 villes, au tarif Shipeh de 30 dh |
 
 Les droits d'une clé ne se modifient pas. Il faut donc, dans `/admin/integrations`, sur la
 plateforme Shipeh :
 
-1. **créer une clé `test`** avec `marchands:creation`, `produits:creation`, `colis:creation`,
+1. **créer une clé `test`** avec `marchands:creation`, `produits:creation`, `colis:creation`, `colis:lecture`,
    `villes:lecture` ;
 2. **créer une clé `live`** avec `marchands:creation_validee`, `produits:creation`,
-   `colis:creation`, `villes:lecture` ;
+   `colis:creation`, `colis:lecture`, `villes:lecture` ;
 3. copier chaque clé **au moment de sa création** (elle ne se réaffiche jamais) et la
    transmettre à Shipeh par un canal sûr, avec l'adresse `https://<HOST_API>/api/v1` et
    `DOCUMENTATION_SHIPEH.md` ;

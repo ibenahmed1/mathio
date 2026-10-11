@@ -31,15 +31,29 @@ const RIB_REGEX = /^\d{24}$/;
 // silence.
 const MOT_DE_PASSE_OCTETS_MAX = 72;
 
+// Empreinte bcrypt transmise à la place du mot de passe (demande de Shipeh du
+// 10/10/2026) : une plateforme correcte ne détient jamais le mot de passe en
+// clair de ses marchands, seulement son empreinte. Nous hachons en bcrypt
+// nous aussi : l'empreinte se range telle quelle et la connexion la vérifie
+// (bcryptjs accepte $2a$, $2b$ et $2y$).
+//
+// Coût BORNÉ à 10–14, plus serré que ce que Shipeh proposait (≥ 10) : la
+// vérification double de durée à chaque point de coût, et une empreinte au
+// coût 31 bloquerait notre serveur des heures à chaque tentative de connexion
+// de ce marchand. 10 est le coût de nos propres empreintes (hashSecret).
+const EMPREINTE_BCRYPT = /^\$2[aby]\$(1[0-4])\$[./A-Za-z0-9]{53}$/;
+
 export interface EntreeMarchandExterne {
   idExterne: string;
   nomComplet: string;
   nomBoutique: string;
   telephone: string;
   email: string;
-  // Mot de passe EN CLAIR du marchand chez la plateforme, haché dès la
-  // création du compte et jamais conservé ni journalisé tel quel.
-  motDePasse: string;
+  // Exactement UN des deux est renseigné. Le mot de passe EN CLAIR est haché
+  // dès la création du compte et jamais conservé ni journalisé tel quel ;
+  // l'EMPREINTE bcrypt est rangée telle quelle.
+  motDePasse: string | null;
+  motDePasseHash: string | null;
   ville: string | null;
   adresse: string | null;
   rib: string | null;
@@ -76,7 +90,9 @@ function optionnel(corps: Record<string, unknown>, cle: string): string | null {
 // L'email et le mot de passe sont REQUIS ensemble : ce sont les identifiants
 // du marchand chez la plateforme, et ils deviennent les siens chez nous
 // (décision de l'exploitation du 10/10/2026). Il se connecte donc avec le
-// même login et le même mot de passe des deux côtés.
+// même login et le même mot de passe des deux côtés. Le mot de passe arrive
+// soit en clair (`motDePasse`), soit sous forme d'empreinte bcrypt
+// (`motDePasseHash`) — exactement l'un des deux.
 export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExterne {
   if (typeof corpsBrut !== 'object' || corpsBrut === null || Array.isArray(corpsBrut)) {
     throw new ErreurPlateforme(400, 'corps_invalide', 'Le corps de la requête doit être un objet JSON');
@@ -105,24 +121,49 @@ export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExtern
     throw new ErreurPlateforme(400, 'email_invalide', 'Adresse électronique invalide');
   }
 
-  // Pris tel quel, sans `trim` : une espace peut faire partie d'un mot de
-  // passe. Notre politique de robustesse (getPasswordPolicyError) n'est PAS
-  // appliquée : le marchand a choisi ce mot de passe sous les règles de la
-  // plateforme, et le refuser ici bloquerait sa synchronisation pour une
-  // décision qui n'est pas la sienne.
-  const motDePasse = corps.motDePasse;
-  if (motDePasse === undefined || motDePasse === null || (typeof motDePasse === 'string' && motDePasse.trim() === '')) {
-    throw new ErreurPlateforme(400, 'champ_requis', 'Le champ « motDePasse » est requis');
+  const fourni = (v: unknown) => v !== undefined && v !== null && !(typeof v === 'string' && v.trim() === '');
+  const clairFourni = fourni(corps.motDePasse);
+  const empreinteFournie = fourni(corps.motDePasseHash);
+  if (!clairFourni && !empreinteFournie) {
+    throw new ErreurPlateforme(400, 'champ_requis', 'Le champ « motDePasse » ou « motDePasseHash » est requis');
   }
-  if (typeof motDePasse !== 'string') {
-    throw new ErreurPlateforme(400, 'mot_de_passe_invalide', 'motDePasse doit être une chaîne de caractères');
-  }
-  if (Buffer.byteLength(motDePasse, 'utf8') > MOT_DE_PASSE_OCTETS_MAX) {
+  if (clairFourni && empreinteFournie) {
     throw new ErreurPlateforme(
       400,
-      'mot_de_passe_invalide',
-      `motDePasse ne doit pas dépasser ${MOT_DE_PASSE_OCTETS_MAX} octets`
+      'mot_de_passe_ambigu',
+      'Fournir « motDePasse » OU « motDePasseHash », pas les deux'
     );
+  }
+
+  let motDePasse: string | null = null;
+  let motDePasseHash: string | null = null;
+  if (clairFourni) {
+    // Pris tel quel, sans `trim` : une espace peut faire partie d'un mot de
+    // passe. Notre politique de robustesse (getPasswordPolicyError) n'est PAS
+    // appliquée : le marchand a choisi ce mot de passe sous les règles de la
+    // plateforme, et le refuser ici bloquerait sa synchronisation pour une
+    // décision qui n'est pas la sienne.
+    if (typeof corps.motDePasse !== 'string') {
+      throw new ErreurPlateforme(400, 'mot_de_passe_invalide', 'motDePasse doit être une chaîne de caractères');
+    }
+    if (Buffer.byteLength(corps.motDePasse, 'utf8') > MOT_DE_PASSE_OCTETS_MAX) {
+      throw new ErreurPlateforme(
+        400,
+        'mot_de_passe_invalide',
+        `motDePasse ne doit pas dépasser ${MOT_DE_PASSE_OCTETS_MAX} octets`
+      );
+    }
+    motDePasse = corps.motDePasse;
+  } else {
+    const empreinte = typeof corps.motDePasseHash === 'string' ? corps.motDePasseHash.trim() : '';
+    if (!EMPREINTE_BCRYPT.test(empreinte)) {
+      throw new ErreurPlateforme(
+        400,
+        'mot_de_passe_hash_invalide',
+        'motDePasseHash doit être une empreinte bcrypt de 60 caractères ($2a$, $2b$ ou $2y$), de coût 10 à 14'
+      );
+    }
+    motDePasseHash = empreinte;
   }
 
   const rib = optionnel(corps, 'rib');
@@ -146,6 +187,7 @@ export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExtern
     telephone,
     email,
     motDePasse,
+    motDePasseHash,
     ville: optionnel(corps, 'ville'),
     adresse: optionnel(corps, 'adresse'),
     rib,
@@ -360,10 +402,11 @@ export async function synchroniserMarchand(
     };
   }
 
-  // 4. Création, avec le mot de passe transmis par la plateforme : il est
-  // haché ici, et le marchand se connecte chez nous avec les mêmes
-  // identifiants que chez elle. Aucun lien d'invitation n'est donc préparé.
-  const motDePasseHash = await hashSecret(entree.motDePasse);
+  // 4. Création, avec le mot de passe transmis par la plateforme : haché ici
+  // s'il arrive en clair, rangé tel quel s'il arrive en empreinte bcrypt. Le
+  // marchand se connecte chez nous avec les mêmes identifiants que chez elle.
+  // Aucun lien d'invitation n'est donc préparé.
+  const motDePasseHash = entree.motDePasseHash ?? (await hashSecret(entree.motDePasse as string));
 
   // Les contrôles d'existence de l'étape 2 ne verrouillent rien : entre eux et
   // cette création, un appel concurrent — la même synchronisation redélivrée

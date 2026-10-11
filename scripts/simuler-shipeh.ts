@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { HOST_API } from '../lib/spaces';
 import { verifySecret } from '../lib/auth';
+import bcrypt from 'bcryptjs';
 import { genererCle } from '../lib/plateforme-cles';
 import { TAILLE_MAX_LOT } from '../lib/plateforme-colis';
 import { purgerDonneesTest } from '../lib/plateformes';
@@ -184,8 +185,8 @@ async function amorcer(): Promise<Amorce> {
     return { cleComplete, id: creee.id };
   }
 
-  const live = await poser('live', ['marchands:creation_validee', 'colis:creation', 'produits:creation']);
-  const test = await poser('test', ['marchands:creation', 'colis:creation', 'produits:creation']);
+  const live = await poser('live', ['marchands:creation_validee', 'colis:creation', 'produits:creation', 'colis:lecture']);
+  const test = await poser('test', ['marchands:creation', 'colis:creation', 'produits:creation', 'colis:lecture']);
   const sansColis = await poser('live', ['marchands:creation']);
   const revoquee = await poser('live', ['colis:creation'], { revoqueeLe: new Date() });
   const expiree = await poser('live', ['colis:creation'], { expireLe: new Date(Date.now() - 60_000) });
@@ -395,6 +396,23 @@ async function main() {
       throw new Error('le mot de passe n’ouvre pas');
     }
     if (compte.resetTokenHash !== null) throw new Error('un lien d’invitation a été préparé pour rien');
+  });
+
+  await verifie('empreinte bcrypt à la place du mot de passe : rangée telle quelle, elle ouvre le compte', async () => {
+    const { motDePasse: _clair, ...sansClair } = marchand('H', '0612000013');
+    const empreinte = bcrypt.hashSync('mdp shipeh H', 10).replace(/^\$2[ab]\$/, '$2y$');
+    const r = await appel('POST', '/api/v1/marchands', a.cleLive, { ...sansClair, motDePasseHash: empreinte });
+    attendu(r, 201);
+    if (r.json?.motDePasseDefini !== true) throw new Error('motDePasseDefini devrait être vrai');
+    const compte = await prisma.utilisateur.findUnique({ where: { email: sansClair.email } });
+    if (compte?.motDePasseHash !== empreinte) throw new Error('empreinte non rangée telle quelle');
+    if (!(await verifySecret('mdp shipeh H', compte.motDePasseHash))) throw new Error('le mot de passe n’ouvre pas');
+  });
+
+  await verifie('empreinte au coût excessif : 400, le serveur ne la vérifiera jamais', async () => {
+    const { motDePasse: _clair, ...sansClair } = marchand('H2', '0612000014');
+    const empreinte = bcrypt.hashSync('x', 10).replace(/^(\$2[ab]\$)10/, '$131');
+    attendu(await appel('POST', '/api/v1/marchands', a.cleLive, { ...sansClair, motDePasseHash: empreinte }), 400, 'mot_de_passe_hash_invalide');
   });
 
   await verifie('sans mot de passe : 400, le marchand ne pourrait pas se connecter', async () => {
@@ -764,6 +782,82 @@ async function main() {
       entetes: { Authorization: `Bearer ${a.cleLive}` },
     });
     attendu(r, 400, 'json_invalide');
+  });
+
+  // ----------------------------------------------------------
+  console.log('\n5 bis. Suivi des colis (GET /v1/colis)');
+
+  // Les événements des 10 dernières secondes ne sont pas encore servis
+  // (stabilisation, cf. lib/plateforme-suivi.ts) : on « vieillit » ceux de la
+  // simulation d'une minute, comme si le temps avait passé.
+  const debutSuivi = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const colisSim = await prisma.commande.findMany({
+    where: { codeSuiviPartenaire: { startsWith: PREFIXE } },
+    select: { id: true, codeSuivi: true, codeSuiviPartenaire: true },
+  });
+  await prisma.historiqueStatutCommande.updateMany({
+    where: { commandeId: { in: colisSim.map((c) => c.id) } },
+    data: { horodatage: new Date(Date.now() - 60_000) },
+  });
+  const livre = colisSim.find((c) => c.codeSuiviPartenaire === `${PREFIXE}-C-1`)!;
+  const technique = await prisma.utilisateur.findFirstOrThrow({ where: { nomComplet: `${PREFIXE} Shipeh` } });
+  await prisma.commande.update({ where: { id: livre.id }, data: { statut: 'livre', dateLivraison: new Date() } });
+  await prisma.historiqueStatutCommande.create({
+    data: {
+      commandeId: livre.id,
+      ancienStatut: 'nouveau_colis',
+      nouveauStatut: 'livre',
+      utilisateurId: technique.id,
+      horodatage: new Date(Date.now() - 30_000),
+    },
+  });
+
+  type Evt = { evenementId: string; reference: string; codeSuivi: string; statut: string; statutDate: string };
+  async function toutLire(cle: string, limite: number): Promise<Evt[]> {
+    const vus: Evt[] = [];
+    let url = `/api/v1/colis?modifiesDepuis=${debutSuivi}&limite=${limite}`;
+    for (let i = 0; i < 500; i++) {
+      const r = await appel('GET', url, cle);
+      attendu(r, 200);
+      vus.push(...((r.json?.evenements ?? []) as Evt[]));
+      if (r.json?.fin) return vus;
+      url = `/api/v1/colis?curseur=${String(r.json?.curseurSuivant)}&limite=${limite}`;
+    }
+    throw new Error('pagination sans fin');
+  }
+
+  let flux: Evt[] = [];
+  await verifie('les événements des colis déposés sortent, dans l’ordre, au vocabulaire public', async () => {
+    flux = await toutLire(a.cleLive, 200);
+    if (flux.length < 50) throw new Error(`${flux.length} événement(s) seulement`);
+    const dates = flux.map((e) => e.statutDate);
+    if (dates.join() !== [...dates].sort().join()) throw new Error('flux non trié par date');
+    const etapes = flux.filter((e) => e.reference === `${PREFIXE}-C-1`).map((e) => e.statut);
+    if (etapes.join(',') !== 'created,delivered') throw new Error(`étapes de C-1 : ${etapes.join(',')}`);
+    if (flux.some((e) => !['created', 'delivered'].includes(e.statut))) throw new Error('statut hors vocabulaire attendu');
+  });
+
+  await verifie('page par page (limite=7), le curseur ne saute ni ne double aucun événement', async () => {
+    const pages = await toutLire(a.cleLive, 7);
+    if (pages.map((e) => e.evenementId).join() !== flux.map((e) => e.evenementId).join()) {
+      throw new Error(`${pages.length} événements par pages contre ${flux.length} d’un coup`);
+    }
+  });
+
+  await verifie('relire la même fenêtre rend les mêmes événements', async () => {
+    const encore = await toutLire(a.cleLive, 200);
+    if (encore.map((e) => e.evenementId).join() !== flux.map((e) => e.evenementId).join()) throw new Error('relecture différente');
+  });
+
+  await verifie('une clé de test ne voit pas les colis de production', async () => {
+    const vus = await toutLire(a.cleTest, 200);
+    if (vus.some((e) => flux.some((f) => f.evenementId === e.evenementId))) throw new Error('fuite live → test');
+  });
+
+  await verifie('sans le droit colis:lecture : 403 ; sans borne : 400', async () => {
+    attendu(await appel('GET', `/api/v1/colis?modifiesDepuis=${debutSuivi}`, a.cleSansScopeColis), 403, 'scope_manquant');
+    attendu(await appel('GET', '/api/v1/colis', a.cleLive), 400, 'champ_requis');
+    attendu(await appel('GET', '/api/v1/colis?curseur=abc', a.cleLive), 400, 'curseur_invalide');
   });
 
   // ----------------------------------------------------------

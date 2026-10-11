@@ -158,6 +158,11 @@ Content-Type: application/json
 
 { "idExterneMarchand": "shipeh-12345", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20 }
 
+### v3c. Suivre les statuts de ses colis (scope colis:lecture) -> 200 { evenements, curseurSuivant, fin }
+### Puis rappeler avec ?curseur=<curseurSuivant> tant que fin = false.
+GET {{apiUrl}}/api/v1/colis?modifiesDepuis=2026-10-10T08:00:00Z&limite=200
+Authorization: Bearer {{cle}}
+
 ### v3b. Nos villes : nom, code, tarif de livraison (scope villes:lecture)
 GET {{apiUrl}}/api/v1/villes
 Authorization: Bearer {{cle}}

@@ -1432,6 +1432,8 @@ model HistoriqueStatutCommande {
 
   @@index([commandeId])
   @@index([hubId])
+  // § GET /v1/colis : flux des événements trié par (horodatage, id).
+  @@index([horodatage, id])
   @@map("historique_statuts_commande")
 }
 
