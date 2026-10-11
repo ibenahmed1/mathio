@@ -528,7 +528,7 @@ Authorization: Bearer mtk_live_…
 ### Les statuts
 
 Ce sont **nos propres codes de statut**, tels que nous les utilisons. Nous vous transmettons les
-**20 statuts ci-dessous**, et seulement eux : les autres étapes internes (enregistrement,
+**19 statuts ci-dessous**, et seulement eux : les autres étapes internes (enregistrement,
 transits entre nos sites, remise au transporteur…) ne sont pas transmises, et votre colis garde
 alors le dernier statut reçu. La liste est fermée : branchez votre code sur le **code**
 (`livre`), jamais sur le libellé. Si nous devions un jour la modifier, nous vous prévenons
@@ -548,7 +548,6 @@ appels).
 | `pas_de_reponse_sms` | Pas de réponse + SMS | Pas de réponse, SMS de relance envoyé |  |
 | `injoignable` | Injoignable | Destinataire injoignable |  |
 | `numero_errone` | Numéro erroné | Numéro de téléphone du destinataire erroné |  |
-| `client_interesse` | Client intéressé | Le destinataire confirme, livraison à retenter |  |
 | `relance_nouveau_client` | Relancé nouveau client | Destinataire relancé |  |
 | `attente_de_relancer` | Attente de relancer | Relance du destinataire à faire |  |
 | `programme` | Programmé | Livraison fixée à une date convenue avec le destinataire |  |

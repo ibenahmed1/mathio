@@ -32,12 +32,12 @@ test('chaque statut a un libellé : c’est ce qui sort tel quel vers la platefo
   assert.deepEqual([...STATUTS_TERMINAUX].sort(), ['annule', 'annule_par_vendeur', 'livre', 'retourne']);
 });
 
-test('les 20 statuts transmis : ceux choisis le 11/10, dont tous les statuts finaux', () => {
-  assert.equal(STATUTS_TRANSMIS.length, 20);
-  assert.equal(new Set(STATUTS_TRANSMIS).size, 20);
+test('les 19 statuts transmis : ceux choisis le 11/10, dont tous les statuts finaux', () => {
+  assert.equal(STATUTS_TRANSMIS.length, 19);
+  assert.equal(new Set(STATUTS_TRANSMIS).size, 19);
   for (const final of STATUTS_TERMINAUX) assert.ok(STATUTS_TRANSMIS.includes(final), `${final} doit sortir`);
   // Écartés à dessein : l'expédition se lit par « mise en distribution ».
-  for (const ecarte of ['nouveau_colis', 'expedie', 'expedier_par_amana', 'en_cours'] as const) {
+  for (const ecarte of ['nouveau_colis', 'expedie', 'expedier_par_amana', 'en_cours', 'client_interesse'] as const) {
     assert.ok(!STATUTS_TRANSMIS.includes(ecarte), `${ecarte} ne doit pas sortir`);
   }
 });

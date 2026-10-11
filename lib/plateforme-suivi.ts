@@ -4,7 +4,7 @@ import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth
 import { LABELS_STATUT_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 
 // Les statuts TRANSMIS aux plateformes, choisis par l'exploitation le
-// 11/10/2026. Les autres étapes internes (enregistrement, ramassage, transits,
+// 11/10/2026 (« client intéressé » retiré le même jour). Les autres étapes internes (enregistrement, ramassage, transits,
 // remise au transporteur, centre d'appel en cours, retour par transporteur) ne
 // sortent pas : le colis garde chez la plateforme le dernier statut transmis.
 // Ajouter ou retirer un statut ici change le contrat : prévenir les
@@ -19,7 +19,6 @@ export const STATUTS_TRANSMIS: StatutCommande[] = [
   'pas_de_reponse_sms',
   'injoignable',
   'numero_errone',
-  'client_interesse',
   'relance_nouveau_client',
   'attente_de_relancer',
   'programme',
