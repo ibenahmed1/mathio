@@ -527,46 +527,38 @@ Authorization: Bearer mtk_live_…
 
 ### Les statuts
 
-Ce sont **nos propres statuts**, tels que nous les utilisons. La liste est fermée : branchez votre
-code sur le **code** (`livre`), jamais sur le libellé. Si nous devions un jour en ajouter, en
-renommer ou en retirer un, nous vous prévenons **avant** la mise en service.
+Ce sont **nos propres codes de statut**, tels que nous les utilisons. Nous vous transmettons les
+**20 statuts ci-dessous**, et seulement eux : les autres étapes internes (enregistrement,
+transits entre nos sites, remise au transporteur…) ne sont pas transmises, et votre colis garde
+alors le dernier statut reçu. La liste est fermée : branchez votre code sur le **code**
+(`livre`), jamais sur le libellé. Si nous devions un jour la modifier, nous vous prévenons
+**avant** la mise en service.
 
-Un même colis peut passer plusieurs fois par le même statut (plusieurs tentatives de livraison,
-plusieurs appels).
+Un même colis peut passer plusieurs fois par le même statut (plusieurs tentatives, plusieurs
+appels).
 
-| `statut` | Libellé | Final |
-|---|---|---|
-| `nouveau_colis` | Nouveau Colis |  |
-| `attente_de_ramassage` | Attente De Ramassage |  |
-| `ramasse` | Ramassé |  |
-| `recu` | Reçu |  |
-| `pret_pour_preparation` | Prêt pour préparation |  |
-| `recu_au_hub` | Reçu au Hub |  |
-| `en_transit` | En transit |  |
-| `expedie` | Expédié |  |
-| `expedier_par_amana` | Remis à un transporteur |  |
-| `en_voyage` | En Voyage |  |
-| `mise_en_distribution` | Mise en distribution |  |
-| `livre` | Livré | **oui** |
-| `en_cours` | En cours |  |
-| `boite_vocale` | Boite Vocal |  |
-| `deuxieme_appel_pas_reponse` | Deuxième Appel Pas Réponse |  |
-| `troisieme_appel_pas_reponse` | Troisième Appel Pas Réponse |  |
-| `pas_de_reponse_sms` | Pas de réponse + SMS |  |
-| `injoignable` | Injoignable |  |
-| `numero_errone` | Numero_Erroné |  |
-| `client_interesse` | Client intéressé |  |
-| `relance_nouveau_client` | Relancé nouveau client |  |
-| `attente_de_relancer` | Attente de relancer |  |
-| `programme` | Programmé |  |
-| `reporte` | Reporté |  |
-| `hors_zone` | Hors-zone |  |
-| `refuse` | Refusé |  |
-| `retourne` | Retourné | **oui** |
-| `retourne_au_hub` | Retourné au Hub |  |
-| `en_retour_par_amana` | En retour par un transporteur |  |
-| `annule` | Annulé | **oui** |
-| `annule_par_vendeur` | Annulé par Vendeur | **oui** |
+| `statut` | Libellé | Signification | Final |
+|---|---|---|---|
+| `pret_pour_preparation` | Prêt pour préparation | Colis pris en charge, en attente de préparation dans notre entrepôt |  |
+| `mise_en_distribution` | Mise en distribution | Colis parti en livraison |  |
+| `livre` | Livré | Remis au destinataire | **oui** |
+| `boite_vocale` | Boîte vocale | Appel au destinataire tombé sur la messagerie |  |
+| `deuxieme_appel_pas_reponse` | 2e appel sans réponse | Deuxième appel sans réponse |  |
+| `troisieme_appel_pas_reponse` | 3e appel sans réponse | Troisième appel sans réponse |  |
+| `pas_de_reponse_sms` | Pas de réponse + SMS | Pas de réponse, SMS de relance envoyé |  |
+| `injoignable` | Injoignable | Destinataire injoignable |  |
+| `numero_errone` | Numéro erroné | Numéro de téléphone du destinataire erroné |  |
+| `client_interesse` | Client intéressé | Le destinataire confirme, livraison à retenter |  |
+| `relance_nouveau_client` | Relancé nouveau client | Destinataire relancé |  |
+| `attente_de_relancer` | Attente de relancer | Relance du destinataire à faire |  |
+| `programme` | Programmé | Livraison fixée à une date convenue avec le destinataire |  |
+| `reporte` | Reporté | Livraison reportée à une nouvelle date |  |
+| `hors_zone` | Hors-zone | Adresse hors de notre zone de livraison |  |
+| `refuse` | Refusé | Le destinataire a refusé le colis ; il va revenir vers le vendeur |  |
+| `retourne_au_hub` | Retourné au Hub | Le colis non livré est revenu dans notre entrepôt |  |
+| `retourne` | Retourné | Colis rendu au vendeur | **oui** |
+| `annule` | Annulé | Livraison annulée | **oui** |
+| `annule_par_vendeur` | Annulé par le vendeur | Annulé par le vendeur | **oui** |
 
 **Pour payer vos vendeurs, appuyez-vous sur `livre`.** `retourne`, `annule` et `annule_par_vendeur`
 signifient qu'il n'y a rien à payer. `refuse` n'est pas final : le colis repart vers nous, puis

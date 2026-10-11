@@ -48,8 +48,8 @@ export const STATUTS_COMMANDE: StatutCommande[] = [
 ];
 
 export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
-  nouveau_colis: 'Nouveau Colis',
-  attente_de_ramassage: 'Attente De Ramassage',
+  nouveau_colis: 'Nouveau colis',
+  attente_de_ramassage: 'Attente de ramassage',
   ramasse: 'Ramassé',
   recu: 'Reçu',
   pret_pour_preparation: 'Prêt pour préparation',
@@ -63,16 +63,16 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   // qu'aucune migration ne réécrive l'historique des colis déjà passés par
   // AMANA.
   expedier_par_amana: 'Remis à un transporteur',
-  en_voyage: 'En Voyage',
+  en_voyage: 'En voyage',
   mise_en_distribution: 'Mise en distribution',
   livre: 'Livré',
   en_cours: 'En cours',
-  boite_vocale: 'Boite Vocal',
-  deuxieme_appel_pas_reponse: 'Deuxième Appel Pas Réponse',
-  troisieme_appel_pas_reponse: 'Troisième Appel Pas Réponse',
+  boite_vocale: 'Boîte vocale',
+  deuxieme_appel_pas_reponse: '2e appel sans réponse',
+  troisieme_appel_pas_reponse: '3e appel sans réponse',
   pas_de_reponse_sms: 'Pas de réponse + SMS',
   injoignable: 'Injoignable',
-  numero_errone: 'Numero_Erroné',
+  numero_errone: 'Numéro erroné',
   client_interesse: 'Client intéressé',
   relance_nouveau_client: 'Relancé nouveau client',
   attente_de_relancer: 'Attente de relancer',
@@ -84,7 +84,7 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   retourne_au_hub: 'Retourné au Hub',
   en_retour_par_amana: 'En retour par un transporteur',
   annule: 'Annulé',
-  annule_par_vendeur: 'Annulé par Vendeur',
+  annule_par_vendeur: 'Annulé par le vendeur',
 };
 
 export const STATUTS_TERMINAUX: StatutCommande[] = ['livre', 'retourne', 'annule', 'annule_par_vendeur'];

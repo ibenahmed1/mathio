@@ -3,6 +3,35 @@ import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { LABELS_STATUT_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 
+// Les statuts TRANSMIS aux plateformes, choisis par l'exploitation le
+// 11/10/2026. Les autres étapes internes (enregistrement, ramassage, transits,
+// remise au transporteur, centre d'appel en cours, retour par transporteur) ne
+// sortent pas : le colis garde chez la plateforme le dernier statut transmis.
+// Ajouter ou retirer un statut ici change le contrat : prévenir les
+// plateformes avant de déployer.
+export const STATUTS_TRANSMIS: StatutCommande[] = [
+  'pret_pour_preparation',
+  'mise_en_distribution',
+  'livre',
+  'boite_vocale',
+  'deuxieme_appel_pas_reponse',
+  'troisieme_appel_pas_reponse',
+  'pas_de_reponse_sms',
+  'injoignable',
+  'numero_errone',
+  'client_interesse',
+  'relance_nouveau_client',
+  'attente_de_relancer',
+  'programme',
+  'reporte',
+  'hors_zone',
+  'refuse',
+  'retourne_au_hub',
+  'retourne',
+  'annule',
+  'annule_par_vendeur',
+];
+
 // § GET /v1/colis — les événements de statut des colis d'une plateforme.
 //
 // Demande de Shipeh du 10/10/2026 : elle paie ses vendeurs à la livraison, et
@@ -128,6 +157,7 @@ export async function listerEvenementsColis(
       AND: [
         borne,
         { horodatage: { lte: new Date(maintenant.getTime() - STABILISATION_MS) } },
+        { nouveauStatut: { in: STATUTS_TRANSMIS } },
         { commande: { source: 'api', marchandId: { in: marchandIds } } },
       ],
     },

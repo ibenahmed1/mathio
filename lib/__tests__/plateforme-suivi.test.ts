@@ -6,6 +6,7 @@ import { ErreurPlateforme } from '../plateforme-auth';
 import {
   LIMITE_DEFAUT,
   LIMITE_MAX,
+  STATUTS_TRANSMIS,
   analyserRequeteSuivi,
   decoderCurseur,
   encoderCurseur,
@@ -29,6 +30,22 @@ test('chaque statut a un libellé : c’est ce qui sort tel quel vers la platefo
   }
   // Les statuts finaux, sur lesquels une plateforme paie ou clôt.
   assert.deepEqual([...STATUTS_TERMINAUX].sort(), ['annule', 'annule_par_vendeur', 'livre', 'retourne']);
+});
+
+test('les 20 statuts transmis : ceux choisis le 11/10, dont tous les statuts finaux', () => {
+  assert.equal(STATUTS_TRANSMIS.length, 20);
+  assert.equal(new Set(STATUTS_TRANSMIS).size, 20);
+  for (const final of STATUTS_TERMINAUX) assert.ok(STATUTS_TRANSMIS.includes(final), `${final} doit sortir`);
+  // Écartés à dessein : l'expédition se lit par « mise en distribution ».
+  for (const ecarte of ['nouveau_colis', 'expedie', 'expedier_par_amana', 'en_cours'] as const) {
+    assert.ok(!STATUTS_TRANSMIS.includes(ecarte), `${ecarte} ne doit pas sortir`);
+  }
+});
+
+test('libellés corrigés le 11/10', () => {
+  assert.equal(LABELS_STATUT_COMMANDE.boite_vocale, 'Boîte vocale');
+  assert.equal(LABELS_STATUT_COMMANDE.numero_errone, 'Numéro erroné');
+  assert.equal(LABELS_STATUT_COMMANDE.deuxieme_appel_pas_reponse, '2e appel sans réponse');
 });
 
 test('modifiesDepuis est requis sans curseur, et doit être une date ISO', () => {

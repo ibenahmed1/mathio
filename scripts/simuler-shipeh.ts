@@ -812,6 +812,19 @@ async function main() {
     },
   });
 
+  // Seuls 20 statuts sont transmis (lib/plateforme-suivi.ts) : « nouveau_colis »
+  // n'en fait pas partie. On fait partir 20 colis du lot en distribution.
+  const enDistribution = colisSim.filter((c) => c.codeSuiviPartenaire?.startsWith(`${PREFIXE}-LOT-`)).slice(0, 20);
+  await prisma.historiqueStatutCommande.createMany({
+    data: enDistribution.map((c) => ({
+      commandeId: c.id,
+      ancienStatut: 'nouveau_colis' as const,
+      nouveauStatut: 'mise_en_distribution' as const,
+      utilisateurId: technique.id,
+      horodatage: new Date(Date.now() - 45_000),
+    })),
+  });
+
   type Evt = { evenementId: string; reference: string; codeSuivi: string; statut: string; libelle: string; final: boolean; statutDate: string };
   async function toutLire(cle: string, limite: number): Promise<Evt[]> {
     const vus: Evt[] = [];
@@ -829,16 +842,18 @@ async function main() {
   let flux: Evt[] = [];
   await verifie('les événements des colis déposés sortent, dans l’ordre, avec nos statuts tels quels', async () => {
     flux = await toutLire(a.cleLive, 200);
-    if (flux.length < 50) throw new Error(`${flux.length} événement(s) seulement`);
+    if (flux.length !== 21) throw new Error(`${flux.length} événement(s) au lieu de 21 (20 en distribution + 1 livré)`);
+    const nonTransmis = flux.filter((e) => !['mise_en_distribution', 'livre'].includes(e.statut));
+    if (nonTransmis.length) throw new Error(`statut non retenu transmis : ${nonTransmis[0].statut}`);
     const dates = flux.map((e) => e.statutDate);
     if (dates.join() !== [...dates].sort().join()) throw new Error('flux non trié par date');
     const etapes = flux.filter((e) => e.reference === `${PREFIXE}-C-1`);
-    if (etapes.map((e) => e.statut).join(',') !== 'nouveau_colis,livre') {
+    // « nouveau_colis » n'est pas transmis : seul « livre » sort pour C-1.
+    if (etapes.map((e) => e.statut).join(',') !== 'livre') {
       throw new Error(`étapes de C-1 : ${etapes.map((e) => e.statut).join(',')}`);
     }
-    const livraison = etapes[1];
-    if (livraison.libelle !== 'Livré' || livraison.final !== true) throw new Error('libellé ou « final » faux sur « livre »');
-    if (etapes[0].final !== false) throw new Error('« nouveau_colis » marqué final');
+    if (etapes[0].libelle !== 'Livré' || etapes[0].final !== true) throw new Error('libellé ou « final » faux sur « livre »');
+    if (flux.find((e) => e.statut === 'mise_en_distribution')?.final !== false) throw new Error('« mise_en_distribution » marqué final');
   });
 
   await verifie('page par page (limite=7), le curseur ne saute ni ne double aucun événement', async () => {
