@@ -6,10 +6,12 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { readFileAsDataUrl } from '@/lib/read-file';
 import { VILLES_RAMASSAGE, BANQUES_MAROC } from '@/lib/marchand-form-options';
 import { PERMISSION_CATALOG, ROLE_PERMISSIONS } from '@/lib/permissions';
+import type { RoleBackofficeExpose } from '@/lib/roles-backoffice';
 import type { Hub, Utilisateur } from '@/lib/types';
 import type { Role } from '@/app/generated/prisma/enums';
 import { Modal } from '@/components/admin/Modal';
 import { Affix, Field } from '@/components/form/Field';
+import { ChampVille } from '@/components/form/ChampVille';
 
 export type UserFormMode = { kind: 'create' } | { kind: 'edit'; utilisateur: Utilisateur };
 
@@ -123,6 +125,11 @@ export function UserFormModal({
   const [photosNonSauvegardees, setPhotosNonSauvegardees] = useState(false);
 
   const [role, setRole] = useState(draft?.role ?? existant?.role ?? 'superviseur');
+  // § Équipe & rôles : le rôle attribué (prédéfini ou personnalisé). Il impose
+  // la fonction ci-dessus et pré-coche les permissions, qui restent ensuite
+  // ajustables compte par compte.
+  const [rolesDisponibles, setRolesDisponibles] = useState<RoleBackofficeExpose[]>([]);
+  const [roleId, setRoleId] = useState<string>(existant?.roleBackofficeId ?? '');
   const [rolesSupplementaires, setRolesSupplementaires] = useState<string[]>(existant?.rolesSupplementaires ?? []);
   // Permissions du back-office (§ lib/permissions.ts). À la MODIFICATION, ce
   // que le compte détient réellement ; à la CRÉATION, le jeu par défaut de la
@@ -140,6 +147,10 @@ export function UserFormModal({
     draft?.typeLivreur ?? existant?.typeLivreur ?? 'individuel'
   );
   const [hubId, setHubId] = useState(draft?.hubId ?? existant?.hubId ?? '');
+  // Zones du terrain : listes déroulantes filtrables (ChampVille), donc
+  // pilotées en état ; elles partent dans le formulaire par leur champ caché.
+  const [zonePrincipale, setZonePrincipale] = useState<string>(draft?.zonePrincipale ?? existant?.zonePrincipale ?? '');
+  const [zoneSecondaire, setZoneSecondaire] = useState<string>(draft?.zoneSecondaire ?? existant?.zoneSecondaire ?? '');
   const [hubs, setHubs] = useState<Hub[]>([]);
   const [photo, setPhoto] = useState<string | null>(draft?.photoUrl ?? existant?.photoUrl ?? null);
   const [cinRecto, setCinRecto] = useState<string | null>(draft?.cinRectoUrl ?? null);
@@ -184,6 +195,29 @@ export function UserFormModal({
       .then((res) => setHubs(res.data))
       .catch(() => {});
   }, []);
+
+  // Rôles de l'équipe. Sans rôle encore choisi, on se place sur le rôle
+  // prédéfini de la fonction courante — sans toucher aux cases cochées.
+  useEffect(() => {
+    apiGet<{ data: RoleBackofficeExpose[] }>('/api/utilisateurs/roles')
+      .then((res) => {
+        setRolesDisponibles(res.data);
+        setRoleId((actuel) => actuel || (res.data.find((r) => r.predefini && r.fonction === role)?.id ?? ''));
+      })
+      .catch(() => {});
+    // Chargé une fois : la fonction courante ne sert qu'au premier placement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleChoixRole(id: string) {
+    const r = rolesDisponibles.find((x) => x.id === id);
+    if (!r) return;
+    setRoleId(id);
+    handleRoleChange(r.fonction);
+    // Attribuer un rôle pré-coche SES droits (création comme modification) :
+    // c'est un geste explicite. Les cases restent ajustables ensuite.
+    setPermissions(r.permissions);
+  }
 
   // Sauvegarde best-effort de tout ce qui est saisi (hors mot de passe),
   // pour survivre à une fermeture accidentelle / un plantage. `overrides`
@@ -290,6 +324,7 @@ export function UserFormModal({
         email: String(fd.get('email') ?? ''),
         role,
       };
+      if (roleId) payload.roleId = roleId;
       if (avecPhoto) payload.photoUrl = photo ?? '';
       // § Comptes livreurs. Envoyé pour le seul rôle livreur : l'API remet de
       // toute façon ces trois champs à null pour les autres rôles, mais les
@@ -387,15 +422,45 @@ export function UserFormModal({
               required
             />
           </Field>
-          <Field label="Fonction">
-            <select className="input-basic" value={role} onChange={(e) => handleRoleChange(e.target.value)}>
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABELS[r]}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {/* § Équipe & rôles : le choix porte sur un RÔLE (prédéfini ou
+              personnalisé) ; sa fonction technique s'en déduit. Repli sur la
+              liste des fonctions tant que les rôles ne sont pas chargés. */}
+          {rolesDisponibles.length > 0 ? (
+            <Field label="Rôle">
+              <select className="input-basic" value={roleId} onChange={(e) => handleChoixRole(e.target.value)}>
+                <optgroup label="Rôles prédéfinis">
+                  {rolesDisponibles
+                    .filter((r) => r.predefini)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.nom}
+                      </option>
+                    ))}
+                </optgroup>
+                {rolesDisponibles.some((r) => !r.predefini) && (
+                  <optgroup label="Rôles personnalisés">
+                    {rolesDisponibles
+                      .filter((r) => !r.predefini)
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.nom} — {ROLE_LABELS[r.fonction] ?? r.fonction}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+            </Field>
+          ) : (
+            <Field label="Fonction">
+              <select className="input-basic" value={role} onChange={(e) => handleRoleChange(e.target.value)}>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABELS[r]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <Field label="Téléphone" required>
             <input
@@ -475,8 +540,8 @@ export function UserFormModal({
               <span className="form-hint">
                 Les cases cochées déterminent les modules accessibles à ce compte.{' '}
                 {mode.kind === 'create'
-                  ? 'Pré-remplies selon la fonction choisie — ajustez-les librement.'
-                  : 'Décocher une case retire immédiatement l’accès, sans reconnexion.'}
+                  ? 'Pré-remplies selon le rôle choisi — ajustez-les librement.'
+                  : 'Choisir un autre rôle pré-coche ses droits. Décocher une case retire immédiatement l’accès, sans reconnexion.'}
               </span>
               <div className="mt-2 flex flex-col gap-3">
                 {PERMISSION_CATALOG.map((cat) => {
@@ -573,24 +638,22 @@ export function UserFormModal({
               )}
 
               <Field label="Zone principale">
-                <select className="input-basic" name="zonePrincipale" defaultValue={draft?.zonePrincipale ?? existant?.zonePrincipale ?? ''}>
-                  <option value="">Zone</option>
-                  {VILLES_RAMASSAGE.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
+                <ChampVille
+                  name="zonePrincipale"
+                  value={zonePrincipale}
+                  onChange={setZonePrincipale}
+                  options={VILLES_RAMASSAGE}
+                  placeholder="Zone"
+                />
               </Field>
               <Field label="Zone secondaire">
-                <select className="input-basic" name="zoneSecondaire" defaultValue={draft?.zoneSecondaire ?? existant?.zoneSecondaire ?? ''}>
-                  <option value="">Zone</option>
-                  {VILLES_RAMASSAGE.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
+                <ChampVille
+                  name="zoneSecondaire"
+                  value={zoneSecondaire}
+                  onChange={setZoneSecondaire}
+                  options={VILLES_RAMASSAGE}
+                  placeholder="Zone"
+                />
               </Field>
 
               <Field label="Adresse" className="sm:col-span-2">

@@ -1,0 +1,13 @@
+{
+  "idExterneMarchand": "SHIPEH-M1",
+  "nom": "Robe d'été",
+  "reference": "PRD-K7M2Q9XA",
+  "note": "Tissu léger, lavage à 30°",
+  "photoUrl": "https://cdn.exemple.ma/robe.jpg",
+  "variantesActivees": true,
+  "variantes": [
+    { "nom": "Rouge / M", "reference": "PRD-K7M2Q9XA-ROUGE-M", "quantiteEnCours": 10 },
+    { "nom": "Rouge / L", "reference": "PRD-K7M2Q9XA-ROUGE-L", "quantiteEnCours": 6 },
+    { "nom": "Bleu / M", "reference": "PRD-K7M2Q9XA-BLEU-M", "quantiteEnCours": 8 }
+  ]
+}

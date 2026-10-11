@@ -7,6 +7,7 @@ import { Info, PackagePlus, Sparkles } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { ProduitSelect } from '@/components/ProduitSelect';
 import { Affix, Field, FormSection, QuantiteInput } from '@/components/form/Field';
+import { ChampVille } from '@/components/form/ChampVille';
 import type { Marchand, Marchandise } from '@/lib/types';
 
 // Formulaire de création de colis, partagé entre l'admin et le marchand.
@@ -51,6 +52,7 @@ const EMPTY = {
   montantCod: '',
   produitDescription: '',
   produitId: '',
+  varianteId: '',
   notes: '',
   colisARemplacerCode: '',
   ouvrir: false,
@@ -87,7 +89,7 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
 
   // Le catalogue affiché dépend du marchand choisi — propre à l'admin.
   function handleMarchandChange(marchandId: string) {
-    setForm((f) => ({ ...f, marchandId, marchandiseId: '', produitId: '' }));
+    setForm((f) => ({ ...f, marchandId, marchandiseId: '', produitId: '', varianteId: '' }));
     if (!marchandId) {
       setMarchandises([]);
       return;
@@ -140,6 +142,7 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
         quantite: Number(form.quantite) || 1,
         marchandiseId: form.marchandiseId || undefined,
         produitId: form.produitId || undefined,
+        varianteId: form.varianteId || undefined,
         colisARemplacerCode: form.colisARemplacerCode || undefined,
       });
       router.push(estAdmin ? '/admin/commandes' : '/marchand/colis');
@@ -212,13 +215,7 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
               />
             </Field>
             <Field label="Ville" required>
-              <input
-                className="input-basic w-full"
-                placeholder="Ex. Casablanca"
-                value={form.ville}
-                onChange={(e) => set('ville', e.target.value)}
-                required
-              />
+              <ChampVille value={form.ville} onChange={(v) => set('ville', v)} placeholder="Ex. Casablanca" required />
             </Field>
             <Field label="Adresse" required className="sm:col-span-2">
               <textarea
@@ -335,6 +332,7 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
                       ...f,
                       enStock: e.target.checked,
                       produitId: e.target.checked ? f.produitId : '',
+                      varianteId: e.target.checked ? f.varianteId : '',
                     }))
                   }
                 />
@@ -354,13 +352,19 @@ export function NouveauColisForm({ mode }: { mode: Mode }) {
                 <ProduitSelect
                   marchandId={estAdmin ? form.marchandId : undefined}
                   value={form.produitId}
+                  varianteId={form.varianteId}
                   disabled={estAdmin && !form.marchandId}
                   disabledHint="Choisissez un marchand…"
-                  onSelect={(produit) =>
+                  onSelect={(produit, variante) =>
                     setForm((f) => ({
                       ...f,
                       produitId: produit?.id ?? '',
-                      produitDescription: produit ? produit.nom : f.produitDescription,
+                      varianteId: variante?.id ?? '',
+                      produitDescription: produit
+                        ? variante
+                          ? `${produit.nom} — ${variante.nom}`
+                          : produit.nom
+                        : f.produitDescription,
                     }))
                   }
                 />

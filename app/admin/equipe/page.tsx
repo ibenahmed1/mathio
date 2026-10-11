@@ -1,256 +1,138 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Key, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react';
-import { apiDelete, apiGet, apiPatch } from '@/lib/api-client';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { ShieldCheck, Truck, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { apiGet } from '@/lib/api-client';
 import type { Utilisateur } from '@/lib/types';
-import { StatutBadge } from '@/components/StatutBadge';
-import { ReinitialiserMotDePasse } from '@/components/ReinitialiserMotDePasse';
-import { TarifsVilleModal } from '@/components/admin/TarifsVilleModal';
-import { UserFormModal, ROLE_LABELS, type UserFormMode } from '@/components/admin/UserFormModal';
-import { IconButton } from '@/components/admin/IconButton';
+import { PageTabs } from '@/components/PageTabs';
+import { UserFormModal, type UserFormMode } from '@/components/admin/UserFormModal';
+import { estFonctionTerrain } from '@/lib/fonctions-equipe';
+import type { RoleBackofficeExpose } from '@/lib/roles-backoffice';
+import { Kpi } from '@/app/marchand/equipe/equipe-ui';
+import { OngletMembresAdmin, type Moi } from './OngletMembresAdmin';
+import { OngletFonctions } from './OngletFonctions';
+import { OngletJournalEquipe } from './OngletJournalEquipe';
 
-const ROLES = [
-  'superviseur',
-  'moderateur',
-  'equipe_suivi',
-  'responsable',
-  'ramasseur',
-  'livreur',
-  'design',
-  'gestionnaire_hub',
-] as const;
-type FiltreStatut = 'tous' | 'actif' | 'inactif';
+// § Équipe & rôles — l'équipe interne : membres, fonctions et leurs droits,
+// journal des gestes d'administration.
+//
+// Construit à L'IDENTIQUE de l'écran Équipe & accès du marchand
+// (app/marchand/equipe) : mêmes onglets, mêmes tuiles, mêmes cartes. La classe
+// `marchand-typo` apporte sa police et ses jetons --mk-* (cartes, filets,
+// ombres) ; le fond, lui, reste celui de l'administration — `marchand-surface`
+// n'est volontairement pas posée.
+//
+// Les onglets vivent dans l'URL (`?onglet=roles`) : un lien partagé ou un
+// retour arrière ramène sur le bon.
+type Onglet = 'membres' | 'roles' | 'journal';
 
-export default function AdminEquipePage() {
-  const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [recherche, setRecherche] = useState('');
-  const [filtreRole, setFiltreRole] = useState<string>('tous');
-  const [filtreStatut, setFiltreStatut] = useState<FiltreStatut>('tous');
-  const [resetPour, setResetPour] = useState<Utilisateur | null>(null);
-  const [tarifsPourUtilisateur, setTarifsPourUtilisateur] = useState<Utilisateur | null>(null);
+function EquipeContenu() {
+  const params = useSearchParams();
+  const onglet: Onglet = params.get('onglet') === 'roles' ? 'roles' : params.get('onglet') === 'journal' ? 'journal' : 'membres';
+  const [utilisateurs, setUtilisateurs] = useState<Utilisateur[] | null>(null);
+  const [roles, setRoles] = useState<RoleBackofficeExpose[]>([]);
+  const [moi, setMoi] = useState<Moi | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<UserFormMode | null>(null);
+  // Incrémenté à chaque geste : l'onglet Journal se recharge avec lui.
+  const [version, setVersion] = useState(0);
 
-  async function load() {
+  const charger = useCallback(async () => {
     try {
-      const res = await apiGet<{ data: Utilisateur[] }>('/api/utilisateurs');
-      setUtilisateurs(res.data);
+      // Les rôles d'abord : leur lecture crée les prédéfinis et y rattache les
+      // comptes qui n'en ont pas encore, que la liste des membres reflète alors.
+      const lesRoles = await apiGet<{ data: RoleBackofficeExpose[] }>('/api/utilisateurs/roles');
+      const [liste, compte] = await Promise.all([
+        apiGet<{ data: Utilisateur[] }>('/api/utilisateurs'),
+        apiGet<Moi>('/api/auth/me').catch(() => null),
+      ]);
+      setRoles(lesRoles.data);
+      setUtilisateurs(liste.data);
+      setMoi(compte);
+      setErreur(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
+      setErreur(err instanceof Error ? err.message : 'Erreur');
     }
-  }
-
-  useEffect(() => {
-    Promise.resolve().then(() => load());
   }, []);
 
-  const visibles = useMemo(() => {
-    const q = recherche.trim().toLowerCase();
-    return utilisateurs.filter((u) => {
-      if (filtreRole !== 'tous' && u.role !== filtreRole) return false;
-      if (filtreStatut === 'actif' && !u.actif) return false;
-      if (filtreStatut === 'inactif' && u.actif) return false;
-      if (q && !u.nomComplet.toLowerCase().includes(q) && !(u.telephone ?? '').includes(q)) return false;
-      return true;
-    });
-  }, [utilisateurs, filtreRole, filtreStatut, recherche]);
+  const recharger = useCallback(() => {
+    setVersion((v) => v + 1);
+    void charger();
+  }, [charger]);
 
-  async function toggleActif(id: string, actif: boolean) {
-    setError(null);
-    try {
-      await apiPatch(`/api/utilisateurs/${id}/actif`, { actif: !actif });
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    }
-  }
+  useEffect(() => {
+    Promise.resolve().then(() => charger());
+  }, [charger]);
 
-  async function supprimer(u: Utilisateur) {
-    if (!window.confirm(`Supprimer définitivement le compte "${u.nomComplet}" ? Cette action est irréversible.`)) {
-      return;
-    }
-    setError(null);
-    try {
-      await apiDelete(`/api/utilisateurs/${u.id}`);
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    }
-  }
+  const membres = utilisateurs ?? [];
+  const nbActifs = membres.filter((u) => u.actif).length;
+  const nbTerrain = membres.filter((u) => estFonctionTerrain(u.role)).length;
+  const nbBloques = membres.length - nbActifs;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title">Équipe</h1>
-        <button
-          onClick={() => setFormMode({ kind: 'create' })}
-          className="btn-primary flex items-center gap-1.5"
-        >
-          <Plus className="h-4 w-4" /> Ajouter utilisateur
-        </button>
+    <div className="marchand-typo flex flex-col gap-5">
+      <div className="page-header mb-0">
+        <div className="min-w-0">
+          <h1 className="page-title">Équipe &amp; rôles</h1>
+          <p className="page-subtitle">Qui accède au back-office et au terrain, et ce que chacun peut y faire.</p>
+        </div>
+        {utilisateurs && (
+          <button type="button" className="btn-primary w-full sm:w-auto" onClick={() => setFormMode({ kind: 'create' })}>
+            <UserPlus className="h-4 w-4" /> Ajouter un membre
+          </button>
+        )}
       </div>
 
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+      {erreur && <p className="form-error">{erreur}</p>}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 opacity-40" />
-          <input
-            className="input-basic w-64 pl-8"
-            placeholder="Rechercher (nom, téléphone)…"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
+      {!utilisateurs ? (
+        !erreur && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-[74px] animate-pulse rounded-2xl bg-black/[0.05] dark:bg-white/[0.06]" />
+            ))}
+          </div>
+        )
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi
+              label="Membres actifs"
+              valeur={nbActifs}
+              icone={<UserCheck className="h-5 w-5" />}
+              accent="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+            />
+            <Kpi
+              label="Terrain"
+              valeur={nbTerrain}
+              icone={<Truck className="h-5 w-5" />}
+              accent="bg-brand/25 text-brand-ink dark:text-brand"
+            />
+            <Kpi
+              label="Accès coupés"
+              valeur={nbBloques}
+              icone={<UserX className="h-5 w-5" />}
+              accent="bg-red-500/15 text-red-700 dark:text-red-400"
+            />
+            <Kpi label="Rôles" valeur={roles.length} icone={<ShieldCheck className="h-5 w-5" />} />
+          </div>
+
+          <PageTabs
+            activeHref={onglet === 'membres' ? '/admin/equipe' : `/admin/equipe?onglet=${onglet}`}
+            tabs={[
+              { label: `Membres (${membres.length})`, href: '/admin/equipe' },
+              { label: `Rôles & permissions (${roles.length})`, href: '/admin/equipe?onglet=roles' },
+              { label: 'Journal', href: '/admin/equipe?onglet=journal' },
+            ]}
           />
-        </div>
 
-        <select className="input-basic w-52" value={filtreRole} onChange={(e) => setFiltreRole(e.target.value)}>
-          <option value="tous">Fonction — Toutes</option>
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex gap-1 rounded-md border border-black/10 p-1 dark:border-white/10">
-          {(
-            [
-              ['tous', 'Tous'],
-              ['actif', 'Actifs'],
-              ['inactif', 'Inactifs'],
-            ] as [FiltreStatut, string][]
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setFiltreStatut(key)}
-              className={`rounded px-2.5 py-1 text-xs font-semibold transition pointer-coarse:py-2 ${
-                filtreStatut === key
-                  ? 'bg-brand text-brand-foreground'
-                  : 'opacity-60 hover:bg-black/[0.04] hover:opacity-100 dark:hover:bg-white/[0.06]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="text-xs opacity-50">
-          {visibles.length} compte{visibles.length > 1 ? 's' : ''}
-        </span>
-      </div>
-
-      <div className="table-card">
-      <div className="table-scroll">
-      <table className="table-basic min-w-[860px]">
-        <thead>
-          <tr>
-            <th>Nom</th>
-            <th>Téléphone</th>
-            <th>Fonction</th>
-            <th>Statut</th>
-            <th>Créé le</th>
-            <th>Dernière connexion</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visibles.map((u) => (
-            <tr key={u.id}>
-              <td>
-                {u.nomComplet}
-                {/* § Comptes livreurs : rien ne distinguait une société de
-                    livraison d'une personne dans cette liste, alors que les
-                    deux ne se règlent pas de la même façon — une société nous
-                    facture. La raison sociale n'est affichée que si elle a été
-                    saisie : elle est facultative à ce stade. */}
-                {u.typeLivreur === 'societe' && (
-                  <>
-                    <span className="badge badge-neutral ml-2" title="Société de livraison">
-                      Société
-                    </span>
-                    {u.raisonSociale && <span className="block text-xs opacity-60">{u.raisonSociale}</span>}
-                  </>
-                )}
-              </td>
-              <td>{u.telephone ?? '—'}</td>
-              <td>
-                {ROLE_LABELS[u.role] ?? u.role}
-                {u.rolesSupplementaires && u.rolesSupplementaires.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {u.rolesSupplementaires.map((r) => (
-                      <span
-                        key={r}
-                        title="Rôle supplémentaire accordé"
-                        className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700 dark:bg-teal-900/30 dark:text-teal-300"
-                      >
-                        + {ROLE_LABELS[r] ?? r}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </td>
-              <td>
-                <StatutBadge statut={u.actif ? 'actif' : 'suspendu'} />
-              </td>
-              <td>{new Date(u.dateCreation).toLocaleDateString('fr-FR')}</td>
-              <td>{u.derniereConnexion ? new Date(u.derniereConnexion).toLocaleDateString('fr-FR') : '—'}</td>
-              <td>
-                <div className="flex flex-wrap items-start gap-1.5">
-                  <IconButton variant="edit" label="Modifier" onClick={() => setFormMode({ kind: 'edit', utilisateur: u })}>
-                    <Pencil className="h-4 w-4" />
-                  </IconButton>
-                  <IconButton
-                    variant={u.actif ? 'deactivate' : 'activate'}
-                    label={u.actif ? 'Désactiver' : 'Activer'}
-                    onClick={() => toggleActif(u.id, u.actif)}
-                  >
-                    <span className={`block h-2.5 w-2.5 rounded-full ${u.actif ? 'bg-orange-600' : 'bg-green-600'}`} />
-                  </IconButton>
-                  {u.role === 'livreur' && (
-                    <IconButton
-                      variant="wallet"
-                      label="Tarifs de livraison par ville"
-                      onClick={() => setTarifsPourUtilisateur(u)}
-                    >
-                      <Wallet className="h-4 w-4" />
-                    </IconButton>
-                  )}
-                  <IconButton variant="key" label="Réinitialiser le mot de passe" onClick={() => setResetPour(u)}>
-                    <Key className="h-4 w-4" />
-                  </IconButton>
-                  <IconButton variant="delete" label="Supprimer" onClick={() => supprimer(u)}>
-                    <Trash2 className="h-4 w-4" />
-                  </IconButton>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {visibles.length === 0 && (
-            <tr>
-              <td colSpan={7} className="py-4 text-center opacity-60">
-                Aucun compte ne correspond à ces filtres
-              </td>
-            </tr>
+          {onglet === 'membres' && (
+            <OngletMembresAdmin membres={membres} roles={roles} moi={moi} recharger={recharger} onModifier={setFormMode} />
           )}
-        </tbody>
-      </table>
-      </div>
-      </div>
-
-      {resetPour && (
-        <ReinitialiserMotDePasse
-          utilisateurId={resetPour.id}
-          nomComplet={resetPour.nomComplet}
-          onDone={() => setResetPour(null)}
-        />
-      )}
-
-      {tarifsPourUtilisateur && (
-        <TarifsVilleModal
-          utilisateurId={tarifsPourUtilisateur.id}
-          nomComplet={tarifsPourUtilisateur.nomComplet}
-          onClose={() => setTarifsPourUtilisateur(null)}
-        />
+          {onglet === 'roles' && <OngletFonctions roles={roles} recharger={recharger} />}
+          {onglet === 'journal' && <OngletJournalEquipe key={version} />}
+        </>
       )}
 
       {formMode && (
@@ -259,10 +141,18 @@ export default function AdminEquipePage() {
           onClose={() => setFormMode(null)}
           onSaved={() => {
             setFormMode(null);
-            load();
+            recharger();
           }}
         />
       )}
     </div>
+  );
+}
+
+export default function AdminEquipePage() {
+  return (
+    <Suspense fallback={<p className="opacity-60">Chargement…</p>}>
+      <EquipeContenu />
+    </Suspense>
   );
 }

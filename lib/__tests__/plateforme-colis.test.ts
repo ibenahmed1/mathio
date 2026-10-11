@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { TAILLE_MAX_LOT, analyserEntreeColis } from '../plateforme-colis';
+import { PRODUITS_MAX_PAR_COLIS, TAILLE_MAX_LOT, analyserEntreeColis } from '../plateforme-colis';
 import { ErreurPlateforme } from '../plateforme-auth';
 
 // Comme pour les marchands, seule la VALIDATION est testée ici : l'ingestion
@@ -16,6 +16,7 @@ const VALIDE = {
   ville: 'Rabat',
   adresse: '18 avenue Mohammed V',
   montantCod: 349.9,
+  produits: [{ sku: 'TSH-NOIR-M', quantite: 2 }],
 };
 
 function codeRefus(corps: unknown): string | null {
@@ -32,9 +33,7 @@ test('un colis minimal valide est accepté, avec ses défauts', () => {
   const colis = analyserEntreeColis(VALIDE);
   assert.equal(colis.reference, 'SHP-2026-0001');
   assert.equal(colis.montantCod, 349.9);
-  // Quantité par défaut : 1. Une plateforme qui ne gère pas la notion ne doit
-  // pas avoir à l'envoyer.
-  assert.equal(colis.quantite, 1);
+  assert.deepEqual(colis.produits, [{ sku: 'TSH-NOIR-M', quantite: 2 }]);
   assert.equal(colis.poidsKg, null);
   assert.equal(colis.ouvrir, false);
   assert.equal(colis.fragile, false);
@@ -69,13 +68,35 @@ test('le montant COD doit être strictement positif', () => {
   assert.equal(analyserEntreeColis({ ...VALIDE, montantCod: '120.50' }).montantCod, 120.5);
 });
 
-test('la quantité doit être un entier positif', () => {
-  for (const q of [0, -1, 2.5, 'deux']) {
-    assert.equal(codeRefus({ ...VALIDE, quantite: q }), 'quantite_invalide', String(q));
+test('un colis contient au moins un produit de stock', () => {
+  assert.equal(codeRefus({ ...VALIDE, produits: undefined }), 'champ_requis');
+  assert.equal(codeRefus({ ...VALIDE, produits: [] }), 'produits_invalides');
+  assert.equal(codeRefus({ ...VALIDE, produits: 'TSH-NOIR-M' }), 'produits_invalides');
+  const trop = Array.from({ length: PRODUITS_MAX_PAR_COLIS + 1 }, (_, i) => ({ sku: `S${i}`, quantite: 1 }));
+  assert.equal(codeRefus({ ...VALIDE, produits: trop }), 'produits_invalides');
+});
+
+test('chaque ligne porte un SKU et une quantité entière positive', () => {
+  assert.equal(codeRefus({ ...VALIDE, produits: [{ quantite: 1 }] }), 'champ_requis');
+  assert.equal(codeRefus({ ...VALIDE, produits: [{ sku: '  ', quantite: 1 }] }), 'champ_requis');
+  for (const q of [undefined, 0, -1, 2.5, 'deux', 3_000_000_000]) {
+    assert.equal(codeRefus({ ...VALIDE, produits: [{ sku: 'A', quantite: q }] }), 'quantite_invalide', String(q));
   }
-  assert.equal(analyserEntreeColis({ ...VALIDE, quantite: 3 }).quantite, 3);
-  // null et undefined retombent sur le défaut plutôt que d'être refusés.
-  assert.equal(analyserEntreeColis({ ...VALIDE, quantite: null }).quantite, 1);
+});
+
+test('un même SKU répété (casse comprise) ne fait qu’une ligne, quantités additionnées', () => {
+  const colis = analyserEntreeColis({
+    ...VALIDE,
+    produits: [
+      { sku: ' TSH-NOIR-M ', quantite: 2 },
+      { sku: 'MUG-01', quantite: 1 },
+      { sku: 'tsh-noir-m', quantite: 3 },
+    ],
+  });
+  assert.deepEqual(colis.produits, [
+    { sku: 'TSH-NOIR-M', quantite: 5 },
+    { sku: 'MUG-01', quantite: 1 },
+  ]);
 });
 
 test('les valeurs numériques hors bornes SQL sont refusées en 400, pas en 500', () => {
@@ -85,7 +106,6 @@ test('les valeurs numériques hors bornes SQL sont refusées en 400, pas en 500'
   // avait mal formée, et sans rien pour la corriger.
   assert.equal(codeRefus({ ...VALIDE, montantCod: 1e12 }), 'montant_invalide'); // > Decimal(10,2)
   assert.equal(codeRefus({ ...VALIDE, poidsKg: 100000 }), 'poids_invalide'); // > Decimal(6,2)
-  assert.equal(codeRefus({ ...VALIDE, quantite: 3_000_000_000 }), 'quantite_invalide'); // > Int32
 
   // Les valeurs limites, elles, restent acceptées.
   assert.equal(analyserEntreeColis({ ...VALIDE, montantCod: 99999999.99 }).montantCod, 99999999.99);
@@ -126,11 +146,9 @@ test('les champs texte optionnels sont élagués, vide valant absent', () => {
   const colis = analyserEntreeColis({
     ...VALIDE,
     codePostal: ' 10000 ',
-    produitDescription: '  Casque audio ',
     notes: '   ',
   });
   assert.equal(colis.codePostal, '10000');
-  assert.equal(colis.produitDescription, 'Casque audio');
   assert.equal(colis.notes, null);
 });
 

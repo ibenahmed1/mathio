@@ -5,6 +5,9 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { Role } from '@/app/generated/prisma/enums';
 import { getHomeSpace, normalizePhoneMaroc, sanitizePermissions } from '@/lib/auth';
 import { analyserIdentiteLivreur, hubRequis } from '@/lib/comptes-livreur';
+import { journaliserCompte } from '@/lib/journal-equipe-admin';
+import { nomFonction } from '@/lib/fonctions-equipe';
+import { idRolePredefini } from '@/lib/roles-backoffice-serveur';
 
 // Mêmes jeux de rôles que POST /api/utilisateurs (voir ce fichier pour le
 // détail) : seuls les comptes équipe se modifient/suppriment depuis cet
@@ -34,7 +37,7 @@ const ROLES_AVEC_HUB: Role[] = ['agent_hub', 'livreur', 'planner'];
 // /reinitialiser-mot-de-passe, pas ici.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const { id } = await params;
     const body = await request.json();
 
@@ -46,7 +49,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       throw new ApiError(400, 'Ce compte ne peut pas être modifié depuis cet écran');
     }
 
-    const role = (body.role as Role | undefined) ?? utilisateur.role;
+    // § Équipe & rôles : un rôle choisi impose sa fonction technique (cf. POST).
+    const roleChoisi =
+      typeof body.roleId === 'string' && body.roleId
+        ? await prisma.roleBackoffice.findUnique({ where: { id: body.roleId }, select: { id: true, fonction: true } })
+        : null;
+    if (typeof body.roleId === 'string' && body.roleId && !roleChoisi) throw new ApiError(400, 'Rôle introuvable');
+    const role = roleChoisi?.fonction ?? (body.role as Role | undefined) ?? utilisateur.role;
     if (!ROLES_EQUIPE.includes(role)) {
       throw new ApiError(400, `Rôle invalide. Valeurs possibles : ${ROLES_EQUIPE.join(', ')}`);
     }
@@ -55,6 +64,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const avecHub = ROLES_AVEC_HUB.includes(role);
 
     const data: Prisma.UtilisateurUpdateInput = { role };
+    // Rôle explicite, sinon le prédéfini de la nouvelle fonction si elle a
+    // changé ; sinon on garde celui du compte.
+    const roleBackofficeId =
+      roleChoisi?.id ?? (role !== utilisateur.role || !utilisateur.roleBackofficeId ? await idRolePredefini(role) : null);
+    if (roleBackofficeId) data.roleBackoffice = { connect: { id: roleBackofficeId } };
 
     // § Comptes livreurs : individu ou société de livraison. Résolu à partir
     // du rôle FINAL et de ce qui est déjà en base, pour qu'une modification
@@ -250,6 +264,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       },
     });
 
+    // Journal de l'équipe : un changement de fonction se lit à part, c'est le
+    // geste qui ouvre ou ferme le plus d'accès d'un coup.
+    const droitsChanges =
+      body.permissions !== undefined &&
+      [...updated.permissions].sort().join() !== [...utilisateur.permissions].sort().join();
+    const roleChange = !!roleBackofficeId && roleBackofficeId !== utilisateur.roleBackofficeId;
+    let detailsRole: string | null = null;
+    if (roleChange) {
+      const noms = await prisma.roleBackoffice.findMany({
+        where: { id: { in: [utilisateur.roleBackofficeId, roleBackofficeId].filter((x): x is string => !!x) } },
+        select: { id: true, nom: true },
+      });
+      const nom = (rid: string | null) => noms.find((n) => n.id === rid)?.nom;
+      detailsRole = `${nom(utilisateur.roleBackofficeId) ?? nomFonction(utilisateur.role)} → ${nom(roleBackofficeId) ?? nomFonction(role)}`;
+    }
+    await journaliserCompte({
+      request,
+      adminId: session.sub,
+      cibleId: id,
+      ...(roleChange || role !== utilisateur.role
+        ? {
+            action: 'fonction_changee' as const,
+            details: [detailsRole ?? `${nomFonction(utilisateur.role)} → ${nomFonction(role)}`, droitsChanges && 'droits ajustés']
+              .filter(Boolean)
+              .join(' · '),
+          }
+        : { action: 'compte_modifie' as const, details: droitsChanges ? 'Droits d’accès modifiés' : null }),
+    });
+
     return NextResponse.json(updated);
   } catch (error) {
     return jsonError(error);
@@ -259,7 +302,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 // RF-22 : suppression définitive d'un compte équipe. Si des colis/ramassages
 // sont liés (FK RESTRICT), on renvoie une erreur explicite plutôt qu'un 500 —
 // l'admin doit alors désactiver le compte plutôt que le supprimer.
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser(['admin']);
     const { id } = await params;
@@ -287,6 +330,15 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       }
       throw error;
     }
+
+    // Le compte n'existe plus : son nom ne se retrouvera que dans `details`.
+    await journaliserCompte({
+      request,
+      adminId: session.sub,
+      action: 'compte_supprime',
+      cibleId: id,
+      details: `${utilisateur.nomComplet} (${nomFonction(utilisateur.role)})`,
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

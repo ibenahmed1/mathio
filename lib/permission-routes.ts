@@ -295,6 +295,10 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // de donnée d'autrui à protéger par un module. Le gouverner fermerait la
   // cloche aux rôles cantonnés (Kanban, Agent Hub) qui n'ont pas la clé.
   { pattern: '/api/notifications/**', permission: null },
+  // NON MAPPÉ — /api/referentiel/** : la liste des villes livrables (noms
+  // seuls) des listes déroulantes de saisie, dans les trois espaces. La
+  // gouverner priverait de ville les rôles cantonnés qui saisissent un colis.
+  { pattern: '/api/referentiel/**', permission: null },
 
   // --- Intégrations partenaires --------------------------------------------
   // Administration des plateformes (clés, marchands synchronisés, journal).

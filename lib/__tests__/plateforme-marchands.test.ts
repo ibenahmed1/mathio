@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import bcrypt from 'bcryptjs';
+
 import { analyserEntreeMarchand } from '../plateforme-marchands';
+import { verifySecret } from '../auth';
 import { ErreurPlateforme } from '../plateforme-auth';
 
 // Seule la VALIDATION est testée ici : `synchroniserMarchand` écrit en base et
@@ -15,6 +18,7 @@ const VALIDE = {
   nomBoutique: 'Atlas Store',
   telephone: '0612345678',
   email: 'ahmed@atlas-store.ma',
+  motDePasse: 'mdp-chez-shipeh',
 };
 
 /** Code d'erreur levé par `analyserEntreeMarchand`, ou null si elle a accepté. */
@@ -42,7 +46,7 @@ test('une entrée minimale valide est acceptée', () => {
 });
 
 test('les cinq champs requis le sont vraiment', () => {
-  for (const champ of ['idExterne', 'nomComplet', 'nomBoutique', 'telephone', 'email']) {
+  for (const champ of ['idExterne', 'nomComplet', 'telephone', 'email', 'motDePasse']) {
     const ampute = { ...VALIDE, [champ]: undefined };
     assert.equal(codeRefus(ampute), 'champ_requis', `${champ} devrait être requis`);
     // Une chaîne d'espaces ne vaut pas mieux qu'une absence.
@@ -50,13 +54,73 @@ test('les cinq champs requis le sont vraiment', () => {
   }
 });
 
-test('l’email est requis parce qu’il est le seul chemin vers le compte', () => {
-  // Sans email, pas de lien « définir mon mot de passe » — donc un compte que
-  // personne ne peut jamais ouvrir. C'est la raison pour laquelle il est le
-  // seul champ de coordonnées obligatoire.
-  assert.equal(codeRefus({ ...VALIDE, email: undefined }), 'champ_requis');
+test('sans nom de boutique, la boutique porte le nom du marchand', () => {
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, nomBoutique: undefined }).nomBoutique, 'Ahmed Benali');
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, nomBoutique: '  ' }).nomBoutique, 'Ahmed Benali');
+});
+
+test('l’email, login du marchand, doit être valide', () => {
   assert.equal(codeRefus({ ...VALIDE, email: 'pas-un-email' }), 'email_invalide');
   assert.equal(codeRefus({ ...VALIDE, email: 'a@b' }), 'email_invalide');
+});
+
+test('le mot de passe est pris tel quel, sans notre politique de robustesse', () => {
+  // Choisi sous les règles de la plateforme : le refuser bloquerait la synchro.
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, motDePasse: 'abc123' }).motDePasse, 'abc123');
+  // Pas de trim : une espace peut en faire partie.
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, motDePasse: ' mon mdp ' }).motDePasse, ' mon mdp ');
+});
+
+test('un mot de passe mal typé ou au-delà de la limite de bcrypt est refusé', () => {
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: null }), 'champ_requis');
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: 12345678 }), 'mot_de_passe_invalide');
+  // bcrypt ignore tout au-delà de 72 octets : 73 serait tronqué en silence.
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: 'a'.repeat(73) }), 'mot_de_passe_invalide');
+  assert.equal(analyserEntreeMarchand({ ...VALIDE, motDePasse: 'a'.repeat(72) }).motDePasse?.length, 72);
+  // Compté en octets, pas en caractères : « é » en vaut deux.
+  assert.equal(codeRefus({ ...VALIDE, motDePasse: 'é'.repeat(37) }), 'mot_de_passe_invalide');
+});
+
+// Empreinte bcrypt réelle, comme Shipeh la stocke (coût 10).
+const EMPREINTE = bcrypt.hashSync('mdp-chez-shipeh', 10);
+const SANS_CLAIR = { ...VALIDE, motDePasse: undefined };
+
+test('une empreinte bcrypt est acceptée à la place du mot de passe, et rangée telle quelle', async () => {
+  const entree = analyserEntreeMarchand({ ...SANS_CLAIR, motDePasseHash: EMPREINTE });
+  assert.equal(entree.motDePasse, null);
+  assert.equal(entree.motDePasseHash, EMPREINTE);
+  // C'est bien ce mot de passe qui ouvrira le compte, par notre vérification de connexion.
+  assert.equal(await verifySecret('mdp-chez-shipeh', EMPREINTE), true);
+  assert.equal(await verifySecret('autre', EMPREINTE), false);
+});
+
+test('les trois préfixes bcrypt ($2a$, $2b$, $2y$) sont acceptés et vérifiables', async () => {
+  for (const v of ['2a', '2b', '2y']) {
+    const empreinte = EMPREINTE.replace(/^\$2[aby]\$/, `$${v}$`);
+    assert.equal(analyserEntreeMarchand({ ...SANS_CLAIR, motDePasseHash: empreinte }).motDePasseHash, empreinte);
+    assert.equal(await verifySecret('mdp-chez-shipeh', empreinte), true, v);
+  }
+});
+
+test('exactement un des deux : ni l’un ni l’autre, ou les deux, est refusé', () => {
+  assert.equal(codeRefus(SANS_CLAIR), 'champ_requis');
+  assert.equal(codeRefus({ ...VALIDE, motDePasseHash: EMPREINTE }), 'mot_de_passe_ambigu');
+});
+
+test('une empreinte malformée ou hors coût 10–14 est refusée', () => {
+  const avecCout = (c: string) => EMPREINTE.replace(/^(\$2[aby]\$)\d\d/, `$1${c}`);
+  assert.equal(analyserEntreeMarchand({ ...SANS_CLAIR, motDePasseHash: avecCout('14') }).motDePasseHash, avecCout('14'));
+  for (const mauvaise of [
+    avecCout('09'), // trop faible
+    avecCout('15'), // trop coûteuse à vérifier : un coût 31 bloquerait le serveur des heures
+    avecCout('31'),
+    EMPREINTE.slice(0, 59), // tronquée
+    EMPREINTE.replace(/^\$2[aby]\$/, '$2x$'), // préfixe inconnu
+    'mdp-en-clair-dans-le-mauvais-champ',
+    12345,
+  ]) {
+    assert.equal(codeRefus({ ...SANS_CLAIR, motDePasseHash: mauvaise }), 'mot_de_passe_hash_invalide', String(mauvaise));
+  }
 });
 
 test('l’email est normalisé en minuscules', () => {

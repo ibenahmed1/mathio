@@ -27,16 +27,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(400, 'Marquez le produit comme « Reçu » avant de valider une quantité');
     }
 
-    const resultat = await prisma.produit.updateMany({
-      where: { id, quantiteEnCours: { gte: quantite } },
-      data: { quantiteEnCours: { decrement: quantite }, quantiteRecue: { increment: quantite } },
-    });
-    if (resultat.count === 0) {
-      throw new ApiError(409, 'Quantité en cours insuffisante (a peut-être déjà été validée entre-temps)');
-    }
+    // Mouvement et trace dans la même transaction : un compteur modifié sans
+    // sa ligne d'historique serait un écart que personne ne peut expliquer.
+    await prisma.$transaction(async (tx) => {
+      const resultat = await tx.produit.updateMany({
+        where: { id, quantiteEnCours: { gte: quantite } },
+        data: { quantiteEnCours: { decrement: quantite }, quantiteRecue: { increment: quantite } },
+      });
+      if (resultat.count === 0) {
+        throw new ApiError(409, 'Quantité en cours insuffisante (a peut-être déjà été validée entre-temps)');
+      }
 
-    await prisma.historiqueProduit.create({
-      data: { produitId: id, texte: `${quantite}, ${produit.nom} a été reçu`, utilisateurId: session.sub },
+      await tx.historiqueProduit.create({
+        data: { produitId: id, texte: `${quantite}, ${produit.nom} a été reçu`, utilisateurId: session.sub },
+      });
     });
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });

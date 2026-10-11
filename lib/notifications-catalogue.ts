@@ -70,6 +70,9 @@ export const TYPES_NOTIFICATION: TypeNotificationDef[] = [
   { cle: 'ramassage.demande', libelle: 'Nouvelle demande de ramassage', famille: 'exploitation', espace: 'admin', push: true },
   { cle: 'transporteur.erreur', libelle: 'Erreur chez un transporteur', famille: 'exploitation', espace: 'admin', push: true },
   { cle: 'hub.colis_recus', libelle: 'Colis reçus au hub', famille: 'exploitation', espace: 'admin', push: true },
+  // Une unité de stock (SKU) vient de tomber à SEUIL_STOCK_BAS ou en dessous
+  // (lib/stock-quantites.ts) : à réapprovisionner auprès du marchand.
+  { cle: 'stock.bas', libelle: 'Stock bas d’un produit', famille: 'exploitation', espace: 'admin', push: true },
   // Toute écriture du journal de la PLATEFORME (§ /admin/comptabilite) :
   // saisie, neutralisation, remise de caisse, paie, règlement de facture.
   // Les livres des boutiques n'en déclenchent pas — ce n'est pas notre caisse.

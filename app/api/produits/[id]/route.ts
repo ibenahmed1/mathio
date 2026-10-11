@@ -152,6 +152,23 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     const session = await requireUser(['marchand']);
     const { id } = await params;
     await findOwnProduit(id, session.sub);
+
+    // Un produit dont l'entrepôt a commencé à s'occuper n'appartient plus au
+    // seul marchand : le supprimer effacerait en cascade son historique
+    // (preuve des mouvements, cf. HistoriqueProduit.utilisateurId) et
+    // détacherait les colis qui le consomment. Seule une fiche encore
+    // purement déclarative — rien reçu, aucun colis — peut disparaître.
+    const produit = await prisma.produit.findUniqueOrThrow({
+      where: { id },
+      include: { variantes: true, _count: { select: { commandes: true } } },
+    });
+    if (produit.statutReception === 'recu' || quantiteRecueTotale(produit) > 0) {
+      throw new ApiError(409, 'Ce produit a déjà été réceptionné en entrepôt : il ne peut plus être supprimé.');
+    }
+    if (produit._count.commandes > 0) {
+      throw new ApiError(409, `Ce produit est rattaché à ${produit._count.commandes} colis : il ne peut plus être supprimé.`);
+    }
+
     await prisma.produit.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -6,6 +6,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Hub, TarifMarchandVille } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { Field } from '@/components/form/Field';
+import { ChampVille } from '@/components/form/ChampVille';
 
 // § Facturation marchand — grille des frais FACTURÉS au marchand par ville.
 //
@@ -179,19 +180,13 @@ export function TarifsMarchandModal({
           className="flex flex-wrap items-end gap-2 border-t border-black/10 pt-3 dark:border-white/10"
         >
           <Field label="Ville" required>
-            <select
-              className="input-basic py-1"
+            <ChampVille
               value={form.villeId}
-              onChange={(e) => setForm({ ...form, villeId: e.target.value })}
+              onChange={(villeId) => setForm({ ...form, villeId })}
+              options={villesDisponibles.map((v) => ({ valeur: v.id, libelle: v.nom }))}
+              className="min-w-[14rem]"
               required
-            >
-              <option value="">Choisir…</option>
-              {villesDisponibles.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nom}
-                </option>
-              ))}
-            </select>
+            />
           </Field>
           <Field label="Frais livraison" required>
             <input

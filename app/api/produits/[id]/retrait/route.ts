@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { notifierStockBas } from '@/lib/notifications';
+import { stockReelUnite } from '@/lib/stock-colis';
 
 // Retrait de stock par l'admin : décrémente la quantité "reçue" (ex. sortie
 // d'entrepôt, correction, casse) — indépendant de toute commande précise.
@@ -26,17 +28,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(400, 'Marquez le produit comme « Reçu » avant de retirer une quantité');
     }
 
-    const resultat = await prisma.produit.updateMany({
-      where: { id, quantiteRecue: { gte: quantite } },
-      data: { quantiteRecue: { decrement: quantite } },
-    });
-    if (resultat.count === 0) {
-      throw new ApiError(409, 'Quantité reçue insuffisante pour ce retrait');
-    }
+    // Mouvement et trace dans la même transaction : un compteur modifié sans
+    // sa ligne d'historique serait un écart que personne ne peut expliquer.
+    const mouvement = await prisma.$transaction(async (tx) => {
+      const resultat = await tx.produit.updateMany({
+        where: { id, quantiteRecue: { gte: quantite } },
+        data: { quantiteRecue: { decrement: quantite } },
+      });
+      if (resultat.count === 0) {
+        throw new ApiError(409, 'Quantité reçue insuffisante pour ce retrait');
+      }
 
-    await prisma.historiqueProduit.create({
-      data: { produitId: id, texte: `${quantite}, ${produit.nom} a été retiré`, utilisateurId: session.sub },
+      await tx.historiqueProduit.create({
+        data: { produitId: id, texte: `${quantite}, ${produit.nom} a été retiré`, utilisateurId: session.sub },
+      });
+
+      const apres = await stockReelUnite(tx, 'produit', id);
+      return { unite: { type: 'produit' as const, id }, produitId: id, avant: apres + quantite, apres };
     });
+
+    // Sans `sauf` : l'alerte dit l'état du stock, pas l'action.
+    await notifierStockBas([mouvement]);
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });
     return NextResponse.json(produitMisAJour);

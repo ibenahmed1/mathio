@@ -6,10 +6,12 @@
   "ville": "Rabat",
   "adresse": "18 avenue Mohammed V, appartement 4",
   "montantCod": 349.9,
+  "produits": [
+    { "sku": "PRD-K7M2Q9XA-ROUGE-M", "quantite": 2 },
+    { "sku": "MUG-01", "quantite": 1 }
+  ],
 
   "codePostal": "10000",
-  "produitDescription": "Casque audio sans fil",
-  "quantite": 1,
   "poidsKg": 0.8,
   "notes": "Livrer avant 18h, interphone 4B",
   "fragile": true,

@@ -9,6 +9,7 @@ import {
   type ContextePlateforme,
 } from '@/lib/plateforme-auth';
 import { analyserEntreeColis, chargerReferentielVilles, ingererColis } from '@/lib/plateforme-colis';
+import { analyserRequeteSuivi, listerColisModifies } from '@/lib/plateforme-suivi';
 
 // POST /v1/colis — dépôt d'un colis à l'unité.
 //
@@ -16,6 +17,45 @@ import { analyserEntreeColis, chargerReferentielVilles, ingererColis } from '@/l
 // (et non une erreur) : une reprise après timeout est un cas normal, et
 // l'appelant a besoin du code pour se réconcilier, pas d'un refus.
 const CHEMIN = '/v1/colis';
+
+// GET /v1/colis — les colis déposés par la plateforme dont le statut a
+// changé, chacun avec son statut actuel (§ lib/plateforme-suivi.ts). Scope
+// `colis:lecture`, distinct de `colis:creation` : lire et déposer sont deux
+// droits.
+export async function GET(request: Request) {
+  const debutMs = performance.now();
+  let contexte: ContextePlateforme | null = null;
+  try {
+    contexte = await requirePlateforme(request, ['colis:lecture']);
+    const requete = analyserRequeteSuivi(new URL(request.url).searchParams);
+    const page = await listerColisModifies(contexte, requete);
+    await journaliserAppel({
+      plateformeId: contexte.plateformeId,
+      cleId: contexte.cleId,
+      methode: 'GET',
+      chemin: CHEMIN,
+      statut: 200,
+      debutMs,
+      adresseIp: contexte.adresseIp,
+    });
+    return avecEntetesPlateforme(NextResponse.json(page), contexte);
+  } catch (error) {
+    const reponse = jsonErreurPlateforme(error);
+    if (contexte) {
+      await journaliserAppel({
+        plateformeId: contexte.plateformeId,
+        cleId: contexte.cleId,
+        methode: 'GET',
+        chemin: CHEMIN,
+        statut: reponse.status,
+        debutMs,
+        adresseIp: contexte.adresseIp,
+        erreur: error instanceof ApiError ? error.message : 'Erreur interne',
+      });
+    }
+    return reponse;
+  }
+}
 
 export async function POST(request: Request) {
   const debutMs = performance.now();

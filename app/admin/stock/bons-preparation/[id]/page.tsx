@@ -122,7 +122,10 @@ export default function BonPreparationDetailPage() {
                   <td>{c.clientNom}</td>
                   <td>
                     {c.produit?.nom ?? c.produitDescription ?? <span className="opacity-40">—</span>}
-                    {c.produit?.reference && <span className="ml-1 font-mono text-xs opacity-50">({c.produit.reference})</span>}
+                    {c.variante && <> — {c.variante.nom}</>}
+                    {(c.variante?.reference ?? c.produit?.reference) && (
+                      <span className="ml-1 font-mono text-xs opacity-50">({c.variante?.reference ?? c.produit?.reference})</span>
+                    )}
                   </td>
                   <td>{c.quantite}</td>
                   <td>{c.ville}</td>

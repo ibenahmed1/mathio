@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       where: { id: { in: ids }, statut: 'nouveau_colis', ...(marchandId ? { marchandId } : {}) },
     });
     if (colis.length !== ids.length) {
-      throw new ApiError(400, 'Un ou plusieurs colis sélectionnés ne sont plus supprimables (statut différent de "Nouveau Colis" ou hors de votre compte)');
+      throw new ApiError(400, 'Un ou plusieurs colis sélectionnés ne sont plus supprimables (statut différent de « Nouveau colis » ou hors de votre compte)');
     }
 
     await prisma.$transaction([

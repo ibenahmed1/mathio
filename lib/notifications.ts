@@ -11,6 +11,7 @@ import {
   type NouvelleNotification,
 } from '@/lib/notifications-catalogue';
 import { envoyerPush } from '@/lib/push-firebase';
+import { franchitSeuilStockBas, SEUIL_STOCK_BAS, type MouvementStockSortant } from '@/lib/stock-quantites';
 
 // § Notifications internes (NOTIFICATIONS.md) — le point d'entrée unique.
 //
@@ -276,6 +277,51 @@ export async function notifierTransaction(
     );
   } catch (erreur) {
     console.error('[notifications] échec de notifierTransaction()', erreur);
+  }
+}
+
+// --- Stock ------------------------------------------------------------------
+
+// À appeler APRÈS la transaction qui a fait sortir du stock (préparation de
+// colis, retrait), avec les mouvements qu'elle a écrits. Une notification par
+// unité de stock (SKU) qui vient de FRANCHIR le seuil — pas une par mouvement
+// sous le seuil (cf. franchitSeuilStockBas). Destinataires : ceux qui gèrent
+// l'inventaire, seuls à pouvoir ouvrir la fiche du produit.
+export async function notifierStockBas(
+  mouvements: readonly MouvementStockSortant[],
+  options: { sauf?: string | null } = {}
+): Promise<void> {
+  try {
+    const franchis = mouvements.filter((m) => franchitSeuilStockBas(m.avant, m.apres));
+    if (franchis.length === 0) return;
+    const destinataires = await destinatairesBackoffice('stock:inventory');
+    for (const m of franchis) {
+      const produit = await prisma.produit.findUnique({
+        where: { id: m.produitId },
+        select: { nom: true, reference: true, marchand: { select: { nomBoutique: true } } },
+      });
+      if (!produit) continue;
+      const variante =
+        m.unite.type === 'variante'
+          ? await prisma.produitVariante.findUnique({ where: { id: m.unite.id }, select: { nom: true, reference: true } })
+          : null;
+      const libelle = variante ? `${produit.nom} — ${variante.nom}` : produit.nom;
+      const sku = variante?.reference ?? produit.reference;
+      await notifier(
+        destinataires,
+        {
+          type: 'stock.bas',
+          titre: `Stock bas : ${libelle}`,
+          corps:
+            `${m.apres === 0 ? 'Rupture de stock' : `Plus que ${m.apres} en stock`} (seuil ${SEUIL_STOCK_BAS}) — ` +
+            `SKU ${sku}, ${produit.marchand.nomBoutique}. À réapprovisionner.`,
+          lien: `/admin/stock/inventaire/${m.produitId}`,
+        },
+        options
+      );
+    }
+  } catch (erreur) {
+    console.error('[notifications] échec de notifierStockBas()', erreur);
   }
 }
 

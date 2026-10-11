@@ -7,6 +7,7 @@ import type { Commande, Marchandise } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { Affix, Field } from '@/components/form/Field';
 import { ProduitSelect } from '@/components/ProduitSelect';
+import { ChampVille } from '@/components/form/ChampVille';
 
 // Toute donnée saisie manuellement à la création reste modifiable ici — même
 // logique de pré-remplissage du prix (marchandise × quantité) que le
@@ -39,6 +40,7 @@ export function ColisEditModal({
     montantCod: commande.montantCod,
     produitDescription: commande.produitDescription ?? '',
     produitId: commande.produitId ?? '',
+    varianteId: commande.varianteId ?? '',
     notes: commande.notes ?? '',
     colisARemplacerCode: commande.colisARemplacer?.codeSuivi ?? '',
     ouvrir: commande.ouvrir,
@@ -74,6 +76,7 @@ export function ColisEditModal({
               montantCod: form.montantCod,
               produitDescription: form.produitDescription,
               produitId: form.produitId || null,
+              varianteId: form.varianteId || null,
               notes: form.notes,
               colisARemplacerCode: form.colisARemplacerCode,
               ouvrir: form.ouvrir,
@@ -132,12 +135,7 @@ export function ColisEditModal({
         {!champsRestreints && (
           <label className="flex flex-col gap-1 text-sm">
             Ville <span className="text-red-600">*</span>
-            <input
-              className="input-basic"
-              value={form.ville}
-              onChange={(e) => setForm({ ...form, ville: e.target.value })}
-              required
-            />
+            <ChampVille value={form.ville} onChange={(v) => setForm({ ...form, ville: v })} required />
           </label>
         )}
         <label className="sm:col-span-2 flex flex-col gap-1 text-sm">
@@ -264,7 +262,12 @@ export function ColisEditModal({
                   className="check-basic"
                   checked={form.enStock}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, enStock: e.target.checked, produitId: e.target.checked ? f.produitId : '' }))
+                    setForm((f) => ({
+                      ...f,
+                      enStock: e.target.checked,
+                      produitId: e.target.checked ? f.produitId : '',
+                      varianteId: e.target.checked ? f.varianteId : '',
+                    }))
                   }
                 />
                 En stock (entrepôt)
@@ -274,11 +277,17 @@ export function ColisEditModal({
               <Field label="Produit du stock" className="sm:col-span-2">
                 <ProduitSelect
                   value={form.produitId}
-                  onSelect={(produit) =>
+                  varianteId={form.varianteId}
+                  onSelect={(produit, variante) =>
                     setForm((f) => ({
                       ...f,
                       produitId: produit?.id ?? '',
-                      produitDescription: produit ? produit.nom : f.produitDescription,
+                      varianteId: variante?.id ?? '',
+                      produitDescription: produit
+                        ? variante
+                          ? `${produit.nom} — ${variante.nom}`
+                          : produit.nom
+                        : f.produitDescription,
                     }))
                   }
                 />

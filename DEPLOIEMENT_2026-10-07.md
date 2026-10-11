@@ -1,5 +1,8 @@
 # Déploiement du 7 octobre 2026 — réseau en 11 hubs et référentiel des villes
 
+> **⚠️ NOTE REMPLACÉE — ne plus suivre.** Ce déploiement n'a pas été fait ; il est entièrement repris,
+> avec les décisions prises depuis, dans `DEPLOIEMENT_2026-10-10.md`.
+
 Branche : `dev`, commit « Regrouper le réseau en 11 hubs régionaux et arrêter le référentiel des villes ».
 
 Ce déploiement porte deux décisions de l'exploitation :
@@ -135,6 +138,7 @@ npx tsx scripts/verifier-villes-colivraison.ts        # attendu : « Aucun écar
 - **Taza et Guercif partent chez EST Livraison**, au même prix qu'avant (25 dh).
 - Oujda et Taounate ne s'affichent plus qu'une fois, sous leur nom usuel.
 - Chaque ville n'a toujours qu'un transporteur.
+- **Shipeh** : quatre codes de ville disparaissent de `GET /api/v1/villes` (les lignes `TAZA`, `GUERCIF`, `Oujda (Centre & Quartiers)` et `taounate centre`). Leur demander de **recharger la liste des villes** après le déploiement. Les colis qu'ils envoient avec le nom de ville restent reconnus, quelle que soit la graphie (« Taza », « TAZA », « Oujda (Centre & Quartiers) »…).
 
 ## À ne pas faire
 

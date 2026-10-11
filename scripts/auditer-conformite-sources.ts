@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../lib/prisma';
 import { normaliserVille } from '../lib/hub-stock';
 import { HUB_CENTRAL, nomHubActuel } from '../lib/hubs-regionaux';
+import { AJOUTS, RENOMMAGES, TARIFS_AJOUTS } from './decisions-villes-octobre-2026';
 
 /**
  * Audit de conformité des grilles fournisseurs — `npx tsx
@@ -257,7 +258,25 @@ const DECIDEES: LigneSource[] = [
   ...zone('Agence Taounate', 25, ['Taounate']),
   ...zone('Agence Oujda', 15, ['Oujda'], 0), // decisions-villes-octobre-2026.ts, point 4
   ...zone('Agence El Jadida', 20, ['El Jadida']), // decisions-villes-octobre-2026.ts, point 3
+  // Villes de l'API Power ajoutées le 08/10/2026 (decisions-villes-octobre-2026.ts,
+  // point 11), au prix fixé depuis ; tarif null tant qu'aucun n'est fixé.
+  ...AJOUTS.flatMap((a) =>
+    a.villes.map((nom) => {
+      const t = TARIFS_AJOUTS.find((x) => x.hub === a.hub && x.ville === nom);
+      // « Hub Casablanca » désigne ici l'ancien hub interne (cf. hubSource) : passer par l'agence.
+      const agence = a.hub === 'Hub Casablanca' ? 'Agence Casablanca' : a.hub;
+      return { agence, nom, tarif: t?.livraison ?? null, retour: t ? 0 : null };
+    })
+  ),
 ];
+
+// Nom en base d'une ligne source renommée par décision (point 12), sinon le sien.
+function nomEnBase(ligne: LigneSource): string {
+  const r = RENOMMAGES.find(
+    (x) => x.hub === hubSource(ligne.agence) && normaliserVille(x.de) === normaliserVille(ligne.nom)
+  );
+  return r ? r.vers : ligne.nom;
+}
 
 // Les fichiers sources parlent d'AGENCES ; la base, de hubs régionaux
 // (lib/hubs-regionaux.ts). « Hub Casablanca » y désigne l'ancien hub interne,
@@ -311,7 +330,7 @@ async function main() {
   const vues = new Set<string>();
 
   for (const ligne of [...SOURCE, ...DECIDEES]) {
-    const cle = `${hubSource(ligne.agence)}|${normaliserVille(ligne.nom)}`;
+    const cle = `${hubSource(ligne.agence)}|${normaliserVille(nomEnBase(ligne))}`;
     const trouvee = enBase.get(cle);
 
     if (!trouvee) {
@@ -339,7 +358,7 @@ async function main() {
         `${ligne.agence} / "${ligne.nom}" : retour fichier ${retourAttendu} DH, base ${retour ?? '—'} DH`
       );
     }
-    if (trouvee.nom !== ligne.nom) {
+    if (trouvee.nom !== nomEnBase(ligne)) {
       graphies.push(`${ligne.agence} : base "${trouvee.nom}" ≠ fichier "${ligne.nom}"`);
     }
   }
@@ -349,7 +368,7 @@ async function main() {
   // chaque exécution) sont hors périmètre : ils ne viennent d'aucune grille.
   const enTrop = [...enBase.entries()]
     .filter(([cle]) => !cle.startsWith('Hub Audit Tournée'))
-    .filter(([cle]) => ![...SOURCE, ...DECIDEES].some((l) => `${hubSource(l.agence)}|${normaliserVille(l.nom)}` === cle))
+    .filter(([cle]) => ![...SOURCE, ...DECIDEES].some((l) => `${hubSource(l.agence)}|${normaliserVille(nomEnBase(l))}` === cle))
     .map(([cle, v]) => `${cle.split('|')[0]} / "${v.nom}"`);
 
   const bloc = (titre: string, lignes: string[]) => {

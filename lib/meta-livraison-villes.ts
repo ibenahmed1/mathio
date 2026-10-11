@@ -73,7 +73,9 @@ export const CORRESPONDANCES_VILLES_META: readonly CorrespondanceVilleMeta[] = [
   { agence: 'Agence Azrou', ville: 'ain louh', cityId: 148, nomMeta: 'Ain Leuh', groupe: 'orthographe' },
   { agence: 'Agence Azrou', ville: 'ait amour ouali', cityId: 192, nomMeta: 'AZROU', groupe: 'rattachee' },
   { agence: 'Agence Azrou', ville: 'ait yahya oualla', cityId: 188, nomMeta: 'Ayt Yahya Oalla', groupe: 'orthographe' },
-  { agence: 'Agence Azrou', ville: 'azrou', cityId: 192, nomMeta: 'AZROU', groupe: 'exact' },
+  // « azrou » dans la grille Meta, renommée le 09/10/2026 pour la distinguer
+  // d'Azrou-agadir (scripts/decisions-villes-octobre-2026.ts, point 12).
+  { agence: 'Agence Azrou', ville: 'Azrou (Ifrane)', cityId: 192, nomMeta: 'AZROU', groupe: 'orthographe' },
   { agence: 'Agence Azrou', ville: 'ifrane', cityId: 334, nomMeta: 'IFRANE', groupe: 'exact' },
   { agence: 'Agence Azrou', ville: 'sidi 3edi', cityId: 510, nomMeta: 'Sidi Addi', groupe: 'orthographe' },
   { agence: 'Agence Boulmane', ville: 'Boulmane', cityId: 239, nomMeta: 'Boulemane', groupe: 'orthographe' },

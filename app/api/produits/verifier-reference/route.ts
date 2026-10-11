@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
+import { skuDejaPris } from '@/lib/stock-sku';
 
 // Vérification d'unicité en direct (debounce côté formulaire "Ajouter Produit") :
 // l'unicité de la référence est isolée par marchand, donc on ne teste que dans
-// le catalogue du marchand connecté.
+// le catalogue du marchand connecté — produits ET variantes, sans casse
+// (lib/stock-sku.ts), exactement comme la création.
 export async function GET(request: Request) {
   try {
     const session = await requireUser(['marchand']);
@@ -18,11 +19,7 @@ export async function GET(request: Request) {
       throw new ApiError(400, 'reference est requise');
     }
 
-    const existant = await prisma.produit.findUnique({
-      where: { marchandId_reference: { marchandId: marchand.id, reference } },
-    });
-
-    return NextResponse.json({ disponible: !existant });
+    return NextResponse.json({ disponible: !(await skuDejaPris(marchand.id, [reference])) });
   } catch (error) {
     return jsonError(error);
   }

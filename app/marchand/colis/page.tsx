@@ -15,6 +15,7 @@ import { ColisActionsMenu } from '@/components/marchand/ColisActionsMenu';
 import { COLONNE_COLLANTE_CARTE } from '@/components/marchand/colonne-collante';
 import { ColisSubNav } from './ColisSubNav';
 import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
+import { ChampVille } from '@/components/form/ChampVille';
 
 function ColisListContent() {
   const searchParams = useSearchParams();
@@ -237,12 +238,13 @@ function ColisListContent() {
               <MapPin className="h-3 w-3 shrink-0" />
               Ville
             </span>
-            <input
-              className="input-basic w-full py-2.5"
-              placeholder="Ex. Casablanca"
+            <ChampVille
               value={villeFiltre}
-              onChange={(e) => setVilleFiltre(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && load()}
+              onChange={setVilleFiltre}
+              onEnter={() => load()}
+              libre
+              placeholder="Ex. Casablanca"
+              aria-label="Filtrer par ville"
             />
           </label>
 
