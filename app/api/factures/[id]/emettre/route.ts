@@ -38,9 +38,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       throw new ApiError(409, 'Cette facture ne porte aucun colis — ajoutez-en avant de l’émettre.');
     }
 
-    const emise = await prisma.facture.update({
-      where: { id },
+    // Conditionné au brouillon : une annulation concurrente ne doit pas être
+    // écrasée par une émission (facture « émise » sans aucune ligne).
+    const verrou = await prisma.facture.updateMany({
+      where: { id, statut: 'brouillon' },
       data: { statut: 'emise', dateValidation: new Date(), valideParId: session.sub },
+    });
+    if (verrou.count !== 1) {
+      throw new ApiError(409, 'Cette facture vient de changer de statut — rechargez la page');
+    }
+    const emise = await prisma.facture.findUniqueOrThrow({
+      where: { id },
       include: { marchand: { select: { nomBoutique: true } } },
     });
 

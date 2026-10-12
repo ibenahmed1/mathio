@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
+import { STATUTS_AVANT_COLLECTE } from '@/lib/statuts';
 import { verifierUniteStock } from '@/lib/stock-colis';
 import { stockColisVerrouille } from '@/lib/stock-quantites';
 import { chargerReferentielRoutage, chargerResolveurTransporteur } from '@/lib/hub-envoi';
@@ -139,6 +140,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         );
       }
       data.villeId = (await chargerReferentielRoutage()).pour(String(data.ville))?.id ?? null;
+    }
+
+    // Une fois le colis collecté, le COD et la ville ne sont plus à la main du
+    // marchand : le livreur encaisse le montant imprimé, le transporteur celui
+    // qui lui a été confié, et la facture relit `montantCod` au moment de
+    // facturer — un COD gonflé après livraison était reversé tel quel. Le
+    // formulaire renvoie tous les champs : seul un VRAI changement est refusé.
+    if (session.role === 'marchand') {
+      const apresCollecte = !STATUTS_AVANT_COLLECTE.includes(commande.statut);
+      const codChange = 'montantCod' in data && Number(data.montantCod) !== Number(commande.montantCod);
+      const villeChange = 'ville' in data && data.ville !== commande.ville;
+      if (apresCollecte && (codChange || villeChange)) {
+        throw new ApiError(
+          409,
+          'Ce colis a déjà été collecté : le montant COD et la ville ne sont plus modifiables. Contactez le support.'
+        );
+      }
     }
 
     // Marchandise du catalogue : réassignable, toujours vérifiée dans le

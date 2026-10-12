@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ApiError, jsonError, requirePermission } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { demanderRelivraisonChezPower } from '@/lib/actions-power-delivery';
 
 const RAISON_MAX = 150;
@@ -18,7 +19,7 @@ function texte(valeur: unknown): string {
 // colis annulé est rouvert (lib/actions-power-delivery.ts).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requirePermission('bon_envoi:manage');
+    const session = await requirePilotageTransporteur();
     const { id } = await params;
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 

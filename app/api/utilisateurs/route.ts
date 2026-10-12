@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { exigerPermissionsDetenues } from '@/lib/garde-gestion-comptes';
 import {
   hashSecret,
   getPasswordPolicyError,
@@ -223,6 +224,9 @@ export async function POST(request: Request) {
           ? (ROLE_PERMISSIONS[role] ?? [])
           : sanitizePermissions(body.permissions),
     };
+    // Un délégué (`users:manage`, non admin) ne crée pas un compte plus
+    // puissant que lui, jeu par défaut du rôle compris.
+    exigerPermissionsDetenues(session, data.permissions as string[]);
 
     if (email) {
       data.email = email;

@@ -55,6 +55,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const now = new Date();
 
     const bon = await prisma.$transaction(async (tx) => {
+      // Verrou : la tournée passe à `cloture` en premier, et seulement si elle
+      // ne l'est pas déjà. Deux clôtures concurrentes inscrivaient sinon deux
+      // « Remise de caisse » au journal pour un seul versement.
+      const verrou = await tx.bonDistribution.updateMany({
+        where: { id, statut: { not: 'cloture' } },
+        data: { statut: 'cloture' },
+      });
+      if (verrou.count !== 1) {
+        throw new ApiError(409, 'Cette tournée vient d’être clôturée par quelqu’un d’autre — rafraîchissez le bilan.');
+      }
+
       // Re-contrôle dans la transaction : un livreur peut avoir marqué un
       // colis entre le calcul du bilan et le clic (le bilan est recalculé à
       // chaque rafraîchissement de l'écran, pas verrouillé).

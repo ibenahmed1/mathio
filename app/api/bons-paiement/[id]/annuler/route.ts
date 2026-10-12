@@ -45,6 +45,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const annule = await prisma.$transaction(async (tx) => {
+      // Verrou : n'annule que le statut lu ci-dessus. Si le bon a été payé
+      // entre-temps, ses tournées ne doivent surtout pas être libérées.
+      const verrou = await tx.bonPaiement.updateMany({
+        where: { id, statut: bon.statut },
+        data: { statut: 'annule', dateAnnulation: new Date(), motifAnnulation: motif },
+      });
+      if (verrou.count !== 1) {
+        throw new ApiError(409, 'Ce bon vient de changer de statut — rechargez la page');
+      }
+
       await tx.bonDistribution.updateMany({
         where: { bonPaiementId: id },
         data: { bonPaiementId: null, gainRegleLe: null },
@@ -55,10 +65,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // émis. Ils ne sont PAS reconduits sur le bon régénéré — reprendre une
       // pénalité décidée sur une assiette qui n'existe plus est une décision
       // du comptable, pas du système.
-      return tx.bonPaiement.update({
-        where: { id },
-        data: { statut: 'annule', dateAnnulation: new Date(), motifAnnulation: motif },
-      });
+      return tx.bonPaiement.findUniqueOrThrow({ where: { id } });
     });
 
     return NextResponse.json(annule);

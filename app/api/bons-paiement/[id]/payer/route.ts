@@ -60,6 +60,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const periode = bon.periodeDebut.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
     const paye = await prisma.$transaction(async (tx) => {
+      // Verrou : le bon passe à `paye` avant l'écriture de caisse, et seulement
+      // s'il est encore `valide`. Deux règlements concurrents créaient sinon
+      // deux écritures de paie ; une annulation croisée, des tournées
+      // détachées d'un bon pourtant payé (donc payées une seconde fois).
+      const verrou = await tx.bonPaiement.updateMany({
+        where: { id, statut: 'valide' },
+        data: { statut: 'paye' },
+      });
+      if (verrou.count !== 1) {
+        throw new ApiError(409, 'Ce bon vient d’être réglé ou annulé par quelqu’un d’autre — rechargez la page');
+      }
+
       const transaction = await tx.transaction.create({
         data: {
           montant: Number(bon.montantTotal),

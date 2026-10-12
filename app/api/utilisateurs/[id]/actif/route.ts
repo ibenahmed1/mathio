@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { journaliserCompte } from '@/lib/journal-equipe-admin';
 import { estFonctionEquipe } from '@/lib/fonctions-equipe';
+import { exigerCibleGerable } from '@/lib/garde-gestion-comptes';
 
 // RF-22 : activation/désactivation d'un compte équipe par l'admin.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -19,6 +20,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!utilisateur) {
       throw new ApiError(404, 'Utilisateur introuvable');
     }
+    // Un délégué ne désactive ni un admin, ni un marchand, ni lui-même.
+    exigerCibleGerable(session, utilisateur);
 
     const updated = await prisma.utilisateur.update({
       where: { id },

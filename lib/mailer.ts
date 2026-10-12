@@ -21,10 +21,17 @@ function getTransporter() {
 // Retourne false si le SMTP n'est pas configuré (dev sans .env rempli) : dans
 // ce cas l'appelant doit quand même répondre succès côté API (RG-12) et
 // l'admin reste le recours via la réinitialisation manuelle.
+// Les liens de réinitialisation et d'activation portent un jeton valide : les
+// écrire dans les logs de prod, c'est donner le compte à quiconque les lit.
+// En dev, le lien en clair reste le moyen de tester sans SMTP.
+function lienJournalisable(url: string): string {
+  return process.env.NODE_ENV === 'production' ? '[masqué en production]' : url;
+}
+
 export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<boolean> {
   const transporter = getTransporter();
   if (!transporter) {
-    console.warn('[mailer] SMTP non configuré (SMTP_HOST/PORT/USER/PASS) — email non envoyé.', { to, resetUrl });
+    console.warn('[mailer] SMTP non configuré (SMTP_HOST/PORT/USER/PASS) — email non envoyé.', { to, resetUrl: lienJournalisable(resetUrl) });
     return false;
   }
 
@@ -54,7 +61,7 @@ export async function sendInvitationEmail(
   if (!transporter) {
     console.warn('[mailer] SMTP non configuré (SMTP_HOST/PORT/USER/PASS) — invitation non envoyée.', {
       to,
-      activationUrl,
+      activationUrl: lienJournalisable(activationUrl),
     });
     return false;
   }
@@ -90,7 +97,7 @@ export async function sendInvitationEquipeMarchandEmail(params: {
   if (!transporter) {
     console.warn('[mailer] SMTP non configuré (SMTP_HOST/PORT/USER/PASS) — invitation non envoyée.', {
       to: params.to,
-      activationUrl: params.activationUrl,
+      activationUrl: lienJournalisable(params.activationUrl),
     });
     return false;
   }

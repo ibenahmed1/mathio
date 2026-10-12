@@ -46,6 +46,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const annulee = await prisma.$transaction(async (tx) => {
+      // Verrou : l'annulation ne s'applique qu'au statut lu ci-dessus. Si un
+      // règlement est passé entre-temps, la facture est `payee` et on ne
+      // libère surtout pas ses colis — ils seraient refacturés, donc le
+      // marchand payé deux fois.
+      const verrou = await tx.facture.updateMany({
+        where: { id, statut: facture.statut },
+        data: { statut: 'annulee', dateAnnulation: new Date(), motifAnnulation: motif || null },
+      });
+      if (verrou.count !== 1) {
+        throw new ApiError(409, 'Cette facture vient de changer de statut — rechargez la page');
+      }
+
       await tx.commande.updateMany({
         where: { ligneFacture: { factureId: id } },
         data: { etatPaiement: 'non_paye' },
@@ -55,10 +67,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // commandeId — sans ça, les colis resteraient à jamais infacturables.
       await tx.ligneFacture.deleteMany({ where: { factureId: id } });
 
-      return tx.facture.update({
-        where: { id },
-        data: { statut: 'annulee', dateAnnulation: new Date(), motifAnnulation: motif || null },
-      });
+      return tx.facture.findUniqueOrThrow({ where: { id } });
     });
 
     return NextResponse.json(annulee);

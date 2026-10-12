@@ -4,6 +4,7 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { hashSecret, getPasswordPolicyError } from '@/lib/auth';
 import { journaliserCompte } from '@/lib/journal-equipe-admin';
 import { estFonctionEquipe } from '@/lib/fonctions-equipe';
+import { exigerCibleGerable } from '@/lib/garde-gestion-comptes';
 
 // RF-22 : réinitialisation manuelle par l'admin — pour tout type de compte
 // (équipe terrain, back-office, marchand), l'admin saisit lui-même le nouveau
@@ -35,6 +36,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!utilisateur) {
       throw new ApiError(404, 'Utilisateur introuvable');
     }
+    // Sans cette garde, un délégué `users:manage` fixait le mot de passe d'un
+    // compte admin puis s'y connectait.
+    exigerCibleGerable(session, utilisateur);
 
     const motDePasseHash = await hashSecret(motDePasse);
 

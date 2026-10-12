@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { jsonError, requirePermission } from '@/lib/api-utils';
+import { jsonError } from '@/lib/api-utils';
+import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { remettreBonEnvoiColivraison } from '@/lib/remise-colivraison';
 import { destinatairesBackoffice, notifier } from '@/lib/notifications';
 
@@ -8,7 +9,7 @@ import { destinatairesBackoffice, notifier } from '@/lib/notifications';
 // traité, même si des colis sont refusés : chaque colis porte son issue.
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requirePermission('bon_envoi:manage');
+    const session = await requirePilotageTransporteur();
     const { id } = await params;
     const resultat = await remettreBonEnvoiColivraison(id, session.sub);
 

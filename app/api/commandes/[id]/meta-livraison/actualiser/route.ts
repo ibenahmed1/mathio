@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { jsonError, requirePermission } from '@/lib/api-utils';
+import { jsonError } from '@/lib/api-utils';
+import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { actualiserColisMeta } from '@/lib/suivi-meta-livraison';
 
 // § Meta Livraison — interroge leur suivi et applique ce qu'il dit
@@ -7,7 +8,7 @@ import { actualiserColisMeta } from '@/lib/suivi-meta-livraison';
 // bouton sert de rattrapage et à confirmer une remise restée « à confirmer ».
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requirePermission('bon_envoi:manage');
+    await requirePilotageTransporteur();
     const { id } = await params;
     return NextResponse.json(await actualiserColisMeta(id));
   } catch (error) {

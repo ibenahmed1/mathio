@@ -18,7 +18,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; membreId: string }> }
 ) {
   try {
-    await requireUser(ROLES_GESTION_EQUIPES);
+    const session = await requireUser(ROLES_GESTION_EQUIPES);
+    // Refus explicite : design et gestionnaire_hub passent requireUser par
+    // la permission `poles:members` qu'ils détiennent par défaut.
+    if (ROLES_KANBAN_UNIQUEMENT.includes(session.role)) {
+      throw new ApiError(403, 'Accès refusé pour ce rôle');
+    }
     const { id, membreId } = await params;
 
     const membre = await prisma.equipeTacheMembre.findUnique({ where: { id: membreId } });

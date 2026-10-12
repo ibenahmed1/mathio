@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { STATUTS_COMMANDE } from '@/lib/statuts';
+import { STATUTS_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 import type { Role, StatutCommande } from '@/app/generated/prisma/enums';
 import { notifierStatutsColis } from '@/lib/notifications';
 
@@ -12,7 +12,13 @@ import { notifierStatutsColis } from '@/lib/notifications';
 // avec seulement deux garde-fous ciblés ci-dessous (preuve / motif).
 // equipe_suivi reprend le périmètre de l'ancien agent_confirmation, moderateur
 // celui de l'ancien sav (retours/refus) ; superviseur a une portée large.
-const ROLES_AUTORISES: Role[] = ['admin', 'superviseur', 'equipe_suivi', 'livreur', 'moderateur'];
+//
+// `livreur` n'y figure plus : il a sa route dédiée
+// (/api/livreur/colis/[id]/statut), qui vérifie que le colis lui est confié,
+// que sa tournée est ouverte et que la transition est permise. Ici, il pouvait
+// changer le statut de N'IMPORTE QUEL colis — repasser un colis encaissé en
+// retour, par exemple, et faire sortir son COD du bilan de tournée.
+const ROLES_AUTORISES: Role[] = ['admin', 'superviseur', 'equipe_suivi', 'moderateur'];
 
 const STATUTS_REQUIS_PREUVE: StatutCommande[] = ['livre'];
 const STATUTS_REQUIS_MOTIF: StatutCommande[] = ['retourne', 'refuse', 'annule', 'annule_par_vendeur'];
@@ -34,6 +40,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const commande = await prisma.commande.findUnique({ where: { id } });
     if (!commande) {
       throw new ApiError(404, 'Commande introuvable');
+    }
+
+    // Un colis clos (livré, retourné, annulé) ou déjà entré en facturation ne
+    // se rouvre que par l'admin : le statut et le COD y ont déjà produit leurs
+    // effets comptables (bilan de tournée, facture marchand).
+    if (session.role !== 'admin') {
+      if (STATUTS_TERMINAUX.includes(commande.statut) && nouveauStatut !== commande.statut) {
+        throw new ApiError(409, 'Ce colis est clos : seul un admin peut en changer le statut');
+      }
+      if (commande.etatPaiement !== 'non_paye') {
+        throw new ApiError(409, 'Ce colis est déjà facturé ou payé : seul un admin peut en changer le statut');
+      }
     }
 
     if (
@@ -87,8 +105,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.commande.update({
-        where: { id },
+      // Écriture conditionnée au statut lu : si un scan ou un webhook l'a
+      // changé entre-temps, on refuse plutôt que d'écraser (ex. un `livre`).
+      const ecrit = await tx.commande.updateMany({
+        where: { id, statut: commande.statut },
         data: {
           statut: nouveauStatut,
           ...(nouveauStatut === 'ramasse' && { dateCollecte: now }),
@@ -96,6 +116,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           ...(STATUTS_REQUIS_MOTIF.includes(nouveauStatut) && { motifRetour }),
         },
       });
+      if (ecrit.count !== 1) {
+        throw new ApiError(409, 'Le statut de ce colis vient de changer — rechargez la page');
+      }
 
       // RG-10 : historisation de chaque changement de statut.
       await tx.historiqueStatutCommande.create({
@@ -107,7 +130,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         },
       });
 
-      return result;
+      return tx.commande.findUniqueOrThrow({ where: { id } });
     });
 
     // § Notifications : après la transaction (le statut est acquis) ; le tri

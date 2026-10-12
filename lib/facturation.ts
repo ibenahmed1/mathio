@@ -641,6 +641,21 @@ export async function reglerFacture(
   const { factureId, auteurId, modeReglement, referenceReglement } = options;
   const now = options.date ?? new Date();
 
+  // Verrou : la facture passe à `payee` AVANT toute écriture, et seulement si
+  // elle ne l'est pas déjà ni n'a été annulée entre-temps. Deux règlements
+  // concurrents (deux onglets, deux comptables, un rejeu réseau) produisaient
+  // sinon deux sorties de caisse ; un règlement croisé avec une annulation,
+  // une facture payée dont les colis redevenaient facturables. Postgres
+  // sérialise les deux UPDATE sur la ligne : le second voit le statut posé
+  // par le premier et ne touche rien.
+  const verrou = await tx.facture.updateMany({
+    where: { id: factureId, statut: { in: ['brouillon', 'emise'] } },
+    data: { statut: 'payee' },
+  });
+  if (verrou.count !== 1) {
+    throw new ApiError(409, 'Cette facture vient d’être réglée ou annulée par quelqu’un d’autre — rechargez la page');
+  }
+
   const facture = await tx.facture.findUniqueOrThrow({
     where: { id: factureId },
     select: {
