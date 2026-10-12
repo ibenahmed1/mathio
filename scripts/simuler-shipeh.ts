@@ -7,6 +7,7 @@ import { genererCle } from '../lib/plateforme-cles';
 import { TAILLE_MAX_LOT } from '../lib/plateforme-colis';
 import { purgerDonneesTest } from '../lib/plateformes';
 import { servirColisEnAttente } from '../lib/stock-reservation';
+import { receptionnerUnite } from '../lib/stock-reception';
 import { creerClient, type Reponse } from './audit-http';
 
 // SIMULATEUR DE PLATEFORME PARTENAIRE — joue le rôle de Shipeh de bout en bout.
@@ -1028,10 +1029,22 @@ async function main() {
   });
 
   await verifie('à la réception, le colis en attente est servi sur le stock commun, au nom de son vendeur', async () => {
-    // Ce que fait la réception en entrepôt : l'annoncé devient du reçu.
+    // Ce que fait la réception en entrepôt (fiche produit) : l'annoncé devient
+    // du reçu, et l'envoi ouvert de cette unité est servi.
     const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
-    await prisma.produit.update({ where: { id: commun.id }, data: { quantiteEnCours: { decrement: 10 }, quantiteRecue: { increment: 10 } } });
     const technique = await prisma.utilisateur.findFirstOrThrow({ where: { nomComplet: `${PREFIXE} Shipeh` } });
+    await prisma.$transaction((tx) =>
+      receptionnerUnite(tx, { produitId: commun.id, varianteId: null, nom: commun.nom, quantite: 10, utilisateurId: technique.id })
+    );
+    const ligneEnvoi = await prisma.envoiStockLigne.findFirstOrThrow({
+      where: { produitId: commun.id, envoi: { reference: `${PREFIXE}-ENV-1` } },
+      include: { envoi: true },
+    });
+    if (ligneEnvoi.quantiteRecue !== 10) throw new Error(`ligne d’envoi reçue ${ligneEnvoi.quantiteRecue} au lieu de 10`);
+    // L'autre ligne de l'envoi (le mug du marchand) n'est pas encore là.
+    if (ligneEnvoi.envoi.statut !== 'recu_partiel') throw new Error(`envoi « ${ligneEnvoi.envoi.statut} » au lieu de recu_partiel`);
+    const journal = await prisma.mouvementStock.findFirst({ where: { produitId: commun.id, type: 'reception' } });
+    if (journal?.envoiId !== ligneEnvoi.envoiId) throw new Error('réception non rattachée à son envoi dans le journal');
     if ((await servirColisEnAttente([commun.id], technique.id)) !== 1) throw new Error('le colis n’a pas été servi');
     const c = await prisma.commande.findUniqueOrThrow({ where: { id: colisAttente } });
     if (c.enAttenteStock || !c.stockReserveLe) throw new Error('colis toujours en attente');
@@ -1067,6 +1080,59 @@ async function main() {
     attendu(await appel('POST', '/api/v1/produits', a.cleTest, { nom: 'Mug test', reference: `${PREFIXE}-COMMUN-TEST`, quantiteEnCours: 3 }), 201);
     const vu = await appel('GET', '/api/v1/stock', a.cleLive);
     if ((vu.json?.stock as { sku: string }[]).some((l) => l.sku === `${PREFIXE}-COMMUN-TEST`)) throw new Error('fuite test → live');
+  });
+
+  // ----------------------------------------------------------
+  console.log('\n6 ter. Côté entrepôt : envois, colis en attente, journal');
+
+  // Un compte admin de simulation : ces écrans sont servis par l'API du
+  // back-office, avec une session — pas par l'API partenaire.
+  const entrepot = creerClient('admin');
+  await verifie('l’entrepôt ouvre une session admin', async () => {
+    const email = 'sim-shipeh-entrepot@audit.test';
+    const motDePasseHash = await bcrypt.hash('Entrepot-Sim-2026!', 10);
+    await prisma.utilisateur.upsert({
+      where: { email },
+      update: { role: 'admin', actif: true, motDePasseHash },
+      create: { nomComplet: `${PREFIXE} Entrepôt`, email, motDePasseHash, role: 'admin' },
+    });
+    attendu(await entrepot.api('POST', '/api/auth/login', { telephone: email, secret: 'Entrepot-Sim-2026!' }), 200);
+  });
+
+  await verifie('l’envoi entamé est listé, puis reçu ligne par ligne jusqu’à « recu »', async () => {
+    const liste = await entrepot.api('GET', '/api/stock/envois');
+    attendu(liste, 200);
+    type LigneE = { id: string; sku: string; quantiteAnnoncee: number; quantiteRecue: number };
+    const envoi = (liste.json?.data as { id: string; reference: string; statut: string; lignes: LigneE[] }[]).find(
+      (e) => e.reference === `${PREFIXE}-ENV-1`
+    );
+    if (!envoi || envoi.statut !== 'recu_partiel') throw new Error(`envoi ENV-1 : ${JSON.stringify(envoi?.statut)}`);
+    const mug = envoi.lignes.find((l) => l.sku.toLowerCase() === SKU_MUG.toLowerCase())!;
+    const reste = mug.quantiteAnnoncee - mug.quantiteRecue;
+    attendu(await entrepot.api('POST', `/api/stock/envois/${envoi.id}/reception`, { lignes: [{ ligneId: mug.id, quantite: reste + 1 }] }), 400);
+    attendu(await entrepot.api('POST', `/api/stock/envois/${envoi.id}/reception`, { lignes: [{ ligneId: mug.id, quantite: reste }] }), 200);
+    const apres = await prisma.envoiStock.findUniqueOrThrow({ where: { id: envoi.id } });
+    if (apres.statut !== 'recu' || !apres.dateReception) throw new Error(`envoi « ${apres.statut} » après réception complète`);
+    const ouverts = await entrepot.api('GET', '/api/stock/envois');
+    if ((ouverts.json?.data as { id: string }[]).some((e) => e.id === envoi.id)) throw new Error('un envoi reçu reste dans la liste des ouverts');
+  });
+
+  await verifie('colis en attente de stock : la liste répond', async () => {
+    const r = await entrepot.api('GET', '/api/stock/envois/colis-en-attente');
+    attendu(r, 200);
+    if (!Array.isArray(r.json?.data)) throw new Error('liste attendue');
+  });
+
+  await verifie('journal du produit commun : réception rattachée à l’envoi, consommation par vendeur', async () => {
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    const r = await entrepot.api('GET', `/api/produits/${commun.id}/mouvements`);
+    attendu(r, 200);
+    const mouvements = r.json?.mouvements as { type: string; envoi: { reference: string } | null }[];
+    if (!mouvements.some((m) => m.type === 'reception' && m.envoi?.reference === `${PREFIXE}-ENV-1`)) {
+      throw new Error('réception sans son envoi');
+    }
+    const conso = (r.json?.consommation as { consomme: number }[]).map((c) => c.consomme).sort();
+    if (JSON.stringify(conso) !== '[1,2]') throw new Error(`consommation ${JSON.stringify(conso)} au lieu de [1,2]`);
   });
 
   // ----------------------------------------------------------
@@ -1111,7 +1177,15 @@ async function main() {
   await verifie('l’historique du colis porte la plateforme comme auteur', async () => {
     const commande = await prisma.commande.findFirst({
       where: { codeSuivi: codeSuiviInitial },
-      include: { historique: { include: { utilisateur: { select: { nomComplet: true, role: true } } } } },
+      // L'entrée de création : la plus ancienne. Sans tri, Postgres rend parfois
+      // d'abord un statut posé plus loin par le simulateur.
+      include: {
+        historique: {
+          orderBy: [{ horodatage: 'asc' }, { id: 'asc' }],
+          take: 1,
+          include: { utilisateur: { select: { nomComplet: true, role: true } } },
+        },
+      },
     });
     const entree = commande?.historique[0];
     if (!entree) throw new Error('aucune entrée d’historique');

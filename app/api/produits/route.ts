@@ -48,7 +48,11 @@ export async function GET(request: Request) {
       where,
       include: {
         variantes: true,
-        ...(session.role === 'admin' ? { marchand: { select: { nomBoutique: true } } } : {}),
+        // Un produit du stock commun d'une plateforme n'a pas de marchand :
+        // l'admin voit à qui il appartient (§ stock commun, 12/10/2026).
+        ...(session.role === 'admin'
+          ? { marchand: { select: { nomBoutique: true } }, plateforme: { select: { nom: true } } }
+          : {}),
       },
       orderBy: { dateCreation: 'desc' },
     });

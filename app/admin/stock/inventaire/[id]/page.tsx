@@ -9,6 +9,7 @@ import { quantiteRecueTotale, reliquatReception } from '@/lib/stock-quantites';
 import type { Produit } from '@/lib/types';
 import { LigneStockRow, type LigneStock } from './LigneStockRow';
 import { Field } from '@/components/form/Field';
+import { JournalMouvements } from './JournalMouvements';
 
 export default function ModifierProduitPage() {
   const params = useParams<{ id: string }>();
@@ -22,6 +23,8 @@ export default function ModifierProduitPage() {
   const [enregistrement, setEnregistrement] = useState(false);
   const [changementStatut, setChangementStatut] = useState(false);
   const [cloture, setCloture] = useState(false);
+  // Relance le journal après chaque mouvement saisi sur cette page.
+  const [versionJournal, setVersionJournal] = useState(0);
 
   async function load() {
     try {
@@ -30,6 +33,7 @@ export default function ModifierProduitPage() {
       setNom(data.nom);
       setNote(data.note ?? '');
       setPhotoUrl(data.photoUrl);
+      setVersionJournal((v) => v + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
@@ -75,19 +79,28 @@ export default function ModifierProduitPage() {
   // découvrir la réclamation après coup.
   async function cloturerReception() {
     if (!produit) return;
+    // Un produit du stock commun n'a pas de marchand contre qui réclamer :
+    // la clôture solde le reliquat, sans réclamation (même règle côté API).
     const ok = window.confirm(
       `Clôturer la réception de « ${produit.nom} » ?
 
 ` +
-        `${reliquat} unité(s) déclarée(s) par le marchand n'ont jamais été reçues. ` +
-        `Elles seront ramenées à 0 et une réclamation sera ouverte automatiquement ` +
-        `contre le marchand.
+        (produit.marchandId
+          ? `${reliquat} unité(s) déclarée(s) par le marchand n'ont jamais été reçues. ` +
+            `Elles seront ramenées à 0 et une réclamation sera ouverte automatiquement ` +
+            `contre le marchand.`
+          : `${reliquat} unité(s) annoncée(s) par ${produit.plateforme?.nom ?? 'la plateforme'} n'ont jamais été reçues. ` +
+            `Elles seront ramenées à 0.`) +
+        `
 
 Cette action est irréversible.`
     );
     if (!ok) return;
 
-    const motif = window.prompt('Motif (facultatif) — il sera repris dans la réclamation :') ?? '';
+    const motif =
+      window.prompt(
+        produit.marchandId ? 'Motif (facultatif) — il sera repris dans la réclamation :' : 'Motif (facultatif) :'
+      ) ?? '';
 
     setError(null);
     setCloture(true);
@@ -173,7 +186,11 @@ Continuer ?`
         <div className="min-w-0">
           <h1 className="page-title break-words">Modifier produit — {produit.nom}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span className="opacity-60">{produit.marchand?.nomBoutique}</span>
+            <span className="opacity-60">
+              {produit.marchand?.nomBoutique ??
+                (produit.plateforme ? `Stock commun ${produit.plateforme.nom}` : '—')}
+              {produit.environnementPlateforme === 'test' && ' (bac à sable)'}
+            </span>
             <span className="opacity-30">|</span>
             <select
               className="input-basic py-1"
@@ -246,7 +263,9 @@ Continuer ?`
           <p className="text-sm">
             <span className="font-semibold">{reliquat} unité(s) en attente de réception.</span>{' '}
             <span className="opacity-70">
-              Déclarées par le marchand mais jamais validées en entrepôt.
+              {produit.marchandId
+                ? 'Déclarées par le marchand mais jamais validées en entrepôt.'
+                : 'Annoncées par la plateforme mais jamais validées en entrepôt.'}
             </span>
           </p>
           <button
@@ -286,6 +305,8 @@ Continuer ?`
           </table>
         </div>
       </div>
+
+      <JournalMouvements produitId={produit.id} rafraichir={versionJournal} />
 
       <div className="table-card">
         <div className="border-b border-black/10 px-3 py-2 dark:border-white/10">

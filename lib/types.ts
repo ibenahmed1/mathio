@@ -143,7 +143,7 @@ export interface HistoriqueProduit {
 
 export interface Produit {
   id: string;
-  marchandId: string;
+  marchandId: string | null;
   nom: string;
   reference: string;
   quantiteEnCours: number;
@@ -156,7 +156,12 @@ export interface Produit {
   dateCreation: string;
   variantes?: ProduitVariante[];
   historique?: HistoriqueProduit[];
-  marchand?: { nomBoutique: string };
+  marchand?: { nomBoutique: string } | null;
+  // § Stock commun (12/10/2026) : renseignés à la place du marchand quand le
+  // produit appartient à une plateforme partenaire.
+  plateformeId?: string | null;
+  environnementPlateforme?: 'test' | 'live' | null;
+  plateforme?: { nom: string } | null;
 }
 
 export interface HistoriqueStatut {

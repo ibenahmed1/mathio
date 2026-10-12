@@ -20,6 +20,14 @@ function StatutBadgeProduit({ statut }: { statut: Produit['statutReception'] }) 
 // Stock bas (§ lib/stock-quantites.ts) : seulement sur un produit reçu — un
 // produit en attente de livraison n'a pas encore de stock à surveiller.
 const CLASSE_STOCK_BAS = 'font-semibold text-amber-700 dark:text-amber-400';
+
+// § Stock commun (12/10/2026) : un produit appartient à un marchand, ou à une
+// plateforme partenaire qui le fait vendre par tous ses marchands.
+function proprietaire(p: Produit): string {
+  if (p.marchand) return p.marchand.nomBoutique;
+  return p.plateforme ? `Stock commun ${p.plateforme.nom}` : '—';
+}
+type FiltreProprietaire = 'tous' | 'communs' | 'marchands';
 function bas(produit: Produit, quantiteRecue: number): boolean {
   return produit.statutReception === 'recu' && estStockBas(quantiteRecue);
 }
@@ -36,6 +44,7 @@ export default function AdminStockInventairePage() {
   const [parPage, setParPage] = useState(OPTIONS_PAR_PAGE[0]);
   const [page, setPage] = useState(1);
   const [stockBasSeul, setStockBasSeul] = useState(false);
+  const [filtreProprietaire, setFiltreProprietaire] = useState<FiltreProprietaire>('tous');
 
   async function load() {
     setChargement(true);
@@ -58,12 +67,14 @@ export default function AdminStockInventairePage() {
     const q = recherche.trim().toLowerCase();
     return produits.filter((p) => {
       if (stockBasSeul && unitesStockBas(p).length === 0) return false;
-      if (qMagasin && !(p.marchand?.nomBoutique ?? '').toLowerCase().includes(qMagasin)) return false;
+      if (filtreProprietaire === 'communs' && !p.plateformeId) return false;
+      if (filtreProprietaire === 'marchands' && p.plateformeId) return false;
+      if (qMagasin && !proprietaire(p).toLowerCase().includes(qMagasin)) return false;
       if (!q) return true;
       if (p.nom.toLowerCase().includes(q) || p.reference.toLowerCase().includes(q)) return true;
       return (p.variantes ?? []).some((v) => v.nom.toLowerCase().includes(q) || v.reference.toLowerCase().includes(q));
     });
-  }, [produits, rechercheMagasin, recherche, stockBasSeul]);
+  }, [produits, rechercheMagasin, recherche, stockBasSeul, filtreProprietaire]);
 
   const nombreStockBas = useMemo(() => produits.filter((p) => unitesStockBas(p).length > 0).length, [produits]);
 
@@ -94,15 +105,29 @@ export default function AdminStockInventairePage() {
         </button>
       )}
 
-      <input
-        className="input-basic max-w-xs"
-        placeholder="Rechercher un magasin"
-        value={rechercheMagasin}
-        onChange={(e) => {
-          setRechercheMagasin(e.target.value);
-          setPage(1);
-        }}
-      />
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="input-basic max-w-xs"
+          placeholder="Rechercher un magasin"
+          value={rechercheMagasin}
+          onChange={(e) => {
+            setRechercheMagasin(e.target.value);
+            setPage(1);
+          }}
+        />
+        <select
+          className="input-basic w-auto"
+          value={filtreProprietaire}
+          onChange={(e) => {
+            setFiltreProprietaire(e.target.value as FiltreProprietaire);
+            setPage(1);
+          }}
+        >
+          <option value="tous">Tous les stocks</option>
+          <option value="communs">Stocks communs des plateformes</option>
+          <option value="marchands">Stocks des marchands</option>
+        </select>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm">
@@ -142,7 +167,7 @@ export default function AdminStockInventairePage() {
             <thead>
               <tr>
                 <th></th>
-                <th>Nom du magasin</th>
+                <th>Stock de</th>
                 <th>Nom du produit</th>
                 <th>Quantité</th>
                 <th>Rayonnage</th>
@@ -165,7 +190,16 @@ export default function AdminStockInventairePage() {
                         </div>
                       )}
                     </td>
-                    <td>{p.marchand?.nomBoutique ?? '—'}</td>
+                    <td>
+                      {p.plateformeId ? (
+                        <span className="flex flex-wrap items-center gap-1">
+                          <span className="badge bg-brand/10 text-brand">{proprietaire(p)}</span>
+                          {p.environnementPlateforme === 'test' && <span className="badge badge-neutral">Bac à sable</span>}
+                        </span>
+                      ) : (
+                        proprietaire(p)
+                      )}
+                    </td>
                     <td className="font-medium">{p.nom}</td>
                     <td>
                       {lignes ? (
