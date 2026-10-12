@@ -53,8 +53,14 @@ test('un produit à variantes : le stock vit sur les variantes, le produit reste
   assert.deepEqual(p.variantes[0], { nom: 'Rouge / M', reference: 'PRD-K7M2Q9XA-ROUGE-M', quantiteEnCours: 10 });
 });
 
+test('sans idExterneMarchand, le produit est un produit commun de la plateforme', () => {
+  assert.equal(analyserEntreeProduit({ ...SIMPLE, idExterneMarchand: undefined }).idExterneMarchand, null);
+  assert.equal(analyserEntreeProduit({ ...SIMPLE, idExterneMarchand: '  ' }).idExterneMarchand, null);
+  assert.equal(analyserEntreeProduit(SIMPLE).idExterneMarchand, 'shipeh-12345');
+});
+
 test('les champs requis le sont, y compris la quantité d’un produit simple', () => {
-  for (const champ of ['idExterneMarchand', 'nom', 'reference', 'quantiteEnCours']) {
+  for (const champ of ['nom', 'reference', 'quantiteEnCours']) {
     assert.equal(codeRefus({ ...SIMPLE, [champ]: undefined }), 'champ_requis', champ);
   }
   assert.equal(codeRefus({ ...SIMPLE, reference: '   ' }), 'champ_requis');

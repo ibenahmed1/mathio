@@ -131,6 +131,47 @@ export async function resoudreSku(marchandId: string, reference: string, client:
   return resoudreSkuChez({ marchandId }, reference, client);
 }
 
+// Pour un envoi de stock annoncé par une plateforme : le SKU désigne une
+// unité de son univers — son stock commun ou le stock personnel de l'un de
+// ses marchands dans cet environnement. Unique par construction.
+export async function resoudreSkuUnivers(
+  plateformeId: string,
+  environnement: EnvironnementApi,
+  reference: string,
+  client: Client = prisma
+): Promise<(SkuResolu & { marchandId: string | null }) | null> {
+  const liens = await client.compteMarchandExterne.findMany({
+    where: { plateformeId, environnement },
+    select: { marchandId: true },
+  });
+  const proprietaires: ProprietaireStock[] = [
+    { plateformeId, environnementPlateforme: environnement },
+    ...liens.map((l) => ({ marchandId: l.marchandId })),
+  ];
+  // Une requête pour tout l'univers, quel que soit le nombre de marchands.
+  const ref = reference.trim();
+  if (!ref) return null;
+  const filtre = { equals: ref, mode: 'insensitive' as const };
+  const champsProduit = { id: true, nom: true, reference: true, variantesActivees: true, marchandId: true } as const;
+
+  const variante = await client.produitVariante.findFirst({
+    where: { reference: filtre, produit: { OR: proprietaires } },
+    select: { id: true, nom: true, reference: true, produit: { select: champsProduit } },
+  });
+  if (variante) {
+    const { produit, ...reste } = variante;
+    const { marchandId, ...p } = produit;
+    return { produit: p, variante: reste, marchandId };
+  }
+  const produit = await client.produit.findFirst({
+    where: { OR: proprietaires, reference: filtre },
+    select: champsProduit,
+  });
+  if (!produit) return null;
+  const { marchandId, ...p } = produit;
+  return { produit: p, variante: null, marchandId };
+}
+
 // Pour un colis de plateforme : le stock personnel du vendeur d'abord, puis le
 // stock commun de la plateforme dans l'environnement de la clé. Les SKU étant
 // uniques dans cet univers, au plus l'un des deux répond.

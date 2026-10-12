@@ -5,7 +5,10 @@ import { nextCodeSuivi } from '@/lib/codes';
 import { chargerReferentielRoutage, type ReferentielRoutage } from '@/lib/hub-envoi';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { resumerLignes } from '@/lib/colis-lignes';
-import { resoudreSku } from '@/lib/stock-sku';
+import { resoudreSkuPourVendeur } from '@/lib/stock-sku';
+import type { ProvenanceStock } from '@/app/generated/prisma/enums';
+import { notifierStockBas } from '@/lib/notifications';
+import { tenterReservation } from '@/lib/stock-reservation';
 
 // Ingestion des colis déposés par une plateforme partenaire
 // (§ POST /v1/colis et POST /v1/colis/lot).
@@ -183,6 +186,10 @@ export interface ResultatColis {
   marchandId: string;
   statut: string;
   aRisque: boolean;
+  // § Stock commun (12/10/2026) : le stock est retiré dès l'arrivée. Vrai si
+  // une unité manquait : le colis est accepté et attend la prochaine
+  // réception de stock.
+  enAttenteStock: boolean;
 }
 
 // Résolution du marchand ET du cloisonnement bac à sable / production.
@@ -251,7 +258,7 @@ export async function ingererColis(
   const dejaRecu = await colisDejaIngere(marchandId, entree.reference);
   if (dejaRecu) return dejaRecu;
 
-  const lignes = await resoudreContenu(marchandId, entree.produits);
+  const lignes = await resoudreContenu(contexte, marchandId, entree.produits);
 
   // RG-08 : la liste noire s'applique au colis d'une plateforme comme à
   // n'importe quel autre. Un client signalé ne cesse pas de l'être parce que
@@ -322,6 +329,12 @@ export async function ingererColis(
       return creee;
     });
 
+    // Le colis arrive confirmé : son stock est retiré tout de suite, dans une
+    // transaction à part — un manque ne doit pas annuler le colis, il le met
+    // en attente (§ lib/stock-reservation.ts).
+    const reservation = await tenterReservation(commande.id, contexte.utilisateurTechniqueId);
+    await notifierStockBas(reservation.mouvements);
+
     return {
       issue: 'cree',
       reference: entree.reference,
@@ -329,6 +342,7 @@ export async function ingererColis(
       marchandId,
       statut: commande.statut,
       aRisque: commande.aRisque,
+      enAttenteStock: !reservation.reserve,
     };
   } catch (error) {
     // P2002 sur commandes_marchand_ref_partenaire_key : cette référence a déjà
@@ -348,7 +362,7 @@ export async function ingererColis(
 async function colisDejaIngere(marchandId: string, reference: string): Promise<ResultatColis | null> {
   const existante = await prisma.commande.findFirst({
     where: { marchandId, codeSuiviPartenaire: reference },
-    select: { codeSuivi: true, statut: true, aRisque: true },
+    select: { codeSuivi: true, statut: true, aRisque: true, enAttenteStock: true },
   });
   if (!existante) return null;
   return {
@@ -358,6 +372,7 @@ async function colisDejaIngere(marchandId: string, reference: string): Promise<R
     marchandId,
     statut: existante.statut,
     aRisque: existante.aRisque,
+    enAttenteStock: existante.enAttenteStock,
   };
 }
 
@@ -367,9 +382,11 @@ interface LigneResolue {
   sku: string;
   libelle: string;
   quantite: number;
+  provenance: ProvenanceStock;
 }
 
-// Rapproche chaque SKU du stock DE CE MARCHAND (produit simple ou variante,
+// Rapproche chaque SKU du stock de ce marchand, puis du stock commun de la
+// plateforme (produit simple ou variante,
 // sans tenir compte de la casse). Le colis est BLOQUÉ — rien n'est créé — si
 // un seul SKU est inconnu : un colis dont une partie du contenu n'existe pas
 // dans notre entrepôt ne pourrait jamais être préparé. Tous les SKU fautifs
@@ -382,17 +399,23 @@ interface LigneResolue {
 // Le stock DISPONIBLE n'est pas contrôlé ici (décision du 10/10/2026) : il est
 // réservé au passage en préparation, qui bloque en tout ou rien.
 async function resoudreContenu(
+  contexte: ContextePlateforme,
   marchandId: string,
   produits: { sku: string; quantite: number }[]
 ): Promise<LigneResolue[]> {
-  const resolus = await Promise.all(produits.map((p) => resoudreSku(marchandId, p.sku)));
+  // Stock personnel du vendeur d'abord, puis stock commun de la plateforme
+  // (§ stock commun, 12/10/2026) : un SKU étant unique dans cet univers, au
+  // plus l'un des deux répond.
+  const resolus = await Promise.all(
+    produits.map((p) => resoudreSkuPourVendeur(marchandId, contexte.plateformeId, contexte.environnement, p.sku))
+  );
 
   const inconnus = produits.filter((_, i) => !resolus[i]).map((p) => p.sku);
   if (inconnus.length > 0) {
     throw new ErreurPlateforme(
       400,
       'sku_inconnu',
-      `SKU inconnu${inconnus.length > 1 ? 's' : ''} dans le stock de ce marchand : ${inconnus.join(', ')}. ` +
+      `SKU inconnu${inconnus.length > 1 ? 's' : ''} (ni dans le stock de ce marchand, ni dans votre stock commun) : ${inconnus.join(', ')}. ` +
         'Déclarer le produit d’abord via POST /v1/produits.'
     );
   }
@@ -415,13 +438,14 @@ async function resoudreContenu(
   // Deux SKU résolus vers la même unité ne peuvent pas coexister : la casse
   // étant ignorée à l'analyse comme à la résolution, ils ont déjà été fusionnés.
   return produits.map((p, i) => {
-    const { produit, variante } = resolus[i]!;
+    const { produit, variante, provenance } = resolus[i]!;
     return {
       produitId: produit.id,
       varianteId: variante?.id ?? null,
       sku: variante?.reference ?? produit.reference,
       libelle: variante ? `${produit.nom} — ${variante.nom}` : produit.nom,
       quantite: p.quantite,
+      provenance,
     };
   });
 }

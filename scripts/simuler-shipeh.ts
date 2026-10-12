@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { genererCle } from '../lib/plateforme-cles';
 import { TAILLE_MAX_LOT } from '../lib/plateforme-colis';
 import { purgerDonneesTest } from '../lib/plateformes';
+import { servirColisEnAttente } from '../lib/stock-reservation';
 import { creerClient, type Reponse } from './audit-http';
 
 // SIMULATEUR DE PLATEFORME PARTENAIRE — joue le rôle de Shipeh de bout en bout.
@@ -185,8 +186,8 @@ async function amorcer(): Promise<Amorce> {
     return { cleComplete, id: creee.id };
   }
 
-  const live = await poser('live', ['marchands:creation_validee', 'colis:creation', 'produits:creation', 'colis:lecture']);
-  const test = await poser('test', ['marchands:creation', 'colis:creation', 'produits:creation', 'colis:lecture']);
+  const live = await poser('live', ['marchands:creation_validee', 'colis:creation', 'produits:creation', 'colis:lecture', 'stock:lecture']);
+  const test = await poser('test', ['marchands:creation', 'colis:creation', 'produits:creation', 'colis:lecture', 'stock:lecture']);
   const sansColis = await poser('live', ['marchands:creation']);
   const revoquee = await poser('live', ['colis:creation'], { revoqueeLe: new Date() });
   const expiree = await poser('live', ['colis:creation'], { expireLe: new Date(Date.now() - 60_000) });
@@ -238,6 +239,10 @@ async function nettoyer() {
   }
 
   if (plateforme) {
+    // Le stock commun de la plateforme (produits, envois) part avant elle : un
+    // produit refuse de perdre son propriétaire.
+    await prisma.envoiStock.deleteMany({ where: { plateformeId: plateforme.id } });
+    await prisma.produit.deleteMany({ where: { plateformeId: plateforme.id } });
     // Cascade : clés, liens marchands et journal partent avec la plateforme.
     await prisma.plateformePartenaire.delete({ where: { id: plateforme.id } });
     await prisma.utilisateur.delete({ where: { id: plateforme.utilisateurTechniqueId } }).catch(() => {});
@@ -808,6 +813,7 @@ async function main() {
       ancienStatut: 'nouveau_colis',
       nouveauStatut: 'livre',
       utilisateurId: technique.id,
+      note: 'Simulation : statut posé par le simulateur',
       horodatage: new Date(Date.now() - 30_000),
     },
   });
@@ -821,6 +827,7 @@ async function main() {
       ancienStatut: 'nouveau_colis' as const,
       nouveauStatut: 'mise_en_distribution' as const,
       utilisateurId: technique.id,
+      note: 'Simulation : statut posé par le simulateur',
       horodatage: new Date(Date.now() - 45_000),
     })),
   });
@@ -891,6 +898,7 @@ async function main() {
         ancienStatut: 'mise_en_distribution',
         nouveauStatut: 'livre',
         utilisateurId: technique.id,
+        note: 'Simulation : statut posé par le simulateur',
         horodatage: new Date(Date.now() - 20_000),
       },
     });
@@ -957,11 +965,108 @@ async function main() {
     // Le stock est propre à chaque marchand : le SKU du marchand A n'existe pas
     // chez celui-ci tant qu'il ne l'a pas déclaré.
     attendu(await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-BASC-0`, ID_DOUBLE)), 400, 'sku_inconnu');
-    attendu(await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(ID_DOUBLE)), 201);
-    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-BASC-1`, ID_DOUBLE));
+    // Un SKU est unique dans tout l'univers de la plateforme : ce marchand
+    // déclare donc le sien, distinct de celui du marchand A.
+    attendu(await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(ID_DOUBLE, `${PREFIXE}-MUG-DOUBLE`)), 201);
+    const r = await appel(
+      'POST',
+      '/api/v1/colis',
+      a.cleLive,
+      colis(`${PREFIXE}-BASC-1`, ID_DOUBLE, { produits: [{ sku: `${PREFIXE}-MUG-DOUBLE`, quantite: 1 }] })
+    );
     attendu(r, 201);
     // Et un produit déclaré en bac à sable, que la purge devra emporter.
     attendu(await appel('POST', '/api/v1/produits', a.cleTest, produitSimple(ID_DOUBLE, `${PREFIXE}-TEST-MUG`)), 201);
+  });
+
+  // ----------------------------------------------------------
+  console.log('\n6 bis. Stock commun de la plateforme');
+
+  const SKU_COMMUN = `${PREFIXE}-COMMUN-MUG`;
+  await verifie('un produit sans idExterneMarchand rejoint le stock commun', async () => {
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, { nom: `${PREFIXE} Mug commun`, reference: SKU_COMMUN, quantiteEnCours: 0 });
+    attendu(r, 201);
+    if (r.json?.stockCommun !== true) throw new Error('stockCommun devrait être vrai');
+    const p = await prisma.produit.findUnique({ where: { id: String(r.json?.produitId) } });
+    if (p?.marchandId !== null || p.plateformeId !== a.plateformeId || p.environnementPlateforme !== 'live') {
+      throw new Error('propriétaire du produit commun incorrect');
+    }
+  });
+
+  await verifie('un SKU est unique dans tout l’univers : un vendeur ne peut pas reprendre un SKU commun', async () => {
+    attendu(await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(mA.idExterne, SKU_COMMUN.toLowerCase())), 409, 'sku_deja_utilise');
+  });
+
+  await verifie('un envoi annonce ses quantités ; rejoué, il ne compte pas deux fois', async () => {
+    const envoi = { referenceEnvoi: `${PREFIXE}-ENV-1`, lignes: [{ sku: SKU_COMMUN, quantite: 10 }, { sku: SKU_MUG, quantite: 5 }] };
+    const r = await appel('POST', '/api/v1/stock/envois', a.cleLive, envoi);
+    attendu(r, 201);
+    attendu(await appel('POST', '/api/v1/stock/envois', a.cleLive, envoi), 200);
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    if (commun.quantiteEnCours !== 10) throw new Error(`annoncé ${commun.quantiteEnCours} au lieu de 10`);
+    const lignes = await prisma.envoiStockLigne.count({ where: { envoi: { reference: `${PREFIXE}-ENV-1` } } });
+    if (lignes !== 2) throw new Error(`${lignes} ligne(s) d’envoi au lieu de 2`);
+  });
+
+  await verifie('un envoi avec un SKU inconnu est refusé entièrement', async () => {
+    const r = await appel('POST', '/api/v1/stock/envois', a.cleLive, {
+      referenceEnvoi: `${PREFIXE}-ENV-X`,
+      lignes: [{ sku: SKU_COMMUN, quantite: 1 }, { sku: 'FANTOME', quantite: 1 }],
+    });
+    attendu(r, 400, 'sku_inconnu');
+    if (await prisma.envoiStock.count({ where: { reference: `${PREFIXE}-ENV-X` } })) throw new Error('envoi créé malgré le refus');
+  });
+
+  let colisAttente = '';
+  await verifie('stock commun pas encore reçu : le colis est accepté « en attente de stock »', async () => {
+    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-1`, mA.idExterne, { produits: [{ sku: SKU_COMMUN, quantite: 2 }] }));
+    attendu(r, 201);
+    if (r.json?.enAttenteStock !== true) throw new Error('le colis devrait être en attente de stock');
+    const c = await prisma.commande.findFirstOrThrow({ where: { codeSuiviPartenaire: `${PREFIXE}-COM-1` }, include: { lignes: true } });
+    colisAttente = c.id;
+    if (c.lignes[0].provenance !== 'stock_plateforme') throw new Error(`provenance « ${c.lignes[0].provenance} »`);
+  });
+
+  await verifie('à la réception, le colis en attente est servi sur le stock commun, au nom de son vendeur', async () => {
+    // Ce que fait la réception en entrepôt : l'annoncé devient du reçu.
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    await prisma.produit.update({ where: { id: commun.id }, data: { quantiteEnCours: { decrement: 10 }, quantiteRecue: { increment: 10 } } });
+    const technique = await prisma.utilisateur.findFirstOrThrow({ where: { nomComplet: `${PREFIXE} Shipeh` } });
+    if ((await servirColisEnAttente([commun.id], technique.id)) !== 1) throw new Error('le colis n’a pas été servi');
+    const c = await prisma.commande.findUniqueOrThrow({ where: { id: colisAttente } });
+    if (c.enAttenteStock || !c.stockReserveLe) throw new Error('colis toujours en attente');
+    const apres = await prisma.produit.findUniqueOrThrow({ where: { id: commun.id } });
+    if (apres.quantiteRecue !== 8) throw new Error(`stock commun ${apres.quantiteRecue} au lieu de 8`);
+    const sortie = await prisma.mouvementStock.findFirst({ where: { commandeId: colisAttente, type: 'sortie_colis' }, include: { marchand: true } });
+    if (!sortie?.marchand || !sortie.marchand.nomBoutique.startsWith(`${PREFIXE} Boutique A`)) throw new Error('sortie non attribuée au vendeur');
+  });
+
+  await verifie('un autre vendeur puise dans le même stock commun, sans réservation', async () => {
+    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-2`, ID_DOUBLE, { produits: [{ sku: SKU_COMMUN, quantite: 1 }] }));
+    attendu(r, 201);
+    if (r.json?.enAttenteStock !== false) throw new Error('le stock était disponible : pas d’attente attendue');
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    if (commun.quantiteRecue !== 7) throw new Error(`stock commun ${commun.quantiteRecue} au lieu de 7`);
+  });
+
+  await verifie('GET /v1/stock : le stock commun, et pour un vendeur sa consommation', async () => {
+    const tout = await appel('GET', '/api/v1/stock', a.cleLive);
+    attendu(tout, 200);
+    const ligne = (tout.json?.stock as { sku: string; proprietaire: string; disponible: number }[]).find((l) => l.sku === SKU_COMMUN);
+    if (!ligne || ligne.proprietaire !== 'plateforme' || ligne.disponible !== 7) throw new Error(`ligne commune : ${JSON.stringify(ligne)}`);
+    const sien = await appel('GET', `/api/v1/stock?idExterneMarchand=${mA.idExterne}`, a.cleLive);
+    attendu(sien, 200);
+    const lignes = sien.json?.stock as { sku: string; proprietaire: string; consommeParMarchand?: number }[];
+    if (!lignes.some((l) => l.sku === SKU_MUG && l.proprietaire === mA.idExterne)) throw new Error('son produit personnel manque');
+    const conso = lignes.find((l) => l.sku === SKU_COMMUN);
+    if (conso?.consommeParMarchand !== 2) throw new Error(`consommation ${conso?.consommeParMarchand} au lieu de 2`);
+    attendu(await appel('GET', '/api/v1/stock', a.cleSansScopeColis), 403, 'scope_manquant');
+  });
+
+  await verifie('le stock commun du bac à sable reste séparé de la production', async () => {
+    attendu(await appel('POST', '/api/v1/produits', a.cleTest, { nom: 'Mug test', reference: `${PREFIXE}-COMMUN-TEST`, quantiteEnCours: 3 }), 201);
+    const vu = await appel('GET', '/api/v1/stock', a.cleLive);
+    if ((vu.json?.stock as { sku: string }[]).some((l) => l.sku === `${PREFIXE}-COMMUN-TEST`)) throw new Error('fuite test → live');
   });
 
   // ----------------------------------------------------------
@@ -1073,9 +1178,14 @@ async function main() {
     if (await prisma.produit.count({ where: { reference: `${PREFIXE}-TEST-MUG` } })) {
       throw new Error('un produit déclaré en bac à sable survit à la purge');
     }
-    if ((await prisma.produit.count({ where: { reference: SKU_MUG } })) !== 2) {
+    if ((await prisma.produit.count({ where: { reference: { in: [SKU_MUG, `${PREFIXE}-MUG-DOUBLE`] } } })) !== 2) {
       throw new Error('la purge a touché des produits de production');
     }
+  });
+
+  await verifie('la purge emporte le stock commun de test, pas celui de production', async () => {
+    if (await prisma.produit.count({ where: { reference: `${PREFIXE}-COMMUN-TEST` } })) throw new Error('produit commun de test survivant');
+    if ((await prisma.produit.count({ where: { reference: `${PREFIXE}-COMMUN-MUG` } })) !== 1) throw new Error('stock commun live touché');
   });
 
   await verifie('les colis de production survivent à la purge', async () => {
