@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api-client';
-import { LABELS_STATUT_COMMANDE, tonColisDuStatut } from '@/lib/statuts';
+import { LABELS_STATUT_COMMANDE, colisResteALivrer, tonColisDuStatut } from '@/lib/statuts';
 import type { DashboardLivreurStats } from '@/lib/types';
 import { DashboardLivreur, type ColisAccueilLivreur } from '@/components/livreur/DashboardLivreur';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
@@ -22,6 +22,9 @@ interface ColisTournee {
   ville: string;
   montantCod: string;
   statut: string;
+  // Présent pour un colis de tournée, absent pour un colis confié par bon
+  // d'envoi : c'est ce qui dit ce qui reste « à livrer » (§ colisResteALivrer).
+  bonDistribution?: { id: string } | null;
 }
 
 interface FeuilleDeRoute {
@@ -87,8 +90,8 @@ export default function LivreurDashboardPage() {
   }, []);
 
   const colis = feuille?.colis ?? [];
-  const aTenter = colis.filter((c) => c.statut === 'mise_en_distribution');
-  const traites = colis.filter((c) => c.statut !== 'mise_en_distribution');
+  const aTenter = colis.filter(colisResteALivrer);
+  const traites = colis.filter((c) => !colisResteALivrer(c));
 
   const filtrePeriode = (
     <form

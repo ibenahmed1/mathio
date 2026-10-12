@@ -89,6 +89,21 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
 
 export const STATUTS_TERMINAUX: StatutCommande[] = ['livre', 'retourne', 'annule', 'annule_par_vendeur'];
 
+// § Espace terrain d'un transporteur (colis confiés par bon d'envoi) : statuts
+// qui appellent le RETOUR du colis chez nous — la livraison a échoué et ne sera
+// pas retentée. Le reste des statuts non clos (reporté, injoignable…) est
+// encore entre ses mains et compte « à livrer ».
+export const STATUTS_A_RETOURNER_CONFIE: StatutCommande[] = ['refuse', 'hors_zone', 'numero_errone', 'en_retour_par_amana'];
+
+// Ce qui reste à livrer, selon la provenance du colis : en tournée, seul
+// `mise_en_distribution` ; confié à un transporteur, tout colis non clos qui
+// n'est pas parti en retour. Même règle côté serveur (récapitulatif) et écran.
+export function colisResteALivrer(c: { statut: string; bonDistribution?: unknown; bonDistributionId?: string | null }): boolean {
+  const statut = c.statut as StatutCommande;
+  if (c.bonDistribution || c.bonDistributionId) return statut === 'mise_en_distribution';
+  return !STATUTS_TERMINAUX.includes(statut) && !STATUTS_A_RETOURNER_CONFIE.includes(statut);
+}
+
 // § Bon de retour (/admin/bon-retour) : colis dont la livraison a
 // définitivement échoué et qui sont PHYSIQUEMENT au hub, donc restituables au
 // marchand. `retourne_au_hub` est le cas dominant — c'est le statut qu'un

@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
-import { normaliserVille } from '@/lib/hub-stock';
-import { hubCentralId } from '@/lib/hub-envoi';
+import { chargerResolveurTransporteur, cleRoutage, hubCentralId, refusTransporteur } from '@/lib/hub-envoi';
 import { nextBonEnvoiNumero } from '@/lib/codes';
 import { STATUTS_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 import type { TransporteurVille } from '@/lib/bon-envoi-groupes';
@@ -18,11 +17,14 @@ import type { StatutCommande } from '@/app/generated/prisma/enums';
 //     qui décide à qui confier le colis, et rien dans le référentiel ne doit
 //     décider à sa place.
 //
-// Conséquence directe : ici la ville du colis n'entre dans AUCUN filtre. Tant
-// que la carte « quel prestataire sert quelle région » n'est pas figée
-// (§ SOUS_TRAITANCE.md), un contrôle de couverture ne protègerait rien — il
-// masquerait des colis pendant la phase de structuration, sans rien dire à
-// l'écran, ce qui est exactement le défaut que ce module évite.
+// Depuis la mise en production (11/10/2026), la carte « quel transporteur
+// dessert quelle ville » est FIGÉE (référentiel validé, § hubs régionaux) : un
+// colis ne peut plus entrer dans le bon d'un transporteur qui ne dessert pas
+// sa ville. Le transporteur prévu est celui que résout
+// `chargerResolveurTransporteur` (lib/hub-envoi.ts) — la même réponse que le
+// transit vers un hub, la réception au quai et la fiche colis. Le refus est
+// posé côté serveur (revaliderColisPrestataire, verifier-colis) : l'écran ne
+// fait que le prévenir.
 
 function arrondi(valeur: number): number {
   return Number(valeur.toFixed(2));
@@ -57,10 +59,11 @@ export interface ColisEligiblePrestataire {
   // grille ne connaît pas cette ville. Jamais 0 : zéro dirait « gratuit » et
   // gonflerait la marge d'un montant inventé (§ Facture.nbLignesCoutInconnu).
   tarifAchat: number | null;
-  // Transporteurs qui desservent la ville du colis d'après le référentiel.
-  // Vide = aucun ne l'annonce ; plusieurs = ville partagée. Suggestion pour
-  // l'écran, jamais un filtre (voir transporteursParVille).
+  // Le transporteur PRÉVU pour ce colis (§ chargerResolveurTransporteur) :
+  // un seul élément, ou vide si sa ville n'est desservie par personne. Gardé
+  // sous forme de liste pour le regroupement de l'écran (bon-envoi-groupes).
   transporteursVille: TransporteurVille[];
+  hubPrevuNom: string | null;
 }
 
 // Grille d'achat d'un prestataire, indexée par ville normalisée.
@@ -79,7 +82,9 @@ export async function tarifsAchatParVille(prestataireId: string): Promise<Map<st
 
   const index = new Map<string, number>();
   for (const ligne of lignes) {
-    const cle = normaliserVille(ligne.ville.nom);
+    // Clé de ROUTAGE et non simple normalisation : « Nador » saisi par le
+    // marchand doit retrouver « Nador Ville » de la grille EST.
+    const cle = cleRoutage(ligne.ville.nom);
     const tarif = arrondi(Number(ligne.tarifLivraison));
     const dejaLa = index.get(cle);
     index.set(cle, dejaLa === undefined ? tarif : Math.max(dejaLa, tarif));
@@ -88,36 +93,6 @@ export async function tarifsAchatParVille(prestataireId: string): Promise<Map<st
 }
 
 export type { TransporteurVille };
-
-// Quels transporteurs desservent quelle ville, d'après le référentiel
-// (Ville → Hub → Prestataire). SUGGESTION, jamais filtre : l'écran s'en sert
-// pour grouper les colis et montrer à qui chacun « revient » naturellement,
-// mais tout colis reste confiable à n'importe quel transporteur — le choix est
-// un arbitrage commercial (voir l'en-tête de ce fichier).
-//
-// Une ville peut avoir PLUSIEURS transporteurs : quatre le sont déjà entre EST
-// et Meta, et les treize villes de Casablanca le sont entre notre hub interne
-// et Power (§ SOUS_TRAITANCE.md §2.9 et §2.11). On rend donc une LISTE, et
-// c'est l'appelant qui décide quoi faire d'une ville partagée — en retenir un
-// serait trancher un arbitrage qui ne se tranche pas ici.
-export async function transporteursParVille(): Promise<Map<string, TransporteurVille[]>> {
-  const villes = await prisma.ville.findMany({
-    where: { hub: { prestataireId: { not: null } } },
-    select: { nom: true, hub: { select: { prestataire: { select: { id: true, nom: true } } } } },
-  });
-
-  const index = new Map<string, TransporteurVille[]>();
-  for (const ville of villes) {
-    const prestataire = ville.hub.prestataire;
-    if (!prestataire) continue;
-    const cle = normaliserVille(ville.nom);
-    const deja = index.get(cle) ?? [];
-    // Deux agences du MÊME transporteur déclarant la ville ne le citent qu'une
-    // fois : ce qui intéresse l'écran, c'est le réseau, pas le quai.
-    if (!deja.some((t) => t.id === prestataire.id)) index.set(cle, [...deja, prestataire]);
-  }
-  return index;
-}
 
 export interface OptionsColisEligibles {
   // Hub où le colis se trouve PHYSIQUEMENT (Commande.hubActuelId), pas sa
@@ -137,33 +112,48 @@ export async function getColisEligiblesPrestataire(
 ): Promise<ColisEligiblePrestataire[]> {
   const statuts = statutsEligiblesPrestataire(options.tousStatuts === true);
 
-  const where: Prisma.CommandeWhereInput = {
-    bonEnvoiId: null,
-    statut: { in: statuts },
-  };
+  // Un colis parti en tournée chez un de nos livreurs (bon de distribution
+  // encore ouvert) est physiquement dans une camionnette : le confier à un
+  // transporteur le ferait exister à deux endroits.
+  const conditions: Prisma.CommandeWhereInput[] = [
+    { OR: [{ bonDistributionId: null }, { bonDistribution: { statut: 'cloture' } }] },
+  ];
 
   if (options.hubActuelId) {
     const central = await hubCentralId();
     // Un colis jamais scanné (hubActuelId null) est réputé à l'entrepôt
     // central, même convention que lib/hub-envoi.ts — sans quoi les colis de
     // stock seraient invisibles depuis le filtre du hub central.
-    where.OR =
-      options.hubActuelId === central
-        ? [{ hubActuelId: options.hubActuelId }, { hubActuelId: null }]
-        : [{ hubActuelId: options.hubActuelId }];
+    conditions.push({
+      OR:
+        options.hubActuelId === central
+          ? [{ hubActuelId: options.hubActuelId }, { hubActuelId: null }]
+          : [{ hubActuelId: options.hubActuelId }],
+    });
   }
 
-  const [commandes, tarifs, desservantes] = await Promise.all([
+  const where: Prisma.CommandeWhereInput = {
+    bonEnvoiId: null,
+    statut: { in: statuts },
+    AND: conditions,
+  };
+
+  const [commandes, tarifs, resoudre] = await Promise.all([
     prisma.commande.findMany({ where, include: colisInclude, orderBy: { dateCreation: 'asc' } }),
     options.prestataireId ? tarifsAchatParVille(options.prestataireId) : Promise.resolve(null),
-    transporteursParVille(),
+    chargerResolveurTransporteur(),
   ]);
 
-  return commandes.map((commande) => ({
-    commande,
-    tarifAchat: tarifs?.get(normaliserVille(commande.ville)) ?? null,
-    transporteursVille: desservantes.get(normaliserVille(commande.ville)) ?? [],
-  }));
+  return commandes.map((commande) => {
+    const prevu = resoudre(commande);
+    return {
+      commande,
+      tarifAchat: tarifs?.get(cleRoutage(commande.ville)) ?? null,
+      transporteursVille:
+        prevu?.prestataireId && prevu.prestataireNom ? [{ id: prevu.prestataireId, nom: prevu.prestataireNom }] : [],
+      hubPrevuNom: prevu?.hubNom ?? null,
+    };
+  });
 }
 
 export interface ColisEligibleDto {
@@ -178,6 +168,7 @@ export interface ColisEligibleDto {
   hubActuelNom: string | null;
   tarifAchat: number | null;
   transporteursVille: TransporteurVille[];
+  hubPrevuNom: string | null;
 }
 
 // Forme envoyée à l'écran. `montantCod` est converti ici, à la frontière de
@@ -197,6 +188,7 @@ export function enDtoColisEligible(colis: ColisEligiblePrestataire): ColisEligib
     hubActuelNom: commande.hubActuel?.nom ?? null,
     tarifAchat: colis.tarifAchat,
     transporteursVille: colis.transporteursVille,
+    hubPrevuNom: colis.hubPrevuNom,
   };
 }
 
@@ -270,9 +262,14 @@ export async function getTransporteursDisponibles(): Promise<TransporteurDisponi
 // Revalide côté serveur les colis soumis : l'écran a pu vieillir entre son
 // chargement et le clic (colis pris dans un autre bon, statut changé). Même
 // principe que la création d'un bon de transit interne.
+//
+// Et surtout : chaque colis doit partir chez CE transporteur. Un seul colis
+// d'une autre ville refuse tout l'envoi, avec la liste des fautifs — mieux
+// vaut un bon refusé qu'un colis remis au mauvais réseau.
 export async function revaliderColisPrestataire(
   colisIds: string[],
-  tousStatuts: boolean
+  tousStatuts: boolean,
+  prestataire: { id: string; nom: string }
 ): Promise<CommandeEligiblePrestataire[]> {
   const eligibles = await getColisEligiblesPrestataire({ tousStatuts });
   const parId = new Map(eligibles.map((e) => [e.commande.id, e.commande]));
@@ -284,8 +281,18 @@ export async function revaliderColisPrestataire(
   if (retenus.length !== colisIds.length) {
     throw new ApiError(
       409,
-      "Un ou plusieurs colis sélectionnés ne sont plus disponibles : déjà pris dans un autre Bon d'Envoi, ou passés à un statut terminal entre-temps"
+      "Un ou plusieurs colis sélectionnés ne sont plus disponibles : déjà pris dans un autre Bon d'Envoi, partis en tournée, ou passés à un statut terminal entre-temps"
     );
+  }
+
+  const resoudre = await chargerResolveurTransporteur();
+  const refus = retenus
+    .map((c) => refusTransporteur(c, resoudre(c), prestataire))
+    .filter((m): m is string => m !== null);
+  if (refus.length > 0) {
+    const liste = refus.slice(0, 5).join(' · ');
+    const reste = refus.length > 5 ? ` · et ${refus.length - 5} autre(s)` : '';
+    throw new ApiError(409, `${refus.length} colis ne partent pas chez ${prestataire.nom} : ${liste}${reste}`);
   }
   return retenus;
 }
@@ -311,7 +318,7 @@ export async function creerBonEnvoiPrestataire(params: {
   });
   if (!prestataire) throw new ApiError(400, 'Transporteur introuvable');
 
-  const colis = await revaliderColisPrestataire(params.colisIds, params.tousStatuts);
+  const colis = await revaliderColisPrestataire(params.colisIds, params.tousStatuts, prestataire);
 
   return prisma.$transaction(async (tx) => {
     const numero = await nextBonEnvoiNumero(tx);

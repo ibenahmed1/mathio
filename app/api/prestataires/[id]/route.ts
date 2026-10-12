@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { STATUTS_TERMINAUX } from '@/lib/statuts';
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -56,7 +57,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     try {
-      const prestataire = await prisma.prestataire.update({ where: { id }, data });
+      const prestataire = await prisma.$transaction(async (tx) => {
+        const avant = await tx.prestataire.findUnique({ where: { id }, select: { compteLivreurId: true } });
+        const apres = await tx.prestataire.update({ where: { id }, data });
+
+        // § Comptes transporteurs : le compte change → les colis encore en
+        // cours dans SES bons (directs ou vers un de ses hubs) suivent. Sans
+        // ça, un compte rattaché le lendemain d'un bon n'aurait aucune
+        // affectation, et l'ancien compte garderait des colis qui ne sont plus
+        // les siens. Les colis clos gardent leur historique d'affectation.
+        if (body.compteLivreurId !== undefined && avant?.compteLivreurId !== apres.compteLivreurId) {
+          await tx.commande.updateMany({
+            where: {
+              statut: { notIn: STATUTS_TERMINAUX },
+              bonDistributionId: null,
+              bonEnvoi: { OR: [{ prestataireId: id }, { hubDestination: { prestataireId: id } }] },
+            },
+            data: { livreurId: apres.compteLivreurId },
+          });
+        }
+        return apres;
+      });
       return NextResponse.json(prestataire);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Package, X } from 'lucide-react';
 import type { Commande } from '@/lib/types';
+import { apiGet } from '@/lib/api-client';
 import { LABELS_STATUT_COMMANDE, LABELS_ETAT_PAIEMENT } from '@/lib/statuts';
 
 const BADGE_DANGER = new Set(['refuse', 'retourne', 'en_retour_par_amana', 'annule', 'annule_par_vendeur', 'hors_zone']);
@@ -38,6 +39,21 @@ export function ColisInfoModal({
   onTrack?: () => void;
 }) {
   const [closing, setClosing] = useState(false);
+  // Transporteur prévu (§ chargerResolveurTransporteur) : `undefined` tant que
+  // la fiche n'est pas chargée, `null` si la ville n'est desservie par personne.
+  const [prevu, setPrevu] = useState<{ prestataireNom: string | null; hubNom: string } | null | undefined>(undefined);
+
+  useEffect(() => {
+    let annule = false;
+    apiGet<{ transporteurPrevu?: { prestataireNom: string | null; hubNom: string } | null }>(
+      `/api/commandes/${commande.id}`
+    )
+      .then((c) => !annule && setPrevu(c.transporteurPrevu ?? null))
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [commande.id]);
 
   function close() {
     setClosing(true);
@@ -162,6 +178,16 @@ export function ColisInfoModal({
             <div className="mtRow">
               <span className="mtLabel">Ville</span>
               <span className="mtValue">{commande.ville}</span>
+            </div>
+            <div className="mtRow">
+              <span className="mtLabel">Part chez</span>
+              <span className="mtValue" style={prevu === null ? { color: '#b91c1c', fontWeight: 600 } : undefined}>
+                {prevu === undefined
+                  ? '…'
+                  : prevu === null
+                    ? 'Aucun transporteur — ville à corriger'
+                    : `${prevu.prestataireNom ?? 'Notre réseau'} (${prevu.hubNom})`}
+              </span>
             </div>
             <div className="mtRow">
               <span className="mtLabel">Adresse</span>

@@ -182,6 +182,69 @@ export async function chargerReferentielRoutage(): Promise<ReferentielRoutage> {
   };
 }
 
+// § Transporteur PRÉVU d'un colis — la seule réponse du système à « chez qui ce
+// colis va-t-il partir ? ». Tout la lit : la réception au quai (proposition),
+// la fiche colis, la composition d'un bon d'envoi (refus si le bon vise un
+// autre réseau), l'API de suivi des transporteurs. Une seule fonction, pour
+// qu'un écran ne puisse jamais dire « EST » quand un autre dit « aucun ».
+//
+// La ville saisie (texte libre) fait foi, ramenée à sa clé de routage — c'est
+// ce que lit déjà le transit vers un hub. `villeId` ne sert qu'en repli, quand
+// le texte ne résout plus rien (ville renommée dans le référentiel depuis la
+// création du colis) : il désigne alors la ville que le routage avait retenue.
+export interface TransporteurPrevu {
+  hubId: string;
+  hubNom: string;
+  // null = hub interne (aucun transporteur) : jamais le cas d'un hub régional.
+  prestataireId: string | null;
+  prestataireNom: string | null;
+  villeNom: string;
+}
+
+export type ResolveurTransporteur = (colis: { ville: string; villeId?: string | null }) => TransporteurPrevu | null;
+
+export async function chargerResolveurTransporteur(): Promise<ResolveurTransporteur> {
+  const [villes, prestataires] = await Promise.all([
+    chargerVillesRoutage(),
+    prisma.prestataire.findMany({ select: { id: true, nom: true } }),
+  ]);
+  const retenues = villesRetenues(villes);
+  const cleDe = new Map(villes.map((v) => [v.id, cleRoutage(v.nom)]));
+  const nomPrestataire = new Map(prestataires.map((p) => [p.id, p.nom]));
+
+  const versPrevu = (v: VilleAvecHub): TransporteurPrevu => ({
+    hubId: v.hub.id,
+    hubNom: v.hub.nom,
+    prestataireId: v.hub.prestataireId,
+    prestataireNom: v.hub.prestataireId ? (nomPrestataire.get(v.hub.prestataireId) ?? null) : null,
+    villeNom: v.nom,
+  });
+
+  return ({ ville, villeId }) => {
+    const parTexte = ville ? retenues.get(cleRoutage(ville)) : undefined;
+    if (parTexte) return versPrevu(parTexte);
+    const cle = villeId ? cleDe.get(villeId) : undefined;
+    const parId = cle === undefined ? undefined : retenues.get(cle);
+    return parId ? versPrevu(parId) : null;
+  };
+}
+
+// Message d'opérateur quand un colis est présenté à un transporteur qui n'est
+// pas le sien. `null` = le colis part bien chez lui.
+export function refusTransporteur(
+  colis: { codeSuivi: string; ville: string },
+  prevu: TransporteurPrevu | null,
+  prestataireVise: { id: string; nom: string }
+): string | null {
+  if (!prevu || !prevu.prestataireId) {
+    return `Colis ${colis.codeSuivi} : la ville « ${colis.ville} » n'est desservie par aucun transporteur. Corrigez la ville du colis avant de l'expédier.`;
+  }
+  if (prevu.prestataireId !== prestataireVise.id) {
+    return `Colis ${colis.codeSuivi} (${colis.ville}) : il part chez ${prevu.prestataireNom} (${prevu.hubNom}), pas chez ${prestataireVise.nom}. Il ne peut pas entrer dans ce bon.`;
+  }
+  return null;
+}
+
 // § /admin/hubs — villes annoncées par plusieurs hubs, et lequel le routage
 // retient. Sert à rendre visible un arbitrage que l'index fait en silence : une
 // ville partagée signifie qu'on paie peut-être le mauvais prestataire.
@@ -219,9 +282,13 @@ export async function hubCentralId(): Promise<string | null> {
 // colis scanné n'est pas éligible au transit, le cas "ville déjà locale au
 // hub où se trouve le colis" (message dédié invitant à passer par un Bon de
 // Distribution) du cas générique (statut/ville hors référentiel).
-export async function estVilleLocaleAuHub(commande: { ville: string; hubActuelId: string | null }): Promise<boolean> {
-  const [index, central] = await Promise.all([getVilleHubIndex(), hubCentralId()]);
-  const destination = index.get(cleRoutage(commande.ville));
+export async function estVilleLocaleAuHub(commande: {
+  ville: string;
+  villeId?: string | null;
+  hubActuelId: string | null;
+}): Promise<boolean> {
+  const [resoudre, central] = await Promise.all([chargerResolveurTransporteur(), hubCentralId()]);
+  const destination = resoudre(commande);
   if (!destination) return false;
   const hubActuelEffectif = commande.hubActuelId ?? central;
   return destination.hubId === hubActuelEffectif;
@@ -235,8 +302,8 @@ export async function estVilleLocaleAuHub(commande: { ville: string; hubActuelId
 // comptage par hub de destination (étape 1 du BE) et à la liste détaillée
 // pour un hub donné (étape 3).
 export async function getColisEligiblesEnvoi(): Promise<ColisEligibleEnvoi[]> {
-  const [villeIndex, central, commandes] = await Promise.all([
-    getVilleHubIndex(),
+  const [resoudre, central, commandes] = await Promise.all([
+    chargerResolveurTransporteur(),
     hubCentralId(),
     prisma.commande.findMany({
       where: COMMANDE_ELIGIBLE_ENVOI,
@@ -247,11 +314,11 @@ export async function getColisEligiblesEnvoi(): Promise<ColisEligibleEnvoi[]> {
 
   const result: ColisEligibleEnvoi[] = [];
   for (const commande of commandes) {
-    const hub = villeIndex.get(cleRoutage(commande.ville));
-    if (!hub) continue;
+    const prevu = resoudre(commande);
+    if (!prevu) continue;
     const hubActuelEffectif = commande.hubActuelId ?? central;
-    if (hub.hubId === hubActuelEffectif) continue; // déjà sur place, pas de transit à faire
-    result.push({ commande, hub });
+    if (prevu.hubId === hubActuelEffectif) continue; // déjà sur place, pas de transit à faire
+    result.push({ commande, hub: { hubId: prevu.hubId, hubNom: prevu.hubNom } });
   }
   return result;
 }

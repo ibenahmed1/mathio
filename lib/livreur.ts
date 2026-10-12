@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { estColisARecuperer } from '@/lib/bon-distribution';
-import { STATUTS_TERMINAUX } from '@/lib/statuts';
+import { STATUTS_A_RETOURNER_CONFIE, STATUTS_TERMINAUX, colisResteALivrer } from '@/lib/statuts';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 
@@ -212,6 +212,8 @@ export interface TourneeOuverte {
 export interface BonConfieTransporteur {
   id: string;
   numero: string;
+  // 'nouveau' = bon composé, colis pas encore remis ; 'recu' = pris en charge.
+  statut: string;
   dateReception: Date | null;
   nbColis: number;
 }
@@ -223,6 +225,10 @@ export interface FeuilleDeRouteLivreur {
   // regarde, c'est la liste de colis, pas leur provenance administrative.
   bonsConfies: BonConfieTransporteur[];
   colis: CommandeTourneeLivreur[];
+  // § Comptes transporteurs : colis d'un bon déjà composé pour ce transporteur
+  // mais pas encore marqué reçu — visibles (il sait ce qui arrive et le COD
+  // attendu), non traitables.
+  colisEnAttenteRemise: CommandeTourneeLivreur[];
   // Récapitulatif de session recalculé à chaque appel — c'est le même
   // décompte que celui présenté au Planner à la clôture (§ getBilanTournee),
   // vu du côté livreur.
@@ -235,10 +241,22 @@ export interface FeuilleDeRouteLivreur {
     // l'intégralité de ce montant au Planner, sans aucune déduction — ses
     // gains sont réglés par un processus comptable distinct.
     cashEncaisse: string;
+    // COD des colis encore à livrer (remis, non clos) — ce qu'il reste à
+    // encaisser si tout est livré.
+    codAttendu: string;
+    nbEnAttenteRemise: number;
+    codEnAttenteRemise: string;
   };
 }
 
 // § Comptes transporteurs — colis confiés par bon d'envoi.
+//
+// Le colis est retrouvé PAR SON BON, et non par `Commande.livreurId` : c'est le
+// bon qui dit à quel transporteur il est confié — directement
+// (BonEnvoi.prestataireId) ou par le hub régional qu'il tient
+// (BonEnvoi.hubDestination.prestataire). Lire le compte au moment de l'appel,
+// plutôt qu'un instantané posé à la création du bon, fait qu'un compte
+// rattaché APRÈS coup voit aussitôt les bons déjà composés.
 //
 // Le bon d'envoi n'a pas de clôture, contrairement à une tournée : rien ne
 // dirait donc quand ses colis quittent l'écran, et une société finirait par
@@ -247,15 +265,23 @@ export interface FeuilleDeRouteLivreur {
 // qu'il lui reste AU MOINS UN colis non clos. Le dernier colis traité fait
 // disparaître le bon entier — jusque-là, la société voit ce qu'elle vient de
 // faire, ce qui est précisément à quoi sert la partie « traités » de l'écran.
+export function filtreBonsDuTransporteur(compteId: string): Prisma.BonEnvoiWhereInput {
+  return {
+    OR: [
+      { prestataire: { compteLivreurId: compteId } },
+      { hubDestination: { prestataire: { compteLivreurId: compteId } } },
+    ],
+  };
+}
+
 async function getColisConfiesAuTransporteur(livreurId: string): Promise<CommandeTourneeLivreur[]> {
+  // Bons COMPOSÉS comme bons PRIS EN CHARGE : un bon encore « nouveau » est
+  // déjà affecté au transporteur, il doit le voir arriver (colis « en attente
+  // de remise », non traitables tant que le bon n'est pas marqué reçu).
   const colis = await prisma.commande.findMany({
-    where: {
-      livreurId,
-      // Le bon doit être PRIS EN CHARGE : entre sa composition et sa remise,
-      // les colis sont encore chez nous, et les afficher les donnerait pour
-      // livrables alors qu'ils n'ont pas quitté le quai.
-      bonEnvoi: { statut: 'recu', prestataire: { compteLivreurId: livreurId } },
-    },
+    // Hors tournée : un colis repris dans un bon de distribution est passé
+    // aux mains d'un livreur, il ne relève plus du transporteur.
+    where: { bonDistributionId: null, bonEnvoi: filtreBonsDuTransporteur(livreurId) },
     include: commandeTourneeInclude,
     orderBy: [{ statut: 'asc' }, { codeSuivi: 'asc' }],
   });
@@ -265,6 +291,12 @@ async function getColisConfiesAuTransporteur(livreurId: string): Promise<Command
   );
   return colis.filter((c) => bonsEncoreOuverts.has(c.bonEnvoiId));
 }
+
+// Un colis confié par bon d'envoi : traitable dès que le bon est pris en charge.
+export function estColisConfieRemis(c: { bonEnvoi: { statut: string } | null; bonDistributionId: string | null }): boolean {
+  return !c.bonDistributionId && c.bonEnvoi?.statut === 'recu';
+}
+
 
 export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<FeuilleDeRouteLivreur> {
   // Les deux sources sont indépendantes : un compte a des tournées (livreur
@@ -288,7 +320,9 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
         })
       : [];
 
-  const colis = [...colisTournee, ...colisConfies];
+  const confiesRemis = colisConfies.filter(estColisConfieRemis);
+  const enAttenteRemise = colisConfies.filter((c) => !estColisConfieRemis(c));
+  const colis = [...colisTournee, ...confiesRemis];
 
   // Un bon confié par ligne, dans l'ordre de prise en charge la plus récente —
   // reconstruit depuis les colis plutôt que par une requête de plus : ce sont
@@ -304,24 +338,30 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
       bonsParId.set(c.bonEnvoi.id, {
         id: c.bonEnvoi.id,
         numero: c.bonEnvoi.numero,
+        statut: c.bonEnvoi.statut,
         dateReception: c.bonEnvoi.dateReception,
         nbColis: 1,
       });
     }
   }
   const bonsConfies = [...bonsParId.values()].sort(
-    (a, b) => (b.dateReception?.getTime() ?? 0) - (a.dateReception?.getTime() ?? 0)
+    (a, b) => (b.dateReception?.getTime() ?? Number.MAX_SAFE_INTEGER) - (a.dateReception?.getTime() ?? Number.MAX_SAFE_INTEGER)
   );
 
+  // Ce qui reste à livrer dépend de la provenance (§ colisResteALivrer).
+  const estALivrer = colisResteALivrer;
+
   const livres = colis.filter((c) => c.statut === 'livre');
-  const enCours = colis.filter((c) => c.statut === 'mise_en_distribution');
-  // Même règle que celle appliquée au Planner à la clôture
-  // (estColisARecuperer) plutôt qu'une seconde liste de statuts à maintenir :
-  // les deux décomptes doivent être le même, sinon le livreur et le dépôt ne
-  // se comprennent plus au moment du déchargement. On retire seulement les
-  // colis pas encore tentés, qui sont comptés à part (nbEnCours).
-  const aRetourner = colis.filter((c) => estColisARecuperer(c.statut) && c.statut !== 'mise_en_distribution');
-  const cashEncaisse = livres.reduce((somme, c) => somme + Number(c.montantCod), 0);
+  const aLivrer = colis.filter(estALivrer);
+  // Tournée : même règle que celle appliquée au Planner à la clôture
+  // (estColisARecuperer) plutôt qu'une seconde liste de statuts à maintenir.
+  // Confié : seuls les échecs définitifs reviennent chez nous.
+  const aRetourner = colis.filter((c) =>
+    c.bonDistributionId
+      ? estColisARecuperer(c.statut) && c.statut !== 'mise_en_distribution'
+      : STATUTS_A_RETOURNER_CONFIE.includes(c.statut)
+  );
+  const somme = (liste: CommandeTourneeLivreur[]) => liste.reduce((t, c) => t + Number(c.montantCod), 0);
 
   return {
     tournees: tournees.map((t) => ({
@@ -333,13 +373,16 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
     })),
     bonsConfies,
     colis,
+    colisEnAttenteRemise: enAttenteRemise,
     recap: {
       nbColis: colis.length,
       nbLivres: livres.length,
-      nbEnCours: enCours.length,
-      // Tout ce qui n'est ni livré ni encore à tenter doit revenir au dépôt.
+      nbEnCours: aLivrer.length,
       nbARetourner: aRetourner.length,
-      cashEncaisse: cashEncaisse.toFixed(2),
+      cashEncaisse: somme(livres).toFixed(2),
+      codAttendu: somme(aLivrer).toFixed(2),
+      nbEnAttenteRemise: enAttenteRemise.length,
+      codEnAttenteRemise: somme(enAttenteRemise).toFixed(2),
     },
   };
 }

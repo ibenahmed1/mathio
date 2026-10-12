@@ -22,6 +22,10 @@ interface HubOption {
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
 
+// § Proposition du transporteur, renvoyée par POST /api/commandes/scan-reception.
+type TransporteurPrevu = { prestataireNom: string | null; hubNom: string; local: boolean } | null;
+type Proposition = { codeSuivi: string; ville: string; prevu: TransporteurPrevu } | null;
+
 // § Tournée en cours : liste de contrôle du ramasseur détecté au premier
 // scan (tous ses colis "ramasse"), chargée automatiquement — pas de
 // sélection manuelle. Mélange colis pas encore scannés (statut "ramasse")
@@ -58,6 +62,7 @@ export default function ScanReceptionHubPage() {
   const [loadingRecues, setLoadingRecues] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
+  const [proposition, setProposition] = useState<Proposition>(null);
   const [hubs, setHubs] = useState<HubOption[]>([]);
   const [hubChoisiId, setHubChoisiId] = useState('');
   const [tournee, setTournee] = useState<TourneeState | null>(null);
@@ -98,6 +103,7 @@ export default function ScanReceptionHubPage() {
     if (scanning) return;
     setScanning(true);
     setToast(null);
+    setProposition(null);
     try {
       const body: Record<string, unknown> = raw.includes('.') ? { qrPayload: raw } : { codeSuivi: raw };
       if (adminSansHub) {
@@ -108,7 +114,11 @@ export default function ScanReceptionHubPage() {
         }
         body.hubId = hubChoisiId;
       }
-      const commande = await apiPost<Commande>('/api/commandes/scan-reception', body);
+      const { transporteurPrevu, ...commande } = await apiPost<Commande & { transporteurPrevu: TransporteurPrevu }>(
+        '/api/commandes/scan-reception',
+        body
+      );
+      setProposition({ codeSuivi: commande.codeSuivi, ville: commande.ville, prevu: transporteurPrevu });
       const note = await syncTournee(commande);
       setToast({ type: 'success', text: `Colis ${commande.codeSuivi} — ${commande.clientNom} réceptionné.${note ? ` ${note}` : ''}` });
       setRecues((prev) => [commande, ...prev.filter((c) => c.id !== commande.id)]);
@@ -247,6 +257,26 @@ export default function ScanReceptionHubPage() {
               }`}
             >
               {toast.text}
+            </div>
+          )}
+
+          {/* Proposition du transporteur dès l'arrivée du colis : c'est elle
+              qui dira dans quel bon d'envoi il pourra entrer — et dans aucun
+              autre. */}
+          {proposition && (
+            <div
+              role={proposition.prevu?.prestataireNom || proposition.prevu?.local ? 'status' : 'alert'}
+              className={`rounded-xl px-4 py-3 text-sm font-semibold ${
+                !proposition.prevu
+                  ? 'bg-red-500/15 text-red-700 dark:text-red-400'
+                  : 'bg-sky-500/15 text-sky-800 dark:text-sky-300'
+              }`}
+            >
+              {!proposition.prevu
+                ? `${proposition.codeSuivi} : la ville « ${proposition.ville} » n'est desservie par aucun transporteur. Corrigez la ville du colis avant toute expédition.`
+                : proposition.prevu.local
+                  ? `${proposition.codeSuivi} → destination locale (${proposition.prevu.hubNom}) : à mettre en bon de distribution.`
+                  : `${proposition.codeSuivi} → part chez ${proposition.prevu.prestataireNom ?? 'notre réseau'} (${proposition.prevu.hubNom}).`}
             </div>
           )}
 

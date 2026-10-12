@@ -69,6 +69,19 @@ export default function CreerBonEnvoiPage() {
 
   const destination = useMemo(() => destinations.find((d) => d.id === hubDestinationId) ?? null, [destinations, hubDestinationId]);
 
+  const toutSelectionne = eligibles.length > 0 && eligibles.every((c) => selectionnes.has(c.id));
+
+  // Tout cocher ajoute les colis de la liste sans retirer ceux ajoutés par
+  // scan ; tout décocher vide le panier.
+  function basculerTout() {
+    setSelectionnes((prev) => {
+      if (toutSelectionne) return new Map();
+      const next = new Map(prev);
+      for (const c of eligibles) next.set(c.id, c);
+      return next;
+    });
+  }
+
   function toggleColis(commande: Commande) {
     setSelectionnes((prev) => {
       const next = new Map(prev);
@@ -90,6 +103,7 @@ export default function CreerBonEnvoiPage() {
         const body: Record<string, unknown> = raw.includes('.') ? { qrPayload: raw, hubDestinationId } : { codeSuivi: raw, hubDestinationId };
         const commande = await apiPost<Commande>('/api/bons-envoi/verifier-colis', body);
         setSelectionnes((prev) => new Map(prev).set(commande.id, commande));
+        setEligibles((prev) => (prev.some((c) => c.id === commande.id) ? prev : [...prev, commande]));
         setToast({ type: 'success', text: `Colis ${commande.codeSuivi} ajouté au bon.` });
       } catch (err) {
         setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
@@ -197,6 +211,7 @@ export default function CreerBonEnvoiPage() {
 
           {toast && (
             <div
+              role={toast.type === 'error' ? 'alert' : 'status'}
               className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
                 toast.type === 'success'
                   ? 'bg-green-500/15 text-green-700 dark:text-green-400'
@@ -221,7 +236,16 @@ export default function CreerBonEnvoiPage() {
                 <table className="table-basic min-w-[640px]">
                   <thead>
                     <tr>
-                      <th></th>
+                      <th className="w-10">
+                        <input
+                          type="checkbox"
+                          checked={toutSelectionne}
+                          onChange={basculerTout}
+                          disabled={eligibles.length === 0}
+                          className="h-4 w-4"
+                          aria-label="Tout sélectionner"
+                        />
+                      </th>
                       <th>Code</th>
                       <th>Marchand</th>
                       <th>Ville</th>
@@ -234,7 +258,15 @@ export default function CreerBonEnvoiPage() {
                       const inclus = selectionnes.has(c.id);
                       return (
                         <tr key={c.id} className={inclus ? 'bg-brand/10' : undefined}>
-                          <td></td>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={inclus}
+                              onChange={() => toggleColis(c)}
+                              className="h-4 w-4"
+                              aria-label={`Sélectionner ${c.codeSuivi}`}
+                            />
+                          </td>
                           <td className="font-mono">{c.codeSuivi}</td>
                           <td>{c.marchand?.nomBoutique ?? '—'}</td>
                           <td>{c.ville}</td>

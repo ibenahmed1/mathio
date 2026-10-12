@@ -5,6 +5,7 @@ import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
 import { verifierUniteStock } from '@/lib/stock-colis';
 import { stockColisVerrouille } from '@/lib/stock-quantites';
+import { chargerReferentielRoutage, chargerResolveurTransporteur } from '@/lib/hub-envoi';
 
 const ROLES_LECTURE_COMMANDE = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur'] as const;
 
@@ -43,6 +44,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(403, 'Accès refusé à cette commande');
     } else if (session.role === 'livreur' && commande.livreurId !== session.sub) {
       throw new ApiError(403, 'Accès refusé à cette commande');
+    }
+
+    // § Back-office : chez qui ce colis partira (même réponse que la réception
+    // au quai et la composition d'un bon d'envoi). Ni le marchand ni le
+    // terrain n'en ont l'usage.
+    if ((ROLES_BACKOFFICE as readonly string[]).includes(session.role)) {
+      const prevu = (await chargerResolveurTransporteur())(commande);
+      return NextResponse.json({
+        ...commande,
+        transporteurPrevu: prevu ? { prestataireNom: prevu.prestataireNom, hubNom: prevu.hubNom } : null,
+      });
     }
 
     return NextResponse.json(commande);
@@ -113,6 +125,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         throw new ApiError(400, 'montantCod doit être un nombre positif');
       }
       data.montantCod = montant;
+    }
+
+    // § Ville modifiée : `villeId` suit (c'est lui que lisent la facturation et
+    // le coût d'achat), et un colis déjà pris dans un bon d'envoi ne change
+    // pas de ville — sa nouvelle ville pourrait relever d'un autre
+    // transporteur que celui du bon.
+    if ('ville' in data && data.ville !== commande.ville) {
+      if (commande.bonEnvoiId) {
+        throw new ApiError(
+          409,
+          "Ce colis est dans un Bon d'Envoi : retirez-le du bon avant de changer sa ville (elle peut relever d'un autre transporteur)."
+        );
+      }
+      data.villeId = (await chargerReferentielRoutage()).pour(String(data.ville))?.id ?? null;
     }
 
     // Marchandise du catalogue : réassignable, toujours vérifiée dans le

@@ -2,6 +2,7 @@ import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { normaliserVille } from '@/lib/hub-stock';
+import { cleRoutage } from '@/lib/hub-envoi';
 import { notifierStatutsColis } from '@/lib/notifications';
 import {
   STATUTS_PRESTATAIRE,
@@ -260,7 +261,10 @@ export async function villesDesserviesPar(prestataireId: string): Promise<Set<st
     where: { hub: { prestataireId } },
     select: { nom: true },
   });
-  return new Set(villes.map((v) => normaliserVille(v.nom)));
+  // Les deux clés de chaque ville : son nom normalisé ET sa clé de routage
+  // (§ cleRoutage) — « Nador Ville » de la grille EST doit répondre à un
+  // colis saisi « Nador », exactement comme le routage l'y envoie.
+  return new Set(villes.flatMap((v) => [normaliserVille(v.nom), cleRoutage(v.nom)]));
 }
 
 export interface PerimetreTransporteur {
@@ -291,7 +295,7 @@ export async function perimetreDuTransporteur(
  * Fonction PURE — c'est ce qui rend la règle testable sans base.
  */
 export function villeDesservie(villes: ReadonlySet<string>, ville: string): boolean {
-  return villes.has(normaliserVille(ville));
+  return villes.has(normaliserVille(ville)) || villes.has(cleRoutage(ville));
 }
 
 // --- Application ------------------------------------------------------------
