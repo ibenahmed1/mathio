@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
 import { reliquatReception } from '@/lib/stock-quantites';
 
 // § Clôture de réception (décision produit du 26/08/2026, cf. comments.md § 1).
@@ -75,7 +76,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           utilisateurId: session.sub,
         },
       });
+      // L'annoncé jamais reçu sort de l'« en route » : une ligne par unité de
+      // stock, pour que le journal se compte variante par variante.
+      await journaliserMouvements(
+        tx,
+        produit.variantesActivees
+          ? variantesAvecReliquat.map((v) => ({
+              type: 'annonce' as const,
+              produitId: id,
+              varianteId: v.id,
+              quantite: -v.quantiteEnCours,
+              utilisateurId: session.sub,
+              motif: `reliquat de réception soldé${motif ? ` — ${motif}` : ''}`,
+            }))
+          : [
+              {
+                type: 'annonce' as const,
+                produitId: id,
+                quantite: -reliquat,
+                utilisateurId: session.sub,
+                motif: `reliquat de réception soldé${motif ? ` — ${motif}` : ''}`,
+              },
+            ]
+      );
 
+      // Produit commun d'une plateforme (§ stock commun, 12/10/2026) : pas de
+      // marchand à qui ouvrir une réclamation. L'écart reste tracé dans
+      // l'historique ci-dessus et dans le journal des mouvements ; c'est
+      // l'écart de l'envoi qui le porte vers la plateforme.
+      if (!produit.marchandId) return;
       await tx.reclamation.create({
         data: {
           marchandId: produit.marchandId,

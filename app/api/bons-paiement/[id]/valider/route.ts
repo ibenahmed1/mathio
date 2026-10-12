@@ -35,9 +35,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       );
     }
 
-    const valide = await prisma.bonPaiement.update({
-      where: { id },
+    // Conditionné au brouillon : une validation croisée avec une annulation
+    // rendait payable un bon dont les tournées venaient d'être libérées.
+    const verrou = await prisma.bonPaiement.updateMany({
+      where: { id, statut: 'brouillon' },
       data: { statut: 'valide', dateValidation: new Date(), valideParId: session.sub },
+    });
+    if (verrou.count !== 1) {
+      throw new ApiError(409, 'Ce bon vient de changer de statut — rechargez la page');
+    }
+    const valide = await prisma.bonPaiement.findUniqueOrThrow({
+      where: { id },
       include: { livreur: { select: { nomComplet: true } } },
     });
 

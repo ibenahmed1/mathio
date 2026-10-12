@@ -74,6 +74,7 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/admin/stock/prets/**', permission: 'stock:prets' },
   { pattern: '/admin/stock/bons-preparation/**', permission: 'stock:bons_preparation' },
   { pattern: '/admin/stock/inventaire/**', permission: 'stock:inventory' },
+  { pattern: '/admin/stock/envois/**', permission: 'stock:inventory' },
 
   // Opérations hub & tournées. Composer un bon d'envoi et le consulter ne sont
   // pas le même droit : l'agent de quai réceptionne, il ne compose pas.
@@ -178,6 +179,7 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // NON MAPPÉ — /api/commandes/*/relancer : réservé au marchand.
   { pattern: '/api/commandes/*/relancer', permission: null },
   { pattern: '/api/commandes/*/commentaires', permission: 'colis:read' },
+  { pattern: '/api/commandes/*/lignes', permission: 'colis:read' },
   { pattern: '/api/commandes/*', permission: 'colis:read', methods: SAFE_METHODS },
   { pattern: '/api/commandes/*', permission: 'colis:delete', methods: ['DELETE'] },
   { pattern: '/api/commandes/*', permission: 'colis:update' },
@@ -187,6 +189,7 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // --- Gestion de stock ----------------------------------------------------
   { pattern: '/api/stock/pret-pour-preparation/**', permission: 'stock:prets' },
   { pattern: '/api/bons-preparation/**', permission: 'stock:bons_preparation' },
+  { pattern: '/api/stock/envois/**', permission: 'stock:inventory' },
   { pattern: '/api/produits/**', permission: 'stock:inventory' },
   { pattern: '/api/marchandises/**', permission: 'stock:inventory' },
   // Colis en stock au hub : servi par la comptabilité (admin + responsable),

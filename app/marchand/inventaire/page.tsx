@@ -9,6 +9,7 @@ import { InventaireSubNav } from './InventaireSubNav';
 import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 import { quantiteRecueTotale } from '@/lib/stock-quantites';
 import { AjouterVarianteModal, ReassortModal } from './ModalesStock';
+import { StockCommun } from './StockCommun';
 
 const OPTIONS_PAR_PAGE = [10, 25, 50, 100];
 
@@ -279,6 +280,8 @@ export default function InventairePage() {
           </button>
         </div>
       </div>
+
+      <StockCommun />
     </div>
   );
 }

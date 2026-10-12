@@ -39,7 +39,7 @@ l'étape 5 avant de toucher la production (voir la remarque « À blanc » de ce
 npx prisma migrate deploy
 ```
 
-Dix migrations, toutes en **ajout seul**, sans perte de données :
+Onze migrations, toutes en **ajout seul**, sans perte de données :
 
 | Migration | Effet |
 |---|---|
@@ -53,6 +53,7 @@ Dix migrations, toutes en **ajout seul**, sans perte de données :
 | `20261010130000_colis_multi_produits` | table `lignes_colis` (contenu des colis) ; chaque colis existant reçoit sa ligne |
 | `20261010140000_numero_villes` | numéro de chaque ville, d'où son code partenaire `V001`… ; numérotation provisoire, remplacée à l'étape 5 par celle de l'état validé |
 | `20261011090000_historique_horodatage` | index sur l'historique des statuts, pour le suivi des colis par Shipeh |
+| `20261012090000_stock_commun_plateforme` | stock commun d'une plateforme (un produit appartient à un marchand **ou** à la plateforme), envois de stock annoncés, journal de chaque mouvement de stock, colis « en attente de stock » ; les lignes de colis existantes sont marquées « stock du marchand » |
 
 Si la production a déjà certaines de ces migrations, `migrate deploy` ne joue que les autres.
 
@@ -150,7 +151,9 @@ Les API partenaires sont servies sur le domaine `HOST_API`, sous `/api/v1` :
 | Endpoint | Rôle |
 |---|---|
 | `POST /v1/marchands` | créer le compte d'un marchand, avec son email et son mot de passe Shipeh |
-| `POST /v1/produits` | déclarer un produit de stock (SKU, variantes, quantité envoyée) |
+| `POST /v1/produits` | déclarer un produit de stock (SKU, variantes, quantité envoyée) ; sans marchand, il rejoint le stock commun Shipeh |
+| `POST /v1/stock/envois` | annoncer un arrivage de stock |
+| `GET /v1/stock` | lire leur stock, et la consommation du stock commun par marchand |
 | `POST /v1/colis`, `POST /v1/colis/lot` | déposer des colis contenant un ou plusieurs produits de stock |
 | `GET /v1/colis` | suivre les changements de statut de leurs colis (livré, refusé, retourné…) |
 | `GET /v1/villes` | nos 500 villes, au tarif Shipeh de 30 dh |
@@ -159,9 +162,9 @@ Les droits d'une clé ne se modifient pas. Il faut donc, dans `/admin/integratio
 plateforme Shipeh :
 
 1. **créer une clé `test`** avec `marchands:creation`, `produits:creation`, `colis:creation`, `colis:lecture`,
-   `villes:lecture` ;
+   `villes:lecture`, `stock:lecture` ;
 2. **créer une clé `live`** avec `marchands:creation_validee`, `produits:creation`,
-   `colis:creation`, `colis:lecture`, `villes:lecture` ;
+   `colis:creation`, `colis:lecture`, `villes:lecture`, `stock:lecture` ;
 3. copier chaque clé **au moment de sa création** (elle ne se réaffiche jamais) et la
    transmettre à Shipeh par un canal sûr, avec l'adresse `https://<HOST_API>/api/v1` et
    `DOCUMENTATION_SHIPEH.md` ;

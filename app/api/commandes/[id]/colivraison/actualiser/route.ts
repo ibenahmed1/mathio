@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { jsonError, requirePermission } from '@/lib/api-utils';
+import { jsonError } from '@/lib/api-utils';
+import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { actualiserColisColivraison } from '@/lib/suivi-colivraison';
 
 // § Colivraison — interroge leur suivi (track.php) et applique ce qu'il dit
@@ -7,7 +8,7 @@ import { actualiserColisColivraison } from '@/lib/suivi-colivraison';
 // rattrapage planifié, la seule façon d'apprendre ce que devient le colis.
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requirePermission('bon_envoi:manage');
+    await requirePilotageTransporteur();
     const { id } = await params;
     return NextResponse.json(await actualiserColisColivraison(id));
   } catch (error) {

@@ -10,6 +10,14 @@ import { QrScanner } from '@/components/QrScanner';
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
 
+// Les deux sources de colis ajoutables n'ont pas tout à fait la même forme :
+// le transit vers un hub renvoie la commande (marchand.nomBoutique), le mode
+// transporteur un DTO (marchandNom, transporteursVille).
+type ColisAjoutable = Commande & {
+  marchandNom?: string | null;
+  transporteursVille?: { id: string; nom: string }[];
+};
+
 // § "Modifier le bon" (menu Actions, /admin/bon-envoi/[id]/modifier) : reprend
 // la structure de l'étape 3 de la création (/admin/bon-envoi/creer) — liste
 // des colis éligibles + ajout manuel/scan — en l'appliquant à un BE déjà
@@ -26,7 +34,7 @@ export default function ModifierBonEnvoiPage() {
 
   const [aRetirer, setARetirer] = useState<Set<string>>(new Set());
 
-  const [eligibles, setEligibles] = useState<Commande[]>([]);
+  const [eligibles, setEligibles] = useState<ColisAjoutable[]>([]);
   const [loadingEligibles, setLoadingEligibles] = useState(true);
   const [aAjouter, setAAjouter] = useState<Map<string, Commande>>(new Map());
 
@@ -58,11 +66,32 @@ export default function ModifierBonEnvoiPage() {
 
   useEffect(() => {
     if (!critereEligibles) return;
-    apiGet<{ data: Commande[] }>(`/api/bons-envoi/colis-eligibles?${critereEligibles}`)
-      .then((res) => setEligibles(res.data))
+    apiGet<{ data: ColisAjoutable[] }>(`/api/bons-envoi/colis-eligibles?${critereEligibles}`)
+      // Bon transporteur : seuls les colis dont la ville revient à CE
+      // transporteur sont proposés — le serveur refuserait les autres.
+      .then((res) =>
+        setEligibles(
+          bon?.prestataireId
+            ? res.data.filter((c) => c.transporteursVille?.[0]?.id === bon.prestataireId)
+            : res.data
+        )
+      )
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'))
       .finally(() => setLoadingEligibles(false));
+    // `bon` est lu pour le filtre, mais c'est `critereEligibles` qui déclenche.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [critereEligibles]);
+
+  const toutAjoute = eligibles.length > 0 && eligibles.every((c) => aAjouter.has(c.id));
+
+  function basculerToutAjouter() {
+    setAAjouter((prev) => {
+      if (toutAjoute) return new Map();
+      const next = new Map(prev);
+      for (const c of eligibles) next.set(c.id, c);
+      return next;
+    });
+  }
 
   function toggleRetirer(id: string) {
     setARetirer((prev) => {
@@ -96,6 +125,7 @@ export default function ModifierBonEnvoiPage() {
           : { codeSuivi: raw, ...cible };
         const commande = await apiPost<Commande>('/api/bons-envoi/verifier-colis', body);
         setAAjouter((prev) => new Map(prev).set(commande.id, commande));
+        setEligibles((prev) => (prev.some((c) => c.id === commande.id) ? prev : [...prev, commande]));
         setToast({ type: 'success', text: `Colis ${commande.codeSuivi} ajouté.` });
       } catch (err) {
         setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
@@ -203,6 +233,7 @@ export default function ModifierBonEnvoiPage() {
 
             {toast && (
               <div
+                role={toast.type === 'error' ? 'alert' : 'status'}
                 className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
                   toast.type === 'success'
                     ? 'bg-green-500/15 text-green-700 dark:text-green-400'
@@ -227,6 +258,16 @@ export default function ModifierBonEnvoiPage() {
                   <table className="table-basic min-w-[560px]">
                     <thead>
                       <tr>
+                        <th className="w-10">
+                          <input
+                            type="checkbox"
+                            checked={toutAjoute}
+                            onChange={basculerToutAjouter}
+                            disabled={eligibles.length === 0}
+                            className="h-4 w-4"
+                            aria-label="Tout sélectionner"
+                          />
+                        </th>
                         <th>Code</th>
                         <th>Marchand</th>
                         <th>Ville</th>
@@ -238,8 +279,17 @@ export default function ModifierBonEnvoiPage() {
                         const inclus = aAjouter.has(c.id);
                         return (
                           <tr key={c.id} className={inclus ? 'bg-brand/10' : undefined}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={inclus}
+                                onChange={() => toggleAjouter(c)}
+                                className="h-4 w-4"
+                                aria-label={`Sélectionner ${c.codeSuivi}`}
+                              />
+                            </td>
                             <td className="font-mono">{c.codeSuivi}</td>
-                            <td>{c.marchand?.nomBoutique ?? '—'}</td>
+                            <td>{c.marchand?.nomBoutique ?? c.marchandNom ?? '—'}</td>
                             <td>{c.ville}</td>
                             <td>
                               <button
@@ -262,7 +312,7 @@ export default function ModifierBonEnvoiPage() {
                       })}
                       {eligibles.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-4 text-center opacity-60">
+                          <td colSpan={5} className="py-4 text-center opacity-60">
                             Aucun autre colis éligible pour cette destination pour le moment.
                           </td>
                         </tr>

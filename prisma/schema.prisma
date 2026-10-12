@@ -399,6 +399,7 @@ model Utilisateur {
 
   historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
   historiqueProduits HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
+  mouvementsStock    MouvementStock[]           @relation("MouvementStockAuteur")
   commandesRamassees Commande[]                 @relation("CommandeRamasseur")
   commandesLivrees   Commande[]                 @relation("CommandeLivreur")
   ramassagesRealises Ramassage[]                @relation("RamassageRamasseur")
@@ -637,6 +638,7 @@ model Marchand {
   journalEquipe   JournalEquipeMarchand[]
   reclamations    Reclamation[]
   produits        Produit[]
+  mouvementsStock MouvementStock[]
   tarifsVilles    TarifMarchandVille[]
   factures        Facture[]
   bonsRetour      BonRetour[]
@@ -862,31 +864,138 @@ enum StatutReceptionProduit {
 // noms, insensible à la casse (lib/stock-sku.ts) : les @@unique ci-dessous
 // n'en sont que le filet en base.
 model Produit {
-  id                String                 @id @default(uuid())
-  marchandId        String                 @map("marchand_id")
-  marchand          Marchand               @relation(fields: [marchandId], references: [id])
-  nom               String                 @map("nom_produit")
-  reference         String                 @map("reference")
-  quantiteEnCours   Int                    @default(0) @map("quantite_en_cours")
-  quantiteRecue     Int                    @default(0) @map("quantite_recue")
-  statutReception   StatutReceptionProduit @default(pas_encore_recu) @map("statut_reception")
+  id                      String                 @id @default(uuid())
+  // § Stock commun d'une plateforme (décision du 12/10/2026) : un produit
+  // appartient SOIT à un marchand (stock personnel), SOIT à une plateforme
+  // partenaire (stock commun, que tous ses marchands vendent sans réservation
+  // ni part). Exactement l'un des deux est renseigné — contrainte CHECK posée
+  // par la migration 20261012090000_stock_commun_plateforme. Un produit commun
+  // porte aussi l'environnement de la clé qui l'a déclaré : le bac à sable ne
+  // partage jamais son stock avec la production.
+  marchandId              String?                @map("marchand_id")
+  marchand                Marchand?              @relation(fields: [marchandId], references: [id], onDelete: Restrict)
+  plateformeId            String?                @map("plateforme_id")
+  plateforme              PlateformePartenaire?  @relation(fields: [plateformeId], references: [id], onDelete: Restrict)
+  environnementPlateforme EnvironnementApi?      @map("environnement_plateforme")
+  nom                     String                 @map("nom_produit")
+  reference               String                 @map("reference")
+  quantiteEnCours         Int                    @default(0) @map("quantite_en_cours")
+  quantiteRecue           Int                    @default(0) @map("quantite_recue")
+  statutReception         StatutReceptionProduit @default(pas_encore_recu) @map("statut_reception")
   // Emplacement d'entrepôt (admin uniquement) — n'a de sens que quand le
   // produit ne suit pas ses variantes individuellement (sinon voir
   // ProduitVariante.rayonnage).
-  rayonnage         String?                @map("rayonnage")
-  note              String?                @map("note")
-  photoUrl          String?                @map("photo_url")
-  variantesActivees Boolean                @default(false) @map("variantes_activees")
-  dateCreation      DateTime               @default(now()) @map("date_creation")
+  rayonnage               String?                @map("rayonnage")
+  note                    String?                @map("note")
+  photoUrl                String?                @map("photo_url")
+  variantesActivees       Boolean                @default(false) @map("variantes_activees")
+  dateCreation            DateTime               @default(now()) @map("date_creation")
 
-  variantes   ProduitVariante[]
-  historique  HistoriqueProduit[]
-  commandes   Commande[]
-  lignesColis LigneColis[]
+  variantes       ProduitVariante[]
+  historique      HistoriqueProduit[]
+  commandes       Commande[]
+  lignesColis     LigneColis[]
+  lignesEnvoi     EnvoiStockLigne[]
+  mouvementsStock MouvementStock[]
 
   @@unique([marchandId, reference])
+  @@unique([plateformeId, environnementPlateforme, reference])
   @@index([marchandId])
+  @@index([plateformeId])
   @@map("produits")
+}
+
+// § Stock commun — d'où sortent les unités d'une ligne de colis.
+enum ProvenanceStock {
+  stock_marchand
+  stock_plateforme
+}
+
+// § Envoi de stock annoncé par une plateforme (POST /v1/stock/envois) : le
+// réassort. Le numéro d'envoi figure sur les cartons ; l'entrepôt le retrouve
+// à l'arrivée et compare l'annoncé au reçu, ligne par ligne.
+enum StatutEnvoiStock {
+  attendu
+  recu_partiel
+  recu
+}
+
+model EnvoiStock {
+  id            String               @id @default(uuid())
+  plateformeId  String               @map("plateforme_id")
+  plateforme    PlateformePartenaire @relation(fields: [plateformeId], references: [id], onDelete: Cascade)
+  environnement EnvironnementApi
+  // Numéro d'envoi de la plateforme : clé d'idempotence, écrite sur les cartons.
+  reference     String
+  statut        StatutEnvoiStock     @default(attendu)
+  dateAnnonce   DateTime             @default(now()) @map("date_annonce")
+  dateReception DateTime?            @map("date_reception")
+
+  lignes          EnvoiStockLigne[]
+  mouvementsStock MouvementStock[]
+
+  @@unique([plateformeId, environnement, reference])
+  @@index([statut])
+  @@map("envois_stock")
+}
+
+model EnvoiStockLigne {
+  id               String           @id @default(uuid())
+  envoiId          String           @map("envoi_id")
+  envoi            EnvoiStock       @relation(fields: [envoiId], references: [id], onDelete: Cascade)
+  produitId        String           @map("produit_id")
+  produit          Produit          @relation(fields: [produitId], references: [id], onDelete: Cascade)
+  varianteId       String?          @map("variante_id")
+  variante         ProduitVariante? @relation(fields: [varianteId], references: [id], onDelete: Cascade)
+  sku              String
+  quantiteAnnoncee Int              @map("quantite_annoncee")
+  quantiteRecue    Int              @default(0) @map("quantite_recue")
+
+  @@index([envoiId])
+  @@index([produitId])
+  @@map("envois_stock_lignes")
+}
+
+// § Journal des mouvements de stock (12/10/2026) : chaque entrée ou sortie
+// d'une unité de stock, signée, datée et rattachée à ce qui l'a causée.
+// AJOUT SEUL : une erreur se corrige par un mouvement inverse (`correction`),
+// jamais en modifiant une ligne. `quantite` est signée : positive quand le
+// stock (annoncé ou reçu, selon le type) augmente, négative quand il baisse.
+// Pour une sortie de colis, `marchandId` est le VENDEUR du colis — c'est ce
+// qui dit quel vendeur a consommé le stock commun d'une plateforme.
+enum TypeMouvementStock {
+  annonce
+  reception
+  sortie_colis
+  retour_colis
+  retrait
+  correction
+}
+
+model MouvementStock {
+  id            String             @id @default(uuid())
+  horodatage    DateTime           @default(now())
+  type          TypeMouvementStock
+  produitId     String             @map("produit_id")
+  produit       Produit            @relation(fields: [produitId], references: [id], onDelete: Cascade)
+  varianteId    String?            @map("variante_id")
+  variante      ProduitVariante?   @relation(fields: [varianteId], references: [id], onDelete: SetNull)
+  quantite      Int
+  commandeId    String?            @map("commande_id")
+  commande      Commande?          @relation(fields: [commandeId], references: [id], onDelete: SetNull)
+  marchandId    String?            @map("marchand_id")
+  marchand      Marchand?          @relation(fields: [marchandId], references: [id], onDelete: SetNull)
+  envoiId       String?            @map("envoi_id")
+  envoi         EnvoiStock?        @relation(fields: [envoiId], references: [id], onDelete: SetNull)
+  // Auteur humain (agent, admin) ou compte de service de la plateforme.
+  utilisateurId String?            @map("utilisateur_id")
+  utilisateur   Utilisateur?       @relation("MouvementStockAuteur", fields: [utilisateurId], references: [id], onDelete: SetNull)
+  motif         String?
+
+  @@index([produitId, horodatage])
+  @@index([commandeId])
+  @@index([marchandId])
+  @@map("mouvements_stock")
 }
 
 model ProduitVariante {
@@ -899,8 +1008,10 @@ model ProduitVariante {
   quantiteRecue   Int     @default(0) @map("quantite_recue")
   rayonnage       String? @map("rayonnage")
 
-  commandes   Commande[]
-  lignesColis LigneColis[]
+  commandes       Commande[]
+  lignesEnvoi     EnvoiStockLigne[]
+  mouvementsStock MouvementStock[]
+  lignesColis     LigneColis[]
 
   @@unique([produitId, reference])
   @@index([produitId])
@@ -1002,6 +1113,11 @@ model Commande {
   // Marchandise stockée dans l'entrepôt de la société (par opposition à un
   // envoi géré directement depuis le stock du marchand).
   enStock             Boolean          @default(false)
+  // § Stock commun (12/10/2026) : le stock d'un colis de plateforme est retiré
+  // DÈS SON ARRIVÉE. S'il manque, le colis est accepté et marqué en attente ;
+  // il est servi à la réception suivante (lib/stock-reservation.ts). Faux dès
+  // que son stock est réservé (stockReserveLe).
+  enAttenteStock      Boolean          @default(false) @map("en_attente_stock")
   statut              StatutCommande   @default(nouveau_colis)
   etatPaiement        EtatPaiement     @default(non_paye) @map("etat_paiement")
   aRisque             Boolean          @default(false) @map("a_risque")
@@ -1113,7 +1229,8 @@ model Commande {
   // § Colis multi-produits : le contenu du colis, une ligne par produit
   // (cf. LigneColis). `quantite` et `produitDescription` ci-dessus en sont le
   // résumé, tenu à jour à chaque écriture des lignes.
-  lignes LigneColis[]
+  lignes          LigneColis[]
+  mouvementsStock MouvementStock[]
 
   // § Sous-traitance par API : les remises de ce colis à un prestataire, dont
   // une seule active à la fois (cf. RemisePrestataire).
@@ -1182,6 +1299,13 @@ model LigneColis {
   sku           String?
   libelle       String
   quantite      Int
+  // § Stock commun : d'où sortent les unités de cette ligne. `stock_marchand`
+  // pour un produit personnel du vendeur, `stock_plateforme` pour un produit
+  // commun de la plateforme — la consommation du stock commun par vendeur se
+  // lit ici (vendeur = Commande.marchandId). Null pour une ligne hors stock
+  // (marchandise du catalogue simple, article en texte libre). FIGÉE à
+  // l'écriture, comme le SKU et le libellé.
+  provenance    ProvenanceStock?
 
   @@index([commandeId])
   @@index([produitId])
@@ -2876,6 +3000,8 @@ model PlateformePartenaire {
   cles             CleApiPlateforme[]
   comptesMarchands CompteMarchandExterne[]
   appels           JournalAppelApi[]
+  produitsCommuns  Produit[]
+  envoisStock      EnvoiStock[]
 
   @@map("plateformes_partenaires")
 }

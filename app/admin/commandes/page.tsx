@@ -10,6 +10,7 @@ import { STATUTS_COMMANDE, LABELS_STATUT_COMMANDE, ETATS_PAIEMENT, LABELS_ETAT_P
 import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
 import { ChampVille } from '@/components/form/ChampVille';
+import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 
 // Plafond serveur (voir GET /api/commandes) — au-delà, il faut paginer plutôt
 // que d'augmenter pageSize.
@@ -23,6 +24,7 @@ export default function AdminCommandesPage() {
   const [statutFiltre, setStatutFiltre] = useState('');
   const [etatPaiementFiltre, setEtatPaiementFiltre] = useState('');
   const [livreurFiltre, setLivreurFiltre] = useState('');
+  const [origineFiltre, setOrigineFiltre] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export default function AdminCommandesPage() {
       if (statutFiltre) params.set('statut', statutFiltre);
       if (etatPaiementFiltre) params.set('etatPaiement', etatPaiementFiltre);
       if (livreurFiltre) params.set('livreurId', livreurFiltre);
+      if (origineFiltre) params.set('origine', origineFiltre);
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
       // Les colis stock encore en préparation (§ /admin/stock/nouveaux,
@@ -105,7 +108,7 @@ export default function AdminCommandesPage() {
   useEffect(() => {
     Promise.resolve().then(() => load(1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statutFiltre, etatPaiementFiltre, livreurFiltre, dateFrom, dateTo]);
+  }, [statutFiltre, etatPaiementFiltre, livreurFiltre, origineFiltre, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(total / TAILLE_PAGE));
 
@@ -161,6 +164,13 @@ export default function AdminCommandesPage() {
           {livreurs.map((l) => (
             <option key={l.id} value={l.id}>
               {l.nomComplet}
+            </option>
+          ))}
+        </select>
+        <select className="input-basic" value={origineFiltre} onChange={(e) => setOrigineFiltre(e.target.value)}>
+          {OPTIONS_ORIGINE.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
           ))}
         </select>
@@ -248,6 +258,7 @@ export default function AdminCommandesPage() {
                         test
                       </span>
                     )}
+                    <BadgePlateforme commande={c} />
                   </td>
                   <td className="whitespace-nowrap text-xs opacity-70">{new Date(c.dateCreation).toLocaleString('fr-FR')}</td>
                   <td>{c.clientNom}</td>

@@ -2,7 +2,20 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { validateQrPayload } from '@/lib/parcel-serial';
-import { resolveUserHub } from '@/lib/hub-envoi';
+import { chargerResolveurTransporteur, resolveUserHub } from '@/lib/hub-envoi';
+
+// § Proposition dès l'arrivée : chez qui ce colis va partir, d'après la ville
+// (§ chargerResolveurTransporteur). `local` = sa ville relève du hub où il vient
+// d'être reçu — il ira en bon de distribution, pas en bon d'envoi.
+async function avecTransporteurPrevu<T extends { ville: string; villeId: string | null }>(commande: T, hubId: string) {
+  const prevu = (await chargerResolveurTransporteur())(commande);
+  return {
+    ...commande,
+    transporteurPrevu: prevu
+      ? { prestataireNom: prevu.prestataireNom, hubNom: prevu.hubNom, local: prevu.hubId === hubId }
+      : null,
+  };
+}
 
 // § /admin/scan/reception : l'Agent Hub scanne le codeSuivi d'un colis déposé
 // au quai de son hub (Utilisateur.hubId). Seul un colis au
@@ -70,7 +83,7 @@ export async function POST(request: Request) {
 
     // Rejeu idempotent : déjà réceptionné, on ne refait rien.
     if (commande.statut === 'recu_au_hub') {
-      return NextResponse.json(commande);
+      return NextResponse.json(await avecTransporteurPrevu(commande, commande.hubActuelId ?? hub.id));
     }
     // Le passage à "recu_au_hub" est autorisé depuis DEUX statuts d'origine,
     // selon que le colis arrive au hub pour la première fois ou après un
@@ -124,7 +137,7 @@ export async function POST(request: Request) {
       return result;
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(await avecTransporteurPrevu(updated, hub.id));
   } catch (error) {
     return jsonError(error);
   }

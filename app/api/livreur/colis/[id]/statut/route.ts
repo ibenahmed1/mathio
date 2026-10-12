@@ -41,15 +41,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         // § Comptes transporteurs : le colis peut venir d'un bon d'envoi
         // confié à la société dont ce compte est le compte humain, et non
         // d'une tournée. Les deux origines mènent au même écran.
-        bonEnvoi: { select: { statut: true, prestataire: { select: { compteLivreurId: true } } } },
+        bonEnvoi: {
+          select: {
+            statut: true,
+            prestataire: { select: { compteLivreurId: true } },
+            hubDestination: { select: { prestataire: { select: { compteLivreurId: true } } } },
+          },
+        },
       },
     });
     if (!commande) {
       throw new ApiError(404, 'Colis introuvable');
     }
 
-    const confie =
-      commande.bonEnvoi?.statut === 'recu' && commande.bonEnvoi.prestataire?.compteLivreurId === session.sub;
+    // Le bon dit à quel transporteur le colis est confié — directement, ou par
+    // le hub régional qu'il tient (§ filtreBonsDuTransporteur, lib/livreur.ts).
+    // C'est cette appartenance, lue maintenant, qui vaut affectation : un
+    // compte rattaché après la composition du bon n'a pas de `livreurId` posé.
+    const compteDuBon =
+      commande.bonEnvoi?.prestataire?.compteLivreurId ??
+      commande.bonEnvoi?.hubDestination?.prestataire?.compteLivreurId ??
+      null;
+    const bonDuCompte = !commande.bonDistributionId && compteDuBon === session.sub;
+    const confie = bonDuCompte && commande.bonEnvoi?.statut === 'recu';
     const origine: OrigineColisLivreur = confie
       ? 'confie'
       : commande.bonDistribution && commande.bonDistribution.statut !== 'cloture'
@@ -63,7 +77,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // canal par lequel on le déclare.
     const decision = deciderActionColisLivreur(
       {
-        livreurId: commande.livreurId,
+        livreurId: bonDuCompte ? session.sub : commande.livreurId,
         statut: commande.statut,
         origine,
         tourneeNumero: commande.bonDistribution?.numero ?? null,
@@ -124,6 +138,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         where: { id },
         data: {
           statut: nouveauStatut,
+          // Affectation réalignée sur le bon : les statistiques et la caisse du
+          // compte se lisent par `livreurId`.
+          ...(bonDuCompte && { livreurId: session.sub }),
           ...(nouveauStatut === 'livre' && { dateLivraison: now, photoPreuveUrl, signatureUrl }),
           ...(nouveauStatut === 'reporte' && { motifRetour, dateNouvelleLivraison }),
           ...(nouveauStatut === 'annule' && { motifRetour }),

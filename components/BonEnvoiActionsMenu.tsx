@@ -125,8 +125,18 @@ export function BonEnvoiActionsMenu({
       {modal === 'bien-recu' && (
         <Modal title="Bon bien reçu" onClose={closeAll}>
           <p className="text-sm">
-            Confirmer la réception du bon <span className="font-mono">{bon.numero}</span> ? Tous ses colis passeront
-            au statut « Reçu au Hub ».
+            {bon.prestataire ? (
+              <>
+                Confirmer la prise en charge du bon <span className="font-mono">{bon.numero}</span> par{' '}
+                {bon.prestataire.nom} ? Ses colis restent « En transit » : ils passent dans l&apos;espace du
+                transporteur, qui en déclare ensuite l&apos;issue.
+              </>
+            ) : (
+              <>
+                Confirmer la réception du bon <span className="font-mono">{bon.numero}</span> ? Tous ses colis
+                passeront au statut « Reçu au Hub ».
+              </>
+            )}
           </p>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">

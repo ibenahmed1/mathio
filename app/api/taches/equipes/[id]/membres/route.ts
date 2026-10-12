@@ -22,6 +22,23 @@ const ROLES_GESTION_EQUIPES: Role[] = ROLES_BACKOFFICE.filter(
   (r) => !ROLES_KANBAN_UNIQUEMENT.includes(r)
 );
 
+// Rôles qu'un non-admin peut CRÉER depuis un pôle. Jamais admin, superviseur
+// ni responsable : sans cette borne, n'importe quel gestionnaire de pôle se
+// fabriquait un compte admin avec le mot de passe de son choix, en
+// contournant /api/utilisateurs (réservé à l'admin).
+const ROLES_CREABLES_HORS_ADMIN: Role[] = ['equipe_suivi', 'moderateur', 'design', 'gestionnaire_hub'];
+
+// requireUser retombe sur la permission du chemin (`poles:members`), que
+// design et gestionnaire_hub détiennent par défaut : la liste de rôles ne
+// suffit donc pas à les écarter, le refus doit être explicite.
+async function exigerGestionnaireEquipes() {
+  const session = await requireUser(ROLES_GESTION_EQUIPES);
+  if (ROLES_KANBAN_UNIQUEMENT.includes(session.role)) {
+    throw new ApiError(403, 'Accès refusé pour ce rôle');
+  }
+  return session;
+}
+
 const SELECT_MEMBRE = {
   id: true,
   dateAjout: true,
@@ -39,7 +56,7 @@ async function getEquipe(id: string) {
 // utilisateurIds fourni plutôt que d'exiger un appel par membre ajouté/retiré.
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(ROLES_GESTION_EQUIPES);
+    await exigerGestionnaireEquipes();
     const { id } = await params;
     await getEquipe(id);
 
@@ -53,7 +70,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const voulusIds = new Set(utilisateurIds);
 
     const aRetirer = actuels.filter((m) => !voulusIds.has(m.utilisateurId)).map((m) => m.id);
-    const aAjouter = utilisateurIds.filter((uid) => !actuelsIds.has(uid));
+    const candidats = utilisateurIds.filter((uid) => !actuelsIds.has(uid));
+    // Seuls des comptes back-office actifs peuvent rejoindre un pôle, comme au
+    // POST ci-dessous : un id de marchand ou de livreur est ignoré.
+    const eligibles = await prisma.utilisateur.findMany({
+      where: { id: { in: candidats }, role: { in: ROLES_BACKOFFICE }, actif: true },
+      select: { id: true },
+    });
+    const idsEligibles = new Set(eligibles.map((u) => u.id));
+    const aAjouter = candidats.filter((uid) => idsEligibles.has(uid));
 
     await prisma.$transaction([
       prisma.equipeTacheMembre.deleteMany({ where: { id: { in: aRetirer } } }),
@@ -91,7 +116,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 // autre domaine mènerait à un 404 du proxy.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireUser(ROLES_GESTION_EQUIPES);
+    const session = await exigerGestionnaireEquipes();
     const { id } = await params;
     const equipe = await getEquipe(id);
 
@@ -139,6 +164,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     if (!ROLES_BACKOFFICE.includes(role)) {
       throw new ApiError(400, `Rôle invalide. Valeurs possibles : ${ROLES_BACKOFFICE.join(', ')}`);
+    }
+    if (session.role !== 'admin' && !ROLES_CREABLES_HORS_ADMIN.includes(role)) {
+      throw new ApiError(403, `Seul un admin peut créer un compte « ${role} »`);
     }
     if (secret) {
       const passwordError = getPasswordPolicyError(secret);

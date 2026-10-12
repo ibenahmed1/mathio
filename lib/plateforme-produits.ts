@@ -3,10 +3,18 @@ import { prisma } from '@/lib/prisma';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { resoudreMarchand } from '@/lib/plateforme-colis';
 import { genererReferenceProduit } from '@/lib/sku';
-import { skuDejaPris } from '@/lib/stock-sku';
+import { skuDejaPrisPlateforme, type ProprietaireStock } from '@/lib/stock-sku';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
 
-// Déclaration des produits de stock d'un marchand par une plateforme
-// partenaire (§ POST /v1/produits).
+// Déclaration des produits de stock par une plateforme partenaire
+// (§ POST /v1/produits).
+//
+// DEUX PROPRIÉTAIRES POSSIBLES (décision du 12/10/2026) : avec
+// `idExterneMarchand`, le produit appartient à ce marchand (stock personnel) ;
+// sans, il appartient à la PLATEFORME (stock commun, que tous ses marchands
+// vendent sans réservation), dans l'environnement de la clé. Un SKU est
+// unique dans tout l'univers de la plateforme — son stock commun et le stock
+// personnel de chacun de ses marchands (skuDejaPrisPlateforme).
 //
 // Même modèle que la page marchand « Ajouter Produit » (POST /api/produits) :
 // un produit porte son SKU (`reference`), et en option des variantes ayant
@@ -37,12 +45,13 @@ export interface VarianteExterne {
 }
 
 export interface EntreeProduitExterne {
-  idExterneMarchand: string;
+  // null : produit COMMUN de la plateforme.
+  idExterneMarchand: string | null;
   nom: string;
   // null : produit à variantes déclaré sans SKU propre (cf. analyserEntreeProduit).
   reference: string | null;
   note: string | null;
-  photoUrl: string | null;
+  photoUrl: string;
   variantesActivees: boolean;
   // 0 pour un produit à variantes : le stock vit alors sur ses variantes.
   quantiteEnCours: number;
@@ -72,9 +81,10 @@ function quantite(valeur: unknown, libelle: string): number {
 
 // Une URL web, ou une image embarquée (comme le formulaire marchand, qui
 // envoie la photo en data URL) — rien d'autre ne s'affiche dans un <img>.
-function photo(corps: Record<string, unknown>): string | null {
-  const valeur = texte(corps, 'photoUrl');
-  if (!valeur) return null;
+// Obligatoire pour un produit déclaré par une plateforme (décision du
+// 12/10/2026) ; le formulaire marchand, lui, la laisse facultative.
+function photo(corps: Record<string, unknown>): string {
+  const valeur = requis(corps, 'photoUrl');
   if (/^https?:\/\//i.test(valeur)) return valeur;
   if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(valeur)) {
     if (Buffer.byteLength(valeur, 'utf8') > PHOTO_OCTETS_MAX) {
@@ -91,7 +101,7 @@ export function analyserEntreeProduit(corpsBrut: unknown): EntreeProduitExterne 
   }
   const corps = corpsBrut as Record<string, unknown>;
 
-  const idExterneMarchand = requis(corps, 'idExterneMarchand');
+  const idExterneMarchand = texte(corps, 'idExterneMarchand') || null;
   const nom = requis(corps, 'nom');
   const variantesActivees = corps.variantesActivees === true;
   // Le SKU du produit n'est REQUIS que pour un produit sans variantes, dont il
@@ -151,6 +161,9 @@ export type IssueProduit = 'cree' | 'deja_existant';
 
 export interface ResultatProduit {
   issue: IssueProduit;
+  // Vrai pour un produit commun de la plateforme, faux pour un produit
+  // personnel de marchand.
+  stockCommun: boolean;
   reference: string;
   produitId: string;
   statutReception: string;
@@ -159,6 +172,7 @@ export interface ResultatProduit {
 
 const SELECT_RESULTAT = {
   id: true,
+  plateformeId: true,
   reference: true,
   statutReception: true,
   variantes: { select: { id: true, reference: true }, orderBy: { reference: 'asc' } },
@@ -166,10 +180,17 @@ const SELECT_RESULTAT = {
 
 function resultat(
   issue: IssueProduit,
-  produit: { id: string; reference: string; statutReception: string; variantes: { id: string; reference: string }[] }
+  produit: {
+    id: string;
+    plateformeId: string | null;
+    reference: string;
+    statutReception: string;
+    variantes: { id: string; reference: string }[];
+  }
 ): ResultatProduit {
   return {
     issue,
+    stockCommun: produit.plateformeId !== null,
     reference: produit.reference,
     produitId: produit.id,
     statutReception: produit.statutReception,
@@ -179,9 +200,9 @@ function resultat(
 
 type Tx = Prisma.TransactionClient;
 
-async function produitExistant(db: Tx, marchandId: string, reference: string) {
+async function produitExistant(db: Tx, proprietaire: ProprietaireStock, reference: string) {
   return db.produit.findFirst({
-    where: { marchandId, reference: { equals: reference, mode: 'insensitive' } },
+    where: { ...proprietaire, reference: { equals: reference, mode: 'insensitive' } },
     select: SELECT_RESULTAT,
   });
 }
@@ -190,10 +211,10 @@ async function produitExistant(db: Tx, marchandId: string, reference: string) {
 // ses variantes. Il est « déjà déclaré » si TOUTES les variantes reçues
 // existent et appartiennent au MÊME produit. Un recouvrement partiel n'est
 // pas un rejeu : il est laissé au contrôle des SKU, qui le refuse.
-async function produitParVariantes(db: Tx, marchandId: string, variantes: VarianteExterne[]) {
+async function produitParVariantes(db: Tx, proprietaire: ProprietaireStock, variantes: VarianteExterne[]) {
   const trouvees = await db.produitVariante.findMany({
     where: {
-      produit: { marchandId },
+      produit: proprietaire,
       OR: variantes.map((v) => ({ reference: { equals: v.reference, mode: 'insensitive' as const } })),
     },
     select: { produitId: true },
@@ -203,19 +224,19 @@ async function produitParVariantes(db: Tx, marchandId: string, variantes: Varian
   return db.produit.findUnique({ where: { id: [...produits][0] }, select: SELECT_RESULTAT });
 }
 
-function rechercherDeclaration(db: Tx, marchandId: string, entree: EntreeProduitExterne) {
+function rechercherDeclaration(db: Tx, proprietaire: ProprietaireStock, entree: EntreeProduitExterne) {
   return entree.reference
-    ? produitExistant(db, marchandId, entree.reference)
-    : produitParVariantes(db, marchandId, entree.variantes);
+    ? produitExistant(db, proprietaire, entree.reference)
+    : produitParVariantes(db, proprietaire, entree.variantes);
 }
 
 // Référence interne d'un produit à variantes déclaré sans SKU : même
 // générateur que le formulaire « Ajouter Produit ». Elle ne sert qu'à nos
 // écrans — les colis désignent toujours la variante.
-async function referenceInterneLibre(db: Tx, marchandId: string): Promise<string> {
+async function referenceInterneLibre(db: Tx, contexte: ContextePlateforme): Promise<string> {
   for (let essai = 0; essai < 5; essai++) {
     const candidate = genererReferenceProduit();
-    if (!(await skuDejaPris(marchandId, [candidate], db))) return candidate;
+    if (!(await skuDejaPrisPlateforme(contexte.plateformeId, contexte.environnement, [candidate], db))) return candidate;
   }
   throw new Error('Impossible d’attribuer une référence interne libre');
 }
@@ -224,43 +245,46 @@ export async function declarerProduit(
   contexte: ContextePlateforme,
   entree: EntreeProduitExterne
 ): Promise<ResultatProduit> {
-  const marchandId = await resoudreMarchand(contexte, entree.idExterneMarchand);
+  const proprietaire: ProprietaireStock = entree.idExterneMarchand
+    ? { marchandId: await resoudreMarchand(contexte, entree.idExterneMarchand) }
+    : { plateformeId: contexte.plateformeId, environnementPlateforme: contexte.environnement };
   const auteur = contexte.utilisateurTechniqueId;
   const origine = `déclaré par ${contexte.plateformeCode}`;
 
-  // Contrôles et création SÉRIALISÉS par marchand (verrou transactionnel) :
-  // l'unicité des SKU est applicative (lib/stock-sku.ts) — les @@unique ne
-  // couvrent pas les variantes de deux produits différents — et sans SKU
-  // produit, deux déclarations simultanées du même produit passeraient toutes
-  // les deux le contrôle. Le verrou ne bloque que les écritures de stock de
-  // CE marchand, le temps d'une création.
+  // Contrôles et création SÉRIALISÉS par univers de plateforme (verrou
+  // transactionnel) : l'unicité des SKU est applicative (lib/stock-sku.ts) —
+  // les @@unique ne couvrent ni les variantes de deux produits différents, ni
+  // deux propriétaires différents — et sans SKU produit, deux déclarations
+  // simultanées du même produit passeraient toutes les deux le contrôle. Le
+  // verrou ne bloque que les déclarations de CETTE plateforme dans CET
+  // environnement, le temps d'une création.
   try {
     return await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`produits:${marchandId}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`produits:${contexte.plateformeId}:${contexte.environnement}`}))`;
 
       // 1. Déjà déclaré ? Aucune écriture : ni la fiche (corrigée peut-être depuis
       // notre back-office), ni surtout la quantité.
-      const existant = await rechercherDeclaration(tx, marchandId, entree);
+      const existant = await rechercherDeclaration(tx, proprietaire, entree);
       if (existant) return resultat('deja_existant', existant);
 
       // 2. Un SKU de la requête déjà porté par un AUTRE produit ou une de ses
       // variantes — y compris le SKU du produit lui-même, qui peut être celui
       // d'une variante ailleurs : une étiquette désigne une seule unité de stock.
       const references = [...(entree.reference ? [entree.reference] : []), ...entree.variantes.map((v) => v.reference)];
-      const pris = await skuDejaPris(marchandId, references, tx);
+      const pris = await skuDejaPrisPlateforme(contexte.plateformeId, contexte.environnement, references, tx);
       if (pris) {
         throw new ErreurPlateforme(
           409,
           'sku_deja_utilise',
-          `Le SKU « ${pris} » désigne déjà un autre produit de ce marchand`
+          `Le SKU « ${pris} » désigne déjà un autre produit (stock commun ou stock d’un de vos marchands)`
         );
       }
 
       const cree = await tx.produit.create({
         data: {
-          marchandId,
+          ...proprietaire,
           nom: entree.nom,
-          reference: entree.reference ?? (await referenceInterneLibre(tx, marchandId)),
+          reference: entree.reference ?? (await referenceInterneLibre(tx, contexte)),
           quantiteEnCours: entree.quantiteEnCours,
           note: entree.note,
           photoUrl: entree.photoUrl,
@@ -283,15 +307,28 @@ export async function declarerProduit(
         },
         select: SELECT_RESULTAT,
       });
+      // La quantité déclarée est de l'ANNONCÉ, journalisé comme tel.
+      const quantiteParSku = new Map(entree.variantes.map((v) => [v.reference.toLowerCase(), v.quantiteEnCours]));
+      await journaliserMouvements(tx, [
+        { type: 'annonce', produitId: cree.id, quantite: entree.quantiteEnCours, utilisateurId: auteur, motif: origine },
+        ...cree.variantes.map((v) => ({
+          type: 'annonce' as const,
+          produitId: cree.id,
+          varianteId: v.id,
+          quantite: quantiteParSku.get(v.reference.toLowerCase()) ?? 0,
+          utilisateurId: auteur,
+          motif: origine,
+        })),
+      ]);
       return resultat('cree', cree);
     });
   } catch (error) {
     // Le verrou ne couvre que les déclarations par API : une création
     // simultanée du même SKU depuis l'espace marchand peut encore buter sur
-    // la contrainte (marchandId, reference). Le perdant reçoit le produit de
-    // l'autre, comme un rejeu.
+    // une contrainte d'unicité. Le perdant reçoit le produit de l'autre,
+    // comme un rejeu.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      const gagnant = await prisma.$transaction((tx) => rechercherDeclaration(tx, marchandId, entree));
+      const gagnant = await prisma.$transaction((tx) => rechercherDeclaration(tx, proprietaire, entree));
       if (gagnant) return resultat('deja_existant', gagnant);
     }
     throw error;

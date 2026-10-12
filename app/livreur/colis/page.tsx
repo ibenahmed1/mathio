@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Banknote,
   Camera,
+  Clock,
+  Wallet,
   CalendarClock,
   CheckCircle2,
   MapPin,
@@ -17,8 +19,7 @@ import {
 import { apiGet, apiPatch } from '@/lib/api-client';
 import { readImageAsCompressedDataUrl } from '@/lib/read-file';
 import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } from '@/lib/types';
-import { STATUTS_TERMINAUX } from '@/lib/statuts';
-import type { StatutCommande } from '@/app/generated/prisma/enums';
+import { colisResteALivrer } from '@/lib/statuts';
 import { SignaturePad } from '@/components/livreur/SignaturePad';
 import { StatutBadge } from '@/components/StatutBadge';
 import { KpiCard } from '@/components/KpiCard';
@@ -48,9 +49,20 @@ interface FeuilleDeRoute {
   tournees: { id: string; numero: string; dateGeneration: string; hubNom: string; nbColis: number }[];
   // § Comptes transporteurs : les bons d'envoi confiés à cette société, quand
   // le compte est celui d'un transporteur. Vide pour un livreur interne.
-  bonsConfies: { id: string; numero: string; dateReception: string | null; nbColis: number }[];
+  bonsConfies: { id: string; numero: string; statut: string; dateReception: string | null; nbColis: number }[];
   colis: ColisFeuilleDeRoute[];
-  recap: { nbColis: number; nbLivres: number; nbEnCours: number; nbARetourner: number; cashEncaisse: string };
+  // Colis d'un bon composé pour ce transporteur mais pas encore remis.
+  colisEnAttenteRemise: ColisFeuilleDeRoute[];
+  recap: {
+    nbColis: number;
+    nbLivres: number;
+    nbEnCours: number;
+    nbARetourner: number;
+    cashEncaisse: string;
+    codAttendu: string;
+    nbEnAttenteRemise: number;
+    codEnAttenteRemise: string;
+  };
 }
 
 function isoAujourdhui() {
@@ -81,20 +93,11 @@ export default function FeuilleDeRouteLivreurPage() {
     Promise.resolve().then(() => rafraichir());
   }, [rafraichir]);
 
-  // Ce qui reste à faire ne se lit pas au même statut selon la provenance :
-  //
-  //   TOURNÉE — un seul statut compte, `mise_en_distribution`. Un colis
-  //     reporté ou refusé pendant la tournée est TRAITÉ : il rentre au dépôt
-  //     le soir, et c'est le Planner qui le reprend, pas le livreur.
-  //
-  //   CONFIÉ — la société garde le colis tant qu'il n'est pas clos. Un report
-  //     appelle une nouvelle tentative de SA part, elle doit donc pouvoir le
-  //     redéclarer — c'est exactement ce qu'autorise la garde côté serveur
-  //     (§ deciderActionColisLivreur), et l'écran doit s'y accorder.
-  const resteAFaire = (c: ColisFeuilleDeRoute) =>
-    c.bonDistribution
-      ? c.statut === 'mise_en_distribution'
-      : !STATUTS_TERMINAUX.includes(c.statut as StatutCommande);
+  // Ce qui reste à faire dépend de la provenance (§ colisResteALivrer) : en
+  // tournée, seul un colis en distribution ; confié à un transporteur, tout
+  // colis non clos et pas parti en retour — la société peut redéclarer un
+  // report, exactement comme l'autorise la garde côté serveur.
+  const resteAFaire = colisResteALivrer;
 
   const aTenter = feuille?.colis.filter(resteAFaire) ?? [];
   const traites = feuille?.colis.filter((c) => !resteAFaire(c)) ?? [];
@@ -112,7 +115,11 @@ export default function FeuilleDeRouteLivreurPage() {
               <p className="page-subtitle">
                 {[
                   ...feuille.tournees.map((t) => `${t.numero} (${t.hubNom})`),
-                  ...feuille.bonsConfies.map((b) => `${b.numero} (${b.nbColis} colis confiés)`),
+                  ...feuille.bonsConfies.map((b) =>
+                    b.statut === 'recu'
+                      ? `${b.numero} (${b.nbColis} colis confiés)`
+                      : `${b.numero} (${b.nbColis} colis en attente de remise)`
+                  ),
                 ].join(' · ')}
               </p>
             ) : (
@@ -127,8 +134,9 @@ export default function FeuilleDeRouteLivreurPage() {
             dont la variante « héros » réservée au chiffre principal — ici le
             cash, le seul dont le livreur répond au dépôt. */}
         {feuille && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <KpiCard icon={Package} label="À livrer" value={String(feuille.recap.nbEnCours)} />
+            <KpiCard icon={Wallet} label="COD à encaisser" value={`${feuille.recap.codAttendu} DH`} />
             <KpiCard icon={PackageCheck} label="Livrés" value={String(feuille.recap.nbLivres)} />
             <KpiCard
               icon={Banknote}
@@ -148,6 +156,46 @@ export default function FeuilleDeRouteLivreurPage() {
             Vous remettez l&apos;intégralité du cash encaissé ({feuille.recap.cashEncaisse} DH) au Planner à votre
             retour au dépôt. Vos gains de tournée sont réglés séparément.
           </p>
+        )}
+
+        {/* § Comptes transporteurs : colis d'un bon déjà composé pour cette
+            société, pas encore remis. Visibles pour qu'elle sache ce qui
+            arrive et le COD en jeu ; traitables seulement une fois le bon
+            marqué reçu par le back-office. */}
+        {feuille && feuille.colisEnAttenteRemise.length > 0 && (
+          <section className="flex flex-col gap-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide opacity-60">
+              <Clock className="h-4 w-4" />
+              En attente de remise ({feuille.recap.nbEnAttenteRemise}) — COD {feuille.recap.codEnAttenteRemise} DH
+            </h2>
+            <div className="table-card">
+              <div className="table-scroll">
+                <table className="table-basic min-w-[560px]">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Client</th>
+                      <th>Bon</th>
+                      <th className="cell-num">COD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feuille.colisEnAttenteRemise.map((c) => (
+                      <tr key={c.id}>
+                        <td className="font-mono">{c.codeSuivi}</td>
+                        <td>
+                          <span className="font-semibold">{c.clientNom}</span>
+                          <span className="block text-xs opacity-60">{c.ville}</span>
+                        </td>
+                        <td className="font-mono text-xs">{c.bonEnvoi?.numero ?? '—'}</td>
+                        <td className="cell-num font-semibold">{Number(c.montantCod).toFixed(2)} DH</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
         )}
 
         <section className="flex flex-col gap-3">

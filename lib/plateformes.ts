@@ -805,6 +805,12 @@ export async function purgerDonneesTest(plateformeId: string): Promise<VolumeTes
       }
     }
 
+    // Stock commun de bac à sable (§ stock commun, 12/10/2026) : ses envois,
+    // puis ses produits — variantes, historique et journal suivent en cascade.
+    // Les colis de test qui les désignaient sont déjà partis ci-dessus.
+    await tx.envoiStock.deleteMany({ where: { plateformeId, environnement: 'test' } });
+    await tx.produit.deleteMany({ where: { plateformeId, environnementPlateforme: 'test' } });
+
     // Tous les liens `test` de cette plateforme partent, y compris ceux des
     // marchands conservés : le lien est une donnée de test, même quand le
     // marchand qu'il désigne n'en est pas une.

@@ -40,6 +40,13 @@ const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL?.trim() || 'admin@mathio.com';
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD || 'Admin1234!';
 const ADMIN_NOM_COMPLET = process.env.SEED_ADMIN_NOM?.trim() || 'Administrateur';
 
+// En production, les valeurs par défaut ci-dessus sont un mot de passe public
+// (il est dans le dépôt) : `npm run db:deploy` créait l'admin de prod avec. On
+// refuse plutôt que de compter sur un changement manuel après coup.
+if (process.env.NODE_ENV === 'production' && (!process.env.SEED_ADMIN_EMAIL || !process.env.SEED_ADMIN_PASSWORD)) {
+  throw new Error('Seed en production : SEED_ADMIN_EMAIL et SEED_ADMIN_PASSWORD sont obligatoires.');
+}
+
 async function seedAdmin() {
   const email = ADMIN_EMAIL.toLowerCase();
 

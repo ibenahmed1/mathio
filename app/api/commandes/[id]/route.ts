@@ -3,8 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
-import { verifierUniteStock } from '@/lib/stock-colis';
+import { STATUTS_AVANT_COLLECTE } from '@/lib/statuts';
+import { reintegrerStockColis, verifierUniteStock } from '@/lib/stock-colis';
+import { produitsDuColis, servirColisEnAttente } from '@/lib/stock-reservation';
 import { stockColisVerrouille } from '@/lib/stock-quantites';
+import { chargerReferentielRoutage, chargerResolveurTransporteur } from '@/lib/hub-envoi';
 
 const ROLES_LECTURE_COMMANDE = [...ROLES_BACKOFFICE, 'marchand', 'ramasseur', 'livreur'] as const;
 
@@ -43,6 +46,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(403, 'Accès refusé à cette commande');
     } else if (session.role === 'livreur' && commande.livreurId !== session.sub) {
       throw new ApiError(403, 'Accès refusé à cette commande');
+    }
+
+    // § Back-office : chez qui ce colis partira (même réponse que la réception
+    // au quai et la composition d'un bon d'envoi). Ni le marchand ni le
+    // terrain n'en ont l'usage.
+    if ((ROLES_BACKOFFICE as readonly string[]).includes(session.role)) {
+      const prevu = (await chargerResolveurTransporteur())(commande);
+      return NextResponse.json({
+        ...commande,
+        transporteurPrevu: prevu ? { prestataireNom: prevu.prestataireNom, hubNom: prevu.hubNom } : null,
+      });
     }
 
     return NextResponse.json(commande);
@@ -113,6 +127,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         throw new ApiError(400, 'montantCod doit être un nombre positif');
       }
       data.montantCod = montant;
+    }
+
+    // § Ville modifiée : `villeId` suit (c'est lui que lisent la facturation et
+    // le coût d'achat), et un colis déjà pris dans un bon d'envoi ne change
+    // pas de ville — sa nouvelle ville pourrait relever d'un autre
+    // transporteur que celui du bon.
+    if ('ville' in data && data.ville !== commande.ville) {
+      if (commande.bonEnvoiId) {
+        throw new ApiError(
+          409,
+          "Ce colis est dans un Bon d'Envoi : retirez-le du bon avant de changer sa ville (elle peut relever d'un autre transporteur)."
+        );
+      }
+      data.villeId = (await chargerReferentielRoutage()).pour(String(data.ville))?.id ?? null;
+    }
+
+    // Une fois le colis collecté, le COD et la ville ne sont plus à la main du
+    // marchand : le livreur encaisse le montant imprimé, le transporteur celui
+    // qui lui a été confié, et la facture relit `montantCod` au moment de
+    // facturer — un COD gonflé après livraison était reversé tel quel. Le
+    // formulaire renvoie tous les champs : seul un VRAI changement est refusé.
+    if (session.role === 'marchand') {
+      const apresCollecte = !STATUTS_AVANT_COLLECTE.includes(commande.statut);
+      const codChange = 'montantCod' in data && Number(data.montantCod) !== Number(commande.montantCod);
+      const villeChange = 'ville' in data && data.ville !== commande.ville;
+      if (apresCollecte && (codChange || villeChange)) {
+        throw new ApiError(
+          409,
+          'Ce colis a déjà été collecté : le montant COD et la ville ne sont plus modifiables. Contactez le support.'
+        );
+      }
     }
 
     // Marchandise du catalogue : réassignable, toujours vérifiée dans le
@@ -245,11 +290,21 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       throw new ApiError(400, 'Seul un colis au statut "Nouveau Colis" peut être supprimé — annulez-le sinon');
     }
 
-    await prisma.$transaction([
-      prisma.historiqueStatutCommande.deleteMany({ where: { commandeId: id } }),
-      prisma.commentaireCommande.deleteMany({ where: { commandeId: id } }),
-      prisma.commande.delete({ where: { id } }),
-    ]);
+    const rendus = stockColisVerrouille(commande) ? await produitsDuColis(id) : [];
+    await prisma.$transaction(async (tx) => {
+      // Un colis de plateforme retire son stock dès son arrivée (§ stock
+      // commun, 12/10/2026). Encore « Nouveau colis », il n'a pas quitté le
+      // rayon : le supprimer rend ses unités, sinon elles disparaîtraient du
+      // stock sans colis pour les expliquer.
+      if (stockColisVerrouille(commande)) {
+        await reintegrerStockColis(tx, id, session.sub, `suppression du colis ${commande.codeSuivi}`);
+      }
+      await tx.historiqueStatutCommande.deleteMany({ where: { commandeId: id } });
+      await tx.commentaireCommande.deleteMany({ where: { commandeId: id } });
+      await tx.commande.delete({ where: { id } });
+    });
+    // Les unités rendues servent peut-être des colis qui les attendaient.
+    await servirColisEnAttente(rendus, session.sub);
 
     return NextResponse.json({ success: true });
   } catch (error) {

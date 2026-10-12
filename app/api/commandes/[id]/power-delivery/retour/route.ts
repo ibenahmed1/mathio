@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ApiError, jsonError, requirePermission } from '@/lib/api-utils';
+import { ApiError, jsonError } from '@/lib/api-utils';
+import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { demanderRetourChezPower } from '@/lib/actions-power-delivery';
 
 // Même borne que la note transmise aux transporteurs (NOTE_MAX,
@@ -10,7 +11,7 @@ const RAISON_MAX = 150;
 // (`request-return`). Leur équipe accepte ou refuse de son côté.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requirePermission('bon_envoi:manage');
+    const session = await requirePilotageTransporteur();
     const { id } = await params;
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 

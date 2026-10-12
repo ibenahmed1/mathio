@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { receptionnerUnite } from '@/lib/stock-reception';
+import { servirColisEnAttente } from '@/lib/stock-reservation';
 
 // Validation de réception par l'admin : déplace tout ou partie de la
 // quantité "en cours" (saisie par le marchand) vers "reçue" (vérifiée
@@ -27,21 +29,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(400, 'Marquez le produit comme « Reçu » avant de valider une quantité');
     }
 
-    // Mouvement et trace dans la même transaction : un compteur modifié sans
-    // sa ligne d'historique serait un écart que personne ne peut expliquer.
-    await prisma.$transaction(async (tx) => {
-      const resultat = await tx.produit.updateMany({
-        where: { id, quantiteEnCours: { gte: quantite } },
-        data: { quantiteEnCours: { decrement: quantite }, quantiteRecue: { increment: quantite } },
-      });
-      if (resultat.count === 0) {
-        throw new ApiError(409, 'Quantité en cours insuffisante (a peut-être déjà été validée entre-temps)');
-      }
+    // Compteurs, historique, journal et envois servis dans la même
+    // transaction (§ lib/stock-reception.ts).
+    await prisma.$transaction((tx) =>
+      receptionnerUnite(tx, { produitId: id, varianteId: null, nom: produit.nom, quantite, utilisateurId: session.sub })
+    );
 
-      await tx.historiqueProduit.create({
-        data: { produitId: id, texte: `${quantite}, ${produit.nom} a été reçu`, utilisateurId: session.sub },
-      });
-    });
+    // Du stock vient d'entrer : les colis de plateforme qui l'attendaient
+    // sont servis, dans leur ordre d'arrivée (§ lib/stock-reservation.ts).
+    await servirColisEnAttente([id], session.sub);
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });
     return NextResponse.json(produitMisAJour);

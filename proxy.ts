@@ -146,6 +146,27 @@ function withUserHeaders(request: NextRequest, session: SessionPayload, routePer
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
+// En-têtes internes posés par withUserHeaders et crus sur parole par
+// getSessionUser / getRoutePermission (lib/auth.ts). Toute branche qui laisse
+// passer la requête SANS session (hôte API, chemins publics, pages non
+// gardées) doit d'abord les retirer : sinon un client qui les envoie lui-même
+// est lu comme authentifié par le premier handler qui appelle requireUser.
+const EN_TETES_INTERNES = [
+  USER_ID_HEADER,
+  USER_ROLE_HEADER,
+  EXTRA_ROLES_HEADER,
+  PERMISSIONS_HEADER,
+  ROUTE_PERMISSION_HEADER,
+  SESSION_SPACE_HEADER,
+  IMPERSONATED_HEADER,
+];
+
+function suivantSansEnTetesInternes(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers);
+  for (const nom of EN_TETES_INTERNES) requestHeaders.delete(nom);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export async function proxy(request: NextRequest) {
   assertSpaceHostsConfigured();
 
@@ -180,7 +201,7 @@ export async function proxy(request: NextRequest) {
   // une page web, ce sera une politique à écrire ici, pour cet hôte seul —
   // les hôtes d'espace devant au contraire rester en `Origin` strict.
   if (nature.kind === 'api_plateformes') {
-    return estApiPlateformes(pathname) ? NextResponse.next() : new NextResponse(null, { status: 404 });
+    return estApiPlateformes(pathname) ? suivantSansEnTetesInternes(request) : new NextResponse(null, { status: 404 });
   }
 
   const space = nature.space;
@@ -309,7 +330,7 @@ export async function proxy(request: NextRequest) {
     const espacesPublics = PUBLIC_API_PATHS[pathname];
     if (espacesPublics) {
       return espacesPublics.includes(space)
-        ? NextResponse.next()
+        ? suivantSansEnTetesInternes(request)
         : new NextResponse(null, { status: 404 });
     }
 
@@ -356,15 +377,21 @@ export async function proxy(request: NextRequest) {
   // --- 5. Reste (pages publiques : /login, /inscription, vues d'impression
   // partagées type /bons-livraison/[id]…) : l'hôte et l'origine ont été
   // validés ci-dessus, la session est revérifiée par le Server Component.
-  return NextResponse.next();
+  return suivantSansEnTetesInternes(request);
 }
 
 // Étendu à toutes les requêtes hors assets statiques : le contrôle d'hôte
 // (§1) et le contrôle d'origine (§2) doivent s'appliquer AUSSI aux pages non
 // gardées — notamment aux Server Actions, qui postent sur l'URL de la page et
 // ne passaient pas par l'ancien matcher.
+//
+// L'exclusion par extension ne vaut QUE pour les fichiers de public/, jamais
+// sous /api, /admin, /marchand, /livreur ou /ramasseur : `PATCH
+// /api/villes/x.png` échappait sinon au proxy, donc à la session ET au
+// nettoyage des en-têtes internes — un `x-pd-user-role: admin` forgé passait
+// alors requireUser sans aucun cookie.
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff|woff2|ttf)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|(?!(?:api|admin|marchand|livreur|ramasseur)/).*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|woff|woff2|ttf)$).*)',
   ],
 };

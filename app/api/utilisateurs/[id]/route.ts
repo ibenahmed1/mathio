@@ -8,6 +8,7 @@ import { analyserIdentiteLivreur, hubRequis } from '@/lib/comptes-livreur';
 import { journaliserCompte } from '@/lib/journal-equipe-admin';
 import { nomFonction } from '@/lib/fonctions-equipe';
 import { idRolePredefini } from '@/lib/roles-backoffice-serveur';
+import { exigerCibleGerable, exigerPermissionsDetenues } from '@/lib/garde-gestion-comptes';
 
 // Mêmes jeux de rôles que POST /api/utilisateurs (voir ce fichier pour le
 // détail) : seuls les comptes équipe se modifient/suppriment depuis cet
@@ -48,6 +49,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!ROLES_EQUIPE.includes(utilisateur.role)) {
       throw new ApiError(400, 'Ce compte ne peut pas être modifié depuis cet écran');
     }
+    exigerCibleGerable(session, utilisateur);
 
     // § Équipe & rôles : un rôle choisi impose sa fonction technique (cf. POST).
     const roleChoisi =
@@ -159,6 +161,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         throw new ApiError(400, 'permissions doit être un tableau');
       }
       data.permissions = ROLES_TERRAIN.includes(role) ? [] : sanitizePermissions(body.permissions);
+      exigerPermissionsDetenues(session, data.permissions as string[]);
+    }
+    // Passage au terrain : on vide AUSSI quand le formulaire n'envoie pas la
+    // liste (il ne l'envoie pas pour un rôle terrain). Sans ça, un ancien
+    // comptable requalifié livreur gardait comptabilite:edit/delete, que les
+    // routes finance honorent sans regarder l'espace.
+    if (ROLES_TERRAIN.includes(role)) {
+      data.permissions = [];
     }
 
     if (typeof body.nomComplet === 'string' && body.nomComplet.trim()) {
@@ -318,6 +328,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!ROLES_EQUIPE.includes(utilisateur.role)) {
       throw new ApiError(400, 'Ce compte ne peut pas être supprimé depuis cet écran');
     }
+    exigerCibleGerable(session, utilisateur);
 
     try {
       await prisma.utilisateur.delete({ where: { id } });

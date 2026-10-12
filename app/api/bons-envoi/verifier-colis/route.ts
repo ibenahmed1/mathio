@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { validateQrPayload } from '@/lib/parcel-serial';
-import { estVilleLocaleAuHub, getColisEligiblesEnvoi } from '@/lib/hub-envoi';
+import {
+  chargerResolveurTransporteur,
+  estVilleLocaleAuHub,
+  getColisEligiblesEnvoi,
+  refusTransporteur,
+} from '@/lib/hub-envoi';
 import { statutsEligiblesPrestataire } from '@/lib/bon-envoi-prestataire';
 
 // § Étape 3 de la création d'un Bon d'Envoi, mode "scan" : résout un
@@ -39,22 +44,42 @@ export async function POST(request: Request) {
       throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
     }
 
-    // Mode transporteur : aucune contrainte de ville, donc la vérification se
-    // réduit à l'état du colis. Les deux refus possibles sont nommés, plutôt
-    // que fondus dans un « non éligible » qui n'apprend rien à l'opérateur.
+    // Mode transporteur : le colis doit être libre, dans un statut expédiable,
+    // hors tournée, ET partir chez CE transporteur (§ refusTransporteur). Chaque
+    // refus est nommé, plutôt que fondu dans un « non éligible » qui
+    // n'apprend rien à l'opérateur.
     if (prestataireId) {
+      const prestataire = await prisma.prestataire.findUnique({
+        where: { id: prestataireId },
+        select: { id: true, nom: true },
+      });
+      if (!prestataire) throw new ApiError(400, 'Transporteur introuvable');
+
       const commande = await prisma.commande.findUnique({
         where: { codeSuivi },
-        include: { marchand: { select: { nomBoutique: true } } },
+        include: {
+          marchand: { select: { nomBoutique: true } },
+          bonDistribution: { select: { numero: true, statut: true } },
+        },
       });
       if (!commande) throw new ApiError(404, 'Aucun colis ne correspond à ce code.');
       if (commande.bonEnvoiId) {
         throw new ApiError(409, "Ce colis est déjà inclus dans un autre Bon d'Envoi.");
       }
-      if (!statutsEligiblesPrestataire(true).includes(commande.statut)) {
-        throw new ApiError(409, `Ce colis est « ${commande.statut} » : son parcours est terminé, il ne peut plus être expédié.`);
+      if (commande.bonDistribution && commande.bonDistribution.statut !== 'cloture') {
+        throw new ApiError(409, `Ce colis est en tournée (${commande.bonDistribution.numero}) : il ne peut pas être confié à un transporteur.`);
       }
-      return NextResponse.json(commande);
+      // Même liste de statuts que celle que le serveur revalidera à
+      // l'enregistrement — sinon un colis accepté au scan serait refusé au clic.
+      if (!statutsEligiblesPrestataire(body.tousStatuts === true).includes(commande.statut)) {
+        throw new ApiError(409, `Ce colis est « ${commande.statut} » : il ne peut pas être expédié dans ce bon.`);
+      }
+      const refus = refusTransporteur(commande, (await chargerResolveurTransporteur())(commande), prestataire);
+      if (refus) throw new ApiError(409, refus);
+
+      const { bonDistribution: _bd, ...colis } = commande;
+      void _bd;
+      return NextResponse.json(colis);
     }
 
     const eligibles = await getColisEligiblesEnvoi();
@@ -78,14 +103,26 @@ export async function POST(request: Request) {
           "Colis à destination locale. Veuillez l'affecter directement à un Bon de Distribution."
         );
       }
+      if (!(await chargerResolveurTransporteur())(commande)) {
+        throw new ApiError(
+          409,
+          `Colis ${commande.codeSuivi} : la ville « ${commande.ville} » n'est desservie par aucun transporteur. Corrigez la ville du colis avant de l'expédier.`
+        );
+      }
       throw new ApiError(
         409,
-        `Ce colis (statut "${commande.statut}", ville "${commande.ville}") n'est pas éligible à un transit.`
+        `Ce colis (statut "${commande.statut}", ville "${commande.ville}") n'est pas prêt pour un transit : il doit d'abord être réceptionné au hub.`
       );
     }
 
     if (match.hub.hubId !== hubDestinationId) {
-      throw new ApiError(409, `Ce colis est destiné au hub ${match.hub.hubNom}, pas à celui sélectionné.`);
+      const prevu = (await chargerResolveurTransporteur())(match.commande);
+      throw new ApiError(
+        409,
+        `Colis ${match.commande.codeSuivi} (${match.commande.ville}) : il part vers ${match.hub.hubNom}${
+          prevu?.prestataireNom ? ` (${prevu.prestataireNom})` : ''
+        }, pas vers le hub de ce bon. Il ne peut pas y entrer.`
+      );
     }
 
     return NextResponse.json(match.commande);

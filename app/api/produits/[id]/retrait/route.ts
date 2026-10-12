@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
 import { notifierStockBas } from '@/lib/notifications';
 import { stockReelUnite } from '@/lib/stock-colis';
 
@@ -42,6 +43,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await tx.historiqueProduit.create({
         data: { produitId: id, texte: `${quantite}, ${produit.nom} a été retiré`, utilisateurId: session.sub },
       });
+      await journaliserMouvements(tx, [
+        { type: 'retrait', produitId: id, quantite: -quantite, utilisateurId: session.sub },
+      ]);
 
       const apres = await stockReelUnite(tx, 'produit', id);
       return { unite: { type: 'produit' as const, id }, produitId: id, avant: apres + quantite, apres };

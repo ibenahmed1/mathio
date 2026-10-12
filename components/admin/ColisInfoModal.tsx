@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Package, X } from 'lucide-react';
 import type { Commande } from '@/lib/types';
+import { apiGet } from '@/lib/api-client';
 import { LABELS_STATUT_COMMANDE, LABELS_ETAT_PAIEMENT } from '@/lib/statuts';
 
 const BADGE_DANGER = new Set(['refuse', 'retourne', 'en_retour_par_amana', 'annule', 'annule_par_vendeur', 'hors_zone']);
@@ -28,6 +29,17 @@ function badgeClass(statut: string): string {
   return 'mtBadge mtBadge--neutral';
 }
 
+// Une ligne du contenu (GET /api/commandes/[id]/lignes).
+interface LigneContenu {
+  id: string;
+  sku: string | null;
+  libelle: string;
+  quantite: number;
+  provenance: 'stock_marchand' | 'stock_plateforme' | null;
+  photoUrl: string | null;
+  plateforme: string | null;
+}
+
 export function ColisInfoModal({
   commande,
   onClose,
@@ -38,6 +50,32 @@ export function ColisInfoModal({
   onTrack?: () => void;
 }) {
   const [closing, setClosing] = useState(false);
+  // Transporteur prévu (§ chargerResolveurTransporteur) : `undefined` tant que
+  // la fiche n'est pas chargée, `null` si la ville n'est desservie par personne.
+  const [prevu, setPrevu] = useState<{ prestataireNom: string | null; hubNom: string } | null | undefined>(undefined);
+  // Contenu détaillé (§ LigneColis) : un colis peut contenir plusieurs
+  // produits, chacun sorti du stock du vendeur ou du stock commun d'une
+  // plateforme. Vide tant que non chargé, ou pour un colis sans contenu
+  // déclaré : la ligne de résumé ci-dessous prend alors le relais.
+  const [contenu, setContenu] = useState<{ lignes: LigneContenu[]; enAttenteStock: boolean }>({
+    lignes: [],
+    enAttenteStock: false,
+  });
+
+  useEffect(() => {
+    let annule = false;
+    apiGet<{ transporteurPrevu?: { prestataireNom: string | null; hubNom: string } | null }>(
+      `/api/commandes/${commande.id}`
+    )
+      .then((c) => !annule && setPrevu(c.transporteurPrevu ?? null))
+      .catch(() => {});
+    apiGet<{ lignes: LigneContenu[]; enAttenteStock: boolean }>(`/api/commandes/${commande.id}/lignes`)
+      .then((c) => !annule && setContenu(c))
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [commande.id]);
 
   function close() {
     setClosing(true);
@@ -164,6 +202,16 @@ export function ColisInfoModal({
               <span className="mtValue">{commande.ville}</span>
             </div>
             <div className="mtRow">
+              <span className="mtLabel">Part chez</span>
+              <span className="mtValue" style={prevu === null ? { color: '#b91c1c', fontWeight: 600 } : undefined}>
+                {prevu === undefined
+                  ? '…'
+                  : prevu === null
+                    ? 'Aucun transporteur — ville à corriger'
+                    : `${prevu.prestataireNom ?? 'Notre réseau'} (${prevu.hubNom})`}
+              </span>
+            </div>
+            <div className="mtRow">
               <span className="mtLabel">Adresse</span>
               <span className="mtValue">{commande.adresse}</span>
             </div>
@@ -181,19 +229,46 @@ export function ColisInfoModal({
               <span>PRODUIT</span>
               <span>QUANTITÉ</span>
             </div>
-            <div className="mtTRow">
-              <div className={photoUrl ? 'mtPhoto mtPhoto--img' : 'mtPhoto mtPhoto--empty'}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage externe, non déclarée dans next.config */}
-                {photoUrl && <img src={photoUrl} alt={produitNom} />}
+            {contenu.lignes.length > 0 ? (
+              contenu.lignes.map((l, i) => (
+                <div className="mtTRow" key={l.id}>
+                  <div className={l.photoUrl ? 'mtPhoto mtPhoto--img' : 'mtPhoto mtPhoto--empty'}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage externe, non déclarée dans next.config */}
+                    {l.photoUrl && <img src={l.photoUrl} alt={l.libelle} />}
+                  </div>
+                  <div>
+                    <div className="mtProduct">{l.libelle}</div>
+                    <div className="mtVariant">
+                      {l.sku ? `Réf. stock : ${l.sku}` : '—'}
+                      {l.provenance === 'stock_plateforme' && ` · Stock commun ${l.plateforme ?? 'plateforme'}`}
+                      {l.provenance === 'stock_marchand' && ' · Stock du vendeur'}
+                    </div>
+                  </div>
+                  <div className="mtQty">
+                    ×{l.quantite} {i === 0 && <span className="mtPrice">{commande.montantCod} DH</span>}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="mtTRow">
+                <div className={photoUrl ? 'mtPhoto mtPhoto--img' : 'mtPhoto mtPhoto--empty'}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage externe, non déclarée dans next.config */}
+                  {photoUrl && <img src={photoUrl} alt={produitNom} />}
+                </div>
+                <div>
+                  <div className="mtProduct">{produitNom}</div>
+                  <div className="mtVariant">{produitDetail}</div>
+                </div>
+                <div className="mtQty">
+                  ×{commande.quantite} <span className="mtPrice">{commande.montantCod} DH</span>
+                </div>
               </div>
-              <div>
-                <div className="mtProduct">{produitNom}</div>
-                <div className="mtVariant">{produitDetail}</div>
+            )}
+            {contenu.enAttenteStock && (
+              <div className="mtVariant px-1 pt-2 font-semibold text-amber-700 dark:text-amber-400">
+                En attente de stock : servi automatiquement à la prochaine réception.
               </div>
-              <div className="mtQty">
-                ×{commande.quantite} <span className="mtPrice">{commande.montantCod} DH</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 

@@ -61,8 +61,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const bon = await prisma.bonEnvoi.findUnique({
       where: { id },
       include: {
-        hubDestination: { select: { id: true, nom: true } },
-        prestataire: { select: { nom: true } },
+        hubDestination: { select: { id: true, nom: true, prestataire: { select: { compteLivreurId: true } } } },
+        prestataire: { select: { id: true, nom: true, compteLivreurId: true } },
         commandes: true,
       },
     });
@@ -81,7 +81,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // filtre géographique pour une remise sous-traitée.
     let aAjouter: ColisAAjouter[];
     if (bon.prestataire) {
-      aAjouter = await revaliderColisPrestataire(ajouterColisIds, body.tousStatuts === true);
+      aAjouter =
+        ajouterColisIds.length > 0
+          ? await revaliderColisPrestataire(ajouterColisIds, body.tousStatuts === true, bon.prestataire)
+          : [];
     } else {
       const eligiblesPourHub = new Map<string, CommandeEligibleEnvoi>(
         (await getColisEligiblesEnvoi())
@@ -112,25 +115,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    // § Comptes transporteurs : l'affectation posée à la composition du bon
-    // (§ creerBonEnvoiPrestataire) doit SUIVRE ses mouvements. Un colis ajouté
-    // revient au compte du transporteur, un colis retiré le perd — sans quoi
-    // il resterait affecté à une société qui ne l'a jamais eu en main, et
-    // apparaîtrait dans sa feuille de route le jour d'un autre bon.
-    // Sur un TRANSIT INTERNE, en revanche, on ne touche pas à `livreurId` :
-    // le colis n'a pas changé de mains, il change de quai. L'écraser ferait
-    // perdre l'affectation d'un colis qui repart en tournée après son
-    // transfert — une régression sans rapport avec ce lot.
-    const affectationTransporteur: { livreurId?: string | null } = bon.prestataireId
-      ? {
-          livreurId:
-            (
-              await prisma.prestataire.findUnique({
-                where: { id: bon.prestataireId },
-                select: { compteLivreurId: true },
-              })
-            )?.compteLivreurId ?? null,
-        }
+    // § Comptes transporteurs : l'affectation au compte du transporteur
+    // (§ Prestataire.compteLivreurId) SUIT les mouvements du bon. Un colis
+    // ajouté revient à ce compte, un colis retiré le perd — sans quoi il
+    // resterait affecté à une société qui ne l'a jamais eu en main.
+    // Vaut pour les DEUX natures de bon : depuis les 11 hubs régionaux, un
+    // transit vers un hub est lui aussi une remise au transporteur qui tient ce
+    // hub. Un hub interne (sans transporteur) ne touche pas à `livreurId`.
+    const compteTransporteur =
+      bon.prestataire?.compteLivreurId ?? bon.hubDestination?.prestataire?.compteLivreurId ?? null;
+    const avecTransporteur = Boolean(bon.prestataire || bon.hubDestination?.prestataire);
+    const affectationTransporteur: { livreurId?: string | null } = avecTransporteur
+      ? { livreurId: compteTransporteur }
       : {};
 
     await prisma.$transaction(async (tx) => {
@@ -162,7 +158,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           // Retiré d'un bon sous-traité, le colis perd son affectation : il
           // n'est plus confié à personne. Retiré d'un transit interne, il
           // garde la sienne, pour la même raison qu'à l'ajout.
-          data: { bonEnvoiId: null, statut: restaure, ...(bon.prestataireId ? { livreurId: null } : {}) },
+          data: {
+            bonEnvoiId: null,
+            statut: restaure,
+            ...(avecTransporteur && (!c.livreurId || c.livreurId === compteTransporteur) ? { livreurId: null } : {}),
+          },
         });
         await tx.historiqueStatutCommande.create({
           data: {

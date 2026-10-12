@@ -82,7 +82,10 @@ export async function POST(request: Request) {
       return NextResponse.json(cree, { status: 201 });
     }
 
-    const hub = await prisma.hub.findUnique({ where: { id: hubDestinationId }, select: { id: true, nom: true } });
+    const hub = await prisma.hub.findUnique({
+      where: { id: hubDestinationId },
+      select: { id: true, nom: true, prestataire: { select: { compteLivreurId: true } } },
+    });
     if (!hub) {
       throw new ApiError(400, 'Hub introuvable');
     }
@@ -110,7 +113,15 @@ export async function POST(request: Request) {
 
       await tx.commande.updateMany({
         where: { id: { in: colis.map((c) => c.id) } },
-        data: { bonEnvoiId: created.id, statut: 'en_transit' },
+        // Hub tenu par un transporteur (les 11 hubs régionaux) : le colis lui
+        // est confié, donc affecté à son compte humain s'il en a un — c'est ce
+        // qui le fait apparaître dans son espace (§ lib/livreur.ts). Un hub
+        // interne laisse l'affectation telle quelle.
+        data: {
+          bonEnvoiId: created.id,
+          statut: 'en_transit',
+          ...(hub.prestataire ? { livreurId: hub.prestataire.compteLivreurId } : {}),
+        },
       });
 
       await tx.historiqueStatutCommande.createMany({

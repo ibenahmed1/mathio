@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { reintegrerStockColis } from '@/lib/stock-colis';
+import { produitsDuColis, servirColisEnAttente } from '@/lib/stock-reservation';
 import { colisReintegrable, STATUTS_REINTEGRATION_STOCK } from '@/lib/stock-quantites';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 
@@ -41,6 +42,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         },
       });
     });
+
+    // Les unités rendues servent peut-être des colis qui les attendaient.
+    await servirColisEnAttente(await produitsDuColis(id), session.sub);
 
     const misAJour = await prisma.commande.findUnique({ where: { id } });
     return NextResponse.json(misAJour);

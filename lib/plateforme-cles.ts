@@ -36,6 +36,9 @@ export const CATALOGUE_SCOPES: Record<string, string> = {
   // Lire les événements de statut des colis qu'on a déposés (§ GET
   // /api/v1/colis). Lecture seule, limitée aux colis de la plateforme.
   'colis:lecture': 'Suivre les statuts de ses colis',
+  // Lire le stock de son univers : stock commun et stock personnel de ses
+  // marchands (§ GET /api/v1/stock). Lecture seule.
+  'stock:lecture': 'Consulter son stock',
   // Déclarer les produits de stock d'un marchand, avec leurs SKU et la
   // quantité envoyée à l'entrepôt (§ POST /api/v1/produits). Sans danger pour
   // la production : le stock annoncé ne devient réel qu'à la réception.

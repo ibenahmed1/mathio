@@ -48,6 +48,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           include: { utilisateur: { select: { nomComplet: true } } },
         },
         marchand: { select: { nomBoutique: true } },
+        plateforme: { select: { nom: true } },
       },
     });
     return NextResponse.json(produit);

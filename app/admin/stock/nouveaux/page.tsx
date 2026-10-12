@@ -5,6 +5,8 @@ import { PackageSearch, CheckCircle2 } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { Button } from '@/components/admin/Button';
+import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
+import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 
 // § Gestion de stock (1/4) : colis stock (enStock=true) créés par le marchand
 // et pas encore pris en charge par le Hub — ces colis ne passent pas par le
@@ -18,12 +20,14 @@ export default function AdminStockNouveauxPage() {
   const [chargement, setChargement] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // § Plateformes partenaires : isoler les colis Shipeh, ou les autres.
+  const [origine, setOrigine] = useState('');
 
   async function load() {
     setChargement(true);
     setError(null);
     try {
-      const res = await apiGet<{ data: Commande[] }>('/api/commandes?statut=nouveau_colis&enStock=true&pageSize=100');
+      const res = await apiGet<{ data: Commande[] }>(`/api/commandes?statut=nouveau_colis&enStock=true&pageSize=100${origine ? `&origine=${origine}` : ''}`);
       setColis(res.data);
       setSelected(new Set());
     } catch (err) {
@@ -35,7 +39,8 @@ export default function AdminStockNouveauxPage() {
 
   useEffect(() => {
     Promise.resolve().then(() => load());
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origine]);
 
   const tousSelectionnes = colis.length > 0 && colis.every((c) => selected.has(c.id));
 
@@ -77,6 +82,14 @@ export default function AdminStockNouveauxPage() {
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
+      <select className="input-basic w-fit" value={origine} onChange={(e) => setOrigine(e.target.value)}>
+        {OPTIONS_ORIGINE.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+
       <div className="table-card">
         <div className="overflow-x-auto">
           <table className="table-basic min-w-[900px]">
@@ -91,6 +104,7 @@ export default function AdminStockNouveauxPage() {
                 <th>Quantité</th>
                 <th>Ville</th>
                 <th>Date de création</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -104,17 +118,23 @@ export default function AdminStockNouveauxPage() {
                       aria-label={`Sélectionner ${c.codeSuivi}`}
                     />
                   </td>
-                  <td className="font-mono text-xs font-semibold">{c.codeSuivi}</td>
+                  <td className="font-mono text-xs font-semibold">
+                    {c.codeSuivi}
+                    <BadgePlateforme commande={c} />
+                  </td>
                   <td>{c.marchand?.nomBoutique ?? '—'}</td>
                   <td>{c.produit?.nom ?? c.produitDescription ?? <span className="opacity-40">—</span>}</td>
                   <td>{c.quantite}</td>
                   <td>{c.ville}</td>
                   <td className="whitespace-nowrap text-xs opacity-70">{new Date(c.dateCreation).toLocaleString('fr-FR')}</td>
+                  <td>
+                    <ColisActionsMenu commande={c} onChanged={load} />
+                  </td>
                 </tr>
               ))}
               {!chargement && colis.length === 0 && (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <div className="empty-state">
                       <PackageSearch className="h-8 w-8 opacity-40" />
                       <p className="font-medium">Aucun colis stock en attente de prise en charge</p>

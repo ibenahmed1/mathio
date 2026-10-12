@@ -857,7 +857,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Mug blanc\",\n  \"reference\": \"MUG-{{passage}}\",\n  \"quantiteEnCours\": 20\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"photoUrl\": \"https://cdn.exemple.ma/produit.jpg\",\n  \"nom\": \"Mug blanc\",\n  \"reference\": \"MUG-{{passage}}\",\n  \"quantiteEnCours\": 20\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/produits",
@@ -903,7 +903,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Mug blanc\",\n  \"reference\": \"MUG-{{passage}}\",\n  \"quantiteEnCours\": 20\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"photoUrl\": \"https://cdn.exemple.ma/produit.jpg\",\n  \"nom\": \"Mug blanc\",\n  \"reference\": \"MUG-{{passage}}\",\n  \"quantiteEnCours\": 20\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/produits",
@@ -950,7 +950,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Robe d'été\",\n  \"reference\": \"ROBE-{{passage}}\",\n  \"note\": \"Tissu léger, lavage à 30°\",\n  \"variantesActivees\": true,\n  \"variantes\": [\n    { \"nom\": \"Rouge / M\", \"reference\": \"ROBE-{{passage}}-ROUGE\", \"quantiteEnCours\": 10 },\n    { \"nom\": \"Bleu / M\", \"reference\": \"ROBE-{{passage}}-BLEU\", \"quantiteEnCours\": 8 }\n  ]\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"photoUrl\": \"https://cdn.exemple.ma/produit.jpg\",\n  \"nom\": \"Robe d'été\",\n  \"reference\": \"ROBE-{{passage}}\",\n  \"note\": \"Tissu léger, lavage à 30°\",\n  \"variantesActivees\": true,\n  \"variantes\": [\n    { \"nom\": \"Rouge / M\", \"reference\": \"ROBE-{{passage}}-ROUGE\", \"quantiteEnCours\": 10 },\n    { \"nom\": \"Bleu / M\", \"reference\": \"ROBE-{{passage}}-BLEU\", \"quantiteEnCours\": 8 }\n  ]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/produits",
@@ -996,7 +996,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"nom\": \"Copie\",\n  \"reference\": \"COPIE-{{passage}}\",\n  \"variantesActivees\": true,\n  \"variantes\": [{ \"nom\": \"X\", \"reference\": \"ROBE-{{passage}}-ROUGE\", \"quantiteEnCours\": 1 }]\n}"
+              "raw": "{\n  \"idExterneMarchand\": \"SHIPEH-T{{passage}}\",\n  \"photoUrl\": \"https://cdn.exemple.ma/produit.jpg\",\n  \"nom\": \"Copie\",\n  \"reference\": \"COPIE-{{passage}}\",\n  \"variantesActivees\": true,\n  \"variantes\": [{ \"nom\": \"X\", \"reference\": \"ROBE-{{passage}}-ROUGE\", \"quantiteEnCours\": 1 }]\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/produits",

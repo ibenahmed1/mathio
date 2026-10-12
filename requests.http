@@ -143,6 +143,7 @@ Content-Type: application/json
 {
   "idExterneMarchand": "shipeh-12345",
   "nom": "Robe d'été",
+  "photoUrl": "https://cdn.exemple.ma/robe.jpg",
   "reference": "PRD-K7M2Q9XA",
   "variantesActivees": true,
   "variantes": [
@@ -156,7 +157,7 @@ POST {{apiUrl}}/api/v1/produits
 Authorization: Bearer {{cle}}
 Content-Type: application/json
 
-{ "idExterneMarchand": "shipeh-12345", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20 }
+{ "idExterneMarchand": "shipeh-12345", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20, "photoUrl": "https://cdn.exemple.ma/mug.jpg" }
 
 ### v3c. Suivre les statuts de ses colis (scope colis:lecture) -> 200 { colis, curseurSuivant, fin }
 ### Puis rappeler avec ?curseur=<curseurSuivant> tant que fin = false.

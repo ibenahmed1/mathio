@@ -23,6 +23,12 @@ export interface Commande {
   fragile: boolean;
   aRemplacer: boolean;
   enStock: boolean;
+  // Origine du colis : `api` pour un colis déposé par une plateforme
+  // partenaire (Shipeh), qui porte alors sa référence chez elle.
+  source?: 'manuel' | 'import_csv' | 'api';
+  codeSuiviPartenaire?: string | null;
+  // § Stock commun : accepté sans stock suffisant, servi à la prochaine réception.
+  enAttenteStock?: boolean;
   montantCod: string;
   poidsKg: string | null;
   statut:
@@ -85,7 +91,7 @@ export interface Commande {
     nomBoutique: string;
     // § Plateformes partenaires : présent quand le marchand vient d'un canal
     // de vente. `test` marque un colis de bac à sable.
-    comptesExternes?: { environnement: 'live' | 'test' }[];
+    comptesExternes?: { environnement: 'live' | 'test'; plateforme?: { nom: string } }[];
   };
   livreur?: { id: string; nomComplet: string } | null;
   ramasseur?: { id: string; nomComplet: string } | null;
@@ -143,7 +149,7 @@ export interface HistoriqueProduit {
 
 export interface Produit {
   id: string;
-  marchandId: string;
+  marchandId: string | null;
   nom: string;
   reference: string;
   quantiteEnCours: number;
@@ -156,7 +162,12 @@ export interface Produit {
   dateCreation: string;
   variantes?: ProduitVariante[];
   historique?: HistoriqueProduit[];
-  marchand?: { nomBoutique: string };
+  marchand?: { nomBoutique: string } | null;
+  // § Stock commun (12/10/2026) : renseignés à la place du marchand quand le
+  // produit appartient à une plateforme partenaire.
+  plateformeId?: string | null;
+  environnementPlateforme?: 'test' | 'live' | null;
+  plateforme?: { nom: string } | null;
 }
 
 export interface HistoriqueStatut {
