@@ -13,6 +13,9 @@ export default function AdminMarchandsPage() {
   const [marchands, setMarchands] = useState<Marchand[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [resetPour, setResetPour] = useState<Marchand | null>(null);
+  // § Plateformes partenaires : `''` tous, `directs` nos marchands directs,
+  // sinon le nom d'une plateforme (ses vendeurs).
+  const [origine, setOrigine] = useState('');
 
   async function load() {
     try {
@@ -75,10 +78,29 @@ export default function AdminMarchandsPage() {
     }
   }
 
+  const plateformes = [...new Set(marchands.flatMap((m) => (m.comptesExternes ?? []).map((c) => c.plateforme.nom)))].sort();
+  const affiches = marchands.filter((m) => {
+    if (!origine) return true;
+    const siennes = (m.comptesExternes ?? []).map((c) => c.plateforme.nom);
+    return origine === 'directs' ? siennes.length === 0 : siennes.includes(origine);
+  });
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="page-title">Marchands</h1>
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+
+      {plateformes.length > 0 && (
+        <select className="input-basic w-fit" value={origine} onChange={(e) => setOrigine(e.target.value)}>
+          <option value="">Tous les marchands</option>
+          {plateformes.map((nom) => (
+            <option key={nom} value={nom}>
+              Vendeurs {nom}
+            </option>
+          ))}
+          <option value="directs">Marchands directs</option>
+        </select>
+      )}
 
       <div className="table-card">
       <div className="table-scroll">
@@ -93,7 +115,7 @@ export default function AdminMarchandsPage() {
           </tr>
         </thead>
         <tbody>
-          {marchands.map((m) => (
+          {affiches.map((m) => (
             <tr key={m.id}>
               <td>
                 <Link href={`/admin/marchands/${m.id}`} className="font-semibold underline-offset-2 hover:underline">
@@ -105,6 +127,11 @@ export default function AdminMarchandsPage() {
                     cette pastille, rien ne les en distingue — et on les approuve
                     ou on les facture par inadvertance. Ils se suppriment d'un
                     geste depuis /admin/integrations. */}
+                {[...new Set((m.comptesExternes ?? []).map((c) => c.plateforme.nom))].map((nom) => (
+                  <span key={nom} className="badge ml-2 bg-brand/10 text-brand" title={`Vendeur synchronisé par ${nom}`}>
+                    {nom}
+                  </span>
+                ))}
                 {m.comptesExternes?.some((c) => c.environnement === 'test') && (
                   <span className="badge badge-warn ml-2" title="Créé par une clé d’API de test">
                     test

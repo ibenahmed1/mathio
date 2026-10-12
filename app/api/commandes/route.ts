@@ -38,7 +38,10 @@ export async function GET(request: NextRequest) {
           // `test` a forcément été créé par la synchronisation, et ne peut pas
           // être aussi un vrai client.
           marchand: {
-            select: { nomBoutique: true, comptesExternes: { select: { environnement: true } } },
+            select: {
+              nomBoutique: true,
+              comptesExternes: { select: { environnement: true, plateforme: { select: { nom: true } } } },
+            },
           },
           livreur: { select: { id: true, nomComplet: true } },
           marchandise: { select: { id: true, nom: true, prix: true } },

@@ -91,7 +91,7 @@ export interface Commande {
     nomBoutique: string;
     // § Plateformes partenaires : présent quand le marchand vient d'un canal
     // de vente. `test` marque un colis de bac à sable.
-    comptesExternes?: { environnement: 'live' | 'test' }[];
+    comptesExternes?: { environnement: 'live' | 'test'; plateforme?: { nom: string } }[];
   };
   livreur?: { id: string; nomComplet: string } | null;
   ramasseur?: { id: string; nomComplet: string } | null;

@@ -44,6 +44,9 @@ export async function buildCommandesWhere(
   // pour ne pas casser la recherche /admin/colis/suivi ni la vue marchand, qui
   // doivent pouvoir retrouver un colis stock même avant sa prise en charge Hub.
   const excludeEnPreparationStockParam = searchParams.get('excludeEnPreparationStock');
+  // § Plateformes partenaires : `api` = colis déposés par une plateforme
+  // (Shipeh), `hors_api` = tous les autres.
+  const origineParam = searchParams.get('origine');
 
   const where: Prisma.CommandeWhereInput = {};
 
@@ -101,6 +104,13 @@ export async function buildCommandesWhere(
       { clientNom: { contains: search, mode: 'insensitive' } },
       { clientTelephone: { contains: search } },
     ];
+  }
+  if (origineParam === 'api') {
+    where.source = 'api';
+  } else if (origineParam === 'hors_api') {
+    where.source = { not: 'api' };
+  } else if (origineParam) {
+    throw new ApiError(400, `Origine invalide : ${origineParam}`);
   }
   if (enStockParam != null) {
     where.enStock = enStockParam === 'true';

@@ -1180,6 +1180,16 @@ async function main() {
     if ((perso.json?.data as { reference: string }[]).some((p) => p.reference === SKU_COMMUN)) throw new Error('stock commun dans l’inventaire personnel');
   });
 
+  await verifie('filtre « colis des plateformes » de l’admin', async () => {
+    const r = await entrepot.api('GET', '/api/commandes?origine=api&pageSize=100');
+    attendu(r, 200);
+    const lignes = r.json?.data as { source: string }[];
+    if (lignes.length === 0 || lignes.some((c) => c.source !== 'api')) throw new Error('le filtre laisse passer d’autres colis');
+    const autres = await entrepot.api('GET', '/api/commandes?origine=hors_api&pageSize=100');
+    if ((autres.json?.data as { source: string }[]).some((c) => c.source === 'api')) throw new Error('colis de plateforme dans « autres »');
+    attendu(await entrepot.api('GET', '/api/commandes?origine=shipeh'), 400);
+  });
+
   // ----------------------------------------------------------
   console.log('\n7. Quota');
 
