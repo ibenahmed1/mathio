@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 
 // § Gestion de stock — réassort déclaré par le marchand.
@@ -29,12 +30,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const varianteId = typeof body.varianteId === 'string' && body.varianteId ? body.varianteId : null;
     let libelle = produit.nom;
+    let varianteReassortie: string | null = null;
 
     await prisma.$transaction(async (tx) => {
       if (produit.variantesActivees) {
         const variante = produit.variantes.find((v) => v.id === varianteId);
         if (!variante) throw new ApiError(400, 'Choisissez la variante réassortie');
         libelle = `${produit.nom} — ${variante.nom}`;
+        varianteReassortie = variante.id;
         await tx.produitVariante.update({ where: { id: variante.id }, data: { quantiteEnCours: { increment: quantite } } });
       } else {
         if (varianteId) throw new ApiError(400, 'Ce produit ne suit pas de variantes');
@@ -43,6 +46,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await tx.historiqueProduit.create({
         data: { produitId: id, texte: `${quantite}, ${libelle} déclaré(s) — réassort`, utilisateurId: session.sub },
       });
+      await journaliserMouvements(tx, [
+        { type: 'annonce', produitId: id, varianteId: varianteReassortie, quantite, utilisateurId: session.sub, motif: 'réassort' },
+      ]);
     });
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const colis = await prisma.commande.findMany({
       where: { id: { in: ids }, enStock: true, statut: 'nouveau_colis' },
       // Le contenu (lignes) est relu par reserverStockColis dans la transaction.
-      select: { id: true },
+      select: { id: true, stockReserveLe: true },
     });
     if (colis.length !== ids.length) {
       throw new ApiError(400, "Un ou plusieurs colis sélectionnés ne sont plus éligibles (déjà pris en charge ou hors stock)");
@@ -48,7 +48,10 @@ export async function POST(request: NextRequest) {
         throw new ApiError(409, 'Un ou plusieurs colis viennent d’être pris en charge par quelqu’un d’autre — rechargez la liste');
       }
 
-      const sortis = await reserverStockColis(tx, colis, session.sub);
+      // Un colis de plateforme a déjà son stock réservé depuis son arrivée
+      // (§ lib/stock-reservation.ts) : le réserver ici le décompterait deux fois.
+      const aReserver = colis.filter((c) => !c.stockReserveLe);
+      const sortis = aReserver.length > 0 ? await reserverStockColis(tx, aReserver, session.sub) : [];
 
       await tx.historiqueStatutCommande.createMany({
         data: colis.map((c) => ({

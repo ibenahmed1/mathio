@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { parseVariante, skuDejaPris, type VarianteInput } from '@/lib/stock-sku';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
 
 async function getOwnMarchand(utilisateurId: string) {
   const marchand = await resolveMarchandForUser(utilisateurId);
@@ -92,7 +93,8 @@ export async function POST(request: Request) {
       throw new ApiError(409, `Référence déjà utilisée dans votre stock : ${pris}`);
     }
 
-    const produit = await prisma.produit.create({
+    const produit = await prisma.$transaction(async (tx) => {
+    const cree = await tx.produit.create({
       data: {
         marchandId: marchand.id,
         nom,
@@ -110,6 +112,20 @@ export async function POST(request: Request) {
         },
       },
       include: { variantes: true },
+    });
+    // La quantité saisie est de l'ANNONCÉ : elle ne devient du stock qu'à la
+    // réception en entrepôt.
+    await journaliserMouvements(tx, [
+      { type: 'annonce', produitId: cree.id, quantite: cree.quantiteEnCours, utilisateurId: session.sub },
+      ...cree.variantes.map((v) => ({
+        type: 'annonce' as const,
+        produitId: cree.id,
+        varianteId: v.id,
+        quantite: v.quantiteEnCours,
+        utilisateurId: session.sub,
+      })),
+    ]);
+    return cree;
     });
 
     return NextResponse.json(produit, { status: 201 });

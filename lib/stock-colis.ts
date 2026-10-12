@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@/app/generated/prisma/client';
 import { ApiError } from '@/lib/api-utils';
 import { lignesEffectives, regrouperBesoinsStock, type ColisBesoin, type MouvementStockSortant } from '@/lib/stock-quantites';
+import { journaliserMouvements, type NouveauMouvement } from '@/lib/stock-mouvements';
 
 // § Gestion de stock — le stock vu depuis un colis.
 //
@@ -24,6 +25,7 @@ const UNITE_PRODUIT = { select: { nom: true, variantesActivees: true } } as cons
 const SELECT_CONTENU_STOCK = {
   id: true,
   codeSuivi: true,
+  marchandId: true,
   quantite: true,
   produitId: true,
   varianteId: true,
@@ -36,7 +38,31 @@ const SELECT_CONTENU_STOCK = {
 
 async function chargerContenuStock(db: Db, ids: string[]): Promise<ColisBesoin[]> {
   const colis = await db.commande.findMany({ where: { id: { in: ids } }, select: SELECT_CONTENU_STOCK });
-  return colis.map((c) => ({ id: c.id, codeSuivi: c.codeSuivi, lignes: lignesEffectives(c) }));
+  return colis.map((c) => ({ id: c.id, codeSuivi: c.codeSuivi, marchandId: c.marchandId, lignes: lignesEffectives(c) }));
+}
+
+// Une ligne de journal par ligne de colis puisant dans le stock : c'est à ce
+// grain que se lit « quel vendeur a consommé quoi » (§ stock commun).
+function mouvementsDuContenu(
+  colis: ColisBesoin[],
+  type: 'sortie_colis' | 'retour_colis',
+  utilisateurId: string,
+  motif: string | null = null
+): NouveauMouvement[] {
+  return colis.flatMap((c) =>
+    c.lignes
+      .filter((l) => l.produitId && l.produit)
+      .map((l) => ({
+        type,
+        produitId: l.produitId!,
+        varianteId: l.produit!.variantesActivees ? l.varianteId : null,
+        quantite: type === 'sortie_colis' ? -l.quantite : l.quantite,
+        commandeId: c.id,
+        marchandId: c.marchandId ?? null,
+        utilisateurId,
+        motif,
+      }))
+  );
 }
 
 // Valide le couple produit/variante d'un colis dans le périmètre du marchand
@@ -115,8 +141,12 @@ export async function reserverStockColis(
     );
     await tx.historiqueProduit.createMany({ data: lignes });
   }
+  await journaliserMouvements(tx, mouvementsDuContenu(colis, 'sortie_colis', utilisateurId));
 
-  await tx.commande.updateMany({ where: { id: { in: colis.map((c) => c.id) } }, data: { stockReserveLe: new Date() } });
+  await tx.commande.updateMany({
+    where: { id: { in: colis.map((c) => c.id) } },
+    data: { stockReserveLe: new Date(), enAttenteStock: false },
+  });
   return mouvements;
 }
 
@@ -162,6 +192,7 @@ export async function reintegrerStockColis(tx: Prisma.TransactionClient, command
       },
     });
   }
+  await journaliserMouvements(tx, mouvementsDuContenu([colis], 'retour_colis', utilisateurId, motif));
 }
 
 async function libelleUnite(db: Db, type: 'produit' | 'variante', id: string, produitId: string): Promise<string> {

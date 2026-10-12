@@ -5,6 +5,7 @@ import { nextCodeSuivi } from '../lib/codes';
 import { reserverStockColis, reintegrerStockColis, verifierUniteStock } from '../lib/stock-colis';
 import { resoudreSku, skuDejaPris } from '../lib/stock-sku';
 import { notifierStockBas } from '../lib/notifications';
+import { servirColisEnAttente, tenterReservation } from '../lib/stock-reservation';
 
 // Audit local du stock par variante (§ Gestion de stock), sur la vraie base :
 // `npx tsx scripts/test-stock-variantes-audit.ts`. Exerce les fonctions que
@@ -62,6 +63,7 @@ async function main() {
   const rouge = robe.variantes.find((v) => v.nom === 'Rouge')!;
   const bleu = robe.variantes.find((v) => v.nom === 'Bleu')!;
   const colisIds: string[] = [];
+  const autresProduits: string[] = [];
   const lampe = await prisma.produit.create({
     data: { marchandId: marchand.id, nom: `${PREFIXE} Lampe`, reference: `${PREFIXE}-LAMPE`, statutReception: 'recu', quantiteRecue: 12 },
   });
@@ -226,12 +228,46 @@ async function main() {
       await notifierStockBas(await prisma.$transaction((tx) => reserverStockColis(tx, [c], admin.id)));
       assert.equal(await alertes(), 1);
     });
+
+    console.log('8. Journal des mouvements');
+    await verifie('chaque sortie et chaque retour de colis laisse sa ligne, au nom du vendeur', async () => {
+      const sorties = await prisma.mouvementStock.findMany({ where: { commandeId: multi.id, type: 'sortie_colis' } });
+      assert.equal(sorties.length, 2);
+      assert.ok(sorties.every((m) => m.marchandId === marchand.id && m.quantite < 0));
+      assert.deepEqual(sorties.map((m) => m.quantite).sort((x, y) => x - y), [-3, -1]);
+      const retours = await prisma.mouvementStock.findMany({ where: { commandeId: multi.id, type: 'retour_colis' } });
+      assert.deepEqual(retours.map((m) => m.quantite).sort((x, y) => x - y), [1, 3]);
+    });
+
+    console.log('9. Réservation à l’arrivée et colis en attente de stock');
+    const vase = await prisma.produit.create({
+      data: { marchandId: marchand.id, nom: `${PREFIXE} Vase`, reference: `${PREFIXE}-VASE`, statutReception: 'recu', quantiteRecue: 1 },
+    });
+    autresProduits.push(vase.id);
+    const attend = await creerColis({ quantite: 2, lignes: [{ produitId: vase.id, libelle: 'Vase', quantite: 2 }] });
+    await verifie('stock insuffisant à l’arrivée : le colis est accepté et marqué en attente, rien décrémenté', async () => {
+      const issue = await tenterReservation(attend.id, admin.id);
+      assert.equal(issue.reserve, false);
+      const c = await prisma.commande.findUniqueOrThrow({ where: { id: attend.id } });
+      assert.equal(c.enAttenteStock, true);
+      assert.equal(c.stockReserveLe, null);
+      assert.equal((await prisma.produit.findUniqueOrThrow({ where: { id: vase.id } })).quantiteRecue, 1);
+    });
+    await verifie('la réception suivante sert le colis en attente', async () => {
+      await prisma.produit.update({ where: { id: vase.id }, data: { quantiteRecue: { increment: 5 } } });
+      const servis = await servirColisEnAttente([vase.id], admin.id);
+      assert.equal(servis, 1);
+      const c = await prisma.commande.findUniqueOrThrow({ where: { id: attend.id } });
+      assert.equal(c.enAttenteStock, false);
+      assert.ok(c.stockReserveLe);
+      assert.equal((await prisma.produit.findUniqueOrThrow({ where: { id: vase.id } })).quantiteRecue, 4);
+    });
   } finally {
     await prisma.notification.deleteMany({ where: { type: 'stock.bas', lien: `/admin/stock/inventaire/${lampe.id}` } });
     await prisma.commentaireCommande.deleteMany({ where: { commandeId: { in: colisIds } } });
     await prisma.historiqueStatutCommande.deleteMany({ where: { commandeId: { in: colisIds } } });
     await prisma.commande.deleteMany({ where: { id: { in: colisIds } } });
-    await prisma.produit.deleteMany({ where: { id: { in: [robe.id, mug.id, lampe.id] } } });
+    await prisma.produit.deleteMany({ where: { id: { in: [robe.id, mug.id, lampe.id, ...autresProduits] } } });
   }
 
   console.log(`\n${reussis} réussi(s), ${echoues} échoué(s)`);

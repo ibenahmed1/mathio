@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
+import { servirColisEnAttente } from '@/lib/stock-reservation';
 
 // Validation de réception par l'admin : déplace tout ou partie de la
 // quantité "en cours" (saisie par le marchand) vers "reçue" (vérifiée
@@ -41,7 +43,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await tx.historiqueProduit.create({
         data: { produitId: id, texte: `${quantite}, ${produit.nom} a été reçu`, utilisateurId: session.sub },
       });
+      await journaliserMouvements(tx, [
+        { type: 'reception', produitId: id, quantite, utilisateurId: session.sub },
+      ]);
     });
+
+    // Du stock vient d'entrer : les colis de plateforme qui l'attendaient
+    // sont servis, dans leur ordre d'arrivée (§ lib/stock-reservation.ts).
+    await servirColisEnAttente([id], session.sub);
 
     const produitMisAJour = await prisma.produit.findUnique({ where: { id }, include: { variantes: true } });
     return NextResponse.json(produitMisAJour);

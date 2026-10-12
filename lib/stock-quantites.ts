@@ -129,6 +129,9 @@ export interface LigneBesoin {
 export interface ColisBesoin {
   id: string;
   codeSuivi: string;
+  // Vendeur du colis : c'est lui que le journal des mouvements retient pour
+  // une sortie ou un retour (§ stock commun d'une plateforme).
+  marchandId?: string | null;
   lignes: LigneBesoin[];
 }
 

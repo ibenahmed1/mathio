@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { journaliserMouvements } from '@/lib/stock-mouvements';
 import { notifierStockBas } from '@/lib/notifications';
 import { stockReelUnite } from '@/lib/stock-colis';
 
@@ -40,6 +41,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           utilisateurId: session.sub,
         },
       });
+      await journaliserMouvements(tx, [
+        { type: 'retrait', produitId: variante.produitId, varianteId: id, quantite: -quantite, utilisateurId: session.sub },
+      ]);
 
       const apres = await stockReelUnite(tx, 'variante', id);
       return { unite: { type: 'variante' as const, id }, produitId: variante.produitId, avant: apres + quantite, apres };
