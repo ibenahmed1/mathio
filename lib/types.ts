@@ -23,6 +23,12 @@ export interface Commande {
   fragile: boolean;
   aRemplacer: boolean;
   enStock: boolean;
+  // Origine du colis : `api` pour un colis déposé par une plateforme
+  // partenaire (Shipeh), qui porte alors sa référence chez elle.
+  source?: 'manuel' | 'import_csv' | 'api';
+  codeSuiviPartenaire?: string | null;
+  // § Stock commun : accepté sans stock suffisant, servi à la prochaine réception.
+  enAttenteStock?: boolean;
   montantCod: string;
   poidsKg: string | null;
   statut:

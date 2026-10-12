@@ -1135,6 +1135,51 @@ async function main() {
     if (JSON.stringify(conso) !== '[1,2]') throw new Error(`consommation ${JSON.stringify(conso)} au lieu de [1,2]`);
   });
 
+  await verifie('supprimer un colis Shipeh encore « Nouveau colis » rend son stock', async () => {
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    const avant = commun.quantiteRecue;
+    attendu(await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-SUPPR`, mA.idExterne, { produits: [{ sku: SKU_COMMUN, quantite: 1 }] })), 201);
+    const c = await prisma.commande.findFirstOrThrow({ where: { codeSuiviPartenaire: `${PREFIXE}-COM-SUPPR` } });
+    if ((await prisma.produit.findUniqueOrThrow({ where: { id: commun.id } })).quantiteRecue !== avant - 1) throw new Error('stock non retiré à l’arrivée');
+    attendu(await entrepot.api('DELETE', `/api/commandes/${c.id}`), 200);
+    const apres = await prisma.produit.findUniqueOrThrow({ where: { id: commun.id } });
+    if (apres.quantiteRecue !== avant) throw new Error(`stock ${apres.quantiteRecue} au lieu de ${avant} après suppression`);
+    const retour = await prisma.mouvementStock.findFirst({ where: { produitId: commun.id, type: 'retour_colis', motif: { contains: 'suppression' } } });
+    if (!retour) throw new Error('retour de stock non journalisé');
+  });
+
+  await verifie('annuler un colis Shipeh puis remettre son stock en rayon', async () => {
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    const avant = commun.quantiteRecue;
+    attendu(await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-ANNUL`, mA.idExterne, { produits: [{ sku: SKU_COMMUN, quantite: 1 }] })), 201);
+    const c = await prisma.commande.findFirstOrThrow({ where: { codeSuiviPartenaire: `${PREFIXE}-COM-ANNUL` } });
+    attendu(await entrepot.api('PATCH', `/api/commandes/${c.id}/statut`, { statut: 'annule' }), 400);
+    attendu(await entrepot.api('PATCH', `/api/commandes/${c.id}/statut`, { statut: 'annule', motifRetour: 'Simulation : annulé par Shipeh' }), 200);
+    attendu(await entrepot.api('POST', `/api/commandes/${c.id}/reintegrer-stock`, { motif: 'annulation' }), 200);
+    const apres = await prisma.produit.findUniqueOrThrow({ where: { id: commun.id } });
+    if (apres.quantiteRecue !== avant) throw new Error(`stock ${apres.quantiteRecue} au lieu de ${avant} après annulation`);
+  });
+
+  await verifie('le contenu d’un colis dit d’où sort chaque produit', async () => {
+    const r = await entrepot.api('GET', `/api/commandes/${colisAttente}/lignes`);
+    attendu(r, 200);
+    const [ligne] = r.json?.lignes as { provenance: string; plateforme: string | null }[];
+    if (ligne?.provenance !== 'stock_plateforme' || !ligne.plateforme) throw new Error(`ligne : ${JSON.stringify(ligne)}`);
+  });
+
+  await verifie('le vendeur voit dans son inventaire le stock commun qu’il vend, avec ses ventes', async () => {
+    const vendeur = creerClient('marchand');
+    attendu(await vendeur.api('POST', '/api/auth/login', { telephone: mA.email, secret: mA.motDePasse }), 200);
+    const r = await vendeur.api('GET', '/api/produits/communs');
+    attendu(r, 200);
+    const u = (r.json?.data as { sku: string; enCours: number; disponible: number }[]).find((x) => x.sku === SKU_COMMUN);
+    const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
+    if (!u || u.enCours !== 2 || u.disponible !== commun.quantiteRecue) throw new Error(`vue vendeur : ${JSON.stringify(u)}`);
+    // Son inventaire personnel ne mélange pas le stock commun.
+    const perso = await vendeur.api('GET', '/api/produits');
+    if ((perso.json?.data as { reference: string }[]).some((p) => p.reference === SKU_COMMUN)) throw new Error('stock commun dans l’inventaire personnel');
+  });
+
   // ----------------------------------------------------------
   console.log('\n7. Quota');
 

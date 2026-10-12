@@ -179,6 +179,7 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // NON MAPPÉ — /api/commandes/*/relancer : réservé au marchand.
   { pattern: '/api/commandes/*/relancer', permission: null },
   { pattern: '/api/commandes/*/commentaires', permission: 'colis:read' },
+  { pattern: '/api/commandes/*/lignes', permission: 'colis:read' },
   { pattern: '/api/commandes/*', permission: 'colis:read', methods: SAFE_METHODS },
   { pattern: '/api/commandes/*', permission: 'colis:delete', methods: ['DELETE'] },
   { pattern: '/api/commandes/*', permission: 'colis:update' },

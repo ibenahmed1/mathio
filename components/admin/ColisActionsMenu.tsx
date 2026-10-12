@@ -17,15 +17,16 @@ import {
   Sparkles,
   Trash2,
   PackagePlus,
+  Ban,
 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost, apiDelete } from '@/lib/api-client';
 import type { Commande, Marchandise } from '@/lib/types';
-import { LABELS_STATUT_COMMANDE, STATUTS_NON_LIVRAISON } from '@/lib/statuts';
+import { LABELS_STATUT_COMMANDE, STATUTS_NON_LIVRAISON, STATUTS_TERMINAUX } from '@/lib/statuts';
 import { Modal } from '@/components/admin/Modal';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
 import { ColisInfoModal } from '@/components/admin/ColisInfoModal';
 import { ProduitSelect } from '@/components/ProduitSelect';
-import { colisReintegrable } from '@/lib/stock-quantites';
+import { colisReintegrable, stockColisVerrouille } from '@/lib/stock-quantites';
 import { ChampVille } from '@/components/form/ChampVille';
 import { ActionsMenuPanel, actionsMenuItemClass, actionsMenuItemDangerClass } from '@/components/ActionsMenuPanel';
 
@@ -40,6 +41,7 @@ type ActionKey =
   | 'remboursement'
   | 'commentaire'
   | 'reintegrer'
+  | 'annuler'
   | 'supprimer';
 
 const ACTIONS: { key: ActionKey; label: string; icon: typeof Info }[] = [
@@ -86,6 +88,12 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
   const [nonLivreStatut, setNonLivreStatut] = useState(STATUTS_NON_LIVRAISON[0]);
   const [texte, setTexte] = useState('');
   const [cinFile, setCinFile] = useState<string | null>(null);
+  // Annulation d'un colis de plateforme : son stock a été retiré dès son
+  // arrivée. Tant qu'il est « Nouveau colis », la marchandise n'a pas quitté
+  // le rayon — la remise en stock est alors proposée cochée.
+  const [rendreStock, setRendreStock] = useState(commande.statut === 'nouveau_colis');
+  const colisPlateforme = commande.source === 'api';
+  const stockRetire = stockColisVerrouille(commande);
 
   // Catalogue du marchand propriétaire de ce colis (pas celui de l'admin,
   // qui n'en a pas) — permet de réassigner une marchandise comme le ferait
@@ -199,9 +207,25 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
             <PackagePlus className="h-4 w-4" /> Réintégrer au stock
           </button>
         )}
+        {(commande.statut === 'nouveau_colis' ||
+          (colisPlateforme && !STATUTS_TERMINAUX.includes(commande.statut as never))) && (
+          <div className="my-1 border-t border-black/10 dark:border-white/10" />
+        )}
+        {/* § Colis de plateforme (Shipeh) : ils arrivent confirmés, mais
+            l'annulation reste possible au cas où. */}
+        {colisPlateforme && !STATUTS_TERMINAUX.includes(commande.statut as never) && (
+          <button
+            onClick={() => {
+              setOpen(false);
+              setModal('annuler');
+            }}
+            className={actionsMenuItemDangerClass}
+          >
+            <Ban className="h-4 w-4" /> Annuler le colis
+          </button>
+        )}
         {commande.statut === 'nouveau_colis' && (
           <>
-            <div className="my-1 border-t border-black/10 dark:border-white/10" />
             <button
               onClick={() => {
                 setOpen(false);
@@ -577,11 +601,69 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
         </Modal>
       )}
 
+      {modal === 'annuler' && (
+        <Modal title="Annuler le colis" onClose={closeAll}>
+          <p className="text-sm">
+            Annuler le colis <span className="font-mono">{commande.codeSuivi}</span>
+            {commande.codeSuiviPartenaire && (
+              <>
+                {' '}
+                (référence plateforme <span className="font-mono">{commande.codeSuiviPartenaire}</span>)
+              </>
+            )}{' '}
+            ? La plateforme verra le statut « Annulé » à sa prochaine lecture.
+          </p>
+          <label className="flex flex-col gap-1 text-sm">
+            Motif
+            <textarea className="input-basic" rows={3} value={texte} onChange={(e) => setTexte(e.target.value)} />
+          </label>
+          {stockRetire && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={rendreStock}
+                onChange={(e) => setRendreStock(e.target.checked)}
+              />
+              <span>
+                Remettre son stock en rayon
+                <span className="block text-xs opacity-60">
+                  {commande.statut === 'nouveau_colis'
+                    ? 'Le colis n’a pas encore été préparé : sa marchandise est toujours en rayon.'
+                    : 'À cocher seulement si la marchandise est physiquement revenue en rayon.'}
+                </span>
+              </span>
+            </label>
+          )}
+          {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button className="btn-outline" onClick={closeAll} disabled={busy}>
+              Retour
+            </button>
+            <button
+              className="btn-danger-solid"
+              disabled={busy || !texte.trim()}
+              onClick={() =>
+                run(async () => {
+                  await apiPatch(`/api/commandes/${commande.id}/statut`, { statut: 'annule', motifRetour: texte.trim() });
+                  if (stockRetire && rendreStock) {
+                    await apiPost(`/api/commandes/${commande.id}/reintegrer-stock`, { motif: `annulation — ${texte.trim()}` });
+                  }
+                })
+              }
+            >
+              Annuler le colis
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {modal === 'supprimer' && (
         <Modal title="Supprimer le colis" onClose={closeAll}>
           <p className="text-sm">
             Supprimer définitivement le colis <span className="font-mono">{commande.codeSuivi}</span> ? Cette action est
             irréversible.
+            {stockRetire && ' Son stock, déjà retiré, sera remis en rayon.'}
           </p>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
           <div className="flex justify-end gap-2">

@@ -4,7 +4,8 @@ import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
 import { STATUTS_AVANT_COLLECTE } from '@/lib/statuts';
-import { verifierUniteStock } from '@/lib/stock-colis';
+import { reintegrerStockColis, verifierUniteStock } from '@/lib/stock-colis';
+import { produitsDuColis, servirColisEnAttente } from '@/lib/stock-reservation';
 import { stockColisVerrouille } from '@/lib/stock-quantites';
 import { chargerReferentielRoutage, chargerResolveurTransporteur } from '@/lib/hub-envoi';
 
@@ -289,11 +290,21 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       throw new ApiError(400, 'Seul un colis au statut "Nouveau Colis" peut être supprimé — annulez-le sinon');
     }
 
-    await prisma.$transaction([
-      prisma.historiqueStatutCommande.deleteMany({ where: { commandeId: id } }),
-      prisma.commentaireCommande.deleteMany({ where: { commandeId: id } }),
-      prisma.commande.delete({ where: { id } }),
-    ]);
+    const rendus = stockColisVerrouille(commande) ? await produitsDuColis(id) : [];
+    await prisma.$transaction(async (tx) => {
+      // Un colis de plateforme retire son stock dès son arrivée (§ stock
+      // commun, 12/10/2026). Encore « Nouveau colis », il n'a pas quitté le
+      // rayon : le supprimer rend ses unités, sinon elles disparaîtraient du
+      // stock sans colis pour les expliquer.
+      if (stockColisVerrouille(commande)) {
+        await reintegrerStockColis(tx, id, session.sub, `suppression du colis ${commande.codeSuivi}`);
+      }
+      await tx.historiqueStatutCommande.deleteMany({ where: { commandeId: id } });
+      await tx.commentaireCommande.deleteMany({ where: { commandeId: id } });
+      await tx.commande.delete({ where: { id } });
+    });
+    // Les unités rendues servent peut-être des colis qui les attendaient.
+    await servirColisEnAttente(rendus, session.sub);
 
     return NextResponse.json({ success: true });
   } catch (error) {

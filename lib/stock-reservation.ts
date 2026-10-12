@@ -45,6 +45,18 @@ export async function tenterReservation(commandeId: string, utilisateurId: strin
   }
 }
 
+// Produits dont un colis consomme du stock (ses lignes, ou l'ancien produit
+// unique) : ce que sa suppression ou sa réintégration rend au rayon.
+export async function produitsDuColis(commandeId: string): Promise<string[]> {
+  const colis = await prisma.commande.findUnique({
+    where: { id: commandeId },
+    select: { produitId: true, lignes: { select: { produitId: true } } },
+  });
+  if (!colis) return [];
+  const ids = [colis.produitId, ...colis.lignes.map((l) => l.produitId)].filter((id): id is string => id !== null);
+  return [...new Set(ids)];
+}
+
 // Après une réception : sert, dans l'ordre d'arrivée, les colis en attente
 // qui contiennent l'un des produits reçus. Un colis qui ne peut toujours pas
 // être servi reste en attente sans bloquer les suivants (il lui manque
