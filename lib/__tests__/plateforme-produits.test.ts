@@ -12,6 +12,7 @@ const SIMPLE = {
   nom: 'Mug blanc',
   reference: 'MUG-01',
   quantiteEnCours: 20,
+  photoUrl: 'https://cdn.exemple.ma/mug.jpg',
 };
 
 const A_VARIANTES = {
@@ -19,6 +20,7 @@ const A_VARIANTES = {
   nom: 'Robe d’été',
   reference: 'PRD-K7M2Q9XA',
   note: 'Tissu léger, lavage à 30°',
+  photoUrl: 'https://cdn.exemple.ma/robe.jpg',
   variantesActivees: true,
   variantes: [
     { nom: 'Rouge / M', reference: 'PRD-K7M2Q9XA-ROUGE-M', quantiteEnCours: 10 },
@@ -43,7 +45,7 @@ test('un produit simple porte sa quantité annoncée', () => {
   assert.equal(p.variantesActivees, false);
   assert.deepEqual(p.variantes, []);
   assert.equal(p.note, null);
-  assert.equal(p.photoUrl, null);
+  assert.equal(p.photoUrl, 'https://cdn.exemple.ma/mug.jpg');
 });
 
 test('un produit à variantes : le stock vit sur les variantes, le produit reste à 0', () => {
@@ -95,6 +97,12 @@ test('un SKU ne peut servir deux fois dans la requête, produit compris, sans ca
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: [...A_VARIANTES.variantes, doublon] }), 'sku_duplique');
   const commeProduit = { nom: 'Même SKU', reference: 'PRD-K7M2Q9XA', quantiteEnCours: 1 };
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: [commeProduit] }), 'sku_duplique');
+});
+
+test('la photo est obligatoire', () => {
+  const { photoUrl: _p, ...sansPhoto } = SIMPLE;
+  assert.equal(codeRefus(sansPhoto), 'champ_requis');
+  assert.equal(codeRefus({ ...SIMPLE, photoUrl: '   ' }), 'champ_requis');
 });
 
 test('la photo est une URL https ou une image embarquée, rien d’autre', () => {

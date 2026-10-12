@@ -293,8 +293,11 @@ const SKU_ROBE = `${PREFIXE}-ROBE`;
 const SKU_ROBE_ROUGE = `${PREFIXE}-ROBE-ROUGE`;
 const SKU_ROBE_BLEU = `${PREFIXE}-ROBE-BLEU`;
 
+// Photo obligatoire pour un produit déclaré par une plateforme (12/10/2026).
+const PHOTO = 'https://cdn.exemple.ma/simulation.jpg';
+
 function produitSimple(idExterneMarchand: string, sku = SKU_MUG, quantiteEnCours = 20) {
-  return { idExterneMarchand, nom: `${PREFIXE} Mug`, reference: sku, quantiteEnCours };
+  return { idExterneMarchand, nom: `${PREFIXE} Mug`, reference: sku, quantiteEnCours, photoUrl: PHOTO };
 }
 
 function colis(reference: string, idExterneMarchand: string, surcharges: Record<string, unknown> = {}) {
@@ -551,6 +554,7 @@ async function main() {
   await verifie('déclarer un produit à variantes : chaque variante a son SKU et sa quantité', async () => {
     const r = await appel('POST', '/api/v1/produits', a.cleLive, {
       idExterneMarchand: mA.idExterne,
+      photoUrl: PHOTO,
       nom: `${PREFIXE} Robe`,
       reference: SKU_ROBE,
       note: 'Tissu léger',
@@ -573,6 +577,7 @@ async function main() {
   await verifie('produit à variantes sans SKU propre : 201, une référence interne lui est attribuée', async () => {
     const r = await appel('POST', '/api/v1/produits', a.cleLive, {
       idExterneMarchand: mA.idExterne,
+      photoUrl: PHOTO,
       nom: `${PREFIXE} Veste`,
       variantesActivees: true,
       variantes: VARIANTES_SANS_SKU,
@@ -584,6 +589,7 @@ async function main() {
   await verifie('son rejeu est reconnu à ses variantes : 200, rien d’ajouté', async () => {
     const r = await appel('POST', '/api/v1/produits', a.cleLive, {
       idExterneMarchand: mA.idExterne,
+      photoUrl: PHOTO,
       nom: `${PREFIXE} Veste`,
       variantesActivees: true,
       variantes: VARIANTES_SANS_SKU.map((v) => ({ ...v, quantiteEnCours: 99 })),
@@ -599,6 +605,7 @@ async function main() {
   await verifie('une variante d’un produit existant mêlée à une nouvelle : 409, pas un rejeu', async () => {
     const r = await appel('POST', '/api/v1/produits', a.cleLive, {
       idExterneMarchand: mA.idExterne,
+      photoUrl: PHOTO,
       nom: `${PREFIXE} Veste bis`,
       variantesActivees: true,
       variantes: [VARIANTES_SANS_SKU[0], { nom: 'Noir / L', reference: `${PREFIXE}-VESTE-NOIR-L`, quantiteEnCours: 1 }],
@@ -617,6 +624,8 @@ async function main() {
 
   await verifie('sans le droit produits:creation : 403', async () => {
     attendu(await appel('POST', '/api/v1/produits', a.cleSansScopeColis, produitSimple(mA.idExterne)), 403, 'scope_manquant');
+    const { photoUrl: _photo, ...sansPhoto } = produitSimple(mA.idExterne, `${PREFIXE}-SANS-PHOTO`);
+    attendu(await appel('POST', '/api/v1/produits', a.cleLive, sansPhoto), 400, 'champ_requis');
   });
 
   await verifie('produit pour un marchand inconnu : 404', async () => {
@@ -985,7 +994,7 @@ async function main() {
 
   const SKU_COMMUN = `${PREFIXE}-COMMUN-MUG`;
   await verifie('un produit sans idExterneMarchand rejoint le stock commun', async () => {
-    const r = await appel('POST', '/api/v1/produits', a.cleLive, { nom: `${PREFIXE} Mug commun`, reference: SKU_COMMUN, quantiteEnCours: 0 });
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, { photoUrl: PHOTO, nom: `${PREFIXE} Mug commun`, reference: SKU_COMMUN, quantiteEnCours: 0 });
     attendu(r, 201);
     if (r.json?.stockCommun !== true) throw new Error('stockCommun devrait être vrai');
     const p = await prisma.produit.findUnique({ where: { id: String(r.json?.produitId) } });
@@ -1077,7 +1086,7 @@ async function main() {
   });
 
   await verifie('le stock commun du bac à sable reste séparé de la production', async () => {
-    attendu(await appel('POST', '/api/v1/produits', a.cleTest, { nom: 'Mug test', reference: `${PREFIXE}-COMMUN-TEST`, quantiteEnCours: 3 }), 201);
+    attendu(await appel('POST', '/api/v1/produits', a.cleTest, { photoUrl: PHOTO, nom: 'Mug test', reference: `${PREFIXE}-COMMUN-TEST`, quantiteEnCours: 3 }), 201);
     const vu = await appel('GET', '/api/v1/stock', a.cleLive);
     if ((vu.json?.stock as { sku: string }[]).some((l) => l.sku === `${PREFIXE}-COMMUN-TEST`)) throw new Error('fuite test → live');
   });

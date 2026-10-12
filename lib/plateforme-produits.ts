@@ -51,7 +51,7 @@ export interface EntreeProduitExterne {
   // null : produit à variantes déclaré sans SKU propre (cf. analyserEntreeProduit).
   reference: string | null;
   note: string | null;
-  photoUrl: string | null;
+  photoUrl: string;
   variantesActivees: boolean;
   // 0 pour un produit à variantes : le stock vit alors sur ses variantes.
   quantiteEnCours: number;
@@ -81,9 +81,10 @@ function quantite(valeur: unknown, libelle: string): number {
 
 // Une URL web, ou une image embarquée (comme le formulaire marchand, qui
 // envoie la photo en data URL) — rien d'autre ne s'affiche dans un <img>.
-function photo(corps: Record<string, unknown>): string | null {
-  const valeur = texte(corps, 'photoUrl');
-  if (!valeur) return null;
+// Obligatoire pour un produit déclaré par une plateforme (décision du
+// 12/10/2026) ; le formulaire marchand, lui, la laisse facultative.
+function photo(corps: Record<string, unknown>): string {
+  const valeur = requis(corps, 'photoUrl');
   if (/^https?:\/\//i.test(valeur)) return valeur;
   if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(valeur)) {
     if (Buffer.byteLength(valeur, 'utf8') > PHOTO_OCTETS_MAX) {

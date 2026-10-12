@@ -4,7 +4,13 @@ Documentation destinée aux **développeurs de Shipeh**. Elle décrit tout ce qu
 envoyer à Mathio Delivery vos marchands, le stock que vous déposez dans notre entrepôt, et vos
 colis.
 
-Version 2.2 — octobre 2026
+Version 2.3 — octobre 2026
+
+### Ce qui change depuis la version 2.2
+
+| | |
+|---|---|
+| **Produits** (§5) | `photoUrl` devient **obligatoire** : un produit déclaré sans photo est refusé (`400 champ_requis`) |
 
 ### Ce qui change depuis la version 2.1
 
@@ -266,7 +272,7 @@ quand le produit lui est personnel.
 | `reference` | **Votre SKU** du produit. **Requis pour un produit sans variantes** (c'est son unité de stock). **Facultatif pour un produit à variantes** : à défaut, nous lui attribuons une référence interne (`PRD-…`), renvoyée dans la réponse, dont vous n'avez pas à vous servir |
 | `quantiteEnCours` | **Requis pour un produit sans variantes.** Quantité envoyée à notre entrepôt, entier positif ou nul |
 | `note` | Texte libre |
-| `photoUrl` | URL `https://…`, ou image embarquée `data:image/…;base64,…` de 2 Mo au plus |
+| `photoUrl` | **Requis.** URL `https://…`, ou image embarquée `data:image/…;base64,…` de 2 Mo au plus |
 | `variantesActivees` | Booléen, défaut `false`. À `true`, le stock est suivi **variante par variante** |
 | `variantes` | Requis si `variantesActivees` vaut `true` : tableau de `{ "nom", "reference", "quantiteEnCours" }`, chaque variante avec **son propre SKU** |
 
@@ -289,13 +295,13 @@ quand le produit lui est personnel.
 Un produit sans variantes, personnel :
 
 ```json
-{ "idExterneMarchand": "SHIPEH-1", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20 }
+{ "idExterneMarchand": "SHIPEH-1", "nom": "Mug blanc", "reference": "MUG-01", "quantiteEnCours": 20, "photoUrl": "https://cdn.exemple.ma/mug.jpg" }
 ```
 
 Un produit du stock commun :
 
 ```json
-{ "nom": "Gourde inox", "reference": "GOURDE-01", "quantiteEnCours": 100 }
+{ "nom": "Gourde inox", "reference": "GOURDE-01", "quantiteEnCours": 100, "photoUrl": "https://cdn.exemple.ma/gourde.jpg" }
 ```
 
 **Produit à variantes : ce sont les SKU des variantes qui comptent.** Chaque variante est une
@@ -349,7 +355,7 @@ s'annoncent par `POST /v1/stock/envois` (§6) : redéclarer le produit ne change
 | `404` | `marchand_inconnu` | Aucun marchand synchronisé sous cet identifiant, dans l'environnement de votre clé |
 | `409` | `sku_deja_utilise` | Un des SKU désigne déjà un **autre** produit (ou une de ses variantes), dans votre stock commun ou chez un de vos marchands |
 | `400` | `sku_duplique` | Le même SKU apparaît deux fois dans la requête (produit compris) |
-| `400` | `champ_requis` · `quantite_invalide` · `photo_invalide` · `variantes_trop_nombreuses` | Le message nomme le champ |
+| `400` | `champ_requis` · `quantite_invalide` · `photo_invalide` · `variantes_trop_nombreuses` | Le message nomme le champ (`photoUrl` absent : `champ_requis`) |
 | `403` | `scope_manquant` | Votre clé n'a pas le droit `produits:creation` |
 
 ---
@@ -1007,7 +1013,7 @@ renvoyé. **Ne nous envoyez jamais un mot de passe de marchand** par email ou me
 
 ```
 POST /api/v1/marchands     synchroniser un marchand
-POST /api/v1/produits      déclarer un produit : sans idExterneMarchand = stock commun
+POST /api/v1/produits      déclarer un produit (photoUrl obligatoire) : sans idExterneMarchand = stock commun
 POST /api/v1/stock/envois  annoncer un arrivage : referenceEnvoi, lignes [{ sku, quantite }]
 GET  /api/v1/stock         votre stock ; ?idExterneMarchand=… : celui d'un marchand + sa consommation
 POST /api/v1/colis         déposer un colis : produits [{ sku, quantite }] obligatoire
