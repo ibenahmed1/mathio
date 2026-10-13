@@ -286,6 +286,7 @@ export default function AdminCommandesPage() {
                   </td>
                   <td>
                     <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
+                    {c.transitVers && <p className="mt-1 text-xs opacity-60">vers {c.transitVers}</p>}
                   </td>
                   <td>
                     <div className="flex flex-wrap gap-1">

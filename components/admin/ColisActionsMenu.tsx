@@ -190,6 +190,15 @@ export function ColisActionsMenu({ commande, onChanged }: { commande: Commande; 
         <button
           onClick={() => {
             setOpen(false);
+            window.open(`/etiquettes?ids=${commande.id}`, '_blank');
+          }}
+          className={actionsMenuItemClass}
+        >
+          <Printer className="h-4 w-4" /> Imprimer étiquette (QR)
+        </button>
+        <button
+          onClick={() => {
+            setOpen(false);
             window.open(`/admin/colis/${commande.id}/e-ticket`, '_blank');
           }}
           className={actionsMenuItemClass}

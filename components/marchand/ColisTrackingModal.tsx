@@ -21,6 +21,9 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
   }, [commandeId]);
 
   const historique = commande?.historique ?? [];
+  // Dernier vrai changement de statut : une ligne sans changement (ajout à un
+  // bon d'envoi…) n'est pas l'« état actuel ».
+  const dernierChangement = historique.map((h) => h.ancienStatut !== h.nouveauStatut).lastIndexOf(true);
 
   return (
     <Modal title={commande ? `Suivi — ${commande.codeSuivi}` : 'Suivi du colis'} onClose={onClose}>
@@ -49,7 +52,8 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
 
           <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
             {historique.map((h, i) => {
-              const isCurrent = i === historique.length - 1;
+              const isCurrent = i === dernierChangement;
+              const information = h.ancienStatut === h.nouveauStatut;
               return (
                 <li key={h.id} className="relative">
                   <span
@@ -63,7 +67,11 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
                   </span>
                   <div className={isCurrent ? 'rounded-lg border border-brand/40 bg-brand/5 p-3' : ''}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatutBadge statut={h.nouveauStatut} />
+                      {information ? (
+                        <span className="badge bg-black/5 text-black/70 dark:bg-white/10 dark:text-white/70">Information</span>
+                      ) : (
+                        <StatutBadge statut={h.nouveauStatut} hubVille={h.hub?.ville} />
+                      )}
                       {isCurrent && <span className="text-xs font-bold uppercase tracking-wide text-brand">État actuel</span>}
                     </div>
                     {/* § Qui livre, pas seulement qui a agi : la note porte

@@ -345,7 +345,9 @@ avertissement bloquant — ou pas.
 6. Le transporteur vient chercher les colis, ou on les dépose chez lui ?
 7. Qu'est-ce qui est signé ou scanné à la remise ?
 8. Qui nous dit qu'un colis est livré ou refusé, sous quelle forme, et sous quel délai ?
-9. Le transporteur encaisse-t-il le COD ? Sous combien de jours le reverse-t-il ?
+9. ~~Le transporteur encaisse-t-il le COD ? Sous combien de jours le reverse-t-il ?~~ **Réglé le
+   13 octobre 2026** : il garde ses frais et reverse le reste, sous **24 h**, même règle pour les
+   7 transporteurs ; la dette naît à la livraison (§ Règlements transporteurs ci-dessous).
 10. Un colis refusé revient chez nous ou reste chez lui ? Qui paie ce retour ?
 11. Il facture au colis ou au mois ? Qui contrôle sa facture avant paiement ?
 
@@ -377,6 +379,24 @@ avertissement bloquant — ou pas.
 24. Le prix facturé au marchand est-il calculé depuis le coût du transporteur (marge fixe,
     pourcentage), ou négocié séparément ?
 25. Le marchand doit-il voir le nom du transporteur qui livre son colis ?
+
+### Règlements transporteurs — décidé le 13/10/2026, deux points en attente
+
+Décidé : le transporteur **garde ses frais** (tarif de sa grille pour la ville) et nous **reverse
+le reste** sous **24 h** ; on affiche pour chaque colis ce qu'on attend de lui ; la dette naît
+quand le colis passe **livré** ; on marque nous-mêmes les colis **payés**, photo du reçu bancaire
+facultative ; un versement peut couvrir plusieurs colis ; **toutes les villes doivent avoir un
+tarif** (alerte à l'écran sinon) ; même règle pour tous.
+
+**En attente de réponse — l'outil enregistre et affiche, sans rien décider :**
+
+26. **Versement différent de l'attendu** (il verse 2 000 DH, on attendait 2 150 DH) : l'écart
+    reste-t-il dû par le transporteur, est-ce une perte, une retenue à justifier ? En attendant,
+    l'écart est enregistré sur le versement et affiché, et les colis sont marqués payés.
+27. **Correction d'une erreur** : on sait corriger ou annuler un versement saisi par erreur, et un
+    colis remis « livré » à tort perd sa créance quand on corrige son statut. Reste à préciser si
+    « changer la destination » d'un colis non livré veut dire changer sa **ville** (et donc,
+    peut-être, son transporteur) depuis cet écran.
 
 ### Confort
 

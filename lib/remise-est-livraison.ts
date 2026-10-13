@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { ErreurPlateforme } from '@/lib/plateforme-auth';
 import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statut';
+import { chargerResolveurTransporteur } from '@/lib/hub-envoi';
+import { noteEnTransit, statutApresRemise, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import {
   ErreurColisEstLivraison,
   ErreurEstLivraison,
@@ -46,7 +48,8 @@ import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
 export const NOM_PRESTATAIRE_EST = 'EST Livraison';
 
 const STATUTS_REMETTABLES: readonly StatutCommande[] = ['en_transit', 'recu_au_hub'];
-const STATUT_REMIS: StatutCommande = 'expedier_par_amana';
+// Statut posé à la remise : « Expédié » (expedier_par_amana), ou « En transit »
+// pour un colis Shipeh (§ lib/circuit-shipeh.ts).
 
 export type IssueRemiseEst =
   | 'remis'
@@ -112,6 +115,9 @@ export async function remettreBonEnvoiEst(bonEnvoiId: string, auteurId: string):
           clientTelephone: true,
           adresse: true,
           montantCod: true,
+          source: true,
+          enStock: true,
+          villeId: true,
           ouvrir: true,
           fragile: true,
           aRemplacer: true,
@@ -131,6 +137,11 @@ export async function remettreBonEnvoiEst(bonEnvoiId: string, auteurId: string):
   // cherchée dans les agences du hub visé, ou de tout le réseau pour un bon
   // direct. Plusieurs identifiants différents → Excel, jamais au hasard.
   const agences = agencesARechercher({ hubNom: bon.hubDestination?.nom ?? null, prestataire: NOM_PRESTATAIRE_EST });
+
+  // Hub vers lequel un colis Shipeh part en transit : celui du bon, sinon
+  // celui que le routage retient pour sa ville.
+  const resoudre = await chargerResolveurTransporteur();
+  const hubTransit = (c: { ville: string; villeId: string | null }) => bon.hubDestination?.nom ?? resoudre(c)?.hubNom ?? null;
 
   const resultats: ResultatRemiseColis[] = [];
 
@@ -229,15 +240,16 @@ export async function remettreBonEnvoiEst(bonEnvoiId: string, auteurId: string):
     }
 
     let message = `Remis à ${NOM_PRESTATAIRE_EST} sous ${codeEnvoye}`;
-    const decision = deciderTransitionStatut(commande.statut, STATUT_REMIS);
+    const statutRemis = statutApresRemise(commande);
+    const decision = deciderTransitionStatut(commande.statut, statutRemis);
     if (decision.issue === 'applique') {
       try {
         await ecrireTransition({
           commandeId: commande.id,
           statutActuel: commande.statut,
-          nouveauStatut: STATUT_REMIS,
+          nouveauStatut: statutRemis,
           auteurId,
-          noteHistorique: `Remis à ${NOM_PRESTATAIRE_EST} par API sous ${codeEnvoye} (bon ${bon.numero})`,
+          noteHistorique: `Remis à ${NOM_PRESTATAIRE_EST} par API sous ${codeEnvoye} (bon ${bon.numero})${suitCircuitShipeh(commande) ? ` — ${noteEnTransit(hubTransit(commande))}` : ''}`,
           dateNouvelleLivraison: null,
           commentaire: null,
         });

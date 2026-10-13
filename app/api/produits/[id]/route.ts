@@ -23,7 +23,7 @@ async function findOwnProduit(id: string, utilisateurId: string) {
 }
 
 async function findProduitAccessible(id: string, session: SessionPayload) {
-  if (session.role === 'admin') {
+  if (session.role !== 'marchand') {
     const produit = await prisma.produit.findUnique({ where: { id } });
     if (!produit) throw new ApiError(404, 'Produit introuvable');
     return produit;

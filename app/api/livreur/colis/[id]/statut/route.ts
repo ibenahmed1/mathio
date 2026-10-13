@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { synchroniserCreancesSansErreur } from '@/lib/reglements-transporteurs';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } from '@/lib/types';
@@ -166,6 +167,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await notifierStatutsColis([{ commandeId: id, statut: nouveauStatut }], { sauf: session.sub });
     }
 
+    // § Règlements transporteurs : livré (ou correction) → créance tenue à jour.
+    await synchroniserCreancesSansErreur([updated.id]);
     return NextResponse.json(updated);
   } catch (error) {
     return jsonError(error);

@@ -437,6 +437,8 @@ model Utilisateur {
 
   // § Power Delivery : remises de colis qu'il a déclenchées.
   remisesPrestataire RemisePrestataire[] @relation("RemisePrestataireAuteur")
+  versementsTransporteurSaisis   VersementTransporteur[] @relation("VersementTransporteurAuteur")
+  versementsTransporteurAnnules  VersementTransporteur[] @relation("VersementTransporteurAnnulePar")
 
   // § Gestion de stock (/admin/stock/**) : admin ayant validé la préparation d'un bon.
   bonsPreparationValidees BonDePreparation[]
@@ -1007,6 +1009,9 @@ model ProduitVariante {
   quantiteEnCours Int     @default(0) @map("quantite_en_cours")
   quantiteRecue   Int     @default(0) @map("quantite_recue")
   rayonnage       String? @map("rayonnage")
+  // Photo propre à la variante : obligatoire quand une plateforme la déclare
+  // (POST /api/v1/produits, 12/10/2026), facultative depuis l'espace marchand.
+  photoUrl        String? @map("photo_url")
 
   commandes       Commande[]
   lignesEnvoi     EnvoiStockLigne[]
@@ -1235,6 +1240,8 @@ model Commande {
   // § Sous-traitance par API : les remises de ce colis à un prestataire, dont
   // une seule active à la fois (cf. RemisePrestataire).
   remisesPrestataire RemisePrestataire[]
+  // § Règlements transporteurs : ce que le transporteur nous doit pour ce colis livré.
+  creanceTransporteur CreanceTransporteur?
 
   // § Intégration Shopify : la commande Shopify dont ce colis est issu. Porte
   // le tag « Shopify » et l'idempotence des webhooks (cf. CommandeShopify).
@@ -1801,6 +1808,10 @@ model Prestataire {
   // qu'aucune de ses agences ne déclare encore.
   bonsEnvoi     BonEnvoi[]
   evenements    EvenementPrestataire[]
+  // § Règlements transporteurs (13/10/2026) : ce qu'il nous doit, colis par
+  // colis, et ce qu'il nous a versé.
+  creances      CreanceTransporteur[]
+  versements    VersementTransporteur[]
 
   @@map("prestataires")
 }
@@ -1930,6 +1941,15 @@ model RemisePrestataire {
   // Demandes soumises à leur équipe, qui les accepte ou les refuse de son côté.
   demandeRetourLe      DateTime? @map("demande_retour_le")
   demandeRelivraisonLe DateTime? @map("demande_relivraison_le")
+
+  // RETOUR DÉCLARÉ ≠ RETOUR REÇU (décidé le 11/10/2026). Leur « RETURNED » ne
+  // touche jamais le colis : c'est leur parole, pas un fait. On garde la
+  // PREMIÈRE déclaration (date + code reçu) comme preuve si le colis se perd,
+  // et seul notre scan au hub (`retourRecuLe`) fait avancer le colis
+  // (lib/retour-transporteur.ts). Déclaré et non reçu depuis 3 jours = alerte.
+  retourDeclareLe   DateTime? @map("retour_declare_le")
+  retourDeclareCode String?   @map("retour_declare_code")
+  retourRecuLe      DateTime? @map("retour_recu_le")
 
   creeLe DateTime @default(now()) @map("cree_le")
 
@@ -2254,6 +2274,8 @@ model Transaction {
   // vérité, ces liens permettent de remonter au document qui l'a produit.
   factureReglee Facture?     @relation("TransactionReglementMarchand")
   bonPaiement   BonPaiement? @relation("TransactionReglementLivreur")
+  // Encaissement d'un versement de transporteur (§ Règlements transporteurs).
+  versementTransporteur VersementTransporteur? @relation("TransactionVersementTransporteur")
 
   // Suppression LOGIQUE : non-null = la ligne est hors du journal et des
   // totaux. Toute lecture du journal filtre `supprimeLe: null`. Supprimer une
@@ -3530,4 +3552,88 @@ model SimulationRentabilite {
 
   @@index([marchandId, dateModification])
   @@map("simulations_rentabilite")
+}
+
+// ============================================================
+// Règlements transporteurs (décidé le 13/10/2026, SOUS_TRAITANCE.md)
+// ============================================================
+// Le transporteur encaisse le COD, garde ses frais (tarif de sa grille pour la
+// ville) et nous reverse le reste sous 24 h. La dette naît quand le colis
+// passe « livré » : une créance par colis confié, créée et tenue à jour par
+// lib/reglements-transporteurs.ts. Un versement (paiement reçu) solde une ou
+// plusieurs créances et passe au journal comptable comme recette.
+
+enum EtatCreanceTransporteur {
+  a_recevoir
+  paye
+  // Le colis n'est plus « livré » (statut corrigé) : plus rien n'est dû.
+  annulee
+}
+
+model CreanceTransporteur {
+  id            String      @id @default(uuid())
+  commandeId    String      @unique @map("commande_id")
+  commande      Commande    @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  prestataireId String      @map("prestataire_id")
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
+
+  montantCod        Decimal  @map("montant_cod") @db.Decimal(10, 2)
+  // Tarif de la grille du transporteur pour la ville, figé à la livraison.
+  // NULL = la grille ne connaît pas la ville : l'attendu vaut alors le COD
+  // entier, et l'écran alerte (toutes les villes doivent avoir un tarif).
+  fraisTransporteur Decimal? @map("frais_transporteur") @db.Decimal(10, 2)
+  montantAttendu    Decimal  @map("montant_attendu") @db.Decimal(10, 2)
+  dateLivraison     DateTime @map("date_livraison")
+  // dateLivraison + 24 h : au-delà, le colis est « en retard ».
+  echeance          DateTime
+
+  etat        EtatCreanceTransporteur @default(a_recevoir)
+  versementId String?                 @map("versement_id")
+  versement   VersementTransporteur?  @relation(fields: [versementId], references: [id], onDelete: SetNull)
+
+  creeLe    DateTime @default(now()) @map("cree_le")
+  modifieLe DateTime @updatedAt @map("modifie_le")
+
+  @@index([prestataireId, etat])
+  @@index([versementId])
+  @@map("creances_transporteurs")
+}
+
+model VersementTransporteur {
+  id            String      @id @default(uuid())
+  // Numéro d'affichage (« versement n° 12 »).
+  numero        Int         @unique @default(autoincrement())
+  prestataireId String      @map("prestataire_id")
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
+
+  // Ce qui est réellement arrivé, et ce que les colis couverts laissaient
+  // attendre. L'écart n'est PAS traité (question 26, SOUS_TRAITANCE.md) : il
+  // est enregistré et affiché.
+  montantRecu    Decimal  @map("montant_recu") @db.Decimal(12, 2)
+  montantAttendu Decimal  @map("montant_attendu") @db.Decimal(12, 2)
+  dateVersement  DateTime @map("date_versement")
+  // Photo du reçu bancaire, facultative — même format que Transaction.preuveUrl
+  // (data URL d'image, cf. analyserPreuveComptable). Jamais lue dans une liste.
+  preuveUrl      String?  @map("preuve_url")
+  note           String?
+
+  auteurId String      @map("auteur_id")
+  auteur   Utilisateur @relation("VersementTransporteurAuteur", fields: [auteurId], references: [id])
+
+  // Recette au journal comptable de la plateforme.
+  transactionId String?      @unique @map("transaction_id")
+  transaction   Transaction? @relation("TransactionVersementTransporteur", fields: [transactionId], references: [id])
+
+  // Annulation (saisie par erreur) : les créances repassent « à recevoir » et
+  // l'écriture du journal est neutralisée. La ligne reste, pour l'audit.
+  annuleLe    DateTime?    @map("annule_le")
+  annuleParId String?      @map("annule_par_id")
+  annulePar   Utilisateur? @relation("VersementTransporteurAnnulePar", fields: [annuleParId], references: [id])
+
+  creances CreanceTransporteur[]
+
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  @@index([prestataireId])
+  @@map("versements_transporteurs")
 }

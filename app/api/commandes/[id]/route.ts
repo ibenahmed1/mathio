@@ -19,7 +19,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const commande = await prisma.commande.findUnique({
       where: { id },
       include: {
-        historique: { orderBy: { horodatage: 'asc' }, include: { utilisateur: { select: { nomComplet: true } } } },
+        historique: {
+          orderBy: { horodatage: 'asc' },
+          include: { utilisateur: { select: { nomComplet: true } }, hub: { select: { nom: true, ville: true } } },
+        },
         commentaires: { orderBy: { dateCreation: 'asc' }, include: { utilisateur: { select: { nomComplet: true } } } },
         livreur: { select: { id: true, nomComplet: true } },
         marchand: { select: { nomBoutique: true } },

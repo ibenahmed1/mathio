@@ -4,6 +4,7 @@ import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth
 import { normaliserVille } from '@/lib/hub-stock';
 import { cleRoutage } from '@/lib/hub-envoi';
 import { notifierStatutsColis } from '@/lib/notifications';
+import { synchroniserCreancesSansErreur } from '@/lib/reglements-transporteurs';
 import {
   STATUTS_PRESTATAIRE,
   STATUTS_TERMINAUX,
@@ -454,6 +455,8 @@ export async function ecrireTransition(t: TransitionColis): Promise<IssueStatut>
   // envoi, rejeu du rattrapage) ne doit pas réannoncer un refus au marchand.
   if (issue === 'applique') {
     await notifierStatutsColis([{ commandeId: t.commandeId, statut: nouveauStatut }]);
+    // § Règlements transporteurs : livré → ce que le transporteur nous doit.
+    await synchroniserCreancesSansErreur([t.commandeId]);
   }
   return issue;
 }

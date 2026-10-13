@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
-import { getColisEligiblesEnvoi, resolveUserHub, type CommandeEligibleEnvoi } from '@/lib/hub-envoi';
+import { chargerResolveurTransporteur, getColisEligiblesEnvoi, resolveUserHub, type CommandeEligibleEnvoi } from '@/lib/hub-envoi';
 import { revaliderColisPrestataire } from '@/lib/bon-envoi-prestataire';
-import type { StatutCommande } from '@/app/generated/prisma/enums';
+import type { SourceCommande, StatutCommande } from '@/app/generated/prisma/enums';
+import { statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 
 // Le dénominateur commun des deux sources de colis ajoutables : de quoi écrire
 // la ligne d'historique, sans dépendre de la forme complète d'une Commande.
-type ColisAAjouter = { id: string; statut: StatutCommande; hubActuelId: string | null };
+type ColisAAjouter = { id: string; statut: StatutCommande; hubActuelId: string | null; source: SourceCommande; enStock: boolean };
 
 const bonEnvoiInclude = {
   // Le prestataire de l'agence de destination : c'est lui qui dit si le bon
@@ -17,7 +18,10 @@ const bonEnvoiInclude = {
   // place de hubDestination sur un bon sous-traité, jamais en plus.
   prestataire: { select: { id: true, nom: true } },
   receptionnaire: { select: { nomComplet: true } },
-  commandes: { include: { marchand: { select: { nomBoutique: true } } }, orderBy: { codeSuivi: 'asc' as const } },
+  commandes: {
+    include: { marchand: { select: { nomBoutique: true } }, hubActuel: { select: { id: true, nom: true, ville: true } } },
+    orderBy: { codeSuivi: 'asc' as const },
+  },
 };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +39,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       if (hub.id !== bon.hubDestinationId) throw new ApiError(403, 'Accès refusé');
     }
 
-    return NextResponse.json(bon);
+    // Hub d'arrivée de chaque colis : celui du bon, sinon celui que le routage
+    // retient pour sa ville (« en transit vers … », « reçu au … »).
+    const resoudre = await chargerResolveurTransporteur();
+    return NextResponse.json({
+      ...bon,
+      commandes: bon.commandes.map((c) => ({ ...c, hubArriveeNom: bon.hubDestination?.nom ?? resoudre(c)?.hubNom ?? null })),
+    });
   } catch (error) {
     return jsonError(error);
   }
@@ -131,20 +141,27 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     await prisma.$transaction(async (tx) => {
       if (aAjouter.length > 0) {
+        // § Circuit Shipeh : un colis Shipeh garde son statut jusqu'à sa remise.
         await tx.commande.updateMany({
-          where: { id: { in: aAjouter.map((c) => c.id) } },
+          where: { id: { in: aAjouter.filter(suitCircuitShipeh).map((c) => c.id) } },
+          data: { bonEnvoiId: bon.id, ...affectationTransporteur },
+        });
+        await tx.commande.updateMany({
+          where: { id: { in: aAjouter.filter((c) => !suitCircuitShipeh(c)).map((c) => c.id) } },
           data: { bonEnvoiId: bon.id, statut: 'en_transit', ...affectationTransporteur },
         });
         await tx.historiqueStatutCommande.createMany({
           data: aAjouter.map((c) => ({
             commandeId: c.id,
             ancienStatut: c.statut,
-            nouveauStatut: 'en_transit' as const,
+            nouveauStatut: statutEntreeBonEnvoi(c),
             utilisateurId: session.sub,
             // Sur un bon sous-traité il n'y a pas de hub d'arrivée : on note
             // celui d'où le colis part, pour que l'historique reste situé.
             hubId: bon.hubDestinationId ?? c.hubActuelId,
-            note: bon.prestataire
+            note: suitCircuitShipeh(c)
+              ? `Colis ajouté au Bon d'Envoi ${bon.numero} — en attente de remise`
+              : bon.prestataire
               ? `Colis confié au transporteur ${bon.prestataire.nom} via le Bon d'Envoi ${bon.numero}`
               : `Colis intégré dans le Bon d'Envoi ${bon.numero} en transit vers ${bon.hubDestination?.nom}`,
           })),
@@ -167,7 +184,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         await tx.historiqueStatutCommande.create({
           data: {
             commandeId: c.id,
-            ancienStatut: 'en_transit',
+            ancienStatut: c.statut,
             nouveauStatut: restaure,
             utilisateurId: session.sub,
             hubId: bon.hubDestinationId ?? c.hubActuelId,

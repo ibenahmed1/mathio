@@ -6,6 +6,7 @@ import { STATUTS_COMMANDE, STATUTS_TERMINAUX } from '@/lib/statuts';
 import type { TransporteurVille } from '@/lib/bon-envoi-groupes';
 import type { Prisma } from '@/app/generated/prisma/client';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
+import { EXCLURE_SHIPEH_NON_SCANNES, statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 
 // § /admin/bon-envoi/creer, mode « Remise à un transporteur » — le pendant
 // sous-traité de lib/hub-envoi.ts (transit interne). Les deux modules ne
@@ -117,6 +118,8 @@ export async function getColisEligiblesPrestataire(
   // transporteur le ferait exister à deux endroits.
   const conditions: Prisma.CommandeWhereInput[] = [
     { OR: [{ bonDistributionId: null }, { bonDistribution: { statut: 'cloture' } }] },
+    // § Circuit Shipeh : pas avant le scan de l'agent stock, même en « tous statuts ».
+    EXCLURE_SHIPEH_NON_SCANNES,
   ];
 
   if (options.hubActuelId) {
@@ -328,8 +331,15 @@ export async function creerBonEnvoiPrestataire(params: {
       select: { id: true, numero: true, nbColis: true },
     });
 
+    // § Circuit Shipeh : un colis Shipeh garde son statut (reçu au hub) — il ne
+    // passera en transit qu'à sa remise au transporteur.
+    const shipeh = colis.filter(suitCircuitShipeh).map((c) => c.id);
     await tx.commande.updateMany({
-      where: { id: { in: colis.map((c) => c.id) } },
+      where: { id: { in: shipeh } },
+      data: { bonEnvoiId: bon.id, livreurId: prestataire.compteLivreurId },
+    });
+    await tx.commande.updateMany({
+      where: { id: { in: colis.filter((c) => !suitCircuitShipeh(c)).map((c) => c.id) } },
       // `livreurId` est posé ICI, à la composition du bon, et non à sa
       // réception : confier un colis à tel transporteur est une décision, et
       // c'est au moment où on la prend que la question « qui livre ce colis »
@@ -349,10 +359,12 @@ export async function creerBonEnvoiPrestataire(params: {
       data: colis.map((c) => ({
         commandeId: c.id,
         ancienStatut: c.statut,
-        nouveauStatut: 'en_transit' as const,
+        nouveauStatut: statutEntreeBonEnvoi(c),
         utilisateurId: params.auteurId,
         hubId: c.hubActuelId,
-        note: `Colis confié au transporteur ${prestataire.nom} via le Bon d'Envoi ${numero}`,
+        note: suitCircuitShipeh(c)
+          ? `Colis ajouté au Bon d'Envoi ${numero} pour ${prestataire.nom} — en attente de remise`
+          : `Colis confié au transporteur ${prestataire.nom} via le Bon d'Envoi ${numero}`,
       })),
     });
 

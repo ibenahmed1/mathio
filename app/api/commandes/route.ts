@@ -6,7 +6,7 @@ import { nextCodeSuivi } from '@/lib/codes';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { verifierUniteStock } from '@/lib/stock-colis';
 import { buildCommandesWhere } from '@/lib/commandes-filters';
-import { chargerReferentielRoutage } from '@/lib/hub-envoi';
+import { chargerReferentielRoutage, chargerResolveurTransporteur } from '@/lib/hub-envoi';
 import { ROLES_BACKOFFICE } from '@/lib/auth';
 
 // Back-office (confirmation/SAV/paiement, cf. requireUser sur statut/paiement)
@@ -52,6 +52,8 @@ export async function GET(request: NextRequest) {
           // Tags « Shopify » / « YouCan » de la liste (§ intégrations boutique).
           shopify: { select: { numero: true } },
           youcan: { select: { numero: true } },
+          // « En transit vers … » (§ circuit Shipeh) : le hub du bon d'envoi.
+          bonEnvoi: { select: { hubDestination: { select: { nom: true } } } },
         },
         orderBy: { dateCreation: 'desc' },
         skip: (page - 1) * pageSize,
@@ -60,7 +62,16 @@ export async function GET(request: NextRequest) {
       prisma.commande.count({ where }),
     ]);
 
-    return NextResponse.json({ data, total, page, pageSize });
+    // « En transit vers … » : le hub du bon, sinon (remise directe à un
+    // transporteur) celui que le routage retient pour la ville du colis.
+    const resoudre = data.some((c) => c.statut === 'en_transit') ? await chargerResolveurTransporteur() : null;
+    const avecTransit = data.map((c) => ({
+      ...c,
+      transitVers:
+        c.statut === 'en_transit' && resoudre ? (c.bonEnvoi?.hubDestination?.nom ?? resoudre(c)?.hubNom ?? null) : null,
+    }));
+
+    return NextResponse.json({ data: avecTransit, total, page, pageSize });
   } catch (error) {
     return jsonError(error);
   }

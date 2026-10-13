@@ -8,7 +8,8 @@ import { resumerLignes } from '@/lib/colis-lignes';
 import { resoudreSkuPourVendeur } from '@/lib/stock-sku';
 import type { ProvenanceStock } from '@/app/generated/prisma/enums';
 import { notifierStockBas } from '@/lib/notifications';
-import { tenterReservation } from '@/lib/stock-reservation';
+import { reserverStockColis } from '@/lib/stock-colis';
+import { ApiError } from '@/lib/api-utils';
 
 // Ingestion des colis déposés par une plateforme partenaire
 // (§ POST /v1/colis et POST /v1/colis/lot).
@@ -186,9 +187,10 @@ export interface ResultatColis {
   marchandId: string;
   statut: string;
   aRisque: boolean;
-  // § Stock commun (12/10/2026) : le stock est retiré dès l'arrivée. Vrai si
-  // une unité manquait : le colis est accepté et attend la prochaine
-  // réception de stock.
+  // § Stock commun (12/10/2026) : le stock est retiré dès l'arrivée. Depuis le
+  // circuit Shipeh (même jour), un manque REFUSE le colis : toujours faux pour
+  // un colis créé, gardé pour la compatibilité des réponses (et vrai sur un
+  // rejeu d'un ancien colis accepté en attente).
   enAttenteStock: boolean;
 }
 
@@ -326,23 +328,30 @@ export async function ingererColis(
         },
       });
 
-      return creee;
+      // Le colis arrive confirmé : son stock est retiré DANS la même
+      // transaction. Un manque annule tout — le colis est refusé (§ circuit
+      // Shipeh, 12/10/2026 ; il était auparavant accepté « en attente »).
+      try {
+        const mouvements = await reserverStockColis(tx, [{ id: creee.id }], contexte.utilisateurTechniqueId);
+        return { creee, mouvements };
+      } catch (erreur) {
+        if (erreur instanceof ApiError && erreur.status === 409) {
+          throw new ErreurPlateforme(409, 'stock_insuffisant', `${erreur.message}. Colis refusé : renvoyer après réassort.`);
+        }
+        throw erreur;
+      }
     });
 
-    // Le colis arrive confirmé : son stock est retiré tout de suite, dans une
-    // transaction à part — un manque ne doit pas annuler le colis, il le met
-    // en attente (§ lib/stock-reservation.ts).
-    const reservation = await tenterReservation(commande.id, contexte.utilisateurTechniqueId);
-    await notifierStockBas(reservation.mouvements);
+    await notifierStockBas(commande.mouvements);
 
     return {
       issue: 'cree',
       reference: entree.reference,
-      codeSuivi: commande.codeSuivi,
+      codeSuivi: commande.creee.codeSuivi,
       marchandId,
-      statut: commande.statut,
-      aRisque: commande.aRisque,
-      enAttenteStock: !reservation.reserve,
+      statut: commande.creee.statut,
+      aRisque: commande.creee.aRisque,
+      enAttenteStock: false,
     };
   } catch (error) {
     // P2002 sur commandes_marchand_ref_partenaire_key : cette référence a déjà
@@ -432,6 +441,22 @@ async function resoudreContenu(
       'sku_a_variantes',
       `« ${parent.produit.reference} » est un produit à variantes : indiquer le SKU d’une variante ` +
         `(${variantes.map((v) => v.reference).join(', ')})`
+    );
+  }
+
+  // § Circuit Shipeh (12/10/2026) : un produit que l'agent stock n'a pas encore
+  // validé (statut de réception « reçu ») n'existe pas pour l'entrepôt — le
+  // colis est refusé, comme pour un SKU inconnu.
+  const nonValides = await prisma.produit.findMany({
+    where: { id: { in: resolus.map((r) => r!.produit.id) }, statutReception: { not: 'recu' } },
+    select: { reference: true },
+  });
+  if (nonValides.length > 0) {
+    throw new ErreurPlateforme(
+      409,
+      'produit_non_valide',
+      `Produit${nonValides.length > 1 ? 's' : ''} pas encore validé${nonValides.length > 1 ? 's' : ''} par notre entrepôt : ` +
+        `${nonValides.map((p) => p.reference).join(', ')}. Le colis sera accepté une fois le stock reçu et validé.`
     );
   }
 

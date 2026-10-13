@@ -80,6 +80,11 @@ export const PAGE_PERMISSIONS: PermissionRoute[] = [
   // pas le même droit : l'agent de quai réceptionne, il ne compose pas.
   { pattern: '/admin/bon-livraison/**', permission: 'bon_livraison:manage' },
   { pattern: '/admin/bon-envoi/creer/**', permission: 'bon_envoi:create' },
+  // § Règlements transporteurs : marquer payés les colis livrés par un transporteur
+  // = une recette au journal, donc la saisie comptable.
+  { pattern: '/admin/reglements-transporteurs/**', permission: 'comptabilite:write' },
+  // Colis prêts à envoyer, par transporteur : on y compose et envoie les bons.
+  { pattern: '/admin/bon-envoi/prets/**', permission: 'bon_envoi:create' },
   { pattern: '/admin/bon-envoi/*/modifier/**', permission: 'bon_envoi:create' },
   { pattern: '/admin/bon-envoi/**', permission: 'bon_envoi:manage' },
   { pattern: '/admin/planification/**', permission: 'planification:manage' },
@@ -188,6 +193,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
 
   // --- Gestion de stock ----------------------------------------------------
   { pattern: '/api/stock/pret-pour-preparation/**', permission: 'stock:prets' },
+  // § Circuit Shipeh : le scan de l'agent stock, depuis l'écran « Prêts pour préparation ».
+  { pattern: '/api/stock/scan-reception', permission: 'stock:prets' },
   { pattern: '/api/bons-preparation/**', permission: 'stock:bons_preparation' },
   { pattern: '/api/stock/envois/**', permission: 'stock:inventory' },
   { pattern: '/api/produits/**', permission: 'stock:inventory' },
@@ -210,6 +217,8 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   // quai) vs composer (admin) : les trois endpoints de composition d'abord,
   // puis la réception et les lectures, puis tout le reste en composition.
   { pattern: '/api/bons-envoi/colis-eligibles', permission: 'bon_envoi:create' },
+  { pattern: '/api/bons-envoi/prets', permission: 'bon_envoi:create' },
+  { pattern: '/api/reglements-transporteurs/**', permission: 'comptabilite:write' },
   { pattern: '/api/bons-envoi/destinations', permission: 'bon_envoi:create' },
   // Transporteurs sélectionnables et hubs où des colis attendent : l'étape 1
   // du mode « Remise à un transporteur », donc de la composition.
@@ -224,6 +233,10 @@ export const API_PERMISSIONS: PermissionRoute[] = [
   { pattern: '/api/bons-envoi/*/remise-colivraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*/remise-meta-livraison', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*/remise-est-livraison', permission: 'bon_envoi:manage' },
+  // § Circuit Shipeh : remise sans API (après l'export Excel), même responsabilité.
+  { pattern: '/api/bons-envoi/*/remis', permission: 'bon_envoi:manage' },
+  // Colis reçus chez le transporteur → « Mise en distribution », posé à la main.
+  { pattern: '/api/bons-envoi/*/mise-en-distribution', permission: 'bon_envoi:manage' },
   { pattern: '/api/bons-envoi/*', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi', permission: 'bon_envoi:manage', methods: SAFE_METHODS },
   { pattern: '/api/bons-envoi/**', permission: 'bon_envoi:create' },

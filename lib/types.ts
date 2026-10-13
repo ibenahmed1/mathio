@@ -69,6 +69,10 @@ export interface Commande {
   bonLivraisonId: string | null;
   bonPreparationId: string | null;
   bonEnvoiId: string | null;
+  // § Circuit Shipeh : hub visé par un colis en transit (GET /api/commandes),
+  // et hub d'arrivée d'un colis de bon d'envoi (GET /api/bons-envoi/[id]).
+  transitVers?: string | null;
+  hubArriveeNom?: string | null;
   bonDistributionId: string | null;
   villeId: string | null;
   ramasseurId: string | null;
@@ -134,6 +138,7 @@ export interface ProduitVariante {
   quantiteEnCours: number;
   quantiteRecue: number;
   rayonnage: string | null;
+  photoUrl?: string | null;
 }
 
 export interface HistoriqueProduit {
@@ -180,7 +185,7 @@ export interface HistoriqueStatut {
   hubId?: string | null;
   note?: string | null;
   utilisateur?: { nomComplet: string };
-  hub?: { nom: string } | null;
+  hub?: { nom: string; ville?: string } | null;
 }
 
 export interface CommentaireCommande {

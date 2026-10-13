@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { resolveUserHub } from '@/lib/hub-envoi';
+import { chargerResolveurTransporteur, resolveUserHub } from '@/lib/hub-envoi';
+import { attendRemise, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import { destinatairesHub, notifier } from '@/lib/notifications';
 
 // § Clôture d'un Bon d'Envoi — deux gestes distincts derrière un même bouton,
@@ -17,6 +18,12 @@ import { destinatairesHub, notifier } from '@/lib/notifications';
 //     dirait qu'ils sont arrivés sur un de nos quais, ce qui serait faux : ils
 //     sont partis chez un tiers, et c'est lui qui nous dira ensuite ce qu'ils
 //     deviennent (son API ou son fichier de suivi). Aucun hub n'est touché.
+//
+// § Circuit Shipeh (12/10/2026) : un colis Shipeh doit avoir été REMIS (API ou
+// « Colis remis au transporteur ») avant que le bon soit marqué reçu. Il passe
+// alors « Reçu au hub » de destination, dans les deux natures de bon : le hub
+// du bon, ou, pour une remise directe, le hub que le routage retient pour sa
+// ville (celui du transporteur).
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser(['admin', 'agent_hub']);
@@ -49,10 +56,32 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       throw new ApiError(409, "Ce Bon d'Envoi a déjà été marqué comme reçu");
     }
 
+    const nonRemis = bon.commandes.filter(attendRemise);
+    if (nonRemis.length > 0) {
+      throw new ApiError(
+        409,
+        `${nonRemis.length} colis Shipeh pas encore remis au transporteur (${nonRemis
+          .slice(0, 5)
+          .map((c) => c.codeSuivi)
+          .join(', ')}) : remise par API, ou « Colis remis au transporteur » après l'export Excel`
+      );
+    }
+
     const now = new Date();
 
     if (bon.prestataire) {
       const note = `Colis pris en charge par le transporteur ${bon.prestataire.nom} (Bon d'Envoi ${bon.numero})`;
+
+      // Colis Shipeh en transit : leur hub d'arrivée est celui que le routage
+      // retient pour leur ville. Sans hub résolu (ville renommée depuis), ils
+      // restent en transit plutôt que d'être posés au hasard.
+      const resoudre = await chargerResolveurTransporteur();
+      const arrivesShipeh = bon.commandes
+        .filter((c) => suitCircuitShipeh(c) && c.statut === 'en_transit')
+        .map((c) => ({ commande: c, hub: resoudre(c) }))
+        .filter((a): a is { commande: (typeof bon.commandes)[number]; hub: NonNullable<typeof a.hub> } => a.hub !== null);
+      const idsArrives = new Set(arrivesShipeh.map((a) => a.commande.id));
+      const autres = bon.commandes.filter((c) => !idsArrives.has(c.id));
 
       await prisma.$transaction(async (tx) => {
         await tx.bonEnvoi.update({
@@ -60,11 +89,29 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           data: { statut: 'recu', dateReception: now, receptionnaireId: session.sub },
         });
 
+        // § Circuit Shipeh : arrivée au hub du transporteur.
+        for (const { commande, hub } of arrivesShipeh) {
+          await tx.commande.update({
+            where: { id: commande.id },
+            data: { statut: 'recu_au_hub', hubActuelId: hub.hubId, dateReceptionHub: now },
+          });
+          await tx.historiqueStatutCommande.create({
+            data: {
+              commandeId: commande.id,
+              ancienStatut: commande.statut,
+              nouveauStatut: 'recu_au_hub',
+              utilisateurId: session.sub,
+              hubId: hub.hubId,
+              note: `Colis reçu au ${hub.hubNom} (${bon.prestataire!.nom}, Bon d'Envoi ${bon.numero})`,
+            },
+          });
+        }
+
         // Statut inchangé de part et d'autre : la ligne d'historique ne
         // consigne pas un changement d'état du colis, elle consigne QUI l'a
         // désormais. Sans elle, rien ne daterait la remise.
         await tx.historiqueStatutCommande.createMany({
-          data: bon.commandes.map((c) => ({
+          data: autres.map((c) => ({
             commandeId: c.id,
             ancienStatut: c.statut,
             nouveauStatut: c.statut,

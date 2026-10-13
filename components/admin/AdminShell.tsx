@@ -35,7 +35,11 @@ function isFullBleed(pathname: string | null) {
     (pathname === '/admin' ||
       pathname.startsWith('/admin/tasks') ||
       pathname.startsWith('/admin/comptabilite') ||
-      pathname.startsWith('/admin/hubs'))
+      pathname.startsWith('/admin/hubs') ||
+      // Colis prêts à envoyer : composition du tableau de bord (fond #F0F0ED).
+      pathname === '/admin/bon-envoi' ||
+      pathname.startsWith('/admin/bon-envoi/prets') ||
+      pathname.startsWith('/admin/reglements-transporteurs'))
   );
 }
 

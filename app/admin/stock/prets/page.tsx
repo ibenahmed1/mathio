@@ -2,17 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ClipboardList, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Printer, ScanLine, X } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonDePreparation, Commande } from '@/lib/types';
 import { Button } from '@/components/admin/Button';
 import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
+import { suitCircuitShipeh } from '@/lib/circuit-shipeh';
+import { QrScanner } from '@/components/QrScanner';
 
 // § Gestion de stock (2/4) : colis stock au statut "pret_pour_preparation",
 // pas encore rattachés à un Bon de Préparation. Sélection multiple (toutes
 // marchands confondus) -> POST /api/bons-preparation regroupe automatiquement
 // par marchand et génère un bon par marchand représenté dans la sélection.
+//
+// § Circuit Shipeh (12/10/2026) : les colis Shipeh ne se regroupent pas, ils
+// se SCANNENT (champ en haut de page) et passent « Reçu au hub » central.
 export default function AdminStockPretsPage() {
   const [colis, setColis] = useState<Commande[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -44,7 +49,10 @@ export default function AdminStockPretsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origine]);
 
+  const estShipeh = (c: Commande) => suitCircuitShipeh({ source: c.source ?? 'manuel', enStock: c.enStock });
   const tousSelectionnes = colis.length > 0 && colis.every((c) => selected.has(c.id));
+  // Les colis Shipeh se scannent : ils n'entrent pas dans un bon de préparation.
+  const shipehSelectionnes = colis.filter((c) => selected.has(c.id) && estShipeh(c)).length;
 
   function toggleTout() {
     setSelected(tousSelectionnes ? new Set() : new Set(colis.map((c) => c.id)));
@@ -84,6 +92,8 @@ export default function AdminStockPretsPage() {
       </p>
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+
+      <ScanColisShipeh onScanne={load} />
 
       <select className="input-basic w-fit" value={origine} onChange={(e) => setOrigine(e.target.value)}>
         {OPTIONS_ORIGINE.map((o) => (
@@ -157,9 +167,26 @@ export default function AdminStockPretsPage() {
               ? `${selected.size} colis sélectionné${selected.size > 1 ? 's' : ''} — ${marchandsConcernes} marchand${marchandsConcernes > 1 ? 's' : ''} (${marchandsConcernes > 1 ? `${marchandsConcernes} bons seront générés` : '1 bon sera généré'})`
               : 'Sélectionnez au moins un colis pour continuer'}
           </p>
-          <Button onClick={genererBonsPreparation} disabled={busy || selected.size === 0} icon={<CheckCircle2 className="h-4 w-4" />}>
-            {busy ? 'Génération…' : 'Générer Bon de Préparation'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {shipehSelectionnes > 0 && (
+              <span className="text-xs opacity-70">Colis Shipeh : imprimer l&apos;étiquette, puis scanner (pas de bon de préparation)</span>
+            )}
+            <Button
+              variant="secondary"
+              onClick={() => window.open(`/etiquettes?ids=${Array.from(selected).join(',')}`, '_blank')}
+              disabled={selected.size === 0}
+              icon={<Printer className="h-4 w-4" />}
+            >
+              Imprimer les étiquettes
+            </Button>
+            <Button
+              onClick={genererBonsPreparation}
+              disabled={busy || selected.size === 0 || shipehSelectionnes > 0}
+              icon={<CheckCircle2 className="h-4 w-4" />}
+            >
+              {busy ? 'Génération…' : 'Générer Bon de Préparation'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -197,5 +224,75 @@ function ModalBonsGeneres({ bons, onFermer }: { bons: BonDePreparation[]; onFerm
         </button>
       </div>
     </div>
+  );
+}
+
+// § Circuit Shipeh : douchette (saisie clavier + Entrée) ou saisie manuelle du
+// code. Chaque scan réussi fait passer le colis « Reçu au hub » central et le
+// retire de cette liste.
+function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; texte: string } | null>(null);
+  // Caméra du téléphone (https requis : tunnel ngrok) — même composant que le
+  // scan de réception au quai.
+  const [camera, setCamera] = useState(false);
+
+  async function scanner(e: React.FormEvent) {
+    e.preventDefault();
+    await envoyer(code.trim());
+  }
+
+  async function envoyer(brut: string) {
+    if (!brut || busy) return;
+    setBusy(true);
+    try {
+      const res = await apiPost<{ codeSuivi: string; dejaScanne: boolean; hub: { nom: string; ville: string } }>(
+        '/api/stock/scan-reception',
+        brut.includes('.') ? { qrPayload: brut } : { codeSuivi: brut }
+      );
+      setMessage({
+        ok: true,
+        texte: res.dejaScanne
+          ? `${res.codeSuivi} était déjà reçu au ${res.hub.nom}`
+          : `${res.codeSuivi} — reçu au hub ${res.hub.ville}`,
+      });
+      onScanne();
+    } catch (err) {
+      setMessage({ ok: false, texte: err instanceof Error ? err.message : 'Erreur' });
+    } finally {
+      setCode('');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={scanner} className="card-tint-strong flex flex-col gap-2 p-4">
+      <label className="flex items-center gap-2 text-sm font-semibold" htmlFor="scan-shipeh">
+        <ScanLine className="h-4 w-4" /> Scanner un colis Shipeh (passe « Reçu au hub » Casablanca)
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <input
+          id="scan-shipeh"
+          className="input-basic w-full max-w-xs font-mono"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="PD-000000"
+          autoComplete="off"
+          autoFocus
+          disabled={busy}
+        />
+        <Button type="submit" disabled={busy || !code.trim()}>
+          {busy ? 'Scan…' : 'Valider'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => setCamera((v) => !v)} icon={<ScanLine className="h-4 w-4" />}>
+          {camera ? 'Fermer la caméra' : 'Scanner avec la caméra'}
+        </Button>
+      </div>
+      {camera && <QrScanner active={camera} onScan={(raw) => envoyer(raw.trim())} disabled={busy} />}
+      {message && (
+        <p className={`text-sm font-medium ${message.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600'}`}>{message.texte}</p>
+      )}
+    </form>
   );
 }

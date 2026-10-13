@@ -4,7 +4,13 @@ Documentation destinée aux **développeurs de Shipeh**. Elle décrit tout ce qu
 envoyer à Mathio Delivery vos marchands, le stock que vous déposez dans notre entrepôt, et vos
 colis.
 
-Version 2.3 — octobre 2026
+Version 2.4 — octobre 2026
+
+### Ce qui change depuis la version 2.3
+
+| | |
+|---|---|
+| **Colis** (§8, §9) | Un colis n'est plus accepté « en attente de stock ». Il est **refusé**, et rien n'est créé, si l'un de ses produits n'a pas encore été **validé par notre entrepôt** (`409 produit_non_valide`) ou si le **stock disponible ne suffit pas** (`409 stock_insuffisant`). Rejouez-le après la réception de votre stock. `enAttenteStock` reste dans la réponse et vaut toujours `false` |
 
 ### Ce qui change depuis la version 2.2
 
@@ -521,15 +527,18 @@ puis dans **votre stock commun**. Le stock personnel d'un autre marchand n'est j
 en manque un seul, **le colis est refusé et rien n'est créé** : la réponse nomme tous les SKU
 inconnus, pour que vous corrigiez en un seul aller-retour. Déclarez le produit (§5), puis rejouez.
 
-### Le stock est retiré dès l'arrivée
+### Le produit doit être validé, et en stock
+
+Un produit déclaré (§5) n'accepte de colis qu'une fois **validé par notre entrepôt**, c'est-à-dire
+réceptionné et compté. Avant, tout colis qui le contient est refusé (`409 produit_non_valide`),
+et le message nomme les SKU concernés.
 
 Votre colis est confirmé : **nous retirons son stock immédiatement**, et chaque unité retirée du
 stock commun est attribuée à ce marchand (§7).
 
 Si une quantité manque (stock annoncé pas encore réceptionné, ou déjà consommé par d'autres
-colis), **le colis est quand même accepté**, avec `enAttenteStock: true`. Il est servi
-automatiquement à la prochaine réception de ce produit, dans l'ordre d'arrivée des colis. Il
-n'est ni refusé ni perdu.
+colis), **le colis est refusé et rien n'est créé** (`409 stock_insuffisant`). Consultez le stock
+disponible (§7), puis rejouez le colis après le réassort : la même `reference` est acceptée.
 
 ### Réponses
 
@@ -563,6 +572,8 @@ accepté ; nous le traitons avec précaution.
 | `404` | `marchand_inconnu` | Aucun marchand synchronisé sous cet identifiant, **dans l'environnement de votre clé**. Créez-le d'abord |
 | `400` | `sku_inconnu` | Un ou plusieurs SKU n'existent ni dans le stock de ce marchand ni dans votre stock commun. Le message les nomme. Déclarez-les via §5 |
 | `400` | `sku_a_variantes` | Ce SKU est celui d'un produit à variantes : indiquez le SKU d'une de ses variantes (le message les liste) |
+| `409` | `produit_non_valide` | Un ou plusieurs produits ne sont pas encore validés par notre entrepôt. Le message les nomme. Rejouez après la réception de votre stock |
+| `409` | `stock_insuffisant` | Le stock disponible ne couvre pas le colis. Le message nomme le produit et la quantité demandée. Rejouez après le réassort |
 | `400` | `produits_invalides` | `produits` n'est pas un tableau, est vide, ou dépasse 100 lignes |
 | `400` | `montant_invalide` · `quantite_invalide` · `poids_invalide` | Valeur hors bornes ou de mauvais type |
 | `400` | `champ_requis` | Le message nomme le champ (`produits`, `produits[0].sku`…) |
@@ -924,6 +935,8 @@ Toutes les erreurs ont la même forme :
 | `400` | `sku_inconnu` | SKU absent du stock du marchand et de votre stock commun (colis), ou de tout votre univers (envoi) — le message les nomme |
 | `400` | `lignes_invalides` | Les lignes d'un envoi : tableau de 1 à 500 lignes |
 | `400` | `sku_a_variantes` | SKU d'un produit à variantes : indiquer celui d'une variante |
+| `409` | `produit_non_valide` | Colis : produit pas encore validé par notre entrepôt (§8) |
+| `409` | `stock_insuffisant` | Colis : stock disponible insuffisant (§8) |
 | `400` | `sku_duplique` | Même SKU deux fois dans une déclaration de produit |
 | `400` | `photo_invalide` | URL https ou image `data:image/…;base64` de 2 Mo au plus |
 | `400` | `variantes_trop_nombreuses` | 200 variantes au plus par produit |
