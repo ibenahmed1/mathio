@@ -98,6 +98,7 @@ logiciel. Ce qui ne dit pas que les mots veulent dire la même chose — leur «
 | `payment_status` mémorisé, **jamais** posé sur `etatPaiement` | deux dettes, dans deux sens |
 | Permission : `bon_envoi:manage` | même responsabilité que le bon d'envoi |
 | Libellés : « Remis à un transporteur », « En retour par un transporteur » | le nom du transporteur est sur la remise, pas dans l'enum |
+| **11/10/2026** — `RETURNED` / `RETURN_BY_AMANA` ne posent plus « En retour par un transporteur » | retour **déclaré** daté sur la remise (`retourDeclareLe`), colis inchangé ; seul le scan « Retours transporteurs » pose « Retourné au hub » ; alerte à 3 jours (`lib/retour-transporteur.ts`) |
 
 ---
 

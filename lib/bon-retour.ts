@@ -22,9 +22,17 @@ import type { Prisma } from '@/app/generated/prisma/client';
 
 // Un colis est éligible s'il est en échec définitif, présent au hub, et pas
 // déjà réservé par un autre bon de retour.
+//
+// Un colis encore confié à un transporteur par API (remise active) n'est PAS
+// au hub, même si son statut le rend éligible (refusé, annulé chez eux) : il
+// n'y entre qu'après le scan « Retours transporteurs », qui clôt la remise
+// (décidé le 11/10/2026, lib/retour-transporteur.ts).
+const REMISE_EN_COURS = { active: true, etat: { in: ['acceptee', 'a_confirmer'] } } satisfies Prisma.RemisePrestataireWhereInput;
+
 const COLIS_ELIGIBLE_BASE = {
   statut: { in: STATUTS_ELIGIBLES_RETOUR },
   bonRetourId: null,
+  remisesPrestataire: { none: REMISE_EN_COURS },
 } satisfies Prisma.CommandeWhereInput;
 
 const colisEligibleInclude = {
@@ -174,6 +182,17 @@ export async function resolveColisPourRetour(
     throw new ApiError(
       409,
       `Ce colis est au statut "${commande.statut}" : seul un colis en échec définitif de livraison peut être restitué au marchand.`
+    );
+  }
+
+  const remise = await prisma.remisePrestataire.findFirst({
+    where: { commandeId: commande.id, ...REMISE_EN_COURS },
+    select: { prestataire: { select: { nom: true } } },
+  });
+  if (remise) {
+    throw new ApiError(
+      409,
+      `Ce colis est encore chez ${remise.prestataire.nom} : scannez-le d'abord dans « Retours transporteurs » pour enregistrer sa réception.`
     );
   }
 

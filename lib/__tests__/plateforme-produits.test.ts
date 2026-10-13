@@ -23,8 +23,8 @@ const A_VARIANTES = {
   photoUrl: 'https://cdn.exemple.ma/robe.jpg',
   variantesActivees: true,
   variantes: [
-    { nom: 'Rouge / M', reference: 'PRD-K7M2Q9XA-ROUGE-M', quantiteEnCours: 10 },
-    { nom: 'Bleu / M', reference: 'PRD-K7M2Q9XA-BLEU-M', quantiteEnCours: 8 },
+    { nom: 'Rouge / M', reference: 'PRD-K7M2Q9XA-ROUGE-M', quantiteEnCours: 10, photoUrl: 'https://cdn.exemple.ma/robe-rouge.jpg' },
+    { nom: 'Bleu / M', reference: 'PRD-K7M2Q9XA-BLEU-M', quantiteEnCours: 8, photoUrl: 'https://cdn.exemple.ma/robe-bleue.jpg' },
   ],
 };
 
@@ -52,7 +52,12 @@ test('un produit à variantes : le stock vit sur les variantes, le produit reste
   const p = analyserEntreeProduit({ ...A_VARIANTES, quantiteEnCours: 99 });
   assert.equal(p.quantiteEnCours, 0);
   assert.equal(p.variantes.length, 2);
-  assert.deepEqual(p.variantes[0], { nom: 'Rouge / M', reference: 'PRD-K7M2Q9XA-ROUGE-M', quantiteEnCours: 10 });
+  assert.deepEqual(p.variantes[0], {
+    nom: 'Rouge / M',
+    reference: 'PRD-K7M2Q9XA-ROUGE-M',
+    quantiteEnCours: 10,
+    photoUrl: 'https://cdn.exemple.ma/robe-rouge.jpg',
+  });
 });
 
 test('sans idExterneMarchand, le produit est un produit commun de la plateforme', () => {
@@ -93,9 +98,9 @@ test('variantes activées sans variante : refus', () => {
 });
 
 test('un SKU ne peut servir deux fois dans la requête, produit compris, sans casse', () => {
-  const doublon = { nom: 'Bis', reference: 'prd-k7m2q9xa-rouge-m', quantiteEnCours: 1 };
+  const doublon = { nom: 'Bis', reference: 'prd-k7m2q9xa-rouge-m', quantiteEnCours: 1, photoUrl: 'https://cdn.exemple.ma/bis.jpg' };
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: [...A_VARIANTES.variantes, doublon] }), 'sku_duplique');
-  const commeProduit = { nom: 'Même SKU', reference: 'PRD-K7M2Q9XA', quantiteEnCours: 1 };
+  const commeProduit = { nom: 'Même SKU', reference: 'PRD-K7M2Q9XA', quantiteEnCours: 1, photoUrl: 'https://cdn.exemple.ma/meme.jpg' };
   assert.equal(codeRefus({ ...A_VARIANTES, variantes: [commeProduit] }), 'sku_duplique');
 });
 
@@ -103,6 +108,15 @@ test('la photo est obligatoire', () => {
   const { photoUrl: _p, ...sansPhoto } = SIMPLE;
   assert.equal(codeRefus(sansPhoto), 'champ_requis');
   assert.equal(codeRefus({ ...SIMPLE, photoUrl: '   ' }), 'champ_requis');
+});
+
+test('chaque variante a sa photo, obligatoire et contrôlée', () => {
+  const [rouge, bleu] = A_VARIANTES.variantes;
+  const { photoUrl: _p, ...rougeSansPhoto } = rouge;
+  assert.equal(codeRefus({ ...A_VARIANTES, variantes: [rougeSansPhoto, bleu] }), 'champ_requis');
+  assert.equal(codeRefus({ ...A_VARIANTES, variantes: [rouge, { ...bleu, photoUrl: 'ftp://x' }] }), 'photo_invalide');
+  const p = analyserEntreeProduit(A_VARIANTES);
+  assert.deepEqual(p.variantes.map((v) => v.photoUrl), [rouge.photoUrl, bleu.photoUrl]);
 });
 
 test('la photo est une URL https ou une image embarquée, rien d’autre', () => {

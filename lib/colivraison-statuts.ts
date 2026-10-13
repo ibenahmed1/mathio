@@ -14,6 +14,9 @@ import { normaliserVille } from '@/lib/hub-stock';
 // TROIS SORTS, comme pour Power Delivery (lib/power-delivery-statuts.ts) :
 //   · `appliquer`  — la livraison et ses échecs, la mise en distribution, le
 //                    retour : ce qui intéresse le marchand et nos relances ;
+//   · `retour`     — « retour », « en retour » : leur DÉCLARATION, notée sur
+//                    la remise, jamais posée sur le colis (décidé le
+//                    11/10/2026, cf. lib/retour-transporteur.ts) ;
 //   · `memoriser`  — leur logistique interne : gardée sur la remise, jamais
 //                    posée sur le colis ;
 //   · `inconnu`    — tout le reste. Journalisé, jamais appliqué. C'est le sort
@@ -23,6 +26,7 @@ import { normaliserVille } from '@/lib/hub-stock';
 
 export type SortStatutColivraison =
   | { sort: 'appliquer'; statut: StatutCommande }
+  | { sort: 'retour' }
   | { sort: 'memoriser' }
   | { sort: 'inconnu' };
 
@@ -36,10 +40,6 @@ const A_APPLIQUER: readonly [RegExp, StatutCommande][] = [
   [/^reporte?( |$)/, 'reporte'],
   [/^programme?( |$)/, 'programme'],
   [/^annule?( |$)/, 'annule'],
-  // « Il nous le renvoie » : sur la route du retour, pas rendu au marchand —
-  // `retourne` est terminal chez nous et ne viendra qu'à notre scan.
-  [/^retour(ne)?( |$)/, 'en_retour_par_amana'],
-  [/^en retour( |$)/, 'en_retour_par_amana'],
   [/^(mis|mise) en distribution( |$)/, 'mise_en_distribution'],
   [/^en (cours de )?distribution( |$)/, 'mise_en_distribution'],
   [/^en cours de livraison( |$)/, 'mise_en_distribution'],
@@ -48,6 +48,10 @@ const A_APPLIQUER: readonly [RegExp, StatutCommande][] = [
   [/^boite vocale?( |$)/, 'boite_vocale'],
   [/^numero (errone|incorrect|faux)( |$)/, 'numero_errone'],
 ];
+
+// « Il nous le renvoie » : une parole, pas un fait — le colis garde son statut
+// jusqu'à notre scan de réception au hub.
+const RETOURS_DECLARES: readonly RegExp[] = [/^retour(ne)?( |$)/, /^en retour( |$)/];
 
 const A_MEMORISER: readonly RegExp[] = [
   // Premier état RÉEL d'un colis créé par l'API (relevé du 01/10/2026) ; leur
@@ -75,6 +79,7 @@ export function sortStatutColivraison(libelle: string): SortStatutColivraison {
   for (const [motif, statut] of A_APPLIQUER) {
     if (motif.test(cle)) return { sort: 'appliquer', statut };
   }
+  if (RETOURS_DECLARES.some((motif) => motif.test(cle))) return { sort: 'retour' };
   if (A_MEMORISER.some((motif) => motif.test(cle))) return { sort: 'memoriser' };
   return { sort: 'inconnu' };
 }

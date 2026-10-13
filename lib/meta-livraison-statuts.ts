@@ -13,15 +13,16 @@ import { NOTE_MAX } from '@/lib/livraison-statut';
 // (lib/livraison-statut.ts). Périmètre, colis clos, idempotence, forme ISO des
 // dates, verrou optimiste : tout vient du module existant, rien n'est recopié.
 //
-// DEUX TRAITEMENTS SEULEMENT :
+// TROIS TRAITEMENTS :
 //   · `applique` — l'issue de terrain a un équivalent dans NOTRE liste blanche
 //     (`CATALOGUE_STATUTS_PRESTATAIRE`, lib/statuts.ts). Poser un statut hors de
 //     cette liste reviendrait à laisser un tiers réécrire notre circuit.
 //   · `journal`  — tout le reste est ENREGISTRÉ (table des événements) mais ne
-//     touche pas au colis : leur logistique interne, leurs états de paiement,
-//     leurs retours (clos chez nous par NOTRE scan de réception, § API_PARTENAIRES
-//     §6.5), et les issues sans équivalent. Rien n'est perdu ; rien n'est
-//     inventé.
+//     touche pas au colis : leur logistique interne, leurs états de paiement
+//     et les issues sans équivalent. Rien n'est perdu ; rien n'est inventé.
+//   · `retour`   — leurs six codes de retour : la DATE de leur déclaration est
+//     notée sur la remise (preuve si le colis se perd), le colis ne bouge pas
+//     avant NOTRE scan de réception au hub.
 //
 // Catalogue relevé par `GET /partner/statuses` le 21/09/2026 : 45 codes. Un
 // code absent d'ici (ajouté par eux plus tard) tombe en `journal` — jamais en
@@ -37,10 +38,13 @@ export type TraitementMeta =
       // la date est celle de l'événement.
       date?: 'planifiee' | 'jour';
     }
-  | { traitement: 'journal'; raison: string };
+  | { traitement: 'journal'; raison: string }
+  // Leur DÉCLARATION de retour : notée sur la remise, jamais posée sur le
+  // colis — seul notre scan au hub fait foi (décidé le 11/10/2026,
+  // cf. lib/retour-transporteur.ts).
+  | { traitement: 'retour' };
 
 const INTERNE = 'leur circuit logistique interne';
-const RETOUR = 'retour : clos chez nous par le scan de réception, pas par leur message';
 const PAIEMENT = 'état de paiement : sans montant, conservé pour la réconciliation';
 
 export const STATUTS_META: Readonly<Record<string, TraitementMeta>> = {
@@ -78,12 +82,12 @@ export const STATUTS_META: Readonly<Record<string, TraitementMeta>> = {
   CANCELED_BY_VENDEUR: { traitement: 'journal', raison: 'annulation émise par nous-mêmes (le vendeur, c’est Mathio)' },
 
   // --- Retours
-  RETURNED: { traitement: 'journal', raison: RETOUR },
-  PREPARED_FOR_RETOURNE: { traitement: 'journal', raison: RETOUR },
-  SENT_TO_VENDOR: { traitement: 'journal', raison: RETOUR },
-  RETURNED_TO_VENDOR: { traitement: 'journal', raison: RETOUR },
-  RETURN_BY_AMANA: { traitement: 'journal', raison: RETOUR },
-  RETURNED_TO_STOCK: { traitement: 'journal', raison: RETOUR },
+  RETURNED: { traitement: 'retour' },
+  PREPARED_FOR_RETOURNE: { traitement: 'retour' },
+  SENT_TO_VENDOR: { traitement: 'retour' },
+  RETURNED_TO_VENDOR: { traitement: 'retour' },
+  RETURN_BY_AMANA: { traitement: 'retour' },
+  RETURNED_TO_STOCK: { traitement: 'retour' },
 
   // --- Paiement
   NOT_PAID: { traitement: 'journal', raison: PAIEMENT },
@@ -193,7 +197,8 @@ export type TraductionMeta =
       // `EntreeStatut` déjà construit.
       corps: { codeSuivi: string; statut: StatutCommande; date?: string; note: string };
     }
-  | { issue: 'journal'; raison: string };
+  | { issue: 'journal'; raison: string }
+  | { issue: 'retour' };
 
 // La note d'historique dit d'où vient le statut et qui l'a posé. Le livreur
 // y figure quand ils l'envoient : c'est la personne à rappeler si le
@@ -212,6 +217,7 @@ export function traduireEvenementMeta(evt: EvenementMeta): TraductionMeta {
   const regle = STATUTS_META[evt.statut];
   if (!regle) return { issue: 'journal', raison: 'statut absent de leur catalogue relevé' };
   if (regle.traitement === 'journal') return { issue: 'journal', raison: regle.raison };
+  if (regle.traitement === 'retour') return { issue: 'retour' };
 
   const corps: { codeSuivi: string; statut: StatutCommande; date?: string; note: string } = {
     codeSuivi: evt.code,

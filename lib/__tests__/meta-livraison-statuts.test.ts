@@ -179,8 +179,22 @@ test('REPORTE_AUJOURDHUI prend la date de l’événement', () => {
 });
 
 test('leur circuit interne et leurs paiements sont journalisés', () => {
-  for (const statut of ['IN_PROGRESS', 'RECEIVED_IN_AGENCY', 'PAID', 'RETURNED']) {
+  for (const statut of ['IN_PROGRESS', 'RECEIVED_IN_AGENCY', 'PAID']) {
     assert.equal(traduireEvenementMeta(evenement({ statut })).issue, 'journal', statut);
+  }
+});
+
+// Décision du 11/10/2026 : leurs six codes de retour sont des déclarations.
+test('leurs retours sont des déclarations, jamais un statut du colis', () => {
+  for (const statut of [
+    'RETURNED',
+    'PREPARED_FOR_RETOURNE',
+    'SENT_TO_VENDOR',
+    'RETURNED_TO_VENDOR',
+    'RETURN_BY_AMANA',
+    'RETURNED_TO_STOCK',
+  ]) {
+    assert.equal(traduireEvenementMeta(evenement({ statut })).issue, 'retour', statut);
   }
 });
 

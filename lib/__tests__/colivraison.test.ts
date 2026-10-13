@@ -156,9 +156,15 @@ test('les issues de livraison sont appliquées', () => {
   assert.deepEqual(sortStatutColivraison('Reporté'), { sort: 'appliquer', statut: 'reporte' });
   assert.deepEqual(sortStatutColivraison('Annulé'), { sort: 'appliquer', statut: 'annule' });
   assert.deepEqual(sortStatutColivraison('Mise en distribution'), { sort: 'appliquer', statut: 'mise_en_distribution' });
-  assert.deepEqual(sortStatutColivraison('Retourné'), { sort: 'appliquer', statut: 'en_retour_par_amana' });
   assert.deepEqual(sortStatutColivraison('Injoignable'), { sort: 'appliquer', statut: 'injoignable' });
   assert.deepEqual(sortStatutColivraison('Hors zone'), { sort: 'appliquer', statut: 'hors_zone' });
+});
+
+// Décision du 11/10/2026 : leur retour est une déclaration, jamais un statut.
+test('leur « retour » est une déclaration, jamais un statut du colis', () => {
+  for (const libelle of ['Retourné', 'Retour', 'En retour', 'retour expéditeur']) {
+    assert.deepEqual(sortStatutColivraison(libelle), { sort: 'retour' }, libelle);
+  }
 });
 
 test('« Non livré » n’est JAMAIS une livraison, et l’inconnu n’est pas deviné', () => {

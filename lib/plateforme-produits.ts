@@ -42,6 +42,7 @@ export interface VarianteExterne {
   nom: string;
   reference: string;
   quantiteEnCours: number;
+  photoUrl: string;
 }
 
 export interface EntreeProduitExterne {
@@ -81,18 +82,19 @@ function quantite(valeur: unknown, libelle: string): number {
 
 // Une URL web, ou une image embarquée (comme le formulaire marchand, qui
 // envoie la photo en data URL) — rien d'autre ne s'affiche dans un <img>.
-// Obligatoire pour un produit déclaré par une plateforme (décision du
-// 12/10/2026) ; le formulaire marchand, lui, la laisse facultative.
-function photo(corps: Record<string, unknown>): string {
-  const valeur = requis(corps, 'photoUrl');
+// Obligatoire pour un produit déclaré par une plateforme, et pour chacune de
+// ses variantes (décisions du 12/10/2026) ; le formulaire marchand, lui, la
+// laisse facultative.
+function photo(corps: Record<string, unknown>, libelle = 'photoUrl'): string {
+  const valeur = requis(corps, 'photoUrl', libelle);
   if (/^https?:\/\//i.test(valeur)) return valeur;
   if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(valeur)) {
     if (Buffer.byteLength(valeur, 'utf8') > PHOTO_OCTETS_MAX) {
-      throw new ErreurPlateforme(400, 'photo_invalide', 'photoUrl dépasse 2 Mo : préférez une URL https');
+      throw new ErreurPlateforme(400, 'photo_invalide', `${libelle} dépasse 2 Mo : préférez une URL https`);
     }
     return valeur;
   }
-  throw new ErreurPlateforme(400, 'photo_invalide', 'photoUrl doit être une URL https ou une image data:image/…;base64');
+  throw new ErreurPlateforme(400, 'photo_invalide', `${libelle} doit être une URL https ou une image data:image/…;base64`);
 }
 
 export function analyserEntreeProduit(corpsBrut: unknown): EntreeProduitExterne {
@@ -135,6 +137,7 @@ export function analyserEntreeProduit(corpsBrut: unknown): EntreeProduitExterne 
         nom: requis(v, 'nom', `${libelle}.nom`),
         reference: requis(v, 'reference', `${libelle}.reference`),
         quantiteEnCours: quantite(v.quantiteEnCours, `${libelle}.quantiteEnCours`),
+        photoUrl: photo(v, `${libelle}.photoUrl`),
       };
       const cle = variante.reference.toLowerCase();
       if (vues.has(cle)) {

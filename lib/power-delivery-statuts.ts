@@ -21,6 +21,10 @@ import type { StatutCommande } from '@/app/generated/prisma/enums';
 //   · `appliquer`  — la livraison (livré, refusé, reporté, injoignable…), la
 //                    mise en distribution et le retour : ce qui intéresse le
 //                    marchand et nos files de relance ;
+//   · `retour`     — « il nous le renvoie » (RETURNED, RETURN_BY_AMANA) :
+//                    leur DÉCLARATION, notée sur la remise, jamais posée sur
+//                    le colis — seul notre scan au hub fait foi (décidé le
+//                    11/10/2026, cf. lib/retour-transporteur.ts) ;
 //   · `memoriser`  — leur logistique interne (ramassé, expédié, en voyage…) :
 //                    gardée sur la remise pour le support, jamais posée sur le
 //                    colis, dont l'historique n'a pas à raconter LEURS étapes ;
@@ -29,6 +33,7 @@ import type { StatutCommande } from '@/app/generated/prisma/enums';
 
 export type SortStatutPower =
   | { sort: 'appliquer'; statut: StatutCommande }
+  | { sort: 'retour' }
   | { sort: 'memoriser' }
   | { sort: 'inconnu' };
 
@@ -57,11 +62,12 @@ const A_APPLIQUER: Readonly<Record<string, StatutCommande>> = {
   CANCELED: 'annule',
   CANCELLED: 'annule',
   DISTRIBUTION: 'mise_en_distribution',
-  // « Il nous le renvoie » : le colis n'est pas rendu au marchand, il est sur
-  // la route du retour. `retourne_au_hub` ne viendra qu'à notre scan.
-  RETURNED: 'en_retour_par_amana',
-  RETURN_BY_AMANA: 'en_retour_par_amana',
 };
+
+// « Il nous le renvoie » : une parole, pas un fait. Le colis garde son statut
+// (refusé, annulé…) jusqu'à notre scan de réception ; si le colis se perd, la
+// déclaration datée est notre preuve.
+const RETOURS_DECLARES: ReadonlySet<string> = new Set(['RETURNED', 'RETURN_BY_AMANA']);
 
 const A_MEMORISER: ReadonlySet<string> = new Set([
   'NEW_PARCEL',
@@ -88,6 +94,7 @@ export function sortStatutPower(code: string): SortStatutPower {
   const normalise = code.trim().toUpperCase();
   const statut = A_APPLIQUER[normalise];
   if (statut) return { sort: 'appliquer', statut };
+  if (RETOURS_DECLARES.has(normalise)) return { sort: 'retour' };
   if (A_MEMORISER.has(normalise)) return { sort: 'memoriser' };
   return { sort: 'inconnu' };
 }
