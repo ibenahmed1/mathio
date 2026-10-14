@@ -1,4 +1,5 @@
 import type { Prisma } from '@/app/generated/prisma/client';
+import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { journaliserMouvements, type NouveauMouvement } from '@/lib/stock-mouvements';
 
@@ -78,5 +79,32 @@ export async function majStatutEnvoi(tx: Prisma.TransactionClient, envoiId: stri
   await tx.envoiStock.updateMany({
     where: { id: envoiId, statut: { not: statut } },
     data: { statut, ...(statut === 'recu' ? { dateReception: new Date() } : {}) },
+  });
+}
+
+// § Validation groupée (14/10/2026) : ce que l'admin fait à la main sur une
+// fiche, en une fois — statut « Reçu », puis tout le déclaré encore en cours
+// passe en reçu, variante par variante. Une transaction par produit ; rend le
+// nombre d'unités reçues (0 si le produit n'avait rien à valider).
+export async function validerReceptionProduit(produitId: string, utilisateurId: string): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const produit = await tx.produit.findUnique({ where: { id: produitId }, include: { variantes: true } });
+    if (!produit) throw new ApiError(404, 'Produit introuvable');
+    const aRecevoir = produit.variantesActivees
+      ? produit.variantes.filter((v) => v.quantiteEnCours > 0).map((v) => ({ varianteId: v.id, nom: v.nom, quantite: v.quantiteEnCours }))
+      : produit.quantiteEnCours > 0
+        ? [{ varianteId: null, nom: produit.nom, quantite: produit.quantiteEnCours }]
+        : [];
+
+    if (produit.statutReception !== 'recu') {
+      await tx.produit.update({ where: { id: produitId }, data: { statutReception: 'recu' } });
+      await tx.historiqueProduit.create({
+        data: { produitId, texte: 'Statut de réception : Pas encore reçu → Reçu (validation groupée)', utilisateurId },
+      });
+    }
+    // La garde de receptionnerUnite (quantiteEnCours >= quantite) refuse si
+    // le déclaré a bougé entre la lecture et l'écriture.
+    for (const u of aRecevoir) await receptionnerUnite(tx, { produitId, utilisateurId, ...u });
+    return aRecevoir.reduce((s, u) => s + u.quantite, 0);
   });
 }

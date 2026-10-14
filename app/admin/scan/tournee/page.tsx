@@ -221,9 +221,8 @@ export default function ScanTourneePage() {
               <ScanLine className="h-4 w-4" />
               {cameraActive ? 'Fermer la caméra' : 'Ouvrir la caméra'}
             </button>
-            {/* <QrScanner /> embarque déjà la saisie manuelle de secours
-                (douchette ou clavier), affichée tant que la caméra n'est pas
-                active — inutile de dupliquer un second champ ici. */}
+            {/* <QrScanner /> embarque le champ douchette (aussi saisie au
+                clavier), visible même caméra fermée — pas de second champ ici. */}
             <QrScanner active={cameraActive} disabled={enCours} onScan={(raw) => scanner(raw)} />
           </>
         )}

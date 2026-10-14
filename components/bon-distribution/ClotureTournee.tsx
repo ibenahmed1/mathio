@@ -7,6 +7,7 @@ import { AlertTriangle, Banknote, CheckCircle2, ChevronLeft, Image as ImageIcon,
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { BilanTournee, ColisTournee } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
+import { lireDouchette } from '@/lib/douchette';
 import { StatutBadge } from '@/components/StatutBadge';
 import { PreuveLivraison } from '@/components/PreuveLivraison';
 import { Affix, Field } from '@/components/form/Field';
@@ -297,15 +298,23 @@ export function ClotureTournee() {
               className="flex flex-1 flex-wrap items-end gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (saisieCode.trim()) scannerRetour(saisieCode.trim());
+                const lecture = lireDouchette(saisieCode);
+                if (lecture.etat === 'complet') scannerRetour(lecture.code);
               }}
             >
-              <Field label="Saisie manuelle du code de suivi" className="flex-1">
+              <Field label="Douchette ou saisie du code de suivi" className="flex-1">
                 <input
                   className="input-basic"
                   placeholder="PD-000123"
                   value={saisieCode}
-                  onChange={(e) => setSaisieCode(e.target.value)}
+                  onChange={(e) => {
+                    // QR complet malgré l'Entrée prématuré de la douchette : envoyé tout de suite.
+                    const lecture = lireDouchette(e.target.value);
+                    if (lecture.etat === 'complet' && lecture.qr) {
+                      setSaisieCode('');
+                      scannerRetour(lecture.code);
+                    } else setSaisieCode(e.target.value);
+                  }}
                   disabled={scanEnCours}
                 />
               </Field>
@@ -315,7 +324,7 @@ export function ClotureTournee() {
             </form>
           </div>
 
-          {scanActif && <QrScanner active={scanActif} disabled={scanEnCours} onScan={(raw) => scannerRetour(raw)} />}
+          {scanActif && <QrScanner active={scanActif} disabled={scanEnCours} sansDouchette onScan={(raw) => scannerRetour(raw)} />}
 
           {bilan.colisARecuperer.length > 0 ? (
             <div className="overflow-x-auto">

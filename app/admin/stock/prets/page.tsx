@@ -10,6 +10,7 @@ import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 import { suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import { QrScanner } from '@/components/QrScanner';
+import { lireDouchette } from '@/lib/douchette';
 import { CodeColis } from '@/components/colis/CodeColis';
 
 // § Gestion de stock (2/4) : colis stock au statut "pret_pour_preparation",
@@ -241,7 +242,8 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
 
   async function scanner(e: React.FormEvent) {
     e.preventDefault();
-    await envoyer(code.trim());
+    const lecture = lireDouchette(code);
+    if (lecture.etat === 'complet') await envoyer(lecture.code);
   }
 
   async function envoyer(brut: string) {
@@ -277,7 +279,12 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
           id="scan-shipeh"
           className="input-basic w-full max-w-xs font-mono"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => {
+            // QR complet malgré l'Entrée prématuré de la douchette : envoyé tout de suite.
+            const lecture = lireDouchette(e.target.value);
+            if (lecture.etat === 'complet' && lecture.qr) envoyer(lecture.code);
+            else setCode(e.target.value);
+          }}
           placeholder="PD-000000"
           autoComplete="off"
           autoFocus
@@ -290,7 +297,7 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
           {camera ? 'Fermer la caméra' : 'Scanner avec la caméra'}
         </Button>
       </div>
-      {camera && <QrScanner active={camera} onScan={(raw) => envoyer(raw.trim())} disabled={busy} />}
+      {camera && <QrScanner active={camera} onScan={(raw) => envoyer(raw.trim())} disabled={busy} sansDouchette />}
       {message && (
         <p className={`text-sm font-medium ${message.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600'}`}>{message.texte}</p>
       )}

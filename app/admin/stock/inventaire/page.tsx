@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Boxes, ImageOff, Pencil } from 'lucide-react';
-import { apiGet } from '@/lib/api-client';
+import { AlertTriangle, Boxes, CheckCircle2, ImageOff, Pencil } from 'lucide-react';
+import { apiGet, apiPost } from '@/lib/api-client';
+import { Button } from '@/components/admin/Button';
 import type { Produit } from '@/lib/types';
 import { estStockBas, SEUIL_STOCK_BAS, unitesStockBas } from '@/lib/stock-quantites';
 
@@ -32,6 +33,18 @@ function bas(produit: Produit, quantiteRecue: number): boolean {
   return produit.statutReception === 'recu' && estStockBas(quantiteRecue);
 }
 
+// À valider : pas encore « Reçu », ou du déclaré encore en cours. Le bac à
+// sable des plateformes n'est pas de la marchandise réelle (ignoré aussi par
+// le serveur, § /api/produits/valider-reception).
+function aValider(p: Produit): boolean {
+  if (p.environnementPlateforme === 'test') return false;
+  if (p.statutReception !== 'recu') return true;
+  return p.variantesActivees ? (p.variantes ?? []).some((v) => v.quantiteEnCours > 0) : p.quantiteEnCours > 0;
+}
+function declare(p: Produit): number {
+  return p.variantesActivees ? (p.variantes ?? []).reduce((s, v) => s + v.quantiteEnCours, 0) : p.quantiteEnCours;
+}
+
 // Vue admin transverse (tous marchands) de l'inventaire produit : chaque
 // ligne mène vers la page "Modifier produit" pour valider la réception,
 // retirer du stock et renseigner le rayonnage (voir [id]/page.tsx).
@@ -45,6 +58,8 @@ export default function AdminStockInventairePage() {
   const [page, setPage] = useState(1);
   const [stockBasSeul, setStockBasSeul] = useState(false);
   const [filtreProprietaire, setFiltreProprietaire] = useState<FiltreProprietaire>('tous');
+  const [validation, setValidation] = useState(false);
+  const [bilan, setBilan] = useState<{ ok: boolean; texte: string } | null>(null);
 
   async function load() {
     setChargement(true);
@@ -75,6 +90,39 @@ export default function AdminStockInventairePage() {
       return (p.variantes ?? []).some((v) => v.nom.toLowerCase().includes(q) || v.reference.toLowerCase().includes(q));
     });
   }, [produits, rechercheMagasin, recherche, stockBasSeul, filtreProprietaire]);
+
+  // La validation groupée porte sur les produits FILTRÉS : on peut la limiter
+  // à un magasin ou aux stocks communs avant de cliquer.
+  const filtresAValider = useMemo(() => filtres.filter(aValider), [filtres]);
+
+  async function validerTout() {
+    const unites = filtresAValider.reduce((s, p) => s + declare(p), 0);
+    if (
+      !window.confirm(
+        `Valider la réception de ${filtresAValider.length} produit(s) : statut « Reçu » et ${unites} unité(s) déclarées passées en stock reçu ? Les quantités restent corrigibles ensuite depuis chaque fiche.`
+      )
+    )
+      return;
+    setValidation(true);
+    setBilan(null);
+    try {
+      const res = await apiPost<{ valides: number; unites: number; erreurs: { nom: string; message: string }[] }>(
+        '/api/produits/valider-reception',
+        { produitIds: filtresAValider.map((p) => p.id) }
+      );
+      setBilan({
+        ok: res.erreurs.length === 0,
+        texte:
+          `${res.valides} produit(s) validé(s), ${res.unites} unité(s) reçue(s).` +
+          (res.erreurs.length ? ` Non validés : ${res.erreurs.map((e) => `${e.nom} (${e.message})`).join(' ; ')}` : ''),
+      });
+      await load();
+    } catch (err) {
+      setBilan({ ok: false, texte: err instanceof Error ? err.message : 'Erreur' });
+    } finally {
+      setValidation(false);
+    }
+  }
 
   const nombreStockBas = useMemo(() => produits.filter((p) => unitesStockBas(p).length > 0).length, [produits]);
 
@@ -127,7 +175,23 @@ export default function AdminStockInventairePage() {
           <option value="communs">Stocks communs des plateformes</option>
           <option value="marchands">Stocks des marchands</option>
         </select>
+        {filtresAValider.length > 0 && (
+          <Button
+            className="ml-auto"
+            onClick={validerTout}
+            disabled={validation}
+            icon={<CheckCircle2 className="h-4 w-4" />}
+          >
+            {validation ? 'Validation…' : `Valider la réception (${filtresAValider.length})`}
+          </Button>
+        )}
       </div>
+
+      {bilan && (
+        <p role="status" className={`text-sm font-medium ${bilan.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600'}`}>
+          {bilan.texte}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm">

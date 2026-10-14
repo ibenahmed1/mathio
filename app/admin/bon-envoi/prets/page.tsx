@@ -6,6 +6,7 @@ import { PackageCheck, ScanLine, Send, TriangleAlert } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { ColisEligibleDto } from '@/lib/bon-envoi-prestataire';
 import { QrScanner } from '@/components/QrScanner';
+import { lireDouchette } from '@/lib/douchette';
 import { StatusPill, P } from '@/components/dashboard/composition';
 import s from '@/components/admin/CompositionTableau.module.css';
 import { CodeColis } from '@/components/colis/CodeColis';
@@ -266,13 +267,19 @@ export default function ColisPretsAEnvoyerPage() {
               className={s.scan}
               onSubmit={(e) => {
                 e.preventDefault();
-                scanner(code.trim());
+                const lecture = lireDouchette(code);
+                if (lecture.etat === 'complet') scanner(lecture.code);
               }}
             >
               <input
                 className={s.champ}
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(e) => {
+                  // QR complet malgré l'Entrée prématuré de la douchette : envoyé tout de suite.
+                  const lecture = lireDouchette(e.target.value);
+                  if (lecture.etat === 'complet' && lecture.qr) scanner(lecture.code);
+                  else setCode(e.target.value);
+                }}
                 placeholder="Scanner ou saisir PD-000000"
                 autoComplete="off"
               />
@@ -285,7 +292,7 @@ export default function ColisPretsAEnvoyerPage() {
             </form>
           </div>
 
-          {camera && <QrScanner active={camera} onScan={(raw) => scanner(raw.trim())} />}
+          {camera && <QrScanner active={camera} onScan={(raw) => scanner(raw.trim())} sansDouchette />}
 
           <div className={s.tableWrap}>
             <table className={s.table}>

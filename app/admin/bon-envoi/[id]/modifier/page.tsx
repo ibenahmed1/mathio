@@ -7,6 +7,7 @@ import { ChevronLeft, Plus, Save, X } from 'lucide-react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api-client';
 import type { BonEnvoi, Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
+import { ChampDouchette } from '@/components/ChampDouchette';
 import { CodeColis } from '@/components/colis/CodeColis';
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
@@ -230,7 +231,7 @@ export default function ModifierBonEnvoiPage() {
                 Ajouter des colis ({aAjouter.size} sélectionné{aAjouter.size > 1 ? 's' : ''})
               </h2>
               <button onClick={() => setScanOuvert((v) => !v)} className="btn-outline flex items-center gap-1.5 px-3 py-1.5 text-xs">
-                {scanOuvert ? 'Fermer le scan' : 'CLIC ICI AVANT LE SCAN'}
+                {scanOuvert ? 'Fermer la caméra' : 'Ouvrir la caméra'}
               </button>
             </div>
 
@@ -248,11 +249,10 @@ export default function ModifierBonEnvoiPage() {
             )}
 
             <div className="grid min-w-0 gap-6 lg:grid-cols-[380px_1fr] lg:items-start">
-              {scanOuvert && (
-                <div className="min-w-0 lg:sticky lg:top-20">
-                  <QrScanner active={scanOuvert} onScan={handleScan} disabled={scanning} />
-                </div>
-              )}
+              <div className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-20">
+                <ChampDouchette onScan={handleScan} disabled={scanning} />
+                {scanOuvert && <QrScanner active={scanOuvert} onScan={handleScan} disabled={scanning} sansDouchette />}
+              </div>
 
               <div className="min-w-0 overflow-x-auto">
                 {loadingEligibles ? (
