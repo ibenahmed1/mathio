@@ -32,6 +32,14 @@ export const SCOPES: ScopeCatalogue[] = [
     interditEnTest: true,
   },
   { cle: 'colis:creation', libelle: 'Déposer des colis' },
+  { cle: 'colis:lecture', libelle: 'Suivre les statuts de ses colis' },
+  {
+    cle: 'produits:creation',
+    libelle: 'Déclarer des produits de stock',
+    avertissement: 'Ouvre aussi l’annonce des arrivages (POST /v1/stock/envois).',
+  },
+  { cle: 'stock:lecture', libelle: 'Consulter son stock' },
+  { cle: 'villes:lecture', libelle: 'Consulter les villes desservies et leurs tarifs' },
   {
     cle: 'livraisons:statut',
     libelle: 'Poser un statut sur un colis confié',
