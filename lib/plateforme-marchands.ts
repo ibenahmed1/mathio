@@ -26,6 +26,12 @@ import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth
 
 const RIB_REGEX = /^\d{24}$/;
 
+// § Tarif des boutiques de plateforme de vente (Shipeh, décidé le 14/10/2026) :
+// 30 DH de livraison partout au Maroc, 3 DH de préparation par colis. Posé à la
+// création ; un rattachement ne touche pas à la fiche (cf. ci-dessus), la
+// migration 20261014114230 a aligné les boutiques déjà liées.
+export const TARIF_BOUTIQUE_PLATEFORME = { fraisLivraison: 30, fraisPreparation: 3 } as const;
+
 // bcrypt ne lit que les 72 premiers octets : au-delà, deux mots de passe
 // différents donneraient le même hash. On refuse plutôt que de tronquer en
 // silence.
@@ -448,6 +454,7 @@ export async function synchroniserMarchand(
         iceRc: entree.iceRc,
         typeCompte: entree.typeCompte,
         statut: options.activer ? 'actif' : 'en_attente_validation',
+        ...TARIF_BOUTIQUE_PLATEFORME,
       },
     });
 

@@ -102,6 +102,21 @@ function groupBySection(nav: NavItem[]): { section?: string; items: NavItem[] }[
   return blocks;
 }
 
+// § Compteurs (lib/compteurs-nav.ts) : clés portées par la navigation.
+function clesCompteurs(nav: NavItem[]): string[] {
+  return nav.flatMap((item) => (isGroup(item) ? clesCompteurs(item.children) : item.compteur ? [item.compteur] : []));
+}
+
+function totalCompteurs(item: NavItem, compteurs: Record<string, number>): number {
+  if (isGroup(item)) return item.children.reduce((n, c) => n + totalCompteurs(c, compteurs), 0);
+  return item.compteur ? (compteurs[item.compteur] ?? 0) : 0;
+}
+
+function Pastille({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return <span className={s.pastille}>{n > 99 ? '99+' : n}</span>;
+}
+
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return (parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '');
@@ -143,6 +158,30 @@ export function AdminSidebar({
   function toggleGroup(key: string) {
     setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
   }
+
+  // Compteurs rafraîchis à chaque changement de page, toutes les minutes, et
+  // sur l'événement `compteurs:maj` (émis après un geste qui les change).
+  const [compteurs, setCompteurs] = useState<Record<string, number>>({});
+  const avecCompteurs = clesCompteurs(nav).length > 0;
+  useEffect(() => {
+    if (!avecCompteurs) return;
+    let annule = false;
+    const charger = () =>
+      fetch('/api/compteurs', { credentials: 'same-origin' })
+        .then((r) => (r.ok ? r.json() : {}))
+        .then((d: Record<string, number>) => {
+          if (!annule) setCompteurs(d);
+        })
+        .catch(() => {});
+    charger();
+    const minuterie = setInterval(charger, 60_000);
+    window.addEventListener('compteurs:maj', charger);
+    return () => {
+      annule = true;
+      clearInterval(minuterie);
+      window.removeEventListener('compteurs:maj', charger);
+    };
+  }, [avecCompteurs, pathname]);
 
   // Menu Profil/Déconnexion : rendu en portail sur document.body pour échapper
   // à `overflow: hidden` sur .sidebar (nécessaire pour clipper le contenu
@@ -216,6 +255,7 @@ export function AdminSidebar({
               </span>
             )}
             <span className={`${s.navLabel} ${collapsed ? s.collapseHide : ''}`}>{item.label}</span>
+            {!open && !collapsed && <Pastille n={totalCompteurs(item, compteurs)} />}
             <ChevronDown
               className={`${s.navChevronIcon} ${open ? s.navChevronOpen : ''} ${collapsed ? s.collapseHide : ''}`}
             />
@@ -241,6 +281,7 @@ export function AdminSidebar({
           >
             <Icon className="h-3.5 w-3.5" />
             {item.label}
+            <Pastille n={totalCompteurs(item, compteurs)} />
           </Link>
         </li>
       );
@@ -257,6 +298,7 @@ export function AdminSidebar({
             <Icon className="h-4 w-4" />
           </span>
           <span className={`${s.navLabel} ${collapsed ? s.collapseHide : ''}`}>{item.label}</span>
+          {!collapsed && <Pastille n={totalCompteurs(item, compteurs)} />}
         </Link>
       </li>
     );

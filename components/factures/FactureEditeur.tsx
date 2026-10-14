@@ -133,6 +133,7 @@ export function FactureEditeur({
     let cod = 0;
     let fraisLivraison = 0;
     let fraisRetour = 0;
+    let preparation = 0;
     let livres = 0;
     let retours = 0;
     // § Marge — ce que la course NOUS coûte (livreur interne ou prestataire),
@@ -143,6 +144,7 @@ export function FactureEditeur({
 
     for (const ligne of tarifParColis.values()) {
       if (!selection.has(ligne.commandeId)) continue;
+      preparation += ligne.fraisPreparation;
       if (ligne.livre) {
         livres += 1;
         cod += ligne.montantCod;
@@ -160,14 +162,15 @@ export function FactureEditeur({
       cod,
       fraisLivraison,
       fraisRetour,
+      preparation,
       autres,
       livres,
       retours,
-      net: cod - fraisLivraison - fraisRetour - autres,
+      net: cod - fraisLivraison - fraisRetour - preparation - autres,
       cout,
       coutInconnu,
       // Le COD n'entre pas dans la marge : il appartient au marchand.
-      marge: fraisLivraison + fraisRetour + autres - cout,
+      marge: fraisLivraison + fraisRetour + preparation + autres - cout,
     };
   }, [tarifParColis, selection, frais]);
 
@@ -544,6 +547,15 @@ export function FactureEditeur({
                 </dt>
                 <dd className="font-mono tabular-nums">−{montant(totaux.fraisRetour)}</dd>
               </div>
+              {totaux.preparation > 0 && (
+                <div className="flex items-baseline justify-between gap-3 opacity-80">
+                  <dt>
+                    Frais de préparation
+                    <span className="ml-1 text-xs opacity-50">{totaux.livres + totaux.retours} colis</span>
+                  </dt>
+                  <dd className="font-mono tabular-nums">−{montant(totaux.preparation)}</dd>
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-3 opacity-80">
                 <dt>Autres frais</dt>
                 <dd className="font-mono tabular-nums">−{montant(totaux.autres)}</dd>
@@ -574,7 +586,7 @@ export function FactureEditeur({
               <div className="flex items-baseline justify-between gap-3 opacity-80">
                 <dt>Frais facturés</dt>
                 <dd className="font-mono tabular-nums">
-                  {montant(totaux.fraisLivraison + totaux.fraisRetour + totaux.autres)}
+                  {montant(totaux.fraisLivraison + totaux.fraisRetour + totaux.preparation + totaux.autres)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3 opacity-80">

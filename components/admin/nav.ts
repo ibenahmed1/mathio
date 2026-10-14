@@ -88,7 +88,15 @@ export const NAV_ADMIN: NavItem[] = [
     children: [
       { label: 'Nouveau', href: '/admin/colis/nouveau', icon: PackagePlus, permission: 'colis:create' },
       { label: 'Import Excel', href: '/admin/colis/import', icon: FileSpreadsheet, permission: 'colis:import' },
-      { label: 'Liste', href: '/admin/commandes', icon: ListOrdered, permission: 'colis:read' },
+      { label: 'Liste', href: '/admin/commandes', icon: ListOrdered, permission: 'colis:read', compteur: 'colis_nouveaux' },
+      // Colis prêts à partir, rangés par transporteur : on y compose les bons d'envoi.
+      {
+        label: 'Prêts à envoyer',
+        href: '/admin/bon-envoi/prets',
+        icon: Send,
+        permission: 'bon_envoi:create',
+        compteur: 'prets_envoi',
+      },
       { label: 'Suivi', href: '/admin/colis/suivi', icon: MapPinned, permission: 'colis:track' },
       {
         label: 'Confirmation',
@@ -103,6 +111,7 @@ export const NAV_ADMIN: NavItem[] = [
         href: '/admin/ramassages',
         icon: ClipboardList,
         permission: 'demande_ramassage:manage',
+        compteur: 'ramassages',
       },
       {
         label: 'Stock',
@@ -113,18 +122,21 @@ export const NAV_ADMIN: NavItem[] = [
             href: '/admin/stock/nouveaux',
             icon: PackageSearch,
             permission: 'stock:nouveaux',
+            compteur: 'stock_nouveaux',
           },
           {
             label: 'Prêts pour préparation',
             href: '/admin/stock/prets',
             icon: CheckCircle2,
             permission: 'stock:prets',
+            compteur: 'stock_prets',
           },
           {
             label: 'Bons de préparation',
             href: '/admin/stock/bons-preparation',
             icon: FileText,
             permission: 'stock:bons_preparation',
+            compteur: 'bons_preparation',
           },
           { label: 'Inventaire', href: '/admin/stock/inventaire', icon: Boxes, permission: 'stock:inventory' },
           { label: 'Envois de stock', href: '/admin/stock/envois', icon: PackageOpen, permission: 'stock:inventory' },
@@ -156,8 +168,8 @@ export const NAV_ADMIN: NavItem[] = [
     icon: Files,
     section: SECTION_EXPLOITATION,
     children: [
-      { label: 'Bon de livraison', href: '/admin/bon-livraison', icon: FileText, permission: 'bon_livraison:manage' },
-      { label: "Bon d'envoi", href: '/admin/bon-envoi', icon: Send, permission: 'bon_envoi:manage' },
+      { label: 'Bon de livraison', href: '/admin/bon-livraison', icon: FileText, permission: 'bon_livraison:manage', compteur: 'bon_livraison' },
+      { label: "Bon d'envoi", href: '/admin/bon-envoi', icon: Send, permission: 'bon_envoi:manage', compteur: 'bon_envoi' },
       {
         label: 'Bon de distribution',
         href: '/admin/bon-distribution',
@@ -173,6 +185,14 @@ export const NAV_ADMIN: NavItem[] = [
           { label: 'Pour livreur', href: '/admin/bon-retour/livreur', icon: Truck, permission: 'bon_retour:manage' },
           { label: 'Pour zone', href: '/admin/bon-retour/zone', icon: MapPin, permission: 'bon_retour:manage' },
           { label: 'Pour client', href: '/admin/bon-retour/client', icon: User, permission: 'bon_retour:manage' },
+          // Réception des colis renvoyés par les transporteurs branchés par API,
+          // et alerte des retours déclarés jamais reçus.
+          {
+            label: 'Retours transporteurs',
+            href: '/admin/bon-retour/transporteurs',
+            icon: Send,
+            permission: 'bon_retour:manage',
+          },
         ],
       },
     ],
@@ -209,6 +229,14 @@ export const NAV_ADMIN: NavItem[] = [
           },
           { label: 'Toutes les factures', href: '/admin/factures/toutes', icon: Receipt, permission: 'facture:read' },
         ],
+      },
+      // COD encaissé par les transporteurs, à nous reverser sous 24 h.
+      {
+        label: 'Règlements transporteurs',
+        href: '/admin/reglements-transporteurs',
+        icon: Truck,
+        permission: 'comptabilite:write',
+        compteur: 'reglements_retard',
       },
     ],
   },
@@ -262,6 +290,7 @@ export const NAV_ADMIN: NavItem[] = [
         href: '/admin/reclamations',
         icon: MessageSquareWarning,
         permission: 'reclamations:manage',
+        compteur: 'reclamations',
       },
       { label: 'Tâches (Kanban)', href: '/admin/tasks', icon: Columns3, permission: 'tasks:manage' },
     ],

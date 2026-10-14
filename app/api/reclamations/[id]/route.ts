@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
-import { destinatairesBoutique, notifier } from '@/lib/notifications';
+import { INCLUDE_RECLAMATION, ajouterReponse, exposerReclamation } from '@/lib/reclamations';
 import type { StatutReclamation } from '@/app/generated/prisma/enums';
 
 const STATUTS_VALIDES: StatutReclamation[] = ['ouverte', 'en_cours', 'resolue', 'rejetee'];
@@ -12,14 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const session = await requireUser(['marchand', 'admin', 'moderateur', 'superviseur']);
     const { id } = await params;
 
-    const reclamation = await prisma.reclamation.findUnique({
-      where: { id },
-      include: {
-        marchand: { select: { nomBoutique: true } },
-        commande: { select: { id: true, codeSuivi: true } },
-        utilisateur: { select: { nomComplet: true } },
-      },
-    });
+    const reclamation = await prisma.reclamation.findUnique({ where: { id }, include: INCLUDE_RECLAMATION });
     if (!reclamation) throw new ApiError(404, 'Réclamation introuvable');
 
     if (session.role === 'marchand') {
@@ -29,64 +22,39 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       }
     }
 
-    return NextResponse.json(reclamation);
+    return NextResponse.json(exposerReclamation(reclamation, session.role === 'marchand'));
   } catch (error) {
     return jsonError(error);
   }
 }
 
-// Réponse / changement de statut par le back-office (admin, moderateur : reprend le périmètre de l'ancien SAV).
+// Changement de statut par le back-office (admin, moderateur : reprend le
+// périmètre de l'ancien SAV). Les réponses s'ajoutent au fil
+// (POST /api/reclamations/[id]/reponses) ; une `reponse` encore envoyée ici
+// par un ancien écran y est ajoutée elle aussi, jamais écrasée.
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireUser(['admin', 'moderateur', 'superviseur']);
     const { id } = await params;
     const body = await request.json();
 
-    const reclamation = await prisma.reclamation.findUnique({ where: { id } });
+    const reclamation = await prisma.reclamation.findUnique({ where: { id }, select: { id: true } });
     if (!reclamation) throw new ApiError(404, 'Réclamation introuvable');
 
-    const data: { statut?: StatutReclamation; reponse?: string; dateReponse?: Date } = {};
+    const aReponse = typeof body.reponse === 'string' && body.reponse.trim();
+    if (body.statut === undefined && !aReponse) throw new ApiError(400, 'Aucun champ modifiable fourni');
 
+    // La réponse d'abord : elle doit pouvoir accompagner la fermeture.
+    if (aReponse) await ajouterReponse(id, session.sub, body.reponse);
     if (body.statut !== undefined) {
       if (!STATUTS_VALIDES.includes(body.statut)) {
         throw new ApiError(400, `Statut invalide. Valeurs possibles : ${STATUTS_VALIDES.join(', ')}`);
       }
-      data.statut = body.statut;
-    }
-    if (typeof body.reponse === 'string' && body.reponse.trim()) {
-      data.reponse = body.reponse.trim();
-      data.dateReponse = new Date();
+      await prisma.reclamation.update({ where: { id }, data: { statut: body.statut } });
     }
 
-    if (Object.keys(data).length === 0) {
-      throw new ApiError(400, 'Aucun champ modifiable fourni');
-    }
-
-    const updated = await prisma.reclamation.update({ where: { id }, data });
-
-    // § Notifications : une RÉPONSE écrite (un simple changement de statut
-    // n'apprend rien au marchand qu'il ne voie dans la liste). Son auteur la
-    // reçoit en plus de ceux qui suivent les réclamations de la boutique —
-    // même si son rôle a changé depuis, c'est sa question. Sauf s'il n'est
-    // pas marchand : une réclamation ouverte d'office par un agent (clôture de
-    // réception de stock) a un auteur du back-office, qui n'a pas de cloche
-    // marchande où lire ce lien.
-    if (data.reponse) {
-      const destinataires = await destinatairesBoutique(reclamation.marchandId, 'reclamations.voir');
-      const auteur = await prisma.utilisateur.findUnique({
-        where: { id: reclamation.utilisateurId },
-        select: { role: true },
-      });
-      if (auteur?.role === 'marchand') destinataires.push(reclamation.utilisateurId);
-      await notifier(destinataires, {
-        type: 'reclamation.repondue',
-        titre: `Réponse à votre réclamation : ${reclamation.sujet}`,
-        corps: data.reponse.length > 140 ? `${data.reponse.slice(0, 140)}…` : data.reponse,
-        lien: '/marchand/reclamations',
-      }, { sauf: session.sub });
-    }
-
-    return NextResponse.json(updated);
+    const maj = await prisma.reclamation.findUniqueOrThrow({ where: { id }, include: INCLUDE_RECLAMATION });
+    return NextResponse.json(exposerReclamation(maj, false));
   } catch (error) {
     return jsonError(error);
   }

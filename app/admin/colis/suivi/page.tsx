@@ -26,7 +26,13 @@ function construireCircuit(commande: Commande): EvenementCircuit[] {
       type: 'statut',
       horodatage: h.horodatage,
       auteur: h.utilisateur?.nomComplet ?? '—',
-      texte: LABELS_STATUT_COMMANDE[h.nouveauStatut as keyof typeof LABELS_STATUT_COMMANDE] ?? h.nouveauStatut,
+      // Ligne sans changement de statut : une information, pas un statut répété.
+      texte:
+        h.ancienStatut === h.nouveauStatut
+          ? 'Information'
+          : `${LABELS_STATUT_COMMANDE[h.nouveauStatut as keyof typeof LABELS_STATUT_COMMANDE] ?? h.nouveauStatut}${
+              ['recu_au_hub', 'retourne_au_hub'].includes(h.nouveauStatut) && h.hub?.ville ? ` (${h.hub.ville})` : ''
+            }`,
       note: h.note,
     });
   }

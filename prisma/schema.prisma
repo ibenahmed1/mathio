@@ -397,16 +397,17 @@ model Utilisateur {
   membresAjoutes      MarchandMembre[]        @relation("MembreAjoutePar")
   journalEquipeAuteur JournalEquipeMarchand[] @relation("JournalEquipeAuteur")
 
-  historiqueStatuts  HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
-  historiqueProduits HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
-  mouvementsStock    MouvementStock[]           @relation("MouvementStockAuteur")
-  commandesRamassees Commande[]                 @relation("CommandeRamasseur")
-  commandesLivrees   Commande[]                 @relation("CommandeLivreur")
-  ramassagesRealises Ramassage[]                @relation("RamassageRamasseur")
-  ramassagesInities  Ramassage[]                @relation("RamassageInitiateur")
-  commentaires       CommentaireCommande[]
-  reclamations       Reclamation[]
-  tarifsVilles       TarifLivreurVille[]
+  historiqueStatuts    HistoriqueStatutCommande[] @relation("HistoriqueAuteur")
+  historiqueProduits   HistoriqueProduit[]        @relation("HistoriqueProduitAuteur")
+  mouvementsStock      MouvementStock[]           @relation("MouvementStockAuteur")
+  commandesRamassees   Commande[]                 @relation("CommandeRamasseur")
+  commandesLivrees     Commande[]                 @relation("CommandeLivreur")
+  ramassagesRealises   Ramassage[]                @relation("RamassageRamasseur")
+  ramassagesInities    Ramassage[]                @relation("RamassageInitiateur")
+  commentaires         CommentaireCommande[]
+  reclamations         Reclamation[]
+  reponsesReclamations ReponseReclamation[]       @relation("ReponseReclamationAuteur")
+  tarifsVilles         TarifLivreurVille[]
 
   bonsDistribution BonDistribution[] @relation("BonDistributionLivreur")
 
@@ -436,7 +437,9 @@ model Utilisateur {
   simulationsRentabilite      SimulationRentabilite[] @relation("SimulationRentabiliteAuteur")
 
   // § Power Delivery : remises de colis qu'il a déclenchées.
-  remisesPrestataire RemisePrestataire[] @relation("RemisePrestataireAuteur")
+  remisesPrestataire            RemisePrestataire[]     @relation("RemisePrestataireAuteur")
+  versementsTransporteurSaisis  VersementTransporteur[] @relation("VersementTransporteurAuteur")
+  versementsTransporteurAnnules VersementTransporteur[] @relation("VersementTransporteurAnnulePar")
 
   // § Gestion de stock (/admin/stock/**) : admin ayant validé la préparation d'un bon.
   bonsPreparationValidees BonDePreparation[]
@@ -622,8 +625,13 @@ model Marchand {
   // sans ligne dédiée dans TarifMarchandVille. Distinct des frais du livreur
   // (Utilisateur.fraisLivraison / fraisRefus) — ceux-ci sont ce que la
   // plateforme PAIE, ceux-là ce qu'elle FACTURE.
-  fraisLivraison Decimal? @map("frais_livraison") @db.Decimal(10, 2)
-  fraisRetour    Decimal? @map("frais_retour") @db.Decimal(10, 2)
+  fraisLivraison   Decimal? @map("frais_livraison") @db.Decimal(10, 2)
+  fraisRetour      Decimal? @map("frais_retour") @db.Decimal(10, 2)
+  // § Préparation (14/10/2026) : facturée sur CHAQUE colis de la facture,
+  // livré comme retourné — le colis a été préparé dans les deux cas. Posée à
+  // 3 DH pour les boutiques de plateforme de vente (Shipeh), dont la
+  // marchandise est préparée dans notre entrepôt ; vide = rien.
+  fraisPreparation Decimal? @map("frais_preparation") @db.Decimal(10, 2)
 
   adresses        AdresseMarchand[]
   commandes       Commande[]
@@ -1007,6 +1015,9 @@ model ProduitVariante {
   quantiteEnCours Int     @default(0) @map("quantite_en_cours")
   quantiteRecue   Int     @default(0) @map("quantite_recue")
   rayonnage       String? @map("rayonnage")
+  // Photo propre à la variante : obligatoire quand une plateforme la déclare
+  // (POST /api/v1/produits, 12/10/2026), facultative depuis l'espace marchand.
+  photoUrl        String? @map("photo_url")
 
   commandes       Commande[]
   lignesEnvoi     EnvoiStockLigne[]
@@ -1234,7 +1245,9 @@ model Commande {
 
   // § Sous-traitance par API : les remises de ce colis à un prestataire, dont
   // une seule active à la fois (cf. RemisePrestataire).
-  remisesPrestataire RemisePrestataire[]
+  remisesPrestataire  RemisePrestataire[]
+  // § Règlements transporteurs : ce que le transporteur nous doit pour ce colis livré.
+  creanceTransporteur CreanceTransporteur?
 
   // § Intégration Shopify : la commande Shopify dont ce colis est issu. Porte
   // le tag « Shopify » et l'idempotence des webhooks (cf. CommandeShopify).
@@ -1626,19 +1639,24 @@ model ListeNoire {
 // par le back-office (statut + réponse). Un seul niveau de suivi (pas de fil
 // de discussion multi-messages) pour ce scénario.
 model Reclamation {
-  id            String            @id @default(uuid())
-  marchandId    String            @map("marchand_id")
-  marchand      Marchand          @relation(fields: [marchandId], references: [id])
-  commandeId    String?           @map("commande_id")
-  commande      Commande?         @relation(fields: [commandeId], references: [id])
-  utilisateurId String            @map("utilisateur_id")
-  utilisateur   Utilisateur       @relation(fields: [utilisateurId], references: [id])
+  id            String               @id @default(uuid())
+  marchandId    String               @map("marchand_id")
+  marchand      Marchand             @relation(fields: [marchandId], references: [id])
+  commandeId    String?              @map("commande_id")
+  commande      Commande?            @relation(fields: [commandeId], references: [id])
+  utilisateurId String               @map("utilisateur_id")
+  utilisateur   Utilisateur          @relation(fields: [utilisateurId], references: [id])
   sujet         String
   message       String
-  statut        StatutReclamation @default(ouverte)
+  statut        StatutReclamation    @default(ouverte)
+  // ANCIEN champ unique de réponse, écrasé à chaque enregistrement. Remplacé
+  // le 14/10/2026 par le fil `reponses` (une réponse enregistrée reste, elles
+  // se cumulent) ; la migration y a recopié les réponses existantes. Plus
+  // écrit, gardé pour ne rien perdre.
   reponse       String?
-  dateCreation  DateTime          @default(now()) @map("date_creation")
-  dateReponse   DateTime?         @map("date_reponse")
+  dateCreation  DateTime             @default(now()) @map("date_creation")
+  dateReponse   DateTime?            @map("date_reponse")
+  reponses      ReponseReclamation[]
 
   @@index([marchandId])
   @@index([commandeId])
@@ -1801,6 +1819,10 @@ model Prestataire {
   // qu'aucune de ses agences ne déclare encore.
   bonsEnvoi     BonEnvoi[]
   evenements    EvenementPrestataire[]
+  // § Règlements transporteurs (13/10/2026) : ce qu'il nous doit, colis par
+  // colis, et ce qu'il nous a versé.
+  creances      CreanceTransporteur[]
+  versements    VersementTransporteur[]
 
   @@map("prestataires")
 }
@@ -1930,6 +1952,15 @@ model RemisePrestataire {
   // Demandes soumises à leur équipe, qui les accepte ou les refuse de son côté.
   demandeRetourLe      DateTime? @map("demande_retour_le")
   demandeRelivraisonLe DateTime? @map("demande_relivraison_le")
+
+  // RETOUR DÉCLARÉ ≠ RETOUR REÇU (décidé le 11/10/2026). Leur « RETURNED » ne
+  // touche jamais le colis : c'est leur parole, pas un fait. On garde la
+  // PREMIÈRE déclaration (date + code reçu) comme preuve si le colis se perd,
+  // et seul notre scan au hub (`retourRecuLe`) fait avancer le colis
+  // (lib/retour-transporteur.ts). Déclaré et non reçu depuis 3 jours = alerte.
+  retourDeclareLe   DateTime? @map("retour_declare_le")
+  retourDeclareCode String?   @map("retour_declare_code")
+  retourRecuLe      DateTime? @map("retour_recu_le")
 
   creeLe DateTime @default(now()) @map("cree_le")
 
@@ -2252,8 +2283,10 @@ model Transaction {
   // règlement (§ /admin/factures, § /admin/bon-paiement) — même principe que
   // la remise de tournée ci-dessus : le journal comptable reste la source de
   // vérité, ces liens permettent de remonter au document qui l'a produit.
-  factureReglee Facture?     @relation("TransactionReglementMarchand")
-  bonPaiement   BonPaiement? @relation("TransactionReglementLivreur")
+  factureReglee         Facture?               @relation("TransactionReglementMarchand")
+  bonPaiement           BonPaiement?           @relation("TransactionReglementLivreur")
+  // Encaissement d'un versement de transporteur (§ Règlements transporteurs).
+  versementTransporteur VersementTransporteur? @relation("TransactionVersementTransporteur")
 
   // Suppression LOGIQUE : non-null = la ligne est hors du journal et des
   // totaux. Toute lecture du journal filtre `supprimeLe: null`. Supprimer une
@@ -2523,25 +2556,27 @@ model Facture {
   marchand   Marchand      @relation(fields: [marchandId], references: [id])
   statut     StatutFacture @default(brouillon)
 
-  nbColisLivres       Int     @map("nb_colis_livres")
-  nbColisRetournes    Int     @map("nb_colis_retournes")
+  nbColisLivres         Int     @map("nb_colis_livres")
+  nbColisRetournes      Int     @map("nb_colis_retournes")
   // Somme des COD des colis LIVRÉS uniquement : un colis retourné n'a rien
   // encaissé, il ne pèse sur la facture que par ses frais de retour.
-  totalCod            Decimal @map("total_cod") @db.Decimal(12, 2)
-  totalFraisLivraison Decimal @map("total_frais_livraison") @db.Decimal(12, 2)
-  totalFraisRetour    Decimal @map("total_frais_retour") @db.Decimal(12, 2)
+  totalCod              Decimal @map("total_cod") @db.Decimal(12, 2)
+  totalFraisLivraison   Decimal @map("total_frais_livraison") @db.Decimal(12, 2)
+  totalFraisRetour      Decimal @map("total_frais_retour") @db.Decimal(12, 2)
   // Somme des frais annexes saisis à la main (emballage, réexpédition,
   // service dédié…), toujours POSITIVE : ils se retranchent du net comme les
   // frais de livraison. Recalculée à chaque ajout/retrait de ligne tant que
   // la facture est `brouillon`. Pendant de BonPaiement.totalAjustements, à
   // ceci près qu'un frais ne peut pas être une prime — il n'y a pas de
   // contrepartie positive à reverser au marchand hors du COD.
-  totalAutresFrais    Decimal @default(0) @map("total_autres_frais") @db.Decimal(12, 2)
-  // totalCod - totalFraisLivraison - totalFraisRetour - totalAutresFrais.
+  totalAutresFrais      Decimal @default(0) @map("total_autres_frais") @db.Decimal(12, 2)
+  // Somme des LigneFacture.fraisPreparation.
+  totalFraisPreparation Decimal @default(0) @map("total_frais_preparation") @db.Decimal(12, 2)
+  // totalCod - totalFraisLivraison - totalFraisRetour - totalFraisPreparation - totalAutresFrais.
   // Peut être négatif (beaucoup de retours, peu de livraisons) : c'est alors
   // le marchand qui doit à la plateforme, et le signe doit rester lisible
   // tel quel.
-  netAPayer           Decimal @map("net_a_payer") @db.Decimal(12, 2)
+  netAPayer             Decimal @map("net_a_payer") @db.Decimal(12, 2)
 
   // § Marge — somme des LigneFacture.coutLivraison CONNUS, et nombre de lignes
   // dont le coût ne l'est pas. INTERNES tous les deux, retirés des réponses
@@ -2640,17 +2675,19 @@ enum SourceCoutLivraison {
 // une seule facture, garanti par la base et non par la seule discipline des
 // routes — c'est la protection anti-double-facturation.
 model LigneFacture {
-  id         String   @id @default(uuid())
-  factureId  String   @map("facture_id")
-  facture    Facture  @relation(fields: [factureId], references: [id], onDelete: Cascade)
-  commandeId String   @unique @map("commande_id")
-  commande   Commande @relation(fields: [commandeId], references: [id])
+  id               String   @id @default(uuid())
+  factureId        String   @map("facture_id")
+  facture          Facture  @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  commandeId       String   @unique @map("commande_id")
+  commande         Commande @relation(fields: [commandeId], references: [id])
   // Vrai pour un colis livré (COD encaissé, frais de livraison), faux pour un
   // colis retourné (aucun COD, frais de retour). Stocké plutôt que redéduit
   // du statut du colis : celui-ci peut encore évoluer après facturation.
-  livre      Boolean
-  montantCod Decimal  @map("montant_cod") @db.Decimal(10, 2)
-  frais      Decimal  @db.Decimal(10, 2)
+  livre            Boolean
+  montantCod       Decimal  @map("montant_cod") @db.Decimal(10, 2)
+  frais            Decimal  @db.Decimal(10, 2)
+  // Frais de préparation du colis (Marchand.fraisPreparation), figés comme `frais`.
+  fraisPreparation Decimal  @default(0) @map("frais_preparation") @db.Decimal(10, 2)
 
   // § Marge — ce que la course nous a COÛTÉ, figé au même instant que `frais`
   // (ce qu'elle nous rapporte). Les deux côtés du même colis sur la même
@@ -3530,4 +3567,106 @@ model SimulationRentabilite {
 
   @@index([marchandId, dateModification])
   @@map("simulations_rentabilite")
+}
+
+// ============================================================
+// Règlements transporteurs (décidé le 13/10/2026, SOUS_TRAITANCE.md)
+// ============================================================
+// Le transporteur encaisse le COD, garde ses frais (tarif de sa grille pour la
+// ville) et nous reverse le reste sous 24 h. La dette naît quand le colis
+// passe « livré » : une créance par colis confié, créée et tenue à jour par
+// lib/reglements-transporteurs.ts. Un versement (paiement reçu) solde une ou
+// plusieurs créances et passe au journal comptable comme recette.
+
+enum EtatCreanceTransporteur {
+  a_recevoir
+  paye
+  // Le colis n'est plus « livré » (statut corrigé) : plus rien n'est dû.
+  annulee
+}
+
+model CreanceTransporteur {
+  id            String      @id @default(uuid())
+  commandeId    String      @unique @map("commande_id")
+  commande      Commande    @relation(fields: [commandeId], references: [id], onDelete: Cascade)
+  prestataireId String      @map("prestataire_id")
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
+
+  montantCod        Decimal  @map("montant_cod") @db.Decimal(10, 2)
+  // Tarif de la grille du transporteur pour la ville, figé à la livraison.
+  // NULL = la grille ne connaît pas la ville : l'attendu vaut alors le COD
+  // entier, et l'écran alerte (toutes les villes doivent avoir un tarif).
+  fraisTransporteur Decimal? @map("frais_transporteur") @db.Decimal(10, 2)
+  montantAttendu    Decimal  @map("montant_attendu") @db.Decimal(10, 2)
+  dateLivraison     DateTime @map("date_livraison")
+  // dateLivraison + 24 h : au-delà, le colis est « en retard ».
+  echeance          DateTime
+
+  etat        EtatCreanceTransporteur @default(a_recevoir)
+  versementId String?                 @map("versement_id")
+  versement   VersementTransporteur?  @relation(fields: [versementId], references: [id], onDelete: SetNull)
+
+  creeLe    DateTime @default(now()) @map("cree_le")
+  modifieLe DateTime @updatedAt @map("modifie_le")
+
+  @@index([prestataireId, etat])
+  @@index([versementId])
+  @@map("creances_transporteurs")
+}
+
+model VersementTransporteur {
+  id            String      @id @default(uuid())
+  // Numéro d'affichage (« versement n° 12 »).
+  numero        Int         @unique @default(autoincrement())
+  prestataireId String      @map("prestataire_id")
+  prestataire   Prestataire @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
+
+  // Ce qui est réellement arrivé, et ce que les colis couverts laissaient
+  // attendre. L'écart n'est PAS traité (question 26, SOUS_TRAITANCE.md) : il
+  // est enregistré et affiché.
+  montantRecu    Decimal  @map("montant_recu") @db.Decimal(12, 2)
+  montantAttendu Decimal  @map("montant_attendu") @db.Decimal(12, 2)
+  dateVersement  DateTime @map("date_versement")
+  // Photo du reçu bancaire, facultative — même format que Transaction.preuveUrl
+  // (data URL d'image, cf. analyserPreuveComptable). Jamais lue dans une liste.
+  preuveUrl      String?  @map("preuve_url")
+  note           String?
+
+  auteurId String      @map("auteur_id")
+  auteur   Utilisateur @relation("VersementTransporteurAuteur", fields: [auteurId], references: [id])
+
+  // Recette au journal comptable de la plateforme.
+  transactionId String?      @unique @map("transaction_id")
+  transaction   Transaction? @relation("TransactionVersementTransporteur", fields: [transactionId], references: [id])
+
+  // Annulation (saisie par erreur) : les créances repassent « à recevoir » et
+  // l'écriture du journal est neutralisée. La ligne reste, pour l'audit.
+  annuleLe    DateTime?    @map("annule_le")
+  annuleParId String?      @map("annule_par_id")
+  annulePar   Utilisateur? @relation("VersementTransporteurAnnulePar", fields: [annuleParId], references: [id])
+
+  creances CreanceTransporteur[]
+
+  creeLe DateTime @default(now()) @map("cree_le")
+
+  @@index([prestataireId])
+  @@map("versements_transporteurs")
+}
+
+// § Réclamations — fil des réponses du back-office (14/10/2026). Une réponse
+// enregistrée ne se modifie plus : elles se cumulent, jusqu'à la fermeture de
+// la réclamation (résolue ou rejetée), après laquelle on ne répond plus.
+model ReponseReclamation {
+  id            String       @id @default(uuid())
+  reclamationId String       @map("reclamation_id")
+  reclamation   Reclamation  @relation(fields: [reclamationId], references: [id], onDelete: Cascade)
+  // NULL : réponse reprise de l'ancien champ unique, dont l'auteur n'était pas
+  // conservé (ou compte supprimé depuis).
+  auteurId      String?      @map("auteur_id")
+  auteur        Utilisateur? @relation("ReponseReclamationAuteur", fields: [auteurId], references: [id], onDelete: SetNull)
+  texte         String
+  dateCreation  DateTime     @default(now()) @map("date_creation")
+
+  @@index([reclamationId])
+  @@map("reponses_reclamations")
 }

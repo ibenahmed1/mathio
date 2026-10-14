@@ -8,6 +8,7 @@ import { Button } from '@/components/admin/Button';
 import type { Commande } from '@/lib/types';
 import type { BonDeLivraisonGenere } from '@/lib/bons-livraison';
 import { ChampVille } from '@/components/form/ChampVille';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § /admin/bon-livraison : pendant back-office de l'écran marchand
 // « Ajouter un bon de livraison ». Sert les dépôts que le marchand n'a pas
@@ -188,7 +189,9 @@ export default function AdminBonLivraisonCreerPage() {
                       aria-label={`Sélectionner ${c.codeSuivi}`}
                     />
                   </td>
-                  <td className="font-mono text-xs font-semibold">{c.codeSuivi}</td>
+                  <td className="text-xs font-semibold">
+                    <CodeColis id={c.id} code={c.codeSuivi} />
+                  </td>
                   <td>{c.marchand?.nomBoutique ?? '—'}</td>
                   <td>{c.clientNom}</td>
                   <td>{c.ville}</td>

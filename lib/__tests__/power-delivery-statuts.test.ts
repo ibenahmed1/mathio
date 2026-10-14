@@ -34,13 +34,11 @@ test('la casse et les espaces de bord n’empêchent pas la reconnaissance', () 
   assert.deepEqual(sortStatutPower(' delivered '), { sort: 'appliquer', statut: 'livre' });
 });
 
-// Le piège du vocabulaire commun : « Retourné » chez eux n'est pas notre
-// `retourne`, terminal. Le poser clôturerait un colis encore sur la route.
-test('leur « retourné » ne clôture jamais le colis', () => {
-  for (const code of ['RETURNED', 'RETURN_BY_AMANA']) {
-    const s = sortStatutPower(code);
-    assert.equal(s.sort, 'appliquer', code);
-    assert.ok(s.sort === 'appliquer' && s.statut !== 'retourne', code);
+// Décision du 11/10/2026 : leur « retourné » est une DÉCLARATION, notée sur la
+// remise ; il ne touche jamais le colis. Seul notre scan au hub fait foi.
+test('leur « retourné » est une déclaration, jamais un statut du colis', () => {
+  for (const code of ['RETURNED', 'RETURN_BY_AMANA', 'returned']) {
+    assert.deepEqual(sortStatutPower(code), { sort: 'retour' }, code);
   }
 });
 

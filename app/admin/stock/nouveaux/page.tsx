@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { PackageSearch, CheckCircle2 } from 'lucide-react';
+import { PackageSearch, CheckCircle2, Printer } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { Button } from '@/components/admin/Button';
 import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § Gestion de stock (1/4) : colis stock (enStock=true) créés par le marchand
 // et pas encore pris en charge par le Hub — ces colis ne passent pas par le
@@ -119,7 +120,7 @@ export default function AdminStockNouveauxPage() {
                     />
                   </td>
                   <td className="font-mono text-xs font-semibold">
-                    {c.codeSuivi}
+                    <CodeColis id={c.id} code={c.codeSuivi} />
                     <BadgePlateforme commande={c} />
                   </td>
                   <td>{c.marchand?.nomBoutique ?? '—'}</td>
@@ -154,9 +155,20 @@ export default function AdminStockNouveauxPage() {
               ? `${selected.size} colis sélectionné${selected.size > 1 ? 's' : ''} — ${totalQuantite} article${totalQuantite > 1 ? 's' : ''}`
               : 'Sélectionnez au moins un colis pour continuer'}
           </p>
-          <Button onClick={marquerPretPourPreparation} disabled={busy || selected.size === 0} icon={<CheckCircle2 className="h-4 w-4" />}>
-            {busy ? 'Mise à jour…' : 'Marquer prêt pour préparation'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* Étiquette à QR (§ /etiquettes) : celle que l'agent stock scanne ensuite. */}
+            <Button
+              variant="secondary"
+              onClick={() => window.open(`/etiquettes?ids=${Array.from(selected).join(',')}`, '_blank')}
+              disabled={selected.size === 0}
+              icon={<Printer className="h-4 w-4" />}
+            >
+              Imprimer les étiquettes
+            </Button>
+            <Button onClick={marquerPretPourPreparation} disabled={busy || selected.size === 0} icon={<CheckCircle2 className="h-4 w-4" />}>
+              {busy ? 'Mise à jour…' : 'Marquer prêt pour préparation'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

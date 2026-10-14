@@ -19,7 +19,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const commande = await prisma.commande.findUnique({
       where: { id },
       include: {
-        historique: { orderBy: { horodatage: 'asc' }, include: { utilisateur: { select: { nomComplet: true } } } },
+        historique: {
+          orderBy: { horodatage: 'asc' },
+          include: { utilisateur: { select: { nomComplet: true } }, hub: { select: { nom: true, ville: true } } },
+        },
         commentaires: { orderBy: { dateCreation: 'asc' }, include: { utilisateur: { select: { nomComplet: true } } } },
         livreur: { select: { id: true, nomComplet: true } },
         marchand: { select: { nomBoutique: true } },
@@ -56,6 +59,31 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({
         ...commande,
         transporteurPrevu: prevu ? { prestataireNom: prevu.prestataireNom, hubNom: prevu.hubNom } : null,
+      });
+    }
+
+    // § Marchand (14/10/2026) : AUCUNE information interne — ni qui a changé le
+    // statut, ni quand, ni la note, ni les commentaires du back-office, ni le
+    // livreur. Seulement la suite des statuts réellement pris (une ligne sans
+    // changement de statut n'en est pas un), avec la VILLE du hub qui fait
+    // partie du libellé (« Reçu au Hub (Tanger) »). Coupé ICI, dans la
+    // réponse : masquer à l'écran laisserait tout lisible dans l'API.
+    if (session.role === 'marchand') {
+      const { historique, commentaires: _commentaires, livreur: _livreur, hubActuel, hubActuelId: _hubId, ...reste } = commande;
+      void _commentaires;
+      void _livreur;
+      void _hubId;
+      return NextResponse.json({
+        ...reste,
+        hubActuel: hubActuel ? { ville: hubActuel.ville } : null,
+        historique: historique
+          .filter((h) => h.ancienStatut !== h.nouveauStatut)
+          .map((h) => ({
+            id: h.id,
+            nouveauStatut: h.nouveauStatut,
+            // La ville n'accompagne que les statuts qui l'affichent (StatutBadge).
+            hubVille: h.nouveauStatut === 'recu_au_hub' || h.nouveauStatut === 'retourne_au_hub' ? (h.hub?.ville ?? null) : null,
+          })),
       });
     }
 

@@ -8,6 +8,7 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonEnvoi, Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { BonEnvoiTransporteur } from '@/components/admin/BonEnvoiTransporteur';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface Destination {
   id: string;
@@ -267,7 +268,9 @@ export default function CreerBonEnvoiPage() {
                               aria-label={`Sélectionner ${c.codeSuivi}`}
                             />
                           </td>
-                          <td className="font-mono">{c.codeSuivi}</td>
+                          <td>
+                            <CodeColis id={c.id} code={c.codeSuivi} />
+                          </td>
                           <td>{c.marchand?.nomBoutique ?? '—'}</td>
                           <td>{c.ville}</td>
                           <td className="whitespace-nowrap text-xs opacity-70">

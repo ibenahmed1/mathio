@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 
     const marchand = await prisma.marchand.findUnique({
       where: { id: marchandId },
-      select: { id: true, nomBoutique: true, fraisLivraison: true, fraisRetour: true },
+      select: { id: true, nomBoutique: true, fraisLivraison: true, fraisRetour: true, fraisPreparation: true },
     });
     if (!marchand) throw new ApiError(404, 'Marchand introuvable');
 

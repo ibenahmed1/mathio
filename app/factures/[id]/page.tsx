@@ -52,6 +52,9 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
   }
 
   if (session.role === 'marchand') {
+    // Droit du compte (rôle d'équipe, boutique Shipeh sans documents) : la page
+    // imprimable obéit au même droit que l'écran qui y mène.
+    if (!session.permissions.includes('factures.voir')) redirect('/marchand/acces-refuse');
     const marchand = await resolveMarchandForUser(session.sub);
     // Un brouillon n'a pas encore été arrêté : ses montants peuvent bouger,
     // et l'imprimer côté marchand reviendrait à lui remettre un document qui
@@ -203,6 +206,12 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
               <td className="py-0.5">Frais de retour ({facture.nbColisRetournes} colis)</td>
               <td className="py-0.5 text-right tabular-nums">−{fmt(facture.totalFraisRetour)}</td>
             </tr>
+            {Number(facture.totalFraisPreparation) > 0 && (
+              <tr>
+                <td className="py-0.5">Frais de préparation ({facture.nbColisLivres + facture.nbColisRetournes} colis)</td>
+                <td className="py-0.5 text-right tabular-nums">−{fmt(facture.totalFraisPreparation)}</td>
+              </tr>
+            )}
             {Number(facture.totalAutresFrais) > 0 && (
               <tr>
                 <td className="py-0.5">Autres frais ({facture.fraisAnnexes.length} ligne(s))</td>

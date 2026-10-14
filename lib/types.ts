@@ -69,6 +69,10 @@ export interface Commande {
   bonLivraisonId: string | null;
   bonPreparationId: string | null;
   bonEnvoiId: string | null;
+  // § Circuit Shipeh : hub visé par un colis en transit (GET /api/commandes),
+  // et hub d'arrivée d'un colis de bon d'envoi (GET /api/bons-envoi/[id]).
+  transitVers?: string | null;
+  hubArriveeNom?: string | null;
   bonDistributionId: string | null;
   villeId: string | null;
   ramasseurId: string | null;
@@ -134,6 +138,7 @@ export interface ProduitVariante {
   quantiteEnCours: number;
   quantiteRecue: number;
   rayonnage: string | null;
+  photoUrl?: string | null;
 }
 
 export interface HistoriqueProduit {
@@ -180,7 +185,7 @@ export interface HistoriqueStatut {
   hubId?: string | null;
   note?: string | null;
   utilisateur?: { nomComplet: string };
-  hub?: { nom: string } | null;
+  hub?: { nom: string; ville?: string } | null;
 }
 
 export interface CommentaireCommande {
@@ -223,6 +228,8 @@ export interface Marchand {
   // TarifMarchandVille. `null` = aucun frais par défaut, distinct de "0".
   fraisLivraison?: string | null;
   fraisRetour?: string | null;
+  // Par colis facturé, livré comme retourné (3 DH pour les boutiques Shipeh).
+  fraisPreparation?: string | null;
   dateCreation: string;
   utilisateur?: {
     id?: string;
@@ -665,9 +672,10 @@ export interface Reclamation {
   sujet: string;
   message: string;
   statut: 'ouverte' | 'en_cours' | 'resolue' | 'rejetee';
-  reponse: string | null;
   dateCreation: string;
-  dateReponse: string | null;
+  // § Fil des réponses (14/10/2026) : elles se cumulent, aucune ne s'écrase.
+  // `auteur` est null côté marchand (on ne lui dit pas qui, chez nous, a répondu).
+  reponses: { id: string; texte: string; dateCreation: string; auteur: string | null }[];
   marchand?: { nomBoutique: string };
   commande?: { id: string; codeSuivi: string } | null;
   utilisateur?: { nomComplet: string };
@@ -686,6 +694,7 @@ export interface LigneFacture {
   livre: boolean;
   montantCod: string;
   frais: string;
+  fraisPreparation: string;
   commande?: {
     id: string;
     codeSuivi: string;
@@ -719,6 +728,7 @@ export interface Facture {
   totalCod: string;
   totalFraisLivraison: string;
   totalFraisRetour: string;
+  totalFraisPreparation: string;
   totalAutresFrais: string;
   netAPayer: string;
   // § Marge — INTERNES, et donc OPTIONNELS ici : les réponses servies à une
@@ -781,6 +791,7 @@ export interface PrevisualisationFacture {
       livre: boolean;
       montantCod: number;
       frais: number;
+      fraisPreparation: number;
       // § Marge — coût de la course, null quand il est inconnu. INTERNE : la
       // prévisualisation n'est servie qu'à l'admin et au responsable.
       coutLivraison: number | null;
@@ -791,6 +802,7 @@ export interface PrevisualisationFacture {
     totalCod: number;
     totalFraisLivraison: number;
     totalFraisRetour: number;
+    totalFraisPreparation: number;
     totalAutresFrais: number;
     netAPayer: number;
     totalCoutLivraison: number;

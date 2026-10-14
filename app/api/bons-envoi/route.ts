@@ -4,7 +4,9 @@ import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-
 import { getColisEligiblesEnvoi, resolveUserHub, type CommandeEligibleEnvoi } from '@/lib/hub-envoi';
 import { creerBonEnvoiPrestataire } from '@/lib/bon-envoi-prestataire';
 import { nextBonEnvoiNumero } from '@/lib/codes';
+import { destinatairesBackoffice, notifier } from '@/lib/notifications';
 import type { Prisma } from '@/app/generated/prisma/client';
+import { statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +30,9 @@ export async function GET(request: NextRequest) {
       prisma.bonEnvoi.findMany({
         where,
         include: {
-          hubDestination: { select: { nom: true } },
+          // Le transporteur qui tient le hub d'arrivée : la liste nomme qui
+          // reçoit le bon, quai régional ou remise directe.
+          hubDestination: { select: { nom: true, prestataire: { select: { nom: true } } } },
           prestataire: { select: { nom: true } },
         },
         orderBy: { dateGeneration: 'desc' },
@@ -79,6 +83,14 @@ export async function POST(request: Request) {
         auteurId: session.sub,
         tousStatuts: body.tousStatuts === true,
       });
+      // Bon à remettre : le reste de l'équipe des bons d'envoi est prévenu.
+      const prestataire = await prisma.prestataire.findUnique({ where: { id: prestataireId }, select: { nom: true } });
+      await notifier(await destinatairesBackoffice('bon_envoi:manage'), {
+        type: 'bon_envoi.cree',
+        titre: `Bon d'envoi ${cree.numero} — ${prestataire?.nom ?? 'transporteur'}`,
+        corps: `${cree.nbColis} colis à remettre`,
+        lien: `/admin/bon-envoi/${cree.id}`,
+      }, { sauf: session.sub });
       return NextResponse.json(cree, { status: 201 });
     }
 
@@ -111,8 +123,16 @@ export async function POST(request: Request) {
         data: { numero, hubDestinationId, nbColis: colis.length },
       });
 
+      // § Circuit Shipeh : un colis Shipeh reste « reçu au hub » jusqu'à sa remise.
       await tx.commande.updateMany({
-        where: { id: { in: colis.map((c) => c.id) } },
+        where: { id: { in: colis.filter(suitCircuitShipeh).map((c) => c.id) } },
+        data: {
+          bonEnvoiId: created.id,
+          ...(hub.prestataire ? { livreurId: hub.prestataire.compteLivreurId } : {}),
+        },
+      });
+      await tx.commande.updateMany({
+        where: { id: { in: colis.filter((c) => !suitCircuitShipeh(c)).map((c) => c.id) } },
         // Hub tenu par un transporteur (les 11 hubs régionaux) : le colis lui
         // est confié, donc affecté à son compte humain s'il en a un — c'est ce
         // qui le fait apparaître dans son espace (§ lib/livreur.ts). Un hub
@@ -128,10 +148,12 @@ export async function POST(request: Request) {
         data: colis.map((c) => ({
           commandeId: c.id,
           ancienStatut: c.statut,
-          nouveauStatut: 'en_transit' as const,
+          nouveauStatut: statutEntreeBonEnvoi(c),
           utilisateurId: session.sub,
           hubId: hubDestinationId,
-          note: `Colis intégré dans le Bon d'Envoi ${numero} en transit vers ${hub.nom}`,
+          note: suitCircuitShipeh(c)
+            ? `Colis ajouté au Bon d'Envoi ${numero} vers ${hub.nom} — en attente de remise`
+            : `Colis intégré dans le Bon d'Envoi ${numero} en transit vers ${hub.nom}`,
         })),
       });
 

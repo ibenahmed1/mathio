@@ -35,6 +35,7 @@ Messaging. Le destinataire **final** du colis n'est pas concerné : c'est le cha
 | `ramassage.demande` | demande de ramassage | back-office `demande_ramassage:manage` | oui |
 | `transporteur.erreur` | remise Power Delivery avec colis non remis | back-office `bon_envoi:manage` | oui |
 | `hub.colis_recus` | bon d'envoi interne réceptionné | planners du hub d'arrivée | oui |
+| `bon_envoi.cree` | bon d'envoi créé pour un transporteur | back-office `bon_envoi:manage`, sauf l'auteur | oui |
 | `comptabilite.transaction` | écriture au journal de la **plateforme** : saisie, neutralisation, remise de caisse (clôture de tournée), paie (bon de paiement), règlement de facture | rôles `admin` et `responsable` (ceux qui lisent ce journal) | oui |
 | `tache.assignee` / `tache.mention` / `tache.commentaire` | Kanban | assigné, mentionnés, créateur — **s'ils peuvent lire la tâche** | oui |
 

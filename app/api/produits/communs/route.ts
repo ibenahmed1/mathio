@@ -46,7 +46,7 @@ export async function GET() {
         plateforme: { select: { nom: true } },
         variantes: {
           orderBy: { reference: 'asc' },
-          select: { id: true, nom: true, reference: true, quantiteRecue: true, quantiteEnCours: true },
+          select: { id: true, nom: true, reference: true, quantiteRecue: true, quantiteEnCours: true, photoUrl: true },
         },
       },
     });
@@ -56,6 +56,7 @@ export async function GET() {
       const brutes = p.variantesActivees
         ? p.variantes.map((v) => ({
             ...base,
+            photoUrl: v.photoUrl ?? p.photoUrl,
             varianteId: v.id,
             nom: `${p.nom} — ${v.nom}`,
             sku: v.reference,

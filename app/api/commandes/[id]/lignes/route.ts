@@ -22,6 +22,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             quantite: true,
             provenance: true,
             produit: { select: { photoUrl: true, plateforme: { select: { nom: true } } } },
+            variante: { select: { photoUrl: true } },
           },
         },
       },
@@ -30,9 +31,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json({
       enAttenteStock: commande.enAttenteStock,
-      lignes: commande.lignes.map(({ produit, ...l }) => ({
+      lignes: commande.lignes.map(({ produit, variante, ...l }) => ({
         ...l,
-        photoUrl: produit?.photoUrl ?? null,
+        // La photo de la variante quand elle en a une, sinon celle du produit.
+        photoUrl: variante?.photoUrl ?? produit?.photoUrl ?? null,
         plateforme: produit?.plateforme?.nom ?? null,
       })),
     });

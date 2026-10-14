@@ -19,7 +19,9 @@ import { Logo } from '@/components/Logo';
 // descend à trois niveaux (ex. Documents de transport > Bon de retour > Pour
 // livreur). Les espaces marchand et terrain, eux, restent plats — la
 // récursivité ne leur coûte rien.
-export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string; roles?: string[]; permission?: string };
+// `compteur` : clé d'un compteur de GET /api/compteurs (lib/compteurs-nav.ts),
+// affiché en pastille rouge — « ce qui attend un geste » derrière ce lien.
+export type NavLeaf = { label: string; href: string; icon: React.ComponentType<{ className?: string }>; section?: string; roles?: string[]; permission?: string; compteur?: string };
 export type NavGroup = { label: string; icon: React.ComponentType<{ className?: string }>; children: NavItem[]; section?: string; roles?: string[]; permission?: string };
 export type NavItem = NavLeaf | NavGroup;
 

@@ -7,6 +7,7 @@ import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statu
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import { codeEffectifWebhook, paiementPower, sortStatutPower } from '@/lib/power-delivery-statuts';
 import { NOM_PRESTATAIRE_POWER, prestatairePower } from '@/lib/remise-power-delivery';
+import { detailRetourDeclare, noterRetourDeclare } from '@/lib/retour-transporteur';
 
 // § Sous-traitance Power Delivery — ce qu'ils nous disent de nos colis.
 //
@@ -88,6 +89,7 @@ export type IssueInformation =
   | 'applique'
   | 'inchange'
   | 'memorise'
+  | 'retour_declare'
   | 'inconnu'
   | 'refuse'
   | 'colis_introuvable';
@@ -234,6 +236,9 @@ export async function traiterInformationPower(info: InformationPower): Promise<R
   const sort = sortStatutPower(codeEffectif);
   if (sort.sort === 'inconnu') return conclure('inconnu', `Code « ${codeEffectif} » inconnu : non appliqué`);
   if (sort.sort === 'memoriser') return conclure('memorise', `« ${codeEffectif} » : leur logistique interne`);
+  if (sort.sort === 'retour') {
+    return conclure('retour_declare', detailRetourDeclare(await noterRetourDeclare(remise.id, codeEffectif), codeEffectif));
+  }
 
   const decision = deciderTransitionStatut(remise.commande.statut, sort.statut);
   if (decision.issue === 'inchange') return conclure('inchange', null);

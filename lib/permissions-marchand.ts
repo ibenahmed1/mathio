@@ -376,6 +376,31 @@ export function permissionsDuRole(role: { cle: string | null; permissions: strin
 // par le périmètre boutique, comme avant — ce qui convient aux lectures
 // communes (session, villes, en-tête société, profil en lecture).
 
+// § Boutique d'une plateforme de vente (Shipeh) — décidé le 14/10/2026.
+//
+// Ses commandes arrivent par l'API de la plateforme et sa marchandise est déjà
+// dans notre entrepôt (stock commun) : aucun document, aucune facture, aucun
+// ramassage, ni création de colis ni intégration de boutique tierce — un colis
+// créé ici contournerait la plateforme et son stock. Ni ajout de produits ou de
+// marchandises (14/10/2026) : le catalogue est déclaré par la plateforme, le
+// vendeur le consulte. Ces droits sont retirés
+// au titulaire comme à chaque membre de son équipe, quel que soit son rôle :
+// le menu, les boutons et le proxy suivent d'eux-mêmes.
+export const PERMISSIONS_RETIREES_PLATEFORME: string[] = [
+  'colis.creer',
+  'ramassages.voir',
+  'ramassages.demander',
+  'bons.voir',
+  'bons.creer',
+  'factures.voir',
+  'integrations.gerer',
+  'catalogue.gerer',
+];
+
+export function restreindrePourPlateforme(permissions: string[], boutiquePlateforme: boolean): string[] {
+  return boutiquePlateforme ? permissions.filter((p) => !PERMISSIONS_RETIREES_PLATEFORME.includes(p)) : permissions;
+}
+
 export interface RouteMarchand {
   pattern: string;
   permission: string | null;

@@ -8,6 +8,7 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonDePreparation } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Button } from '@/components/admin/Button';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 export default function BonPreparationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -118,7 +119,9 @@ export default function BonPreparationDetailPage() {
             <tbody>
               {(bon.commandes ?? []).map((c) => (
                 <tr key={c.id}>
-                  <td className="font-mono text-xs font-semibold">{c.codeSuivi}</td>
+                  <td className="text-xs font-semibold">
+                    <CodeColis id={c.id} code={c.codeSuivi} />
+                  </td>
                   <td>{c.clientNom}</td>
                   <td>
                     {c.produit?.nom ?? c.produitDescription ?? <span className="opacity-40">—</span>}

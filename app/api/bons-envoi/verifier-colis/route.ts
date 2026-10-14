@@ -9,6 +9,7 @@ import {
   refusTransporteur,
 } from '@/lib/hub-envoi';
 import { statutsEligiblesPrestataire } from '@/lib/bon-envoi-prestataire';
+import { refusShipehNonScanne } from '@/lib/circuit-shipeh';
 
 // § Étape 3 de la création d'un Bon d'Envoi, mode "scan" : résout un
 // codeSuivi/QR (même logique que POST /api/commandes/scan-reception) et
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
     if (!codeSuivi) {
       throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
     }
+
+    // § Circuit Shipeh : un colis Shipeh non scanné par l'agent stock est refusé
+    // dans les deux modes, avec la raison.
+    const brut = await prisma.commande.findUnique({
+      where: { codeSuivi },
+      select: { codeSuivi: true, statut: true, source: true, enStock: true, bonEnvoiId: true },
+    });
+    const refusShipeh = brut && !brut.bonEnvoiId ? refusShipehNonScanne(brut) : null;
+    if (refusShipeh) throw new ApiError(409, refusShipeh);
 
     // Mode transporteur : le colis doit être libre, dans un statut expédiable,
     // hors tournée, ET partir chez CE transporteur (§ refusTransporteur). Chaque

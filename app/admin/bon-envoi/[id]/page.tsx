@@ -12,6 +12,10 @@ import { RemisePowerDelivery } from '@/components/admin/RemisePowerDelivery';
 import { RemiseColivraison } from '@/components/admin/RemiseColivraison';
 import { RemiseMetaLivraison } from '@/components/admin/RemiseMetaLivraison';
 import { RemiseEstLivraison } from '@/components/admin/RemiseEstLivraison';
+import { RemiseManuelle } from '@/components/admin/RemiseManuelle';
+import { MiseEnDistribution } from '@/components/admin/MiseEnDistribution';
+import { attendRemise } from '@/lib/circuit-shipeh';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface CurrentUser {
   role: 'admin' | 'agent_hub' | string;
@@ -127,6 +131,23 @@ export default function DetailBonEnvoiPage() {
         (bon.hubDestination?.prestataire?.nom === 'EST Livraison' || bon.prestataire?.nom === 'EST Livraison') && (
         <RemiseEstLivraison bonId={bon.id} onRemis={load} />
       )}
+      {/* § Circuit Shipeh : transporteur sans API (ou colis refusé par l'API) —
+          Excel exporté et transmis, puis ce bouton fait partir les colis. */}
+      {user?.role === 'admin' && bon.statut === 'nouveau' && (
+        <RemiseManuelle
+          bon={bon}
+          nbAttente={(bon.commandes ?? []).filter((c) => attendRemise({ source: c.source ?? 'manuel', enStock: c.enStock, statut: c.statut })).length}
+          onRemis={load}
+        />
+      )}
+      {/* Bon reçu : colis chez le transporteur, à mettre en distribution à la main. */}
+      {user?.role === 'admin' && bon.statut === 'recu' && (
+        <MiseEnDistribution
+          key={(bon.commandes ?? []).map((c) => `${c.id}:${c.statut}`).join(',')}
+          bon={bon}
+          onFait={load}
+        />
+      )}
 
       <div className="overflow-x-auto">
         <table className="table-basic min-w-[640px]">
@@ -142,12 +163,20 @@ export default function DetailBonEnvoiPage() {
           <tbody>
             {(bon.commandes ?? []).map((c) => (
               <tr key={c.id}>
-                <td className="font-mono font-semibold">{c.codeSuivi}</td>
+                <td className="font-semibold">
+                  <CodeColis id={c.id} code={c.codeSuivi} />
+                </td>
                 <td>{c.marchand?.nomBoutique ?? '—'}</td>
                 <td>{c.ville}</td>
                 <td className="whitespace-nowrap">{c.montantCod} MAD</td>
                 <td>
-                  <StatutBadge statut={c.statut} />
+                  <StatutBadge statut={c.statut} hubVille={c.statut === 'recu_au_hub' ? c.hubActuel?.ville : undefined} />
+                  {c.statut === 'en_transit' && c.hubArriveeNom && (
+                    <p className="mt-1 text-xs opacity-60">vers {c.hubArriveeNom}</p>
+                  )}
+                  {attendRemise({ source: c.source ?? 'manuel', enStock: c.enStock, statut: c.statut }) && (
+                    <p className="mt-1 text-xs opacity-60">en attente de remise</p>
+                  )}
                 </td>
               </tr>
             ))}

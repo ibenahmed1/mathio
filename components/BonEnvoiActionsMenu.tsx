@@ -128,8 +128,9 @@ export function BonEnvoiActionsMenu({
             {bon.prestataire ? (
               <>
                 Confirmer la prise en charge du bon <span className="font-mono">{bon.numero}</span> par{' '}
-                {bon.prestataire.nom} ? Ses colis restent « En transit » : ils passent dans l&apos;espace du
-                transporteur, qui en déclare ensuite l&apos;issue.
+                {bon.prestataire.nom} ? Les colis Shipeh passent « Reçu au hub » du transporteur ; les autres
+                restent « En transit ». Tous sont dans l&apos;espace du transporteur, qui en déclare ensuite
+                l&apos;issue.
               </>
             ) : (
               <>

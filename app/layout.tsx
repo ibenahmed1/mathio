@@ -42,7 +42,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr" className={`${jakarta.variable} ${interTight.variable}`}>
+    // `data-scroll-behavior` : Next.js coupe le défilement doux pendant les
+    // changements de page (globals.css le pose sur <html>), sans avertissement.
+    <html lang="fr" className={`${jakarta.variable} ${interTight.variable}`} data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   )

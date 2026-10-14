@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
 import { nextBonPreparationNumero } from '@/lib/codes';
+import { suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import type { Commande } from '@/app/generated/prisma/client';
 
 export async function GET(request: NextRequest) {
@@ -51,6 +52,15 @@ export async function POST(request: NextRequest) {
     });
     if (colis.length !== ids.length) {
       throw new ApiError(400, "Un ou plusieurs colis sélectionnés ne sont plus disponibles (déjà groupés dans un bon ou hors statut « prêt pour préparation »)");
+    }
+    // § Circuit Shipeh : un colis Shipeh ne passe pas par le bon de préparation,
+    // il se scanne (POST /api/stock/scan-reception).
+    const shipeh = colis.filter(suitCircuitShipeh);
+    if (shipeh.length > 0) {
+      throw new ApiError(
+        409,
+        `Colis Shipeh à scanner, pas à regrouper : ${shipeh.map((c) => c.codeSuivi).join(', ')}`
+      );
     }
 
     const parMarchand = new Map<string, Commande[]>();

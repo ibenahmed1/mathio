@@ -7,6 +7,7 @@ import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statu
 import { ErreurMeta, suivreColisMeta } from '@/lib/meta-livraison';
 import { type EvenementMeta, traduireEvenementMeta } from '@/lib/meta-livraison-statuts';
 import { NOM_PRESTATAIRE_META, prestataireMeta } from '@/lib/remise-meta-livraison';
+import { detailRetourDeclare, noterRetourDeclare } from '@/lib/retour-transporteur';
 
 // § Sous-traitance Meta Livraison — ce qu'ils nous disent de nos colis.
 //
@@ -25,6 +26,7 @@ export type IssueInformation =
   | 'applique'
   | 'inchange'
   | 'memorise'
+  | 'retour_declare'
   | 'refuse'
   | 'colis_inconnu'
   | 'colis_introuvable';
@@ -195,6 +197,9 @@ export async function traiterInformationMeta(info: InformationMeta): Promise<Res
 
   const traduction = traduireEvenementMeta(evt);
   if (traduction.issue === 'journal') return conclure('memorise', `« ${evt.statut} » : ${traduction.raison}`);
+  if (traduction.issue === 'retour') {
+    return conclure('retour_declare', detailRetourDeclare(await noterRetourDeclare(remise.id, evt.statut), evt.statut));
+  }
 
   const { statut, date, note } = traduction.corps;
   const decision = deciderTransitionStatut(remise.commande.statut, statut);

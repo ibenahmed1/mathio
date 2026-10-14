@@ -70,6 +70,8 @@ export const TYPES_NOTIFICATION: TypeNotificationDef[] = [
   { cle: 'ramassage.demande', libelle: 'Nouvelle demande de ramassage', famille: 'exploitation', espace: 'admin', push: true },
   { cle: 'transporteur.erreur', libelle: 'Erreur chez un transporteur', famille: 'exploitation', espace: 'admin', push: true },
   { cle: 'hub.colis_recus', libelle: 'Colis reçus au hub', famille: 'exploitation', espace: 'admin', push: true },
+  // Bon d'envoi composé (13/10/2026) : à remettre au transporteur.
+  { cle: 'bon_envoi.cree', libelle: 'Nouveau bon d’envoi', famille: 'exploitation', espace: 'admin', push: true },
   // Une unité de stock (SKU) vient de tomber à SEUIL_STOCK_BAS ou en dessous
   // (lib/stock-quantites.ts) : à réapprovisionner auprès du marchand.
   { cle: 'stock.bas', libelle: 'Stock bas d’un produit', famille: 'exploitation', espace: 'admin', push: true },

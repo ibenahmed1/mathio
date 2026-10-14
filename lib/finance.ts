@@ -29,7 +29,9 @@ export function estTypeTransaction(valeur: unknown): valeur is TypeTransaction {
 // facture sous `paiement_client`, paie livreur sous `salaire`. Supprimer l'une
 // d'elles ferait échouer la clôture d'une tournée : elles se renomment, elles
 // ne se suppriment pas.
-export const CODES_CATEGORIE_SYSTEME = ['paiement_client', 'salaire'] as const;
+// `encaissement_transporteur` (13/10/2026) : versements des transporteurs
+// (§ lib/reglements-transporteurs.ts).
+export const CODES_CATEGORIE_SYSTEME = ['paiement_client', 'salaire', 'encaissement_transporteur'] as const;
 export type CodeCategorieSysteme = (typeof CODES_CATEGORIE_SYSTEME)[number];
 
 // Catégories créées à la première visite d'une boutique sur sa comptabilité

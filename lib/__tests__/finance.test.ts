@@ -105,7 +105,7 @@ test('aucun doublon dans les référentiels', () => {
 // la clôture de tournée (« catégorie absente »), un code retiré laisserait
 // supprimer une catégorie dont le code a besoin.
 test('les catégories protégées sont exactement celles des écritures automatiques', () => {
-  assert.deepEqual([...CODES_CATEGORIE_SYSTEME].sort(), ['paiement_client', 'salaire']);
+  assert.deepEqual([...CODES_CATEGORIE_SYSTEME].sort(), ['encaissement_transporteur', 'paiement_client', 'salaire']);
 });
 
 test('le nom d’une catégorie est normalisé avant comparaison', () => {

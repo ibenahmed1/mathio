@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import { genererCle } from '../lib/plateforme-cles';
 import { TAILLE_MAX_LOT } from '../lib/plateforme-colis';
 import { purgerDonneesTest } from '../lib/plateformes';
-import { servirColisEnAttente } from '../lib/stock-reservation';
+import { chargerResolveurTransporteur } from '../lib/hub-envoi';
 import { receptionnerUnite } from '../lib/stock-reception';
 import { creerClient, type Reponse } from './audit-http';
 
@@ -229,7 +229,7 @@ async function nettoyer() {
   if (tous.length > 0) {
     const commandes = await prisma.commande.findMany({
       where: { marchandId: { in: tous } },
-      select: { id: true },
+      select: { id: true, bonEnvoiId: true },
     });
     const ids = commandes.map((c) => c.id);
     if (ids.length > 0) {
@@ -237,6 +237,9 @@ async function nettoyer() {
       await prisma.commentaireCommande.deleteMany({ where: { commandeId: { in: ids } } });
       await prisma.commande.deleteMany({ where: { id: { in: ids } } });
     }
+    // Bons d'envoi du circuit Shipeh (§ 6 quater), vidés par la ligne précédente.
+    const bons = [...new Set(commandes.map((c) => c.bonEnvoiId).filter((id): id is string => id !== null))];
+    if (bons.length > 0) await prisma.bonEnvoi.deleteMany({ where: { id: { in: bons }, commandes: { none: {} } } });
   }
 
   if (plateforme) {
@@ -298,6 +301,23 @@ const PHOTO = 'https://cdn.exemple.ma/simulation.jpg';
 
 function produitSimple(idExterneMarchand: string, sku = SKU_MUG, quantiteEnCours = 20) {
   return { idExterneMarchand, nom: `${PREFIXE} Mug`, reference: sku, quantiteEnCours, photoUrl: PHOTO };
+}
+
+// § Circuit Shipeh (12/10/2026) : un produit n'accepte de colis qu'une fois
+// validé par l'agent stock (statut « reçu ») et compté. Ce que fait l'entrepôt
+// depuis la fiche produit, en raccourci.
+async function validerEnEntrepot(sku: string, quantite = 100): Promise<void> {
+  const variante = await prisma.produitVariante.findFirst({ where: { reference: { equals: sku, mode: 'insensitive' } } });
+  if (variante) {
+    await prisma.produitVariante.update({ where: { id: variante.id }, data: { quantiteRecue: quantite } });
+    await prisma.produit.update({ where: { id: variante.produitId }, data: { statutReception: 'recu' } });
+    return;
+  }
+  const { count } = await prisma.produit.updateMany({
+    where: { reference: { equals: sku, mode: 'insensitive' } },
+    data: { statutReception: 'recu', quantiteRecue: quantite },
+  });
+  if (count !== 1) throw new Error(`SKU ${sku} : ${count} produit(s) au lieu d’un`);
 }
 
 function colis(reference: string, idExterneMarchand: string, surcharges: Record<string, unknown> = {}) {
@@ -560,8 +580,8 @@ async function main() {
       note: 'Tissu léger',
       variantesActivees: true,
       variantes: [
-        { nom: 'Rouge / M', reference: SKU_ROBE_ROUGE, quantiteEnCours: 10 },
-        { nom: 'Bleu / M', reference: SKU_ROBE_BLEU, quantiteEnCours: 8 },
+        { nom: 'Rouge / M', reference: SKU_ROBE_ROUGE, quantiteEnCours: 10, photoUrl: PHOTO },
+        { nom: 'Bleu / M', reference: SKU_ROBE_BLEU, quantiteEnCours: 8, photoUrl: PHOTO },
       ],
     });
     attendu(r, 201);
@@ -569,9 +589,22 @@ async function main() {
     if (variantes.length !== 2) throw new Error(`${variantes.length} variante(s) renvoyée(s) au lieu de 2`);
   });
 
+  await verifie('chaque variante porte sa photo, obligatoire', async () => {
+    const rouge = await prisma.produitVariante.findFirstOrThrow({ where: { reference: SKU_ROBE_ROUGE } });
+    if (rouge.photoUrl !== PHOTO) throw new Error(`photo de variante : ${rouge.photoUrl}`);
+    const r = await appel('POST', '/api/v1/produits', a.cleLive, {
+      idExterneMarchand: mA.idExterne,
+      photoUrl: PHOTO,
+      nom: `${PREFIXE} Sans photo`,
+      variantesActivees: true,
+      variantes: [{ nom: 'Unique', reference: `${PREFIXE}-SANS-PHOTO-V`, quantiteEnCours: 1 }],
+    });
+    attendu(r, 400, 'champ_requis');
+  });
+
   const VARIANTES_SANS_SKU = [
-    { nom: 'Noir / S', reference: `${PREFIXE}-VESTE-NOIR-S`, quantiteEnCours: 4 },
-    { nom: 'Noir / M', reference: `${PREFIXE}-VESTE-NOIR-M`, quantiteEnCours: 5 },
+    { nom: 'Noir / S', reference: `${PREFIXE}-VESTE-NOIR-S`, quantiteEnCours: 4, photoUrl: PHOTO },
+    { nom: 'Noir / M', reference: `${PREFIXE}-VESTE-NOIR-M`, quantiteEnCours: 5, photoUrl: PHOTO },
   ];
 
   await verifie('produit à variantes sans SKU propre : 201, une référence interne lui est attribuée', async () => {
@@ -608,7 +641,7 @@ async function main() {
       photoUrl: PHOTO,
       nom: `${PREFIXE} Veste bis`,
       variantesActivees: true,
-      variantes: [VARIANTES_SANS_SKU[0], { nom: 'Noir / L', reference: `${PREFIXE}-VESTE-NOIR-L`, quantiteEnCours: 1 }],
+      variantes: [VARIANTES_SANS_SKU[0], { nom: 'Noir / L', reference: `${PREFIXE}-VESTE-NOIR-L`, quantiteEnCours: 1, photoUrl: PHOTO }],
     });
     attendu(r, 409, 'sku_deja_utilise');
   });
@@ -617,7 +650,7 @@ async function main() {
     const r = await appel('POST', '/api/v1/produits', a.cleLive, {
       ...produitSimple(mA.idExterne, `${PREFIXE}-AUTRE`),
       variantesActivees: true,
-      variantes: [{ nom: 'Copie', reference: SKU_ROBE_ROUGE, quantiteEnCours: 1 }],
+      variantes: [{ nom: 'Copie', reference: SKU_ROBE_ROUGE, quantiteEnCours: 1, photoUrl: PHOTO }],
     });
     attendu(r, 409, 'sku_deja_utilise');
   });
@@ -636,6 +669,25 @@ async function main() {
   console.log('\n5. Ingestion des colis');
 
   let codeSuiviInitial = '';
+
+  await verifie('produit pas encore validé par l’entrepôt : colis refusé (409 produit_non_valide)', async () => {
+    attendu(await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-C-0`, mA.idExterne)), 409, 'produit_non_valide');
+    if (await prisma.commande.count({ where: { codeSuiviPartenaire: `${PREFIXE}-C-0` } })) throw new Error('colis créé malgré le refus');
+  });
+
+  await verifie('l’agent stock valide les produits et compte leur stock', async () => {
+    for (const sku of [SKU_MUG, SKU_ROBE_ROUGE, SKU_ROBE_BLEU, ...VARIANTES_SANS_SKU.map((v) => v.reference)]) {
+      await validerEnEntrepot(sku);
+    }
+  });
+
+  await verifie('stock insuffisant : colis refusé (409 stock_insuffisant), stock intact', async () => {
+    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-C-TROP`, mA.idExterne, { produits: [{ sku: SKU_MUG, quantite: 1000 }] }));
+    attendu(r, 409, 'stock_insuffisant');
+    if (await prisma.commande.count({ where: { codeSuiviPartenaire: `${PREFIXE}-C-TROP` } })) throw new Error('colis créé malgré le refus');
+    const mug = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_MUG } });
+    if (mug.quantiteRecue !== 100) throw new Error(`stock ${mug.quantiteRecue} au lieu de 100`);
+  });
 
   await verifie('dépôt unitaire : 201 avec un code de suivi', async () => {
     const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-C-1`, mA.idExterne));
@@ -978,6 +1030,7 @@ async function main() {
     // Un SKU est unique dans tout l'univers de la plateforme : ce marchand
     // déclare donc le sien, distinct de celui du marchand A.
     attendu(await appel('POST', '/api/v1/produits', a.cleLive, produitSimple(ID_DOUBLE, `${PREFIXE}-MUG-DOUBLE`)), 201);
+    await validerEnEntrepot(`${PREFIXE}-MUG-DOUBLE`);
     const r = await appel(
       'POST',
       '/api/v1/colis',
@@ -1028,16 +1081,13 @@ async function main() {
   });
 
   let colisAttente = '';
-  await verifie('stock commun pas encore reçu : le colis est accepté « en attente de stock »', async () => {
-    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-1`, mA.idExterne, { produits: [{ sku: SKU_COMMUN, quantite: 2 }] }));
-    attendu(r, 201);
-    if (r.json?.enAttenteStock !== true) throw new Error('le colis devrait être en attente de stock');
-    const c = await prisma.commande.findFirstOrThrow({ where: { codeSuiviPartenaire: `${PREFIXE}-COM-1` }, include: { lignes: true } });
-    colisAttente = c.id;
-    if (c.lignes[0].provenance !== 'stock_plateforme') throw new Error(`provenance « ${c.lignes[0].provenance} »`);
+  await verifie('stock commun pas encore validé : le colis est refusé (409 produit_non_valide)', async () => {
+    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-0`, mA.idExterne, { produits: [{ sku: SKU_COMMUN, quantite: 2 }] }));
+    attendu(r, 409, 'produit_non_valide');
+    if (await prisma.commande.count({ where: { codeSuiviPartenaire: `${PREFIXE}-COM-0` } })) throw new Error('colis créé malgré le refus');
   });
 
-  await verifie('à la réception, le colis en attente est servi sur le stock commun, au nom de son vendeur', async () => {
+  await verifie('reçu et validé, le stock commun sert le colis, au nom de son vendeur', async () => {
     // Ce que fait la réception en entrepôt (fiche produit) : l'annoncé devient
     // du reçu, et l'envoi ouvert de cette unité est servi.
     const commun = await prisma.produit.findFirstOrThrow({ where: { reference: SKU_COMMUN } });
@@ -1054,9 +1104,16 @@ async function main() {
     if (ligneEnvoi.envoi.statut !== 'recu_partiel') throw new Error(`envoi « ${ligneEnvoi.envoi.statut} » au lieu de recu_partiel`);
     const journal = await prisma.mouvementStock.findFirst({ where: { produitId: commun.id, type: 'reception' } });
     if (journal?.envoiId !== ligneEnvoi.envoiId) throw new Error('réception non rattachée à son envoi dans le journal');
-    if ((await servirColisEnAttente([commun.id], technique.id)) !== 1) throw new Error('le colis n’a pas été servi');
-    const c = await prisma.commande.findUniqueOrThrow({ where: { id: colisAttente } });
-    if (c.enAttenteStock || !c.stockReserveLe) throw new Error('colis toujours en attente');
+    // L'agent stock valide le produit (statut de réception « reçu »).
+    await prisma.produit.update({ where: { id: commun.id }, data: { statutReception: 'recu' } });
+
+    const r = await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-COM-1`, mA.idExterne, { produits: [{ sku: SKU_COMMUN, quantite: 2 }] }));
+    attendu(r, 201);
+    if (r.json?.enAttenteStock !== false) throw new Error('un colis accepté n’est jamais en attente de stock');
+    const c = await prisma.commande.findFirstOrThrow({ where: { codeSuiviPartenaire: `${PREFIXE}-COM-1` }, include: { lignes: true } });
+    colisAttente = c.id;
+    if (c.lignes[0].provenance !== 'stock_plateforme') throw new Error(`provenance « ${c.lignes[0].provenance} »`);
+    if (!c.stockReserveLe) throw new Error('stock non retiré à l’arrivée');
     const apres = await prisma.produit.findUniqueOrThrow({ where: { id: commun.id } });
     if (apres.quantiteRecue !== 8) throw new Error(`stock commun ${apres.quantiteRecue} au lieu de 8`);
     const sortie = await prisma.mouvementStock.findFirst({ where: { commandeId: colisAttente, type: 'sortie_colis' }, include: { marchand: true } });
@@ -1197,6 +1254,70 @@ async function main() {
     const autres = await entrepot.api('GET', '/api/commandes?origine=hors_api&pageSize=100');
     if ((autres.json?.data as { source: string }[]).some((c) => c.source === 'api')) throw new Error('colis de plateforme dans « autres »');
     attendu(await entrepot.api('GET', '/api/commandes?origine=shipeh'), 400);
+  });
+
+  // ----------------------------------------------------------
+  console.log('\n6 quater. Circuit Shipeh : validation, scan, bon d’envoi, remise, arrivée');
+
+  await verifie('un colis Shipeh va de « Nouveau colis » au hub de destination', async () => {
+    // Tanger : transporteur sans API (Amir) — remise par l'Excel du bon.
+    attendu(
+      await appel('POST', '/api/v1/colis', a.cleLive, colis(`${PREFIXE}-CIRC-1`, mA.idExterne, { ville: 'Tanger', produits: [{ sku: SKU_COMMUN, quantite: 1 }] })),
+      201
+    );
+    const depart = await prisma.commande.findFirstOrThrow({ where: { codeSuiviPartenaire: `${PREFIXE}-CIRC-1` } });
+    const lire = () => prisma.commande.findUniqueOrThrow({ where: { id: depart.id } });
+    if (depart.statut !== 'nouveau_colis' || !depart.enStock) throw new Error(`arrivée « ${depart.statut} »`);
+    const prevu = (await chargerResolveurTransporteur())(depart);
+    if (!prevu?.prestataireId) throw new Error('Tanger sans transporteur');
+    const central = await prisma.hub.findFirstOrThrow({ where: { isCentral: true } });
+
+    // Pas de scan avant validation, pas de bon de préparation, pas de bon d'envoi avant scan.
+    attendu(await entrepot.api('POST', '/api/stock/scan-reception', { codeSuivi: depart.codeSuivi }), 409);
+    attendu(await entrepot.api('POST', '/api/stock/pret-pour-preparation', { colisIds: [depart.id] }), 200);
+    if ((await lire()).statut !== 'pret_pour_preparation') throw new Error('validation sans effet');
+    attendu(await entrepot.api('POST', '/api/bons-preparation', { colisIds: [depart.id] }), 409);
+    attendu(await entrepot.api('POST', '/api/bons-envoi', { prestataireId: prevu.prestataireId, colisIds: [depart.id], tousStatuts: true }), 409);
+
+    // Scan de l'agent stock : reçu au hub central, rejouable.
+    attendu(await entrepot.api('POST', '/api/stock/scan-reception', { codeSuivi: depart.codeSuivi }), 200);
+    let c = await lire();
+    if (c.statut !== 'recu_au_hub' || c.hubActuelId !== central.id) throw new Error(`après scan : ${c.statut} / ${c.hubActuelId}`);
+    const rejeu = await entrepot.api('POST', '/api/stock/scan-reception', { codeSuivi: depart.codeSuivi });
+    attendu(rejeu, 200);
+    if (rejeu.json?.dejaScanne !== true) throw new Error('second scan non reconnu');
+    const stock = await entrepot.api('GET', '/api/commandes?statut=pret_pour_preparation&enStock=true&pageSize=100');
+    if ((stock.json?.data as { id: string }[]).some((x) => x.id === depart.id)) throw new Error('toujours dans la liste du stock');
+
+    // Bon d'envoi : le colis y entre sans changer de statut.
+    const be = await entrepot.api('POST', '/api/bons-envoi', { prestataireId: prevu.prestataireId, colisIds: [depart.id] });
+    attendu(be, 201);
+    const bonId = String(be.json?.id);
+    c = await lire();
+    if (c.statut !== 'recu_au_hub' || c.bonEnvoiId !== bonId) throw new Error(`à l’ajout au bon : ${c.statut}`);
+    attendu(await entrepot.api('POST', `/api/bons-envoi/${bonId}/marquer-recu`), 409);
+
+    // Remise (Excel transmis) : en transit, vers le hub du transporteur.
+    attendu(await entrepot.api('POST', `/api/bons-envoi/${bonId}/remis`), 200);
+    c = await lire();
+    if (c.statut !== 'en_transit') throw new Error(`après remise : ${c.statut}`);
+    const detail = await entrepot.api('GET', `/api/bons-envoi/${bonId}`);
+    const ligne = (detail.json?.commandes as { id: string; hubArriveeNom: string | null }[]).find((x) => x.id === depart.id);
+    if (ligne?.hubArriveeNom !== prevu.hubNom) throw new Error(`en transit vers « ${ligne?.hubArriveeNom} » au lieu de ${prevu.hubNom}`);
+    const note = await prisma.historiqueStatutCommande.findFirst({ where: { commandeId: depart.id, nouveauStatut: 'en_transit' } });
+    if (!note?.note?.includes(`en transit vers ${prevu.hubNom}`)) throw new Error(`historique : ${note?.note}`);
+    attendu(await entrepot.api('POST', `/api/bons-envoi/${bonId}/remis`), 409);
+
+    // « Bon bien reçu » : reçu au hub de destination.
+    attendu(await entrepot.api('POST', `/api/bons-envoi/${bonId}/marquer-recu`), 200);
+    c = await lire();
+    if (c.statut !== 'recu_au_hub' || c.hubActuelId !== prevu.hubId) throw new Error(`à l’arrivée : ${c.statut} / ${c.hubActuelId}`);
+
+    // Chez le transporteur : mise en distribution, posée à la main.
+    attendu(await entrepot.api('POST', `/api/bons-envoi/${bonId}/mise-en-distribution`, { colisIds: [depart.id] }), 200);
+    c = await lire();
+    if (c.statut !== 'mise_en_distribution') throw new Error(`après mise en distribution : ${c.statut}`);
+    attendu(await entrepot.api('POST', `/api/bons-envoi/${bonId}/mise-en-distribution`, {}), 409);
   });
 
   // ----------------------------------------------------------

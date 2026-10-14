@@ -7,6 +7,7 @@ import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statu
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import { ErreurColivraison, suivreColisColivraison } from '@/lib/colivraison';
 import { sortStatutColivraison } from '@/lib/colivraison-statuts';
+import { detailRetourDeclare, noterRetourDeclare } from '@/lib/retour-transporteur';
 import {
   NOM_PRESTATAIRE_COLIVRAISON,
   chercherCodeExterneColivraison,
@@ -23,7 +24,14 @@ import {
 // optimiste en base. Tout est journalisé (EvenementPrestataire), y compris ce
 // qu'on n'applique pas — c'est là qu'on lira les libellés encore inconnus.
 
-export type IssueInformation = 'applique' | 'inchange' | 'memorise' | 'inconnu' | 'refuse' | 'colis_introuvable';
+export type IssueInformation =
+  | 'applique'
+  | 'inchange'
+  | 'memorise'
+  | 'retour_declare'
+  | 'inconnu'
+  | 'refuse'
+  | 'colis_introuvable';
 
 export interface ResultatInformation {
   issue: IssueInformation;
@@ -171,6 +179,9 @@ export async function actualiserColisColivraison(commandeId: string): Promise<Re
   const sort = sortStatutColivraison(suivi.etat);
   if (sort.sort === 'inconnu') return conclure('inconnu', `« ${suivi.etat} » inconnu : non appliqué`);
   if (sort.sort === 'memoriser') return conclure('memorise', `« ${suivi.etat} » : leur logistique interne`);
+  if (sort.sort === 'retour') {
+    return conclure('retour_declare', detailRetourDeclare(await noterRetourDeclare(remise.id, suivi.etat), suivi.etat));
+  }
 
   const decision = deciderTransitionStatut(remise.commande.statut, sort.statut);
   if (decision.issue === 'inchange') return conclure('inchange', null);

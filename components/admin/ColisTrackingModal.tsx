@@ -6,12 +6,17 @@ import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Modal } from '@/components/admin/Modal';
 import { PreuveLivraison } from '@/components/PreuveLivraison';
+import { ArgentDuColis } from '@/components/admin/ArgentDuColis';
 import { PowerDeliveryColis } from '@/components/admin/PowerDeliveryColis';
 import { ColivraisonColis } from '@/components/admin/ColivraisonColis';
 import { MetaLivraisonColis } from '@/components/admin/MetaLivraisonColis';
 
 interface EvenementCircuit {
-  type: 'statut' | 'commentaire';
+  // `information` : ligne d'historique SANS changement de statut (ajout à un
+  // bon d'envoi, prise en charge par un transporteur…) — pas de badge de
+  // statut, sinon le même statut s'affiche plusieurs fois de suite.
+  type: 'statut' | 'information' | 'commentaire';
+  hubVille?: string | null;
   horodatage: string;
   auteur: string;
   statut?: string;
@@ -27,10 +32,11 @@ function construireCircuit(commande: Commande): EvenementCircuit[] {
   const evenements: EvenementCircuit[] = [];
   for (const h of commande.historique ?? []) {
     evenements.push({
-      type: 'statut',
+      type: h.ancienStatut === h.nouveauStatut ? 'information' : 'statut',
       horodatage: h.horodatage,
       auteur: h.utilisateur?.nomComplet ?? '—',
       statut: h.nouveauStatut,
+      hubVille: h.hub?.ville ?? null,
       note: h.note,
     });
   }
@@ -87,6 +93,9 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
             compact
           />
 
+          {/* § Règlements transporteurs : COD, part du transporteur, paiement. */}
+          <ArgentDuColis key={`${commandeId}-${version}`} commandeId={commandeId} />
+
           {/* § Power Delivery : rien ne s'affiche si le colis ne leur a jamais
               été confié. Une action y recharge le colis, dont le statut et
               l'historique ont pu changer. */}
@@ -109,10 +118,15 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
                     {isCurrent && <span className="h-1.5 w-1.5 rounded-full bg-brand-foreground" />}
                   </span>
                   <div className={isCurrent ? 'rounded-lg border border-brand/40 bg-brand/5 p-3' : ''}>
-                    {ev.type === 'statut' ? (
+                    {ev.type === 'information' ? (
+                      <>
+                        <span className="badge bg-black/5 text-black/70 dark:bg-white/10 dark:text-white/70">Information</span>
+                        {ev.note && <p className="mt-1 text-sm font-medium opacity-90">{ev.note}</p>}
+                      </>
+                    ) : ev.type === 'statut' ? (
                       <>
                         <div className="flex flex-wrap items-center gap-2">
-                          <StatutBadge statut={ev.statut!} />
+                          <StatutBadge statut={ev.statut!} hubVille={ev.hubVille} />
                           {isCurrent && (
                             <span className="text-xs font-bold uppercase tracking-wide text-brand">État actuel</span>
                           )}

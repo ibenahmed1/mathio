@@ -48,6 +48,9 @@ export default async function BonDeLivraisonDetailPage({
   }
 
   if (session.role === 'marchand') {
+    // Droit du compte (rôle d'équipe, boutique Shipeh sans documents) : la page
+    // imprimable obéit au même droit que l'écran qui y mène.
+    if (!session.permissions.includes('bons.voir')) redirect('/marchand/acces-refuse');
     const marchand = await resolveMarchandForUser(session.sub);
     if (!marchand || marchand.id !== bon.marchandId) {
       redirect('/marchand/bons-livraison');

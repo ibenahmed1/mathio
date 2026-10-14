@@ -75,7 +75,9 @@ export function StatusPill({ label, grad }: { label: string; grad: string[] }) {
           style={{
             fontSize: 10,
             fontWeight: 700,
-            background: `linear-gradient(135deg,${a},${b})`,
+            // `backgroundImage` et non le raccourci `background` : mêlé à
+            // `backgroundClip`, React avertit à chaque changement de teinte.
+            backgroundImage: `linear-gradient(135deg,${a},${b})`,
             WebkitBackgroundClip: 'text',
             backgroundClip: 'text',
             color: 'transparent',

@@ -449,3 +449,20 @@
   }
   .sidebarCollapsed .nav { padding-right: 0; }
 }
+
+/* Compteur d'un lien (« 3 nouveaux colis ») : pastille rouge façon notification. */
+.pastille {
+  margin-left: auto;
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #E5484D;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

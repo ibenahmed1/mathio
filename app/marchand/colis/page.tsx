@@ -16,6 +16,7 @@ import { COLONNE_COLLANTE_CARTE } from '@/components/marchand/colonne-collante';
 import { ColisSubNav } from './ColisSubNav';
 import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 import { ChampVille } from '@/components/form/ChampVille';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 function ColisListContent() {
   const searchParams = useSearchParams();
@@ -361,7 +362,7 @@ function ColisListContent() {
                   </td>
                   <td className="font-mono text-xs font-semibold text-black/70 dark:text-white/70">
                     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                      {c.codeSuivi}
+                      <CodeColis id={c.id} code={c.codeSuivi} espace="marchand" />
                       {c.shopify && <ShopifyTag detail={`commande ${c.shopify.numero}`} />}
                       {c.youcan && <YoucanTag detail={`commande ${c.youcan.numero}`} />}
                     </span>

@@ -219,3 +219,15 @@ test('la destination de repli est toujours ouverte au membre (pas de boucle)', (
   }
   assert.equal(premiereDestinationMarchand([]), '/marchand/acces-refuse');
 });
+
+test('boutique Shipeh (14/10/2026) : ni documents, ni factures, ni ramassages, ni création de colis, ni intégrations, ni ajout au catalogue', async () => {
+  const { restreindrePourPlateforme, PERMISSIONS_RETIREES_PLATEFORME, TOUTES_PERMISSIONS_MARCHAND } = await import('../permissions-marchand');
+  const reste = restreindrePourPlateforme([...TOUTES_PERMISSIONS_MARCHAND], true);
+  for (const p of PERMISSIONS_RETIREES_PLATEFORME) assert.ok(!reste.includes(p), p);
+  assert.ok(!reste.includes('catalogue.gerer'), 'catalogue.gerer');
+  for (const p of ['tableau_de_bord.voir', 'colis.voir', 'catalogue.voir', 'comptabilite.voir', 'simulateur.utiliser', 'equipe.voir']) {
+    assert.ok(reste.includes(p), p);
+  }
+  // Un marchand direct garde tout.
+  assert.deepEqual(restreindrePourPlateforme([...TOUTES_PERMISSIONS_MARCHAND], false), [...TOUTES_PERMISSIONS_MARCHAND]);
+});

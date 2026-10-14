@@ -7,6 +7,7 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import { GROUPE_AUCUN, GROUPE_PLUSIEURS, regrouperParTransporteur } from '@/lib/bon-envoi-groupes';
 import { QrScanner } from '@/components/QrScanner';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § /admin/bon-envoi/creer, mode « Remise à un transporteur ».
 //
@@ -453,7 +454,9 @@ export function BonEnvoiTransporteur() {
                                   aria-label={`Sélectionner ${c.codeSuivi}`}
                                 />
                               </td>
-                              <td className="font-mono">{c.codeSuivi}</td>
+                              <td>
+                                <CodeColis id={c.id} code={c.codeSuivi} />
+                              </td>
                               <td>{c.marchandNom ?? '—'}</td>
                               <td>{c.ville}</td>
                               <td className="text-xs opacity-70">{c.hubActuelNom ?? 'Entrepôt central'}</td>

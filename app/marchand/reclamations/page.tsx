@@ -5,6 +5,7 @@ import { MessageSquarePlus, MessageSquareWarning } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande, Reclamation } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { ReclamationDetailModal } from '@/components/reclamations/ReclamationDetailModal';
 import { SupportProfilSubNav } from '../SupportProfilSubNav';
 import { usePermissionsMarchand } from '@/components/marchand/permissions-context';
 
@@ -17,6 +18,8 @@ export default function ReclamationsPage() {
   const [showForm, setShowForm] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [form, setForm] = useState({ sujet: '', message: '', commandeId: '' });
+  // Détail d'une réclamation, ouvert d'un clic sur sa carte.
+  const [ouverte, setOuverte] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -132,7 +135,14 @@ export default function ReclamationsPage() {
 
       <div className="flex flex-col gap-3">
         {reclamations.map((r) => (
-          <div key={r.id} className="flex flex-col gap-2 rounded-lg border border-black/10 p-4 dark:border-white/10">
+          <div
+            key={r.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => setOuverte(r.id)}
+            onKeyDown={(e) => e.key === 'Enter' && setOuverte(r.id)}
+            className="flex cursor-pointer flex-col gap-2 rounded-lg border border-black/10 p-4 transition hover:border-brand/60 dark:border-white/10"
+          >
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="break-words font-semibold">{r.sujet}</p>
@@ -144,12 +154,15 @@ export default function ReclamationsPage() {
               <StatutBadge statut={r.statut} />
             </div>
             <p className="break-words text-sm opacity-80">{r.message}</p>
-            {r.reponse && (
-              <div className="mt-1 rounded-md border-l-4 border-brand bg-brand/5 px-3 py-2 text-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide opacity-60">Réponse du support</p>
-                <p className="break-words">{r.reponse}</p>
+            {/* Toutes les réponses du support, dans l'ordre : elles se cumulent. */}
+            {r.reponses.map((rep) => (
+              <div key={rep.id} className="mt-1 rounded-md border-l-4 border-brand bg-brand/5 px-3 py-2 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-60">
+                  Réponse du support · {new Date(rep.dateCreation).toLocaleString('fr-FR')}
+                </p>
+                <p className="whitespace-pre-line break-words">{rep.texte}</p>
               </div>
-            )}
+            ))}
           </div>
         ))}
         {reclamations.length === 0 && (
@@ -160,6 +173,8 @@ export default function ReclamationsPage() {
           </div>
         )}
       </div>
+
+      {ouverte && <ReclamationDetailModal reclamationId={ouverte} espace="marchand" onClose={() => setOuverte(null)} />}
     </div>
   );
 }

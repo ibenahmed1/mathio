@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { ApiError } from '@/lib/api-utils';
 import { ErreurPlateforme } from '@/lib/plateforme-auth';
 import { deciderTransitionStatut, ecrireTransition } from '@/lib/livraison-statut';
+import { chargerResolveurTransporteur } from '@/lib/hub-envoi';
+import { noteEnTransit, statutApresRemise, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import {
   ErreurPowerDelivery,
   codePower,
@@ -45,7 +47,8 @@ const STATUTS_REMETTABLES: readonly StatutCommande[] = ['en_transit', 'recu_au_h
 // Statut posé à la remise. Son libellé est « Remis à un transporteur » : le nom
 // du transporteur n'est pas dans l'enum, il est porté par la remise
 // (cf. lib/statuts.ts).
-const STATUT_REMIS: StatutCommande = 'expedier_par_amana';
+// Statut posé à la remise : « Expédié » (expedier_par_amana), ou « En transit »
+// pour un colis Shipeh (§ lib/circuit-shipeh.ts).
 
 export type IssueRemise =
   | 'remis'
@@ -106,6 +109,9 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
           clientTelephone: true,
           adresse: true,
           montantCod: true,
+          source: true,
+          enStock: true,
+          villeId: true,
           ouvrir: true,
           fragile: true,
           aRemplacer: true,
@@ -130,6 +136,11 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
   // cherchée dans les agences du hub visé, ou de tout le réseau pour un bon
   // direct. Plusieurs identifiants différents → Excel, jamais au hasard.
   const agences = agencesARechercher({ hubNom: bon.hubDestination?.nom ?? null, prestataire: NOM_PRESTATAIRE_POWER });
+  // Hub vers lequel un colis Shipeh part en transit : celui du bon, sinon
+  // celui que le routage retient pour sa ville.
+  const resoudre = await chargerResolveurTransporteur();
+  const hubTransit = (c: { ville: string; villeId: string | null }) => bon.hubDestination?.nom ?? resoudre(c)?.hubNom ?? null;
+
   const resultats: ResultatRemiseColis[] = [];
 
   // Un colis après l'autre, et non en parallèle : leur API n'annonce aucun
@@ -231,15 +242,16 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
     // bougé entre-temps) n'annule PAS la remise — le colis est bel et bien chez
     // Power — elle est seulement signalée.
     let message = `Remis à ${NOM_PRESTATAIRE_POWER} sous ${codeEnvoye}`;
-    const decision = deciderTransitionStatut(commande.statut, STATUT_REMIS);
+    const statutRemis = statutApresRemise(commande);
+    const decision = deciderTransitionStatut(commande.statut, statutRemis);
     if (decision.issue === 'applique') {
       try {
         await ecrireTransition({
           commandeId: commande.id,
           statutActuel: commande.statut,
-          nouveauStatut: STATUT_REMIS,
+          nouveauStatut: statutRemis,
           auteurId,
-          noteHistorique: `Remis à ${NOM_PRESTATAIRE_POWER} par API sous ${codeEnvoye} (bon ${bon.numero})`,
+          noteHistorique: `Remis à ${NOM_PRESTATAIRE_POWER} par API sous ${codeEnvoye} (bon ${bon.numero})${suitCircuitShipeh(commande) ? ` — ${noteEnTransit(hubTransit(commande))}` : ''}`,
           dateNouvelleLivraison: null,
           commentaire: null,
         });

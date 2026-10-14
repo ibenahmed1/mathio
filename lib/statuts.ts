@@ -87,6 +87,43 @@ export const LABELS_STATUT_COMMANDE: Record<StatutCommande, string> = {
   annule_par_vendeur: 'Annulé par le vendeur',
 };
 
+// § Suivi côté marchand (14/10/2026) — une phrase courte, en gris sous chaque
+// statut, « pour la forme ». La même pour tous les colis d'un statut : elle ne
+// dit rien d'interne (ni qui, ni quand, ni quel hub, ni quel transporteur).
+export const PHRASES_SUIVI_MARCHAND: Record<StatutCommande, string> = {
+  nouveau_colis: 'Colis enregistré',
+  attente_de_ramassage: 'En attente de ramassage',
+  ramasse: 'Colis récupéré',
+  recu: 'Colis pris en charge',
+  pret_pour_preparation: 'En préparation à l’entrepôt',
+  recu_au_hub: 'Arrivé au hub',
+  en_transit: 'En route vers le hub de destination',
+  expedie: 'Colis expédié',
+  expedier_par_amana: 'Confié au livreur',
+  en_voyage: 'En route',
+  mise_en_distribution: 'En cours de livraison',
+  livre: 'Remis au destinataire',
+  en_cours: 'Livraison en cours',
+  boite_vocale: 'Destinataire sur messagerie',
+  deuxieme_appel_pas_reponse: 'Nouvel appel sans réponse',
+  troisieme_appel_pas_reponse: 'Nouvel appel sans réponse',
+  pas_de_reponse_sms: 'SMS envoyé au destinataire',
+  injoignable: 'Destinataire injoignable',
+  numero_errone: 'Numéro à vérifier',
+  client_interesse: 'Destinataire intéressé',
+  relance_nouveau_client: 'Destinataire relancé',
+  attente_de_relancer: 'Relance prévue',
+  programme: 'Livraison programmée',
+  reporte: 'Livraison reportée',
+  hors_zone: 'Adresse hors zone',
+  refuse: 'Refusé par le destinataire',
+  retourne: 'Retour terminé',
+  retourne_au_hub: 'Colis de retour au hub',
+  en_retour_par_amana: 'Retour en cours',
+  annule: 'Colis annulé',
+  annule_par_vendeur: 'Annulé à votre demande',
+};
+
 export const STATUTS_TERMINAUX: StatutCommande[] = ['livre', 'retourne', 'annule', 'annule_par_vendeur'];
 
 // § Espace terrain d'un transporteur (colis confiés par bon d'envoi) : statuts

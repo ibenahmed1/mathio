@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import type { Role } from '@/app/generated/prisma/enums';
 import { SESSION_COOKIE_NAMES, spaceForHost, type SessionSpace } from '@/lib/spaces';
 import { effectivePermissions } from '@/lib/permissions';
-import { TOUTES_PERMISSIONS_MARCHAND, permissionsDuRole } from '@/lib/permissions-marchand';
+import { TOUTES_PERMISSIONS_MARCHAND, permissionsDuRole, restreindrePourPlateforme } from '@/lib/permissions-marchand';
 
 // Réduit de 7 jours à 24h : même si `verifySpaceCookie` (ci-dessous) revérifie
 // désormais `Utilisateur.actif` en base à chaque requête pour une révocation
@@ -399,9 +399,16 @@ export async function getSessionAuthState(userId: string): Promise<SessionAuthSt
       permissions: true,
       // § Équipe & accès : ne servent qu'aux comptes marchand (cf. plus bas).
       // Deux relations uniques, lues dans la même requête que le compte.
-      marchand: { select: { id: true } },
+      // Boutique rattachée à une plateforme de VENTE (Shipeh) : droits réduits
+      // (§ restreindrePourPlateforme). Un compte machine de transporteur porte
+      // un prestataire et n'en fait pas une boutique de plateforme.
+      marchand: { select: { id: true, comptesExternes: { where: { plateforme: { prestataireId: null } }, select: { id: true }, take: 1 } } },
       marchandMembre: {
-        select: { accesExpireLe: true, role: { select: { cle: true, permissions: true } } },
+        select: {
+          accesExpireLe: true,
+          role: { select: { cle: true, permissions: true } },
+          marchand: { select: { comptesExternes: { where: { plateforme: { prestataireId: null } }, select: { id: true }, take: 1 } } },
+        },
       },
     },
   });
@@ -418,15 +425,20 @@ export async function getSessionAuthState(userId: string): Promise<SessionAuthSt
   if (utilisateur.role === 'marchand') {
     const membre = utilisateur.marchandMembre;
     const expire = !!membre?.accesExpireLe && membre.accesExpireLe <= new Date();
+    const boutiquePlateforme =
+      (utilisateur.marchand?.comptesExternes.length ?? 0) > 0 || (membre?.marchand.comptesExternes.length ?? 0) > 0;
     return {
       role: utilisateur.role,
       actif: utilisateur.actif && !expire,
       extraRoles: utilisateur.rolesSupplementaires,
-      permissions: utilisateur.marchand
-        ? [...TOUTES_PERMISSIONS_MARCHAND]
-        : membre
-          ? permissionsDuRole(membre.role)
-          : [],
+      permissions: restreindrePourPlateforme(
+        utilisateur.marchand
+          ? [...TOUTES_PERMISSIONS_MARCHAND]
+          : membre
+            ? permissionsDuRole(membre.role)
+            : [],
+        boutiquePlateforme
+      ),
     };
   }
 

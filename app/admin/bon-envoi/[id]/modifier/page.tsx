@@ -7,6 +7,7 @@ import { ChevronLeft, Plus, Save, X } from 'lucide-react';
 import { apiGet, apiPost, apiPatch } from '@/lib/api-client';
 import type { BonEnvoi, Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
 
@@ -202,7 +203,9 @@ export default function ModifierBonEnvoiPage() {
                     const retire = aRetirer.has(c.id);
                     return (
                       <tr key={c.id} className={retire ? 'opacity-40 line-through' : undefined}>
-                        <td className="font-mono">{c.codeSuivi}</td>
+                        <td>
+                          <CodeColis id={c.id} code={c.codeSuivi} />
+                        </td>
                         <td>{c.marchand?.nomBoutique ?? '—'}</td>
                         <td>{c.ville}</td>
                         <td>
@@ -288,7 +291,9 @@ export default function ModifierBonEnvoiPage() {
                                 aria-label={`Sélectionner ${c.codeSuivi}`}
                               />
                             </td>
-                            <td className="font-mono">{c.codeSuivi}</td>
+                            <td>
+                          <CodeColis id={c.id} code={c.codeSuivi} />
+                        </td>
                             <td>{c.marchand?.nomBoutique ?? c.marchandNom ?? '—'}</td>
                             <td>{c.ville}</td>
                             <td>
