@@ -1423,9 +1423,9 @@ model BonEnvoi {
   // partiel de RemisePrestataire. Sans lui, un bon pourrait viser un quai ET un
   // transporteur, et plus rien ne dirait où part le colis.
   hubDestinationId String?      @map("hub_destination_id")
-  hubDestination   Hub?         @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+  hubDestination   Hub?         @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id], onDelete: Restrict)
   prestataireId    String?      @map("prestataire_id")
-  prestataire      Prestataire? @relation(fields: [prestataireId], references: [id])
+  prestataire      Prestataire? @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
 
   // Sur un bon sous-traité, 'recu' ne dit pas « arrivé à un quai à nous » mais
   // « pris en charge par le transporteur » : les colis restent en_transit, et
@@ -3028,7 +3028,7 @@ model PlateformePartenaire {
   // sémantique du modèle plat Hub↔Ville. Aucune table de remise n'est donc
   // nécessaire pour répondre « ce colis est-il à toi ? ».
   prestataireId String?      @unique @map("prestataire_id")
-  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id])
+  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
 
   dateCreation DateTime @default(now()) @map("date_creation")
 

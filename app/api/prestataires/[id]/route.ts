@@ -112,8 +112,16 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       await prisma.prestataire.delete({ where: { id } });
       return NextResponse.json({ success: true });
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new ApiError(404, 'Prestataire introuvable');
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        // Bons d'envoi ou compte API rattachés : la base refuse (Restrict) pour
+        // garder l'historique des remises.
+        if (error.code === 'P2003') {
+          throw new ApiError(
+            409,
+            'Ce prestataire a déjà des bons d\'envoi ou un compte API : désactivez-le plutôt que de le supprimer.'
+          );
+        }
+        if (error.code === 'P2025') throw new ApiError(404, 'Prestataire introuvable');
       }
       throw error;
     }
