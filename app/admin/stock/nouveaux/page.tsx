@@ -7,6 +7,7 @@ import type { Commande } from '@/lib/types';
 import { Button } from '@/components/admin/Button';
 import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § Gestion de stock (1/4) : colis stock (enStock=true) créés par le marchand
 // et pas encore pris en charge par le Hub — ces colis ne passent pas par le
@@ -119,7 +120,7 @@ export default function AdminStockNouveauxPage() {
                     />
                   </td>
                   <td className="font-mono text-xs font-semibold">
-                    {c.codeSuivi}
+                    <CodeColis id={c.id} code={c.codeSuivi} />
                     <BadgePlateforme commande={c} />
                   </td>
                   <td>{c.marchand?.nomBoutique ?? '—'}</td>

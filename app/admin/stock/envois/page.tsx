@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PackageOpen } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface LigneEnvoi {
   id: string;
@@ -249,7 +250,7 @@ function ColisEnAttenteStock({ colis }: { colis: ColisEnAttente[] }) {
             {colis.map((c) => (
               <tr key={c.id}>
                 <td>
-                  <span className="font-mono text-xs font-semibold">{c.codeSuivi}</span>
+                  <CodeColis id={c.id} code={c.codeSuivi} className="text-xs font-semibold" />
                   {c.codeSuiviPartenaire && <span className="block text-xs opacity-60">{c.codeSuiviPartenaire}</span>}
                 </td>
                 <td>{c.marchand.nomBoutique}</td>

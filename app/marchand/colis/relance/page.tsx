@@ -9,6 +9,7 @@ import { STATUTS_A_RELANCER } from '@/lib/statuts';
 import { ColisActionsMenu } from '@/components/marchand/ColisActionsMenu';
 import { COLONNE_COLLANTE_CARTE } from '@/components/marchand/colonne-collante';
 import { ColisSubNav } from '../ColisSubNav';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // Colis dont la dernière tentative de livraison a échoué (hors livrés et hors
 // colis déjà en retour) : le marchand corrige l'adresse via "Modifier le
@@ -84,7 +85,9 @@ export default function ColisARelancerPage() {
             <tbody>
               {commandes.map((c) => (
                 <tr key={c.id} className="group">
-                  <td className="font-mono text-xs font-semibold text-black/70 dark:text-white/70">{c.codeSuivi}</td>
+                  <td className="text-xs font-semibold text-black/70 dark:text-white/70">
+                    <CodeColis id={c.id} code={c.codeSuivi} espace="marchand" />
+                  </td>
                   <td className="font-medium">{c.clientNom}</td>
                   <td className="whitespace-nowrap">{c.clientTelephone}</td>
                   <td>{c.ville}</td>

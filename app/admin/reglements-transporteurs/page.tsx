@@ -6,6 +6,7 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { Modal } from '@/components/admin/Modal';
 import { P, StatusPill } from '@/components/dashboard/composition';
 import s from '@/components/admin/CompositionTableau.module.css';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § Règlements transporteurs (décidé le 13/10/2026, SOUS_TRAITANCE.md) — ce que
 // chaque transporteur nous doit pour les colis livrés qu'on lui a confiés : il
@@ -27,6 +28,7 @@ interface Synthese {
 
 interface Creance {
   id: string;
+  commandeId: string;
   codeSuivi: string;
   ville: string;
   clientNom: string;
@@ -314,7 +316,9 @@ export default function ReglementsTransporteursPage() {
                           aria-label={`Cocher ${c.codeSuivi}`}
                         />
                       </td>
-                      <td className={s.code}>{c.codeSuivi}</td>
+                      <td className={s.code}>
+                        <CodeColis id={c.commandeId} code={c.codeSuivi} />
+                      </td>
                       <td>{c.marchandNom ?? '—'}</td>
                       <td>{c.ville}</td>
                       <td>{new Date(c.dateLivraison).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</td>

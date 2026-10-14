@@ -8,6 +8,7 @@ import { creerBonDeLivraison } from '../actions';
 import type { BonDeLivraisonGenere } from '@/lib/bons-livraison';
 import type { Commande } from '@/lib/types';
 import { ChampVille } from '@/components/form/ChampVille';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 type ColisLigne = Pick<Commande, 'id' | 'codeSuivi' | 'clientNom' | 'ville' | 'montantCod' | 'dateCreation'>;
 
@@ -151,7 +152,9 @@ export function NouveauBonLivraisonClient({ colisInitial }: { colisInitial: Coli
                     />
                   </label>
                 </td>
-                <td className="font-mono">{c.codeSuivi}</td>
+                <td>
+                  <CodeColis id={c.id} code={c.codeSuivi} espace="marchand" />
+                </td>
                 <td>{c.clientNom}</td>
                 <td>{c.ville}</td>
                 <td>{Number(c.montantCod).toFixed(2)} DH</td>

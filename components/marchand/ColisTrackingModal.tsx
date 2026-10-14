@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api-client';
 import type { Commande, HistoriqueStatut } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { PHRASES_SUIVI_MARCHAND } from '@/lib/statuts';
+import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { Modal } from '@/components/admin/Modal';
 import { PreuveLivraison } from '@/components/PreuveLivraison';
 
@@ -20,10 +22,9 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
   }, [commandeId]);
 
-  const historique = commande?.historique ?? [];
-  // Dernier vrai changement de statut : une ligne sans changement (ajout à un
-  // bon d'envoi…) n'est pas l'« état actuel ».
-  const dernierChangement = historique.map((h) => h.ancienStatut !== h.nouveauStatut).lastIndexOf(true);
+  // Le serveur ne renvoie au marchand que la suite des statuts et la ville du
+  // hub (ni date, ni auteur, ni note — § GET /api/commandes/[id]).
+  const historique = (commande?.historique ?? []) as (HistoriqueStatut & { hubVille?: string | null })[];
 
   return (
     <Modal title={commande ? `Suivi — ${commande.codeSuivi}` : 'Suivi du colis'} onClose={onClose}>
@@ -50,12 +51,13 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
             compact
           />
 
-          <ol className="relative flex flex-col gap-5 border-l-2 border-black/10 pl-6 dark:border-white/10">
+          {/* Statuts seuls, mais la fenêtre garde sa hauteur : chaque étape a
+              son espace (min-h-[64px]), comme quand elle portait date et auteur. */}
+          <ol className="relative flex min-h-[420px] flex-col gap-7 border-l-2 border-black/10 py-2 pl-6 dark:border-white/10">
             {historique.map((h, i) => {
-              const isCurrent = i === dernierChangement;
-              const information = h.ancienStatut === h.nouveauStatut;
+              const isCurrent = i === historique.length - 1;
               return (
-                <li key={h.id} className="relative">
+                <li key={h.id} className="relative min-h-[44px]">
                   <span
                     className={`absolute -left-[29px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 ${
                       isCurrent
@@ -67,18 +69,12 @@ export function ColisTrackingModal({ commandeId, onClose }: { commandeId: string
                   </span>
                   <div className={isCurrent ? 'rounded-lg border border-brand/40 bg-brand/5 p-3' : ''}>
                     <div className="flex flex-wrap items-center gap-2">
-                      {information ? (
-                        <span className="badge bg-black/5 text-black/70 dark:bg-white/10 dark:text-white/70">Information</span>
-                      ) : (
-                        <StatutBadge statut={h.nouveauStatut} hubVille={h.hub?.ville} />
-                      )}
+                      <StatutBadge statut={h.nouveauStatut} hubVille={h.hubVille} />
                       {isCurrent && <span className="text-xs font-bold uppercase tracking-wide text-brand">État actuel</span>}
                     </div>
-                    {/* § Qui livre, pas seulement qui a agi : la note porte
-                        l'info métier (ex. affecté au livreur X) quand elle existe. */}
-                    {h.note && <p className="mt-1 text-sm font-medium opacity-90">{h.note}</p>}
-                    <p className="mt-1 text-xs opacity-60">{new Date(h.horodatage).toLocaleString('fr-FR')}</p>
-                    {h.utilisateur && <p className="text-xs opacity-50">par {h.utilisateur.nomComplet}</p>}
+                    {PHRASES_SUIVI_MARCHAND[h.nouveauStatut as StatutCommande] && (
+                      <p className="mt-1 text-xs opacity-60">{PHRASES_SUIVI_MARCHAND[h.nouveauStatut as StatutCommande]}</p>
+                    )}
                   </div>
                 </li>
               );

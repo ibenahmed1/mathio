@@ -7,6 +7,7 @@ import { apiGet } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { ColisSubNav } from '../ColisSubNav';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // RG-15/16 : colis en attente de ramassage mais pas encore rattachés à une tournée.
 export default function ColisPourRamassagePage() {
@@ -49,7 +50,9 @@ export default function ColisPourRamassagePage() {
           <tbody>
             {commandes.map((c) => (
               <tr key={c.id}>
-                <td className="font-mono">{c.codeSuivi}</td>
+                <td>
+                  <CodeColis id={c.id} code={c.codeSuivi} espace="marchand" />
+                </td>
                 <td>{c.clientNom}</td>
                 <td>{c.ville}</td>
                 <td>{c.montantCod} DH</td>

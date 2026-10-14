@@ -10,6 +10,7 @@ import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 import { suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import { QrScanner } from '@/components/QrScanner';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § Gestion de stock (2/4) : colis stock au statut "pret_pour_preparation",
 // pas encore rattachés à un Bon de Préparation. Sélection multiple (toutes
@@ -132,7 +133,7 @@ export default function AdminStockPretsPage() {
                     />
                   </td>
                   <td className="font-mono text-xs font-semibold">
-                    {c.codeSuivi}
+                    <CodeColis id={c.id} code={c.codeSuivi} />
                     <BadgePlateforme commande={c} />
                   </td>
                   <td>{c.marchand?.nomBoutique ?? '—'}</td>

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { destinatairesBackoffice, notifier } from '@/lib/notifications';
+import { INCLUDE_RECLAMATION, exposerReclamation } from '@/lib/reclamations';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,14 +23,10 @@ export async function GET(request: NextRequest) {
     const reclamations = await prisma.reclamation.findMany({
       where,
       orderBy: { dateCreation: 'desc' },
-      include: {
-        marchand: { select: { nomBoutique: true } },
-        commande: { select: { id: true, codeSuivi: true } },
-        utilisateur: { select: { nomComplet: true } },
-      },
+      include: INCLUDE_RECLAMATION,
     });
 
-    return NextResponse.json({ data: reclamations });
+    return NextResponse.json({ data: reclamations.map((r) => exposerReclamation(r, session.role === 'marchand')) });
   } catch (error) {
     return jsonError(error);
   }

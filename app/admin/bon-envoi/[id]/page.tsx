@@ -15,6 +15,7 @@ import { RemiseEstLivraison } from '@/components/admin/RemiseEstLivraison';
 import { RemiseManuelle } from '@/components/admin/RemiseManuelle';
 import { MiseEnDistribution } from '@/components/admin/MiseEnDistribution';
 import { attendRemise } from '@/lib/circuit-shipeh';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface CurrentUser {
   role: 'admin' | 'agent_hub' | string;
@@ -162,7 +163,9 @@ export default function DetailBonEnvoiPage() {
           <tbody>
             {(bon.commandes ?? []).map((c) => (
               <tr key={c.id}>
-                <td className="font-mono font-semibold">{c.codeSuivi}</td>
+                <td className="font-semibold">
+                  <CodeColis id={c.id} code={c.codeSuivi} />
+                </td>
                 <td>{c.marchand?.nomBoutique ?? '—'}</td>
                 <td>{c.ville}</td>
                 <td className="whitespace-nowrap">{c.montantCod} MAD</td>

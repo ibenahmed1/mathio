@@ -406,6 +406,7 @@ model Utilisateur {
   ramassagesInities  Ramassage[]                @relation("RamassageInitiateur")
   commentaires       CommentaireCommande[]
   reclamations       Reclamation[]
+  reponsesReclamations ReponseReclamation[] @relation("ReponseReclamationAuteur")
   tarifsVilles       TarifLivreurVille[]
 
   bonsDistribution BonDistribution[] @relation("BonDistributionLivreur")
@@ -1643,9 +1644,14 @@ model Reclamation {
   sujet         String
   message       String
   statut        StatutReclamation @default(ouverte)
+  // ANCIEN champ unique de réponse, écrasé à chaque enregistrement. Remplacé
+  // le 14/10/2026 par le fil `reponses` (une réponse enregistrée reste, elles
+  // se cumulent) ; la migration y a recopié les réponses existantes. Plus
+  // écrit, gardé pour ne rien perdre.
   reponse       String?
   dateCreation  DateTime          @default(now()) @map("date_creation")
   dateReponse   DateTime?         @map("date_reponse")
+  reponses      ReponseReclamation[]
 
   @@index([marchandId])
   @@index([commandeId])
@@ -3636,4 +3642,22 @@ model VersementTransporteur {
 
   @@index([prestataireId])
   @@map("versements_transporteurs")
+}
+
+// § Réclamations — fil des réponses du back-office (14/10/2026). Une réponse
+// enregistrée ne se modifie plus : elles se cumulent, jusqu'à la fermeture de
+// la réclamation (résolue ou rejetée), après laquelle on ne répond plus.
+model ReponseReclamation {
+  id            String       @id @default(uuid())
+  reclamationId String       @map("reclamation_id")
+  reclamation   Reclamation  @relation(fields: [reclamationId], references: [id], onDelete: Cascade)
+  // NULL : réponse reprise de l'ancien champ unique, dont l'auteur n'était pas
+  // conservé (ou compte supprimé depuis).
+  auteurId      String?      @map("auteur_id")
+  auteur        Utilisateur? @relation("ReponseReclamationAuteur", fields: [auteurId], references: [id], onDelete: SetNull)
+  texte         String
+  dateCreation  DateTime     @default(now()) @map("date_creation")
+
+  @@index([reclamationId])
+  @@map("reponses_reclamations")
 }

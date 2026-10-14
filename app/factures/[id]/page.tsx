@@ -52,6 +52,9 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
   }
 
   if (session.role === 'marchand') {
+    // Droit du compte (rôle d'équipe, boutique Shipeh sans documents) : la page
+    // imprimable obéit au même droit que l'écran qui y mène.
+    if (!session.permissions.includes('factures.voir')) redirect('/marchand/acces-refuse');
     const marchand = await resolveMarchandForUser(session.sub);
     // Un brouillon n'a pas encore été arrêté : ses montants peuvent bouger,
     // et l'imprimer côté marchand reviendrait à lui remettre un document qui

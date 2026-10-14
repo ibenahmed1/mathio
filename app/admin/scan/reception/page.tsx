@@ -7,6 +7,7 @@ import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
 import { ChevronLeft, List, PackageCheck, RotateCcw, ScanLine } from 'lucide-react';
 import { Field } from '@/components/form/Field';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface HubAgentUser {
   id: string;
@@ -377,7 +378,9 @@ function ColisRecusTable({ recues }: { recues: Commande[] }) {
         <tbody>
           {recues.map((c) => (
             <tr key={c.id}>
-              <td className="font-mono font-semibold">{c.codeSuivi}</td>
+              <td className="font-semibold">
+                  <CodeColis id={c.id} code={c.codeSuivi} />
+                </td>
               <td>{c.clientNom}</td>
               <td>{c.ville}</td>
               <td className="whitespace-nowrap">{c.montantCod} MAD</td>
@@ -445,7 +448,9 @@ function TourneeChecklist({ tournee }: { tournee: TourneeState }) {
             <tbody>
               {restants.map((c) => (
                 <tr key={c.id}>
-                  <td className="font-mono font-semibold">{c.codeSuivi}</td>
+                  <td className="font-semibold">
+                  <CodeColis id={c.id} code={c.codeSuivi} />
+                </td>
                   <td>{c.clientNom}</td>
                   <td>{c.ville}</td>
                 </tr>
@@ -464,7 +469,9 @@ function TourneeChecklist({ tournee }: { tournee: TourneeState }) {
             <tbody>
               {scannes.map((c) => (
                 <tr key={c.id} className="bg-green-500/10">
-                  <td className="font-mono font-semibold text-green-700 dark:text-green-400">{c.codeSuivi}</td>
+                  <td className="font-semibold text-green-700 dark:text-green-400">
+                    <CodeColis id={c.id} code={c.codeSuivi} />
+                  </td>
                   <td className="text-green-700 dark:text-green-400">{c.clientNom}</td>
                   <td className="text-green-700 dark:text-green-400">{c.ville}</td>
                 </tr>

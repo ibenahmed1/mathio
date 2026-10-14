@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiGet, apiPatch } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 export default function AdminConfirmationColisPage() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
@@ -56,7 +57,9 @@ export default function AdminConfirmationColisPage() {
           <tbody>
             {commandes.map((c) => (
               <tr key={c.id}>
-                <td className="font-mono">{c.codeSuivi}</td>
+                <td>
+                  <CodeColis id={c.id} code={c.codeSuivi} />
+                </td>
                 <td>{c.clientNom}</td>
                 <td>{c.clientTelephone}</td>
                 <td>{c.ville}</td>

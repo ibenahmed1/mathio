@@ -7,6 +7,7 @@ import type { HubRetour } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Field } from '@/components/form/Field';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface RetourAttendu {
   remiseId: string;
@@ -176,7 +177,9 @@ export default function RetoursTransporteursPage() {
                 <tbody>
                   {liste?.data.map((r) => (
                     <tr key={r.remiseId} className={r.enAlerte ? 'bg-red-500/10' : undefined}>
-                      <td className="font-mono font-semibold">{r.codeSuivi}</td>
+                      <td className="font-semibold">
+                        <CodeColis id={r.commandeId} code={r.codeSuivi} />
+                      </td>
                       <td className="whitespace-nowrap">{r.transporteur}</td>
                       <td>
                         {r.clientNom}

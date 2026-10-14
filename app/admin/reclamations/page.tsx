@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { MessageSquareWarning, Reply } from 'lucide-react';
-import { apiGet, apiPatch } from '@/lib/api-client';
+import { apiGet } from '@/lib/api-client';
 import type { Reclamation } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
-import { Modal } from '@/components/admin/Modal';
+import { ReclamationDetailModal } from '@/components/reclamations/ReclamationDetailModal';
 import { STATUTS_RECLAMATION, LABELS_STATUT_RECLAMATION } from '@/lib/statuts';
-import { Field } from '@/components/form/Field';
 
 export default function AdminReclamationsPage() {
   const [reclamations, setReclamations] = useState<Reclamation[]>([]);
@@ -60,7 +59,7 @@ export default function AdminReclamationsPage() {
             </thead>
             <tbody>
               {reclamations.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} onClick={() => setActif(r)} style={{ cursor: 'pointer' }}>
                   <td className="whitespace-nowrap text-xs opacity-70">{new Date(r.dateCreation).toLocaleString('fr-FR')}</td>
                   <td>{r.marchand?.nomBoutique ?? '—'}</td>
                   <td>{r.sujet}</td>
@@ -69,9 +68,14 @@ export default function AdminReclamationsPage() {
                     <StatutBadge statut={r.statut} />
                   </td>
                   <td>
-                    <button onClick={() => setActif(r)} className="btn-outline flex items-center gap-1 px-2 py-1 text-xs">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActif(r);
+                      }}
+                      className="btn-outline flex items-center gap-1 px-2 py-1 text-xs">
                       <Reply className="h-3 w-3" />
-                      Répondre
+                      {r.reponses.length > 0 ? `Réponses (${r.reponses.length})` : 'Répondre'}
                     </button>
                   </td>
                 </tr>
@@ -91,82 +95,10 @@ export default function AdminReclamationsPage() {
         </div>
       </div>
 
+      {/* Détail d'un clic sur la ligne : même fenêtre que la fiche d'une tâche. */}
       {actif && (
-        <ReponseModal
-          reclamation={actif}
-          onClose={() => setActif(null)}
-          onSaved={() => {
-            setActif(null);
-            load();
-          }}
-        />
+        <ReclamationDetailModal reclamationId={actif.id} espace="admin" onClose={() => setActif(null)} onChanged={load} />
       )}
     </div>
-  );
-}
-
-function ReponseModal({
-  reclamation,
-  onClose,
-  onSaved,
-}: {
-  reclamation: Reclamation;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [statut, setStatut] = useState(reclamation.statut);
-  const [reponse, setReponse] = useState(reclamation.reponse ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSave() {
-    setBusy(true);
-    setError(null);
-    try {
-      await apiPatch(`/api/reclamations/${reclamation.id}`, { statut, reponse });
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal title={`Réclamation — ${reclamation.sujet}`} onClose={onClose}>
-      <div className="flex flex-col gap-3">
-        <div className="rounded-md bg-black/[0.03] p-3 text-sm dark:bg-white/[0.05]">
-          <p className="text-xs opacity-60">
-            {reclamation.marchand?.nomBoutique} · {new Date(reclamation.dateCreation).toLocaleString('fr-FR')}
-            {reclamation.commande ? ` · Colis ${reclamation.commande.codeSuivi}` : ''}
-          </p>
-          <p className="mt-1">{reclamation.message}</p>
-        </div>
-
-        <Field label="Statut">
-          <select className="input-basic" value={statut} onChange={(e) => setStatut(e.target.value as typeof statut)}>
-            {STATUTS_RECLAMATION.map((s) => (
-              <option key={s} value={s}>
-                {LABELS_STATUT_RECLAMATION[s]}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Réponse">
-          <textarea className="input-basic" rows={4} value={reponse} onChange={(e) => setReponse(e.target.value)} />
-        </Field>
-      </div>
-
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-
-      <div className="flex justify-end gap-2">
-        <button className="btn-outline" onClick={onClose} disabled={busy}>
-          Annuler
-        </button>
-        <button className="btn-primary" onClick={handleSave} disabled={busy}>
-          {busy ? 'Enregistrement…' : 'Enregistrer'}
-        </button>
-      </div>
-    </Modal>
   );
 }

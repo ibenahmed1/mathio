@@ -71,6 +71,23 @@ export async function GET(request: NextRequest) {
         c.statut === 'en_transit' && resoudre ? (c.bonEnvoi?.hubDestination?.nom ?? resoudre(c)?.hubNom ?? null) : null,
     }));
 
+    // § Marchand : ni bon d'envoi, ni livreur, ni hub visé — seulement ses colis
+    // et leurs statuts, avec la ville du hub du libellé (14/10/2026).
+    if (session.role === 'marchand') {
+      return NextResponse.json({
+        data: avecTransit.map(({ hubActuel, hubActuelId: _hi, bonEnvoi: _b, livreur: _l, transitVers: _t, ...c }) => {
+          void _hi;
+          void _b;
+          void _l;
+          void _t;
+          return { ...c, hubActuel: hubActuel ? { ville: hubActuel.ville } : null };
+        }),
+        total,
+        page,
+        pageSize,
+      });
+    }
+
     return NextResponse.json({ data: avecTransit, total, page, pageSize });
   } catch (error) {
     return jsonError(error);

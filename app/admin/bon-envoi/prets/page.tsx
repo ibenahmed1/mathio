@@ -8,6 +8,7 @@ import type { ColisEligibleDto } from '@/lib/bon-envoi-prestataire';
 import { QrScanner } from '@/components/QrScanner';
 import { StatusPill, P } from '@/components/dashboard/composition';
 import s from '@/components/admin/CompositionTableau.module.css';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 // § Colis prêts à envoyer (13/10/2026) — l'entrée du bon d'envoi par
 // transporteur, dans la composition du tableau de bord admin (fond, cadrans,
@@ -312,7 +313,9 @@ export default function ColisPretsAEnvoyerPage() {
                     <td onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={coches.has(c.id)} onChange={() => basculer(c.id)} aria-label={`Cocher ${c.codeSuivi}`} />
                     </td>
-                    <td className={s.code}>{c.codeSuivi}</td>
+                    <td className={s.code}>
+                      <CodeColis id={c.id} code={c.codeSuivi} />
+                    </td>
                     <td>{c.marchandNom ?? '—'}</td>
                     <td>{c.clientNom}</td>
                     <td>{c.ville}</td>

@@ -670,9 +670,10 @@ export interface Reclamation {
   sujet: string;
   message: string;
   statut: 'ouverte' | 'en_cours' | 'resolue' | 'rejetee';
-  reponse: string | null;
   dateCreation: string;
-  dateReponse: string | null;
+  // § Fil des réponses (14/10/2026) : elles se cumulent, aucune ne s'écrase.
+  // `auteur` est null côté marchand (on ne lui dit pas qui, chez nous, a répondu).
+  reponses: { id: string; texte: string; dateCreation: string; auteur: string | null }[];
   marchand?: { nomBoutique: string };
   commande?: { id: string; codeSuivi: string } | null;
   utilisateur?: { nomComplet: string };

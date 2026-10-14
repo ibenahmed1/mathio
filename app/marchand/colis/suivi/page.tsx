@@ -6,15 +6,18 @@ import { Search } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
+import { PHRASES_SUIVI_MARCHAND } from '@/lib/statuts';
+import type { StatutCommande } from '@/app/generated/prisma/enums';
 
+// Ce que le serveur renvoie au marchand : la suite des statuts, rien d'autre
+// (§ GET /api/commandes/[id]).
 interface HistoriqueEntry {
   id: string;
-  ancienStatut: string | null;
   nouveauStatut: string;
-  horodatage: string;
+  hubVille: string | null;
 }
 
-type CommandeAvecHistorique = Commande & { historique: HistoriqueEntry[] };
+type CommandeAvecHistorique = Omit<Commande, 'historique'> & { historique: HistoriqueEntry[] };
 
 function SuiviColisContent() {
   const searchParams = useSearchParams();
@@ -87,13 +90,15 @@ function SuiviColisContent() {
             <StatutBadge statut={commande.statut} hubVille={commande.hubActuel?.ville} />
           </div>
 
-          <ol className="flex flex-col gap-3 border-l-2 border-brand pl-4">
+          <ol className="flex flex-col gap-6 border-l-2 border-brand py-1 pl-4">
             {commande.historique.map((h) => (
               <li key={h.id} className="text-sm">
                 <p className="font-semibold">
-                  <StatutBadge statut={h.nouveauStatut} />
+                  <StatutBadge statut={h.nouveauStatut} hubVille={h.hubVille} />
                 </p>
-                <p className="opacity-60">{new Date(h.horodatage).toLocaleString('fr-FR')}</p>
+                {PHRASES_SUIVI_MARCHAND[h.nouveauStatut as StatutCommande] && (
+                  <p className="mt-1 text-xs opacity-60">{PHRASES_SUIVI_MARCHAND[h.nouveauStatut as StatutCommande]}</p>
+                )}
               </li>
             ))}
             {commande.historique.length === 0 && <li className="text-sm opacity-60">Aucun historique</li>}

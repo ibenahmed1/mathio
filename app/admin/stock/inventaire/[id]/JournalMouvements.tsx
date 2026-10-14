@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiGet } from '@/lib/api-client';
+import { CodeColis } from '@/components/colis/CodeColis';
 
 interface Mouvement {
   id: string;
@@ -114,7 +115,9 @@ export function JournalMouvements({ produitId, rafraichir }: { produitId: string
                   </td>
                   <td className="text-xs">
                     {m.commande ? (
-                      <span className="font-mono">Colis {m.commande.codeSuivi}</span>
+                      <span>
+                        Colis <CodeColis id={m.commande.id} code={m.commande.codeSuivi} />
+                      </span>
                     ) : m.envoi ? (
                       <span>Envoi {m.envoi.reference}</span>
                     ) : (
