@@ -10,6 +10,7 @@ import { QrScanner } from '@/components/QrScanner';
 import { ChampDouchette } from '@/components/ChampDouchette';
 import { BonEnvoiTransporteur } from '@/components/admin/BonEnvoiTransporteur';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 interface Destination {
   id: string;
@@ -107,8 +108,10 @@ export default function CreerBonEnvoiPage() {
         setSelectionnes((prev) => new Map(prev).set(commande.id, commande));
         setEligibles((prev) => (prev.some((c) => c.id === commande.id) ? prev : [...prev, commande]));
         setToast({ type: 'success', text: `Colis ${commande.codeSuivi} ajouté au bon.` });
+        annoncerSucces(`Colis ${commande.codeSuivi} ajouté au bon.`, { son: true });
       } catch (err) {
         setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
+        annoncerEchec(err, { son: true });
       } finally {
         setScanning(false);
       }
@@ -125,9 +128,11 @@ export default function CreerBonEnvoiPage() {
         hubDestinationId,
         colisIds: Array.from(selectionnes.keys()),
       });
+      annoncerSucces(`Bon d'envoi ${bon.numero} créé : ${selectionnes.size} colis.`);
       router.push(`/admin/bon-envoi/${bon.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: "Création du bon d'envoi" });
       setCreating(false);
     }
   }

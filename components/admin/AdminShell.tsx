@@ -7,6 +7,7 @@ import { SidebarContext } from '@/components/admin/SidebarContext';
 import { SidebarToggleButtons } from '@/components/admin/SidebarToggleButtons';
 import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
 import { ClocheNotifications } from '@/components/notifications/ClocheNotifications';
+import { Annonces } from '@/components/Annonces';
 import { NAV_ADMIN, filterNavByPermissions } from '@/components/admin/nav';
 import type { Role } from '@/app/generated/prisma/enums';
 
@@ -89,6 +90,7 @@ export function AdminShell({
             <main className={fullBleed ? 'min-w-0 flex-1' : 'min-w-0 flex-1 p-4 sm:p-6'}>{children}</main>
           </div>
         </div>
+        <Annonces />
       </SidebarContext.Provider>
     </NotificationsProvider>
   );

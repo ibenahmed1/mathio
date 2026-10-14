@@ -9,6 +9,7 @@ import type { BonEnvoi, Commande } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
 import { ChampDouchette } from '@/components/ChampDouchette';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 type Toast = { type: 'success' | 'error'; text: string } | null;
 
@@ -129,8 +130,10 @@ export default function ModifierBonEnvoiPage() {
         setAAjouter((prev) => new Map(prev).set(commande.id, commande));
         setEligibles((prev) => (prev.some((c) => c.id === commande.id) ? prev : [...prev, commande]));
         setToast({ type: 'success', text: `Colis ${commande.codeSuivi} ajouté.` });
+        annoncerSucces(`Colis ${commande.codeSuivi} ajouté.`, { son: true });
       } catch (err) {
         setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
+        annoncerEchec(err, { son: true });
       } finally {
         setScanning(false);
       }
@@ -149,9 +152,11 @@ export default function ModifierBonEnvoiPage() {
         ajouterColisIds: Array.from(aAjouter.keys()),
         retirerColisIds: Array.from(aRetirer),
       });
+      annoncerSucces(`Bon ${bon.numero} enregistré.`);
       router.push(`/admin/bon-envoi/${bon.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: 'Modification du bon' });
       setSaving(false);
     }
   }

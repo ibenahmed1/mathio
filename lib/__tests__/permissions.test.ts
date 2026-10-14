@@ -237,7 +237,7 @@ test('ouvrir les paramètres et y écrire ne sont pas la même clé', () => {
   // La lecture reste ouverte : les vues d'impression en dépendent.
   assert.equal(apiPermissionFor('/api/parametres/societe', 'GET'), null);
 
-  for (const role of ['superviseur', 'responsable', 'moderateur', 'equipe_suivi', 'planner'] as const) {
+  for (const role of ['superviseur', 'responsable', 'moderateur', 'equipe_suivi'] as const) {
     assert.ok(ROLE_PERMISSIONS[role].includes('settings:manage'), `${role} perdrait l'écran des paramètres`);
     assert.ok(!ROLE_PERMISSIONS[role].includes('villes:manage'), `${role} gagnerait la gestion des villes`);
     assert.ok(!ROLE_PERMISSIONS[role].includes('societe:manage'), `${role} gagnerait les données de société`);
@@ -281,10 +281,6 @@ const ACCES_HISTORIQUES: [string, string][] = [
   ['moderateur', '/admin/colis/confirmation'],
   ['moderateur', '/admin/reclamations'],
   ['equipe_suivi', '/admin/commandes'],
-  ['planner', '/admin/planification'],
-  ['planner', '/admin/bon-distribution'],
-  ['planner', '/admin/scan/tournee'],
-  ['planner', '/admin/bon-retour/livreur'],
   ['agent_hub', '/admin/scan/reception'],
   ['agent_hub', '/admin/bon-envoi'],
   ['design', '/admin/tasks'],
@@ -299,6 +295,20 @@ test('aucun rôle ne perd un écran qu’il ouvrait avant les permissions', () =
       ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS].includes(requise),
       `${role} perdrait l'accès à ${chemin} (il lui manque ${requise})`
     );
+  }
+});
+
+// Le Planner a été REDÉFINI le 14/10/2026 (il reprend le circuit du colis
+// stock) : ses anciens écrans de tournées ne sont plus un acquis, ils se
+// cochent au besoin sur son compte. Par défaut, le circuit et lui seul.
+test('le planner ouvre par défaut le circuit du colis stock, et pas les tournées', () => {
+  for (const chemin of ['/admin/stock/nouveaux', '/admin/stock/prets', '/admin/bon-envoi/prets', '/admin/bon-envoi', '/admin/colis/suivi', '/admin/bon-retour/transporteurs', '/admin/stock/inventaire']) {
+    const requise = pagePermissionFor(chemin);
+    assert.ok(requise && ROLE_PERMISSIONS.planner.includes(requise), `le planner n'ouvrirait pas ${chemin}`);
+  }
+  for (const chemin of ['/admin/planification', '/admin/bon-distribution', '/admin/scan/tournee']) {
+    const requise = pagePermissionFor(chemin);
+    assert.ok(requise && !ROLE_PERMISSIONS.planner.includes(requise), `le planner ouvrirait encore ${chemin}`);
   }
 });
 
@@ -325,6 +335,9 @@ const MIGRATIONS_PERMISSIONS = [
   '20260902103100_permission_integrations',
   '20260921120000_comptabilite_crud_categories',
   '20261005100000_permission_simulateur',
+  // 20261014160100_permissions_agent_stock remplissait `agent_stock`, fondu
+  // dans le planner par la migration suivante (qui retire la fonction).
+  '20261014180000_planner_circuit_stock',
 ];
 
 test('le remplissage SQL des migrations correspond à ROLE_PERMISSIONS', () => {

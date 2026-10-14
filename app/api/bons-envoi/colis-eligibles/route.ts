@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { getColisEligiblesEnvoi } from '@/lib/hub-envoi';
 import { enDtoColisEligible, getColisEligiblesPrestataire } from '@/lib/bon-envoi-prestataire';
+import { perimetreEnvoi } from '@/lib/circuit-shipeh';
 
 // § Étape 3 de la création d'un Bon d'Envoi : les colis proposés à la
 // sélection. Deux modes, selon la nature du bon en cours de composition :
@@ -15,7 +16,8 @@ import { enDtoColisEligible, getColisEligiblesPrestataire } from '@/lib/bon-envo
 //                        pas la ville.
 export async function GET(request: NextRequest) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
+    const perimetre = perimetreEnvoi(session.role);
     const { searchParams } = request.nextUrl;
 
     const prestataireId = searchParams.get('prestataireId')?.trim();
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
       const hubActuelId = searchParams.get('hubActuelId')?.trim() || null;
       const tousStatuts = searchParams.get('tousStatuts') === '1';
 
-      const eligibles = await getColisEligiblesPrestataire({ prestataireId, hubActuelId, tousStatuts });
+      const eligibles = await getColisEligiblesPrestataire({ prestataireId, hubActuelId, tousStatuts, perimetre });
       return NextResponse.json({ data: eligibles.map(enDtoColisEligible) });
     }
 
@@ -32,7 +34,7 @@ export async function GET(request: NextRequest) {
       throw new ApiError(400, 'hubDestinationId ou prestataireId est requis');
     }
 
-    const eligibles = await getColisEligiblesEnvoi();
+    const eligibles = await getColisEligiblesEnvoi(perimetre);
     const data = eligibles.filter((e) => e.hub.hubId === hubDestinationId).map((e) => e.commande);
 
     return NextResponse.json({ data });

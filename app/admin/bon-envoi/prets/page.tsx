@@ -10,6 +10,7 @@ import { lireDouchette } from '@/lib/douchette';
 import { StatusPill, P } from '@/components/dashboard/composition';
 import s from '@/components/admin/CompositionTableau.module.css';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § Colis prêts à envoyer (13/10/2026) — l'entrée du bon d'envoi par
 // transporteur, dans la composition du tableau de bord admin (fond, cadrans,
@@ -108,12 +109,15 @@ export default function ColisPretsAEnvoyerPage() {
       });
       if (!colis.some((c) => c.id === trouve.id)) {
         setMessage({ ok: false, texte: `${trouve.codeSuivi} n'est pas dans la liste de ${choisi.nom}` });
+        annoncerEchec(`${trouve.codeSuivi} n'est pas dans la liste de ${choisi.nom}`, { son: true });
         return;
       }
       setCoches((prev) => new Set(prev).add(trouve.id));
       setMessage({ ok: true, texte: `${trouve.codeSuivi} ajouté` });
+      annoncerSucces(`${trouve.codeSuivi} ajouté au bon`, { son: true });
     } catch (e) {
       setMessage({ ok: false, texte: e instanceof Error ? e.message : 'Erreur de scan' });
+      annoncerEchec(e, { son: true, prefixe: `Scan ${brut}` });
     } finally {
       setCode('');
     }
@@ -133,8 +137,10 @@ export default function ColisPretsAEnvoyerPage() {
       const maj = await chargerCartes();
       await ouvrir(maj.find((x) => x.id === choisi.id) ?? choisi);
       setMessage({ ok: true, texte: `Bon d'envoi ${bon.numero} généré : ${bon.nbColis} colis pour ${choisi.nom}`, bon });
+      annoncerSucces(`Bon d'envoi ${bon.numero} généré : ${bon.nbColis} colis pour ${choisi.nom}. Étape suivante : le transmettre.`);
     } catch (e) {
       setMessage({ ok: false, texte: e instanceof Error ? e.message : 'Erreur' });
+      annoncerEchec(e, { prefixe: "Création du bon d'envoi" });
     } finally {
       setEnvoi(false);
     }

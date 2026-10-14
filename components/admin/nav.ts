@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import type { NavItem, NavLeaf } from '@/components/AppSidebar';
 import type { Role } from '@/app/generated/prisma/enums';
+import { ROLE_PERMISSIONS } from '@/lib/permissions';
 
 // Navigation du back-office, filtrée par PERMISSION (§ lib/permissions.ts) et
 // non plus par rôle.
@@ -323,6 +324,62 @@ export const NAV_ADMIN: NavItem[] = [
 const ROLES_KANBAN_UNIQUEMENT: Role[] = ['design', 'gestionnaire_hub'];
 const ROLES_HUB_UNIQUEMENT: Role[] = ['agent_hub'];
 
+// § Planner : pas l'arbre métier, mais le CIRCUIT du colis stock, une entrée
+// par étape et dans l'ordre où il les franchit — de la validation du nouveau
+// colis jusqu'à livré, refusé ou annulé. Mêmes écrans, mêmes clés que dans
+// NAV_ADMIN : seuls l'ordre et l'intitulé changent. Toujours filtré par les
+// permissions du compte : une étape décochée dans son rôle disparaît.
+const SECTION_CIRCUIT = 'Circuit du colis';
+const NAV_CIRCUIT_STOCK: NavItem[] = [
+  {
+    label: '1. Nouveaux colis stock',
+    href: '/admin/stock/nouveaux',
+    icon: PackageSearch,
+    section: SECTION_CIRCUIT,
+    permission: 'stock:nouveaux',
+    compteur: 'stock_nouveaux',
+  },
+  {
+    label: '2. Scan au Hub Central',
+    href: '/admin/stock/prets',
+    icon: ScanLine,
+    section: SECTION_CIRCUIT,
+    permission: 'stock:prets',
+    compteur: 'stock_prets',
+  },
+  {
+    label: "3. Composer le bon d'envoi",
+    href: '/admin/bon-envoi/prets',
+    icon: Send,
+    section: SECTION_CIRCUIT,
+    permission: 'bon_envoi:create',
+    compteur: 'prets_envoi',
+  },
+  {
+    label: '4. Remise & distribution',
+    href: '/admin/bon-envoi',
+    icon: Truck,
+    section: SECTION_CIRCUIT,
+    permission: 'bon_envoi:manage',
+    compteur: 'bon_envoi',
+  },
+  {
+    label: '5. Suivi jusqu’à livraison',
+    href: '/admin/colis/suivi',
+    icon: MapPinned,
+    section: SECTION_CIRCUIT,
+    permission: 'colis:track',
+  },
+  {
+    label: '6. Retours (refusés, annulés)',
+    href: '/admin/bon-retour/transporteurs',
+    icon: Undo2,
+    section: SECTION_CIRCUIT,
+    permission: 'bon_retour:manage',
+  },
+  { label: 'Inventaire', href: '/admin/stock/inventaire', icon: Boxes, section: 'Stock', permission: 'stock:inventory' },
+];
+
 // Les écrans laissés à ces rôles vivent désormais AU FOND de l'arbre
 // (/admin/tasks sous Support, /admin/scan/reception sous Opérations & scans).
 // On les extrait donc à plat, sans leur section : leur imposer de déplier deux
@@ -363,5 +420,27 @@ export function filterNavByPermissions(nav: NavItem[], role: Role, permissions: 
   if (ROLES_HUB_UNIQUEMENT.includes(role)) {
     return extraireFeuilles(nav, ['/admin/scan/reception', '/admin/bon-envoi']);
   }
+  if (role === 'planner') return navPlanner(nav, permissions);
   return filtrerParPermissions(nav, permissions);
+}
+
+// Le circuit d'abord, puis les écrans des accès cochés EN PLUS de son jeu par
+// défaut (ROLE_PERMISSIONS.planner) — et eux seuls : `colis:read`, qu'il
+// détient pour les lectures du circuit, ne doit pas lui faire apparaître la
+// liste des colis, ni un item sans permission s'inviter dans sa barre.
+function navPlanner(nav: NavItem[], permissions: string[]): NavItem[] {
+  const circuit = filtrerParPermissions(NAV_CIRCUIT_STOCK, permissions);
+  const dejaLa = new Set(circuit.flatMap((item) => ('children' in item ? [] : [item.href])));
+  const ajouts = permissions.filter((p) => !ROLE_PERMISSIONS.planner.includes(p));
+  const supplement = (items: NavItem[]): NavItem[] =>
+    items.reduce<NavItem[]>((acc, item) => {
+      if ('children' in item) {
+        const children = supplement(item.children);
+        if (children.length > 0) acc.push({ ...item, children });
+      } else if (item.permission && ajouts.includes(item.permission) && !dejaLa.has(item.href)) {
+        acc.push(item);
+      }
+      return acc;
+    }, []);
+  return [...circuit, ...supplement(nav)];
 }

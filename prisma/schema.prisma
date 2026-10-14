@@ -45,16 +45,14 @@ enum Role {
   // design/gestionnaire_hub ci-dessus. Doit obligatoirement être rattaché à
   // un Hub (Utilisateur.hubId, validé côté API).
   agent_hub
-  // Planificateur de tournées du hub (§ /admin/planification,
-  // /admin/bon-distribution, /admin/scan/tournee) : compose les Bons de
-  // Distribution de SON hub, puis au retour du livreur scanne les colis non
-  // livrés et clôture la tournée (reddition de caisse). Contrairement à
-  // agent_hub ci-dessus, il n'est PAS cantonné à un sous-chemin du
-  // back-office : c'est un rôle interne à part entière (ROLES_BACKOFFICE,
-  // lib/auth.ts). Doit obligatoirement être rattaché à un Hub
-  // (Utilisateur.hubId, validé côté API) : c'est ce hub — et lui seul — dont
-  // il planifie les tournées, et c'est là que se joue son cantonnement, dans
-  // les données plutôt que dans le routage.
+  // Planner (redéfini le 14/10/2026, a absorbé l'agent stock) : mène le colis
+  // stock (§ circuit Shipeh) de sa validation à la livraison — validation des
+  // nouveaux colis stock, scan au Hub Central, bons d'envoi, suivi, retours.
+  // Rôle interne (ROLES_BACKOFFICE) gouverné par ses permissions : son jeu par
+  // défaut est ce circuit, et tout autre accès se coche au besoin sur son
+  // compte (barre latérale : components/admin/nav.ts). S'il reçoit les
+  // tournées, il reste borné à son hub de rattachement (Utilisateur.hubId,
+  // facultatif pour lui) par les routes /api/bons-distribution/**.
   planner
   // Compte de SERVICE d'une plateforme partenaire (§ PlateformePartenaire).
   // N'est jamais porté par une personne : il n'existe que pour signer les

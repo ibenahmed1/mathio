@@ -3,20 +3,21 @@ import { prisma } from '@/lib/prisma';
 import { jsonError, requireUser } from '@/lib/api-utils';
 import { getColisEligiblesEnvoi } from '@/lib/hub-envoi';
 import { HUBS_REGIONAUX } from '@/lib/hubs-regionaux';
+import { perimetreEnvoi } from '@/lib/circuit-shipeh';
 
 // § Étape 1 de la création d'un Bon d'Envoi (/admin/bon-envoi/creer) : liste
 // des hubs avec le compteur de colis actuellement éligibles à un transit
 // vers chacun.
 export async function GET() {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
 
     const [hubs, eligibles] = await Promise.all([
       // § 11 hubs régionaux : seuls les hubs servis par un transporteur sont des
       // destinations. Le hub central (d'où partent les bons) et les hubs de
       // test n'en sont pas.
       prisma.hub.findMany({ where: { prestataireId: { not: null } }, orderBy: { nom: 'asc' } }),
-      getColisEligiblesEnvoi(),
+      getColisEligiblesEnvoi(perimetreEnvoi(session.role)),
     ]);
 
     const counts = new Map<string, number>();

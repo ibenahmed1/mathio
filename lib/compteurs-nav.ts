@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { getColisEligiblesPrestataire } from '@/lib/bon-envoi-prestataire';
+import { perimetreEnvoi } from '@/lib/circuit-shipeh';
+import type { Prisma } from '@/app/generated/prisma/client';
 import { roleMatches, sessionHasPermission, type SessionPayload } from '@/lib/auth';
 
 // § Compteurs de la barre latérale (13/10/2026) — « ce qui attend un geste »,
@@ -42,9 +44,11 @@ export interface TransporteurPret {
 // (§ chargerResolveurTransporteur) : mêmes règles d'éligibilité que la
 // création d'un bon d'envoi, donc un colis compté ici peut y entrer. Un colis
 // Shipeh n'est prêt qu'une fois scanné au hub central (§ circuit Shipeh).
-export async function colisPretsParTransporteur(): Promise<{ transporteurs: TransporteurPret[]; sansTransporteur: number }> {
+export async function colisPretsParTransporteur(
+  perimetre?: Prisma.CommandeWhereInput
+): Promise<{ transporteurs: TransporteurPret[]; sansTransporteur: number }> {
   const [colis, prestataires] = await Promise.all([
-    getColisEligiblesPrestataire({}),
+    getColisEligiblesPrestataire({ perimetre }),
     prisma.prestataire.findMany({ where: { actif: true }, select: { id: true, nom: true }, orderBy: { nom: 'asc' } }),
   ]);
   const parId = new Map(prestataires.map((p) => [p.id, { ...p, nbColis: 0 }]));
@@ -58,7 +62,7 @@ export async function colisPretsParTransporteur(): Promise<{ transporteurs: Tran
   return { transporteurs: [...parId.values()], sansTransporteur };
 }
 
-const COMPTEURS: Record<CleCompteur, () => Promise<number>> = {
+const COMPTEURS: Record<CleCompteur, (session: SessionPayload) => Promise<number>> = {
   // Liste principale : nouveaux colis hors préparation de stock (ceux-là ont
   // leurs propres listes).
   colis_nouveaux: () =>
@@ -68,8 +72,8 @@ const COMPTEURS: Record<CleCompteur, () => Promise<number>> = {
   stock_prets: () =>
     prisma.commande.count({ where: { enStock: true, statut: 'pret_pour_preparation', bonPreparationId: null } }),
   bons_preparation: () => prisma.bonDePreparation.count({ where: { statut: 'en_attente' } }),
-  prets_envoi: async () => {
-    const { transporteurs } = await colisPretsParTransporteur();
+  prets_envoi: async (session) => {
+    const { transporteurs } = await colisPretsParTransporteur(perimetreEnvoi(session.role));
     return transporteurs.reduce((n, t) => n + t.nbColis, 0);
   },
   // Bon de livraison dont des colis attendent encore d'être reçus.
@@ -89,7 +93,7 @@ export async function compterPour(session: SessionPayload): Promise<Partial<Reco
   );
   // Un compteur en échec est omis, sans emporter les autres : la barre
   // latérale perdrait sinon toutes ses pastilles pour une seule requête.
-  const valeurs = await Promise.allSettled(cles.map((cle) => COMPTEURS[cle]()));
+  const valeurs = await Promise.allSettled(cles.map((cle) => COMPTEURS[cle](session)));
   const resultat: Partial<Record<CleCompteur, number>> = {};
   valeurs.forEach((v, i) => {
     if (v.status === 'fulfilled') resultat[cles[i]] = v.value;

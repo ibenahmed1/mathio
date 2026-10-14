@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   attendRemise,
   noteEnTransit,
+  perimetreEnvoi,
+  refusPerimetreEnvoi,
   refusShipehNonScanne,
   statutApresRemise,
   statutEntreeBonEnvoi,
@@ -46,4 +48,18 @@ test('pas de bon d’envoi pour un colis Shipeh non scanné', () => {
 test('la phrase de transit nomme le hub quand on le connaît', () => {
   assert.equal(noteEnTransit('Hub Tanger'), 'en transit vers Hub Tanger');
   assert.equal(noteEnTransit(null), 'en transit');
+});
+
+test('planner : seuls les colis Shipeh scannés au Hub Central entrent dans ses bons d’envoi', () => {
+  assert.equal(refusPerimetreEnvoi('planner', { ...shipeh, statut: 'recu_au_hub', codeSuivi: 'PD-1' }), null);
+  assert.match(refusPerimetreEnvoi('planner', { ...shipeh, statut: 'pret_pour_preparation', codeSuivi: 'PD-2' }) ?? '', /scanné au Hub Central/);
+  // PD-101550 (14/10) : colis de plateforme hors stock, « Nouveau colis ».
+  assert.match(refusPerimetreEnvoi('planner', { ...shopify, statut: 'nouveau_colis', codeSuivi: 'PD-3' }) ?? '', /pas un colis Shipeh/);
+  assert.match(refusPerimetreEnvoi('planner', { ...marchand, statut: 'recu_au_hub', codeSuivi: 'PD-4' }) ?? '', /pas un colis Shipeh/);
+});
+
+test('l’admin garde tous les colis : aucun périmètre, aucun refus', () => {
+  assert.equal(perimetreEnvoi('admin'), undefined);
+  assert.equal(refusPerimetreEnvoi('admin', { ...shopify, statut: 'nouveau_colis', codeSuivi: 'PD-3' }), null);
+  assert.deepEqual(perimetreEnvoi('planner'), { source: 'api', enStock: true, statut: 'recu_au_hub' });
 });

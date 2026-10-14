@@ -12,6 +12,7 @@ import { suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import { QrScanner } from '@/components/QrScanner';
 import { lireDouchette } from '@/lib/douchette';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § Gestion de stock (2/4) : colis stock au statut "pret_pour_preparation",
 // pas encore rattachés à un Bon de Préparation. Sélection multiple (toutes
@@ -77,9 +78,11 @@ export default function AdminStockPretsPage() {
     try {
       const res = await apiPost<{ data: BonDePreparation[] }>('/api/bons-preparation', { colisIds: Array.from(selected) });
       setBonsGeneres(res.data);
+      annoncerSucces(`${res.data.length} bon${res.data.length > 1 ? 's' : ''} de préparation généré${res.data.length > 1 ? 's' : ''}.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: 'Bons de préparation' });
     } finally {
       setBusy(false);
     }
@@ -254,15 +257,15 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
         '/api/stock/scan-reception',
         brut.includes('.') ? { qrPayload: brut } : { codeSuivi: brut }
       );
-      setMessage({
-        ok: true,
-        texte: res.dejaScanne
-          ? `${res.codeSuivi} était déjà reçu au ${res.hub.nom}`
-          : `${res.codeSuivi} — reçu au hub ${res.hub.ville}`,
-      });
+      const texte = res.dejaScanne
+        ? `${res.codeSuivi} était déjà reçu au ${res.hub.nom}`
+        : `${res.codeSuivi} — reçu au hub ${res.hub.ville}`;
+      setMessage({ ok: true, texte });
+      annoncerSucces(texte, { son: true });
       onScanne();
     } catch (err) {
       setMessage({ ok: false, texte: err instanceof Error ? err.message : 'Erreur' });
+      annoncerEchec(err, { son: true, prefixe: `Scan ${brut}` });
     } finally {
       setCode('');
       setBusy(false);

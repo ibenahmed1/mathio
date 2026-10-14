@@ -15,6 +15,7 @@ import type { Role } from '@/app/generated/prisma/enums';
 // reste entier et INDÉPENDANT :
 //   - le planner et l'agent_hub restent bornés à leur hub de rattachement
 //     (`Utilisateur.hubId`, forcé côté API — cf. resolveHubPlanification) ;
+//     le planner n'en a besoin que si on lui ouvre les tournées ;
 //   - le marchand reste borné à sa boutique (lib/marchand-scope.ts) ;
 //   - le livreur/ramasseur restent bornés à leurs propres bons.
 // Accorder `bon_distribution:manage` à un planner ne lui ouvre donc pas les
@@ -385,18 +386,6 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
     'settings:manage',
   ],
 
-  planner: [
-    'dashboard:view',
-    'colis:read',
-    'colis:track',
-    'planification:manage',
-    'bon_distribution:manage',
-    'scan:tournee',
-    'bon_retour:manage',
-    'tasks:manage',
-    'settings:manage',
-  ],
-
   // L'agent de quai : le scan de réception, et la consultation/réception des
   // Bons d'Envoi de son hub. La CRÉATION d'un bon d'envoi lui reste fermée —
   // `bon_envoi:manage` est plus grossier que ce besoin, le refus de
@@ -409,6 +398,28 @@ export const ROLE_PERMISSIONS: Record<Role, string[]> = {
   // Elle ne lui ouvre pas la liste des colis pour autant : /admin/commandes
   // lui reste fermé par le confinement de chemin (ROLES_HUB_UNIQUEMENT).
   agent_hub: ['scan:reception_hub', 'bon_envoi:manage', 'colis:read'],
+
+  // Le Planner (14/10/2026, remplace l'ancien planificateur de tournées) : par
+  // défaut, les seuls écrans du circuit du colis stock, dans l'ordre où il les
+  // parcourt (cf. NAV_CIRCUIT_STOCK, components/admin/nav.ts) — valider,
+  // scanner au Hub Central, composer puis remettre le bon d'envoi, suivre
+  // jusqu'à livré/refusé/annulé, réceptionner le retour. Tout autre accès se
+  // coche au besoin sur son compte (ou sur son rôle) : il s'ajoute alors à sa
+  // barre latérale, sous le circuit.
+  //
+  // `stock:inventory` n'est pas que l'inventaire : la validation d'une
+  // réception (/api/produits/**) en dépend. `colis:read` sert les lectures de
+  // colis du suivi et des bons (GET /api/commandes), sans lui afficher la liste.
+  planner: [
+    'stock:nouveaux',
+    'stock:prets',
+    'stock:inventory',
+    'bon_envoi:create',
+    'bon_envoi:manage',
+    'colis:read',
+    'colis:track',
+    'bon_retour:manage',
+  ],
 
   design: ['tasks:manage', 'poles:members'],
   gestionnaire_hub: ['tasks:manage', 'poles:members'],

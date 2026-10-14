@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
+import { gereLesBons } from '@/lib/circuit-shipeh';
 import { P, StatusPill } from '@/components/dashboard/composition';
 import s from '@/components/admin/CompositionTableau.module.css';
 
@@ -83,7 +84,7 @@ export default function AdminBonEnvoiPage() {
     <main className={s.main}>
       <header className={s.entete}>
         <h1 className={s.titre}>Bons d&apos;envoi</h1>
-        {user?.role === 'admin' && (
+        {gereLesBons(user?.role) && (
           // Un bon d'envoi se compose depuis les colis prêts, transporteur par
           // transporteur (/admin/bon-envoi/prets) ; la pastille dit combien attendent.
           <Link href="/admin/bon-envoi/prets" className={s.btnJaune}>
@@ -204,7 +205,7 @@ export default function AdminBonEnvoiPage() {
                     </td>
                     <td>
                       {user && (
-                        <BonEnvoiActionsMenu bon={b} role={user.role === 'admin' ? 'admin' : 'agent_hub'} onChanged={load} />
+                        <BonEnvoiActionsMenu bon={b} role={gereLesBons(user.role) ? 'admin' : 'agent_hub'} onChanged={load} />
                       )}
                     </td>
                   </tr>
