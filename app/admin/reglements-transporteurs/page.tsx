@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { BadgeCheck, Camera, Pencil, TriangleAlert, Undo2 } from 'lucide-react';
+import { BadgeCheck, Camera, Pencil, Printer, TriangleAlert, Undo2 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { Modal } from '@/components/admin/Modal';
 import { P, StatusPill } from '@/components/dashboard/composition';
@@ -402,18 +402,24 @@ export default function ReglementsTransporteursPage() {
                         {v.note && <span className={s.dateSous}>{v.note}</span>}
                       </td>
                       <td>
+                        <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {/* Le relevé d'un versement annulé reste imprimable, barré « ANNULÉ ». */}
+                          <a href={`/releves-reglement/${v.id}`} target="_blank" rel="noreferrer" className={s.btnClair} style={{ padding: '6px 10px' }}>
+                            <Printer className="h-3.5 w-3.5" /> Imprimer
+                          </a>
                         {v.annuleLe ? (
                           <span className={s.dateSous}>Annulé{v.annulePar ? ` par ${v.annulePar}` : ''}</span>
                         ) : (
-                          <span style={{ display: 'flex', gap: 6 }}>
+                          <>
                             <button type="button" className={s.btnClair} style={{ padding: '6px 10px' }} onClick={() => setFenetre({ mode: 'modifier', versement: v })}>
                               <Pencil className="h-3.5 w-3.5" /> Modifier
                             </button>
                             <button type="button" className={s.btnClair} style={{ padding: '6px 10px' }} onClick={() => annuler(v)}>
                               <Undo2 className="h-3.5 w-3.5" /> Annuler
                             </button>
-                          </span>
+                          </>
                         )}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -438,6 +444,7 @@ export default function ReglementsTransporteursPage() {
                 }
           }
           attendu={fenetre.mode === 'payer' ? attenduCoche : fenetre.versement.montantAttendu}
+          montantFige={fenetre.mode === 'modifier'}
           onFermer={() => setFenetre(null)}
           onValider={async ({ montant, date, note, preuve }) => {
             if (fenetre.mode === 'payer') {
@@ -452,8 +459,6 @@ export default function ReglementsTransporteursPage() {
               await rafraichir(`Versement n° ${v.numero} enregistré : ${v.nbColis} colis payés`);
             } else {
               await apiPatch(`/api/reglements-transporteurs/versements/${fenetre.versement.id}`, {
-                montantRecu: montant,
-                dateVersement: date,
                 note,
                 ...(preuve !== undefined && { preuve }),
               });
@@ -471,12 +476,16 @@ function FenetreVersement({
   titre,
   initial,
   attendu,
+  montantFige,
   onFermer,
   onValider,
 }: {
   titre: string;
   initial: { montant: string; date: string; note: string };
   attendu: number;
+  // Versement déjà enregistré : montant et date ne se modifient plus (son
+  // relevé a pu être imprimé) — on annule et on ressaisit.
+  montantFige: boolean;
   onFermer: () => void;
   onValider: (v: { montant: string; date: string; note: string; preuve: string | undefined }) => Promise<void>;
 }) {
@@ -506,21 +515,30 @@ function FenetreVersement({
           }
         }}
       >
-        <p className="opacity-70">Attendu : {dh(attendu)}</p>
-        <label className="flex flex-col gap-1 font-semibold">
-          Montant reçu (DH)
-          <input className="input-basic" type="number" step="0.01" min="0.01" value={montant} onChange={(e) => setMontant(e.target.value)} required />
-        </label>
-        {Math.abs(ecart) >= 0.01 && (
-          <p style={{ color: '#B85200', fontWeight: 600 }}>
-            Écart de {ecart > 0 ? '+' : ''}
-            {dh(ecart)} avec l&apos;attendu : il sera enregistré sur le versement.
+        {montantFige ? (
+          <p className="opacity-70">
+            Attendu {dh(attendu)} · reçu {dh(Number(montant))} le {new Date(date).toLocaleDateString('fr-FR')}. Montant et
+            date ne se modifient plus : en cas d&apos;erreur, annulez ce versement puis saisissez-le à nouveau.
           </p>
+        ) : (
+          <>
+            <p className="opacity-70">Attendu : {dh(attendu)}</p>
+            <label className="flex flex-col gap-1 font-semibold">
+              Montant reçu (DH)
+              <input className="input-basic" type="number" step="0.01" min="0.01" value={montant} onChange={(e) => setMontant(e.target.value)} required />
+            </label>
+            {Math.abs(ecart) >= 0.01 && (
+              <p style={{ color: '#B85200', fontWeight: 600 }}>
+                Écart de {ecart > 0 ? '+' : ''}
+                {dh(ecart)} avec l&apos;attendu : il sera enregistré sur le versement.
+              </p>
+            )}
+            <label className="flex flex-col gap-1 font-semibold">
+              Date du versement
+              <input className="input-basic" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </label>
+          </>
         )}
-        <label className="flex flex-col gap-1 font-semibold">
-          Date du versement
-          <input className="input-basic" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-        </label>
         <label className="flex flex-col gap-1 font-semibold">
           Note (facultative)
           <input className="input-basic" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Référence du virement, remarque…" />

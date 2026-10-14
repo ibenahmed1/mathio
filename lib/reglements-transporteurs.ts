@@ -246,6 +246,61 @@ export async function versementsDuTransporteur(prestataireId: string) {
   }));
 }
 
+// Relevé de règlement imprimable (§ /releves-reglement/[id]) : le versement et
+// les colis qu'il solde. Un versement annulé n'a plus de colis — l'annulation
+// les a rendus « à recevoir » — : le relevé n'en garde que les totaux.
+export async function releveVersement(id: string) {
+  const v = await prisma.versementTransporteur.findUnique({
+    where: { id },
+    omit: { preuveUrl: true },
+    include: {
+      prestataire: { select: { nom: true, telephone: true } },
+      auteur: { select: { nomComplet: true } },
+      annulePar: { select: { nomComplet: true } },
+      creances: {
+        orderBy: { dateLivraison: 'asc' },
+        select: {
+          montantCod: true,
+          fraisTransporteur: true,
+          montantAttendu: true,
+          dateLivraison: true,
+          commande: { select: { codeSuivi: true, ville: true, clientNom: true } },
+        },
+      },
+    },
+  });
+  if (!v) return null;
+  const aPreuve = (await prisma.versementTransporteur.count({ where: { id, preuveUrl: { not: null } } })) > 0;
+  const colis = v.creances.map((c) => ({
+    codeSuivi: c.commande.codeSuivi,
+    ville: c.commande.ville,
+    clientNom: c.commande.clientNom,
+    dateLivraison: c.dateLivraison,
+    montantCod: Number(c.montantCod),
+    fraisTransporteur: c.fraisTransporteur === null ? null : Number(c.fraisTransporteur),
+    montantAttendu: Number(c.montantAttendu),
+  }));
+  return {
+    id: v.id,
+    numero: v.numero,
+    transporteur: v.prestataire.nom,
+    telephoneTransporteur: v.prestataire.telephone,
+    dateVersement: v.dateVersement,
+    creeLe: v.creeLe,
+    auteur: v.auteur.nomComplet,
+    note: v.note,
+    aPreuve,
+    montantRecu: Number(v.montantRecu),
+    montantAttendu: Number(v.montantAttendu),
+    ecart: arrondi(Number(v.montantRecu) - Number(v.montantAttendu)),
+    totalCod: arrondi(colis.reduce((n, c) => n + c.montantCod, 0)),
+    totalFrais: arrondi(colis.reduce((n, c) => n + (c.fraisTransporteur ?? 0), 0)),
+    annuleLe: v.annuleLe,
+    annulePar: v.annulePar?.nomComplet ?? null,
+    colis,
+  };
+}
+
 // --- Écriture ---------------------------------------------------------------
 
 export interface NouveauVersement {
@@ -314,9 +369,12 @@ export async function enregistrerVersement(v: NouveauVersement) {
   });
 }
 
+// Une fois enregistré, un versement a pu être imprimé et signé (relevé de
+// règlement) : son montant et sa date ne bougent plus (décidé le 14/10/2026).
+// Une erreur sur l'un d'eux, ou sur les colis couverts, se corrige en
+// annulant le versement puis en le saisissant à nouveau. Restent modifiables
+// la note et la photo du reçu, qui n'entrent dans aucun montant.
 export interface ModificationVersement {
-  montantRecu?: number;
-  dateVersement?: Date;
   note?: string | null;
   // undefined = inchangée, null = retirée, chaîne = nouvelle photo.
   preuveUrl?: string | null;
@@ -324,32 +382,17 @@ export interface ModificationVersement {
 
 export async function modifierVersement(id: string, m: ModificationVersement) {
   return prisma.$transaction(async (tx) => {
-    const v = await tx.versementTransporteur.findUnique({
-      where: { id },
-      select: { id: true, annuleLe: true, transactionId: true, montantAttendu: true, note: true, numero: true },
-    });
+    const v = await tx.versementTransporteur.findUnique({ where: { id }, select: { id: true, annuleLe: true } });
     if (!v) throw new ApiError(404, 'Versement introuvable');
     if (v.annuleLe) throw new ApiError(409, 'Ce versement est annulé : il ne se modifie plus');
 
     await tx.versementTransporteur.update({
       where: { id },
       data: {
-        ...(m.montantRecu !== undefined && { montantRecu: m.montantRecu }),
-        ...(m.dateVersement !== undefined && { dateVersement: m.dateVersement }),
         ...(m.note !== undefined && { note: m.note }),
         ...(m.preuveUrl !== undefined && { preuveUrl: m.preuveUrl }),
       },
     });
-    // L'écriture du journal suit le montant et la date réellement reçus.
-    if (v.transactionId && (m.montantRecu !== undefined || m.dateVersement !== undefined)) {
-      await tx.transaction.update({
-        where: { id: v.transactionId },
-        data: {
-          ...(m.montantRecu !== undefined && { montant: m.montantRecu }),
-          ...(m.dateVersement !== undefined && { dateEffet: m.dateVersement }),
-        },
-      });
-    }
   });
 }
 
