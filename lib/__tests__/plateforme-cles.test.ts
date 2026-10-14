@@ -17,6 +17,7 @@ import {
   hashSecretCle,
   secretCorrespond,
 } from '../plateforme-cles';
+import { SCOPES as SCOPES_ECRAN, scopesDeLaNature } from '../../components/admin/integrations/scopes';
 
 // ------------------------------------------------------------
 // Format des clés
@@ -272,4 +273,41 @@ test('le dépôt de colis reste ouvert au bac à sable', () => {
   // Le contre-exemple qui donne son sens à la règle : déposer un colis en test
   // crée un artefact marqué et purgeable, donc réversible.
   assert.ok(!SCOPES_INTERDITS_EN_TEST.includes('colis:creation'));
+});
+
+// ------------------------------------------------------------
+// L'écran d'émission des clés suit le catalogue serveur
+// ------------------------------------------------------------
+
+test("l'écran d'émission propose tous les scopes du catalogue, et seulement eux", () => {
+  // Le catalogue de l'écran est une COPIE (le module serveur lit `crypto`).
+  // Un scope absent de la copie ne se coche pas : la clé émise reçoit alors
+  // un 403 sur l'endpoint correspondant, et ses scopes ne se corrigent plus.
+  assert.deepEqual(SCOPES_ECRAN.map((s) => s.cle).sort(), [...SCOPES_PLATEFORME].sort());
+});
+
+test("l'écran range chaque scope du même côté que le serveur", () => {
+  assert.deepEqual(scopesDeLaNature(true).map((s) => s.cle).sort(), [...SCOPES_TRANSPORTEUR].sort());
+  assert.deepEqual(scopesDeLaNature(false).map((s) => s.cle).sort(), [...SCOPES_VENTE].sort());
+  assert.deepEqual(
+    SCOPES_ECRAN.filter((s) => s.interditEnTest).map((s) => s.cle).sort(),
+    [...SCOPES_INTERDITS_EN_TEST].sort()
+  );
+});
+
+test('un canal de vente peut couvrir les huit endpoints de la plateforme', () => {
+  // Un scope par endpoint (POST /v1/stock/envois partage produits:creation,
+  // les deux POST colis partagent colis:creation).
+  const vente = scopesDeLaNature(false).map((s) => s.cle);
+  for (const scope of [
+    'marchands:creation',
+    'marchands:creation_validee',
+    'produits:creation',
+    'stock:lecture',
+    'colis:creation',
+    'colis:lecture',
+    'villes:lecture',
+  ]) {
+    assert.ok(vente.includes(scope), `case absente de l'écran : ${scope}`);
+  }
 });
