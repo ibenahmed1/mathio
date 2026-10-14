@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const data: Prisma.MarchandUpdateInput = {};
 
-    for (const champ of ['fraisLivraison', 'fraisRetour'] as const) {
+    for (const champ of ['fraisLivraison', 'fraisRetour', 'fraisPreparation'] as const) {
       if (body[champ] === undefined) continue;
       // Chaîne vide = "revenir à aucun frais par défaut" (null), distinct de 0
       // qui est un tarif gratuit assumé.
@@ -72,7 +72,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const updated = await prisma.marchand.update({
       where: { id },
       data,
-      select: { id: true, fraisLivraison: true, fraisRetour: true },
+      select: { id: true, fraisLivraison: true, fraisRetour: true, fraisPreparation: true },
     });
 
     return NextResponse.json(updated);

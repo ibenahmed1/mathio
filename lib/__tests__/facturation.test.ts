@@ -41,12 +41,14 @@ function couts(
 function tarifs(
   defautLivraison: number,
   defautRetour: number,
-  parVille: Record<string, { livraison: number; retour: number }> = {}
+  parVille: Record<string, { livraison: number; retour: number }> = {},
+  preparation = 0
 ): TarifsMarchand {
   return {
     parVilleId: new Map(Object.entries(parVille)),
     defautLivraison,
     defautRetour,
+    preparation,
   };
 }
 
@@ -167,9 +169,38 @@ test('facture vide : tous les totaux à zéro, aucune ligne', () => {
     totalCod: 0,
     totalFraisLivraison: 0,
     totalFraisRetour: 0,
+    totalFraisPreparation: 0,
     totalAutresFrais: 0,
     netAPayer: 0,
   });
+});
+
+// § Préparation (14/10/2026) : due sur chaque colis, livré comme retourné.
+test('frais de préparation : sur chaque colis, retranchés du net', () => {
+  const f = calculerFacture(
+    [colis('a', 'livre', 300), colis('b', 'livre', 200), colis('c', 'retourne', 150)],
+    tarifs(30, 0, {}, 3)
+  );
+
+  assert.deepEqual(
+    f.lignes.map((l) => l.fraisPreparation),
+    [3, 3, 3]
+  );
+  assert.equal(f.totalFraisPreparation, 9);
+  // 500 de COD − 60 de livraison − 0 de retour − 9 de préparation.
+  assert.equal(f.netAPayer, 431);
+});
+
+test('frais de préparation : comptés dans la marge', () => {
+  const { marge } = margeFacture({
+    totalFraisLivraison: 60,
+    totalFraisRetour: 0,
+    totalFraisPreparation: 9,
+    totalAutresFrais: 0,
+    totalCoutLivraison: 40,
+    nbLignesCoutInconnu: 0,
+  });
+  assert.equal(marge, 29);
 });
 
 // ------------------------------------------------------------

@@ -206,6 +206,12 @@ export default async function FacturePrintPage({ params }: { params: Promise<{ i
               <td className="py-0.5">Frais de retour ({facture.nbColisRetournes} colis)</td>
               <td className="py-0.5 text-right tabular-nums">−{fmt(facture.totalFraisRetour)}</td>
             </tr>
+            {Number(facture.totalFraisPreparation) > 0 && (
+              <tr>
+                <td className="py-0.5">Frais de préparation ({facture.nbColisLivres + facture.nbColisRetournes} colis)</td>
+                <td className="py-0.5 text-right tabular-nums">−{fmt(facture.totalFraisPreparation)}</td>
+              </tr>
+            )}
             {Number(facture.totalAutresFrais) > 0 && (
               <tr>
                 <td className="py-0.5">Autres frais ({facture.fraisAnnexes.length} ligne(s))</td>

@@ -111,7 +111,7 @@ export default function FacturesPage() {
                 <td className="font-mono tabular-nums opacity-70">
                   −
                   {montant(
-                    Number(f.totalFraisLivraison) + Number(f.totalFraisRetour) + Number(f.totalAutresFrais)
+                    Number(f.totalFraisLivraison) + Number(f.totalFraisRetour) + Number(f.totalFraisPreparation) + Number(f.totalAutresFrais)
                   )}
                 </td>
                 <td className="font-mono font-bold tabular-nums">{montant(f.netAPayer)}</td>

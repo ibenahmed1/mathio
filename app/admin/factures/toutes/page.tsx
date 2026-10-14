@@ -139,7 +139,7 @@ export default function ToutesFacturesPage() {
           <tbody>
             {factures.map((f) => {
               const fraisTotal =
-                Number(f.totalFraisLivraison) + Number(f.totalFraisRetour) + Number(f.totalAutresFrais);
+                Number(f.totalFraisLivraison) + Number(f.totalFraisRetour) + Number(f.totalFraisPreparation) + Number(f.totalAutresFrais);
               return (
                 <tr key={f.id}>
                   <td className="font-mono">{f.numero}</td>

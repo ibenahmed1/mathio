@@ -98,7 +98,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const marchand = await prisma.marchand.findUniqueOrThrow({
       where: { id: facture.marchandId },
-      select: { id: true, fraisLivraison: true, fraisRetour: true },
+      select: { id: true, fraisLivraison: true, fraisRetour: true, fraisPreparation: true },
     });
 
     // L'assiette inclut les colis DÉJÀ pris par cette facture : sans ça, un

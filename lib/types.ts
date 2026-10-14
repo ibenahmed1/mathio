@@ -228,6 +228,8 @@ export interface Marchand {
   // TarifMarchandVille. `null` = aucun frais par défaut, distinct de "0".
   fraisLivraison?: string | null;
   fraisRetour?: string | null;
+  // Par colis facturé, livré comme retourné (3 DH pour les boutiques Shipeh).
+  fraisPreparation?: string | null;
   dateCreation: string;
   utilisateur?: {
     id?: string;
@@ -692,6 +694,7 @@ export interface LigneFacture {
   livre: boolean;
   montantCod: string;
   frais: string;
+  fraisPreparation: string;
   commande?: {
     id: string;
     codeSuivi: string;
@@ -725,6 +728,7 @@ export interface Facture {
   totalCod: string;
   totalFraisLivraison: string;
   totalFraisRetour: string;
+  totalFraisPreparation: string;
   totalAutresFrais: string;
   netAPayer: string;
   // § Marge — INTERNES, et donc OPTIONNELS ici : les réponses servies à une
@@ -787,6 +791,7 @@ export interface PrevisualisationFacture {
       livre: boolean;
       montantCod: number;
       frais: number;
+      fraisPreparation: number;
       // § Marge — coût de la course, null quand il est inconnu. INTERNE : la
       // prévisualisation n'est servie qu'à l'admin et au responsable.
       coutLivraison: number | null;
@@ -797,6 +802,7 @@ export interface PrevisualisationFacture {
     totalCod: number;
     totalFraisLivraison: number;
     totalFraisRetour: number;
+    totalFraisPreparation: number;
     totalAutresFrais: number;
     netAPayer: number;
     totalCoutLivraison: number;

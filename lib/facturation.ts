@@ -43,12 +43,15 @@ export interface TarifsMarchand {
   parVilleId: Map<string, { livraison: number; retour: number }>;
   defautLivraison: number;
   defautRetour: number;
+  // Par colis, livré comme retourné (Marchand.fraisPreparation, 0 si vide).
+  preparation: number;
 }
 
 const marchandTarifSelect = {
   id: true,
   fraisLivraison: true,
   fraisRetour: true,
+  fraisPreparation: true,
 } satisfies Prisma.MarchandSelect;
 
 type MarchandTarif = Prisma.MarchandGetPayload<{ select: typeof marchandTarifSelect }>;
@@ -77,6 +80,7 @@ export async function getTarifsMarchand(marchand: MarchandTarif): Promise<Tarifs
     ),
     defautLivraison: marchand.fraisLivraison ? Number(marchand.fraisLivraison) : 0,
     defautRetour: marchand.fraisRetour ? Number(marchand.fraisRetour) : 0,
+    preparation: marchand.fraisPreparation ? Number(marchand.fraisPreparation) : 0,
   };
 }
 
@@ -216,6 +220,7 @@ export interface LigneCalculee {
   livre: boolean;
   montantCod: number;
   frais: number;
+  fraisPreparation: number;
   // Coût de la course, null quand il est inconnu (cf. LigneFacture.coutLivraison).
   coutLivraison: number | null;
   coutSource: SourceCoutLivraison | null;
@@ -233,6 +238,7 @@ export interface FactureCalculee {
   totalCod: number;
   totalFraisLivraison: number;
   totalFraisRetour: number;
+  totalFraisPreparation: number;
   totalAutresFrais: number;
   netAPayer: number;
   totalCoutLivraison: number;
@@ -284,12 +290,16 @@ function coutPourColis(
 export function margeFacture(facture: {
   totalFraisLivraison: Prisma.Decimal | number | string;
   totalFraisRetour: Prisma.Decimal | number | string;
+  totalFraisPreparation: Prisma.Decimal | number | string;
   totalAutresFrais: Prisma.Decimal | number | string;
   totalCoutLivraison: Prisma.Decimal | number | string;
   nbLignesCoutInconnu: number;
 }): { marge: number; fiable: boolean } {
   const produit =
-    Number(facture.totalFraisLivraison) + Number(facture.totalFraisRetour) + Number(facture.totalAutresFrais);
+    Number(facture.totalFraisLivraison) +
+    Number(facture.totalFraisRetour) +
+    Number(facture.totalFraisPreparation) +
+    Number(facture.totalAutresFrais);
   return {
     marge: arrondi(produit - Number(facture.totalCoutLivraison)),
     fiable: facture.nbLignesCoutInconnu === 0,
@@ -316,6 +326,7 @@ export function calculerFacture(
   let totalCod = 0;
   let totalFraisLivraison = 0;
   let totalFraisRetour = 0;
+  let totalFraisPreparation = 0;
   let nbColisLivres = 0;
   let nbColisRetournes = 0;
   let totalCoutLivraison = 0;
@@ -329,6 +340,8 @@ export function calculerFacture(
     // dans le total, seulement ses frais de retour.
     const montantCod = livre ? arrondi(Number(c.montantCod)) : 0;
     const { coutLivraison, coutSource } = coutPourColis(c, livre, couts);
+    const fraisPreparation = arrondi(tarifs.preparation);
+    totalFraisPreparation = arrondi(totalFraisPreparation + fraisPreparation);
 
     if (livre) {
       nbColisLivres += 1;
@@ -345,7 +358,7 @@ export function calculerFacture(
       totalCoutLivraison = arrondi(totalCoutLivraison + coutLivraison);
     }
 
-    lignes.push({ commandeId: c.id, livre, montantCod, frais, coutLivraison, coutSource });
+    lignes.push({ commandeId: c.id, livre, montantCod, frais, fraisPreparation, coutLivraison, coutSource });
   }
 
   const totalAutresFrais = arrondi(
@@ -359,11 +372,12 @@ export function calculerFacture(
     totalCod,
     totalFraisLivraison,
     totalFraisRetour,
+    totalFraisPreparation,
     totalAutresFrais,
     // Peut être négatif quand les frais dépassent le COD encaissé : c'est
     // alors le marchand qui doit à la plateforme. Le signe est conservé tel
     // quel, jamais ramené à 0 — le masquer ferait disparaître une dette.
-    netAPayer: arrondi(totalCod - totalFraisLivraison - totalFraisRetour - totalAutresFrais),
+    netAPayer: arrondi(totalCod - totalFraisLivraison - totalFraisRetour - totalFraisPreparation - totalAutresFrais),
     totalCoutLivraison,
     nbLignesCoutInconnu,
   };
@@ -430,7 +444,7 @@ export function parseFraisAnnexes(brut: unknown): FraisAnnexeSaisi[] {
   });
 }
 
-// Recalcule les six totaux dénormalisés à partir des lignes EN BASE. Appelé
+// Recalcule les totaux dénormalisés à partir des lignes EN BASE. Appelé
 // après chaque modification, DANS la transaction : les totaux portés par la
 // facture ne doivent jamais diverger de la somme de ses lignes, sinon le
 // document imprimé ment.
@@ -438,7 +452,7 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
   const [lignes, frais] = await Promise.all([
     db.ligneFacture.findMany({
       where: { factureId },
-      select: { livre: true, montantCod: true, frais: true, coutLivraison: true },
+      select: { livre: true, montantCod: true, frais: true, fraisPreparation: true, coutLivraison: true },
     }),
     db.fraisFacture.findMany({ where: { factureId }, select: { montant: true } }),
   ]);
@@ -448,10 +462,12 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
   let totalCod = 0;
   let totalFraisLivraison = 0;
   let totalFraisRetour = 0;
+  let totalFraisPreparation = 0;
   let totalCoutLivraison = 0;
   let nbLignesCoutInconnu = 0;
 
   for (const l of lignes) {
+    totalFraisPreparation = arrondi(totalFraisPreparation + Number(l.fraisPreparation));
     if (l.livre) {
       nbColisLivres += 1;
       totalCod = arrondi(totalCod + Number(l.montantCod));
@@ -478,8 +494,9 @@ export async function recalculerTotaux(db: Prisma.TransactionClient, factureId: 
       totalCod,
       totalFraisLivraison,
       totalFraisRetour,
+      totalFraisPreparation,
       totalAutresFrais,
-      netAPayer: arrondi(totalCod - totalFraisLivraison - totalFraisRetour - totalAutresFrais),
+      netAPayer: arrondi(totalCod - totalFraisLivraison - totalFraisRetour - totalFraisPreparation - totalAutresFrais),
       totalCoutLivraison,
       nbLignesCoutInconnu,
     },

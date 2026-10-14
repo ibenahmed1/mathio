@@ -27,6 +27,7 @@ export default function AdminMarchandDetailPage() {
   const [tarifsOuverts, setTarifsOuverts] = useState(false);
   const [fraisLivraison, setFraisLivraison] = useState('');
   const [fraisRetour, setFraisRetour] = useState('');
+  const [fraisPreparation, setFraisPreparation] = useState('');
 
   async function load() {
     try {
@@ -36,6 +37,7 @@ export default function AdminMarchandDetailPage() {
       // vide signifie "aucun frais par défaut", et non zéro.
       setFraisLivraison(m.fraisLivraison ?? '');
       setFraisRetour(m.fraisRetour ?? '');
+      setFraisPreparation(m.fraisPreparation ?? '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     }
@@ -45,7 +47,7 @@ export default function AdminMarchandDetailPage() {
     e.preventDefault();
     setError(null);
     try {
-      await apiPatch(`/api/marchands/${id}`, { fraisLivraison, fraisRetour });
+      await apiPatch(`/api/marchands/${id}`, { fraisLivraison, fraisRetour, fraisPreparation });
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
@@ -213,6 +215,19 @@ export default function AdminMarchandDetailPage() {
                   className="input-bare"
                   value={fraisRetour}
                   onChange={(e) => setFraisRetour(e.target.value)}
+                />
+              </Affix>
+            </Field>
+            <Field label="Frais de préparation" className="w-36">
+              <Affix suffix="DH">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0,00"
+                  className="input-bare"
+                  value={fraisPreparation}
+                  onChange={(e) => setFraisPreparation(e.target.value)}
                 />
               </Affix>
             </Field>
