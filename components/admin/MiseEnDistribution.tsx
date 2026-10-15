@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Truck } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § Circuit transporteur (13/10/2026) — bon reçu : ses colis sont « Reçu au
 // hub » de destination, chez le transporteur. On les passe à la main en
@@ -35,9 +36,11 @@ export function MiseEnDistribution({ bon, onFait }: { bon: BonEnvoi; onFait: () 
         colisIds: Array.from(choisis),
       });
       setMessage({ ok: true, texte: `${res.misEnDistribution} colis en distribution chez ${transporteur}` });
+      annoncerSucces(`${res.misEnDistribution} colis en distribution chez ${transporteur}.`);
       onFait();
     } catch (err) {
       setMessage({ ok: false, texte: err instanceof Error ? err.message : 'Erreur' });
+      annoncerEchec(err, { prefixe: 'Mise en distribution' });
     } finally {
       setEnCours(false);
     }

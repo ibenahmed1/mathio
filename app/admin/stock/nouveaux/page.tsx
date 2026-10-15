@@ -8,6 +8,7 @@ import { Button } from '@/components/admin/Button';
 import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § Gestion de stock (1/4) : colis stock (enStock=true) créés par le marchand
 // et pas encore pris en charge par le Hub — ces colis ne passent pas par le
@@ -63,9 +64,11 @@ export default function AdminStockNouveauxPage() {
     setError(null);
     try {
       await apiPost('/api/stock/pret-pour-preparation', { colisIds: Array.from(selected) });
+      annoncerSucces(`${selected.size} colis validé${selected.size > 1 ? 's' : ''} : prêts pour préparation.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: 'Validation' });
     } finally {
       setBusy(false);
     }

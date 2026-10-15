@@ -8,6 +8,7 @@ import { StatutBadge } from '@/components/StatutBadge';
 import { ChevronLeft, List, PackageCheck, RotateCcw, ScanLine } from 'lucide-react';
 import { Field } from '@/components/form/Field';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 interface HubAgentUser {
   id: string;
@@ -122,9 +123,11 @@ export default function ScanReceptionHubPage() {
       setProposition({ codeSuivi: commande.codeSuivi, ville: commande.ville, prevu: transporteurPrevu });
       const note = await syncTournee(commande);
       setToast({ type: 'success', text: `Colis ${commande.codeSuivi} — ${commande.clientNom} réceptionné.${note ? ` ${note}` : ''}` });
+      annoncerSucces(`Colis ${commande.codeSuivi} — ${commande.clientNom} réceptionné.${note ? ` ${note}` : ''}`, { son: true });
       setRecues((prev) => [commande, ...prev.filter((c) => c.id !== commande.id)]);
     } catch (err) {
       setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
+      annoncerEchec(err, { son: true });
     } finally {
       setScanning(false);
     }

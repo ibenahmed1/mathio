@@ -9,7 +9,7 @@ import {
   refusTransporteur,
 } from '@/lib/hub-envoi';
 import { statutsEligiblesPrestataire } from '@/lib/bon-envoi-prestataire';
-import { refusShipehNonScanne } from '@/lib/circuit-shipeh';
+import { perimetreEnvoi, refusPerimetreEnvoi, refusShipehNonScanne } from '@/lib/circuit-shipeh';
 
 // § Étape 3 de la création d'un Bon d'Envoi, mode "scan" : résout un
 // codeSuivi/QR (même logique que POST /api/commandes/scan-reception) et
@@ -21,7 +21,7 @@ import { refusShipehNonScanne } from '@/lib/circuit-shipeh';
 // sous-traitée, où seul compte l'état du colis).
 export async function POST(request: Request) {
   try {
-    await requireUser(['admin']);
+    const session = await requireUser(['admin']);
     const body = await request.json();
 
     const hubDestinationId = typeof body.hubDestinationId === 'string' ? body.hubDestinationId.trim() : '';
@@ -53,6 +53,9 @@ export async function POST(request: Request) {
     });
     const refusShipeh = brut && !brut.bonEnvoiId ? refusShipehNonScanne(brut) : null;
     if (refusShipeh) throw new ApiError(409, refusShipeh);
+    // L'agent stock n'envoie que des colis Shipeh scannés au Hub Central.
+    const refusPerimetre = brut ? refusPerimetreEnvoi(session.role, brut) : null;
+    if (refusPerimetre) throw new ApiError(409, refusPerimetre);
 
     // Mode transporteur : le colis doit être libre, dans un statut expédiable,
     // hors tournée, ET partir chez CE transporteur (§ refusTransporteur). Chaque
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
       return NextResponse.json(colis);
     }
 
-    const eligibles = await getColisEligiblesEnvoi();
+    const eligibles = await getColisEligiblesEnvoi(perimetreEnvoi(session.role));
     const match = eligibles.find((e) => e.commande.codeSuivi === codeSuivi);
 
     if (!match) {

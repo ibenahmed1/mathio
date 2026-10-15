@@ -1,5 +1,5 @@
 {
-  "prise": "2026-10-10",
+  "prise": "2026-10-14",
   "hubs": [
     {
       "nom": "Hub Agadir",
@@ -1210,7 +1210,7 @@
       "tarifs": [
         {
           "prestataire": "Colivraison",
-          "livraison": 35,
+          "livraison": 33,
           "retour": 0
         }
       ]
@@ -1366,7 +1366,7 @@
       "tarifs": [
         {
           "prestataire": "Colivraison",
-          "livraison": 35,
+          "livraison": 33,
           "retour": 0
         }
       ]
@@ -1390,7 +1390,7 @@
       "tarifs": [
         {
           "prestataire": "Colivraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -1625,18 +1625,6 @@
     },
     {
       "hub": "Hub Béni Mellal",
-      "nom": "Lakhlalta",
-      "numero": 261,
-      "tarifs": [
-        {
-          "prestataire": "Colivraison",
-          "livraison": 35,
-          "retour": 0
-        }
-      ]
-    },
-    {
-      "hub": "Hub Béni Mellal",
       "nom": "Lakraza Ouled Said",
       "numero": 264,
       "tarifs": [
@@ -1654,7 +1642,7 @@
       "tarifs": [
         {
           "prestataire": "Colivraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -1667,18 +1655,6 @@
         {
           "prestataire": "Colivraison",
           "livraison": 30,
-          "retour": 0
-        }
-      ]
-    },
-    {
-      "hub": "Hub Béni Mellal",
-      "nom": "MFASSIS",
-      "numero": 296,
-      "tarifs": [
-        {
-          "prestataire": "Colivraison",
-          "livraison": 35,
           "retour": 0
         }
       ]
@@ -1943,18 +1919,6 @@
         {
           "prestataire": "Colivraison",
           "livraison": 25,
-          "retour": 0
-        }
-      ]
-    },
-    {
-      "hub": "Hub Béni Mellal",
-      "nom": "OULED ABDOUN",
-      "numero": 345,
-      "tarifs": [
-        {
-          "prestataire": "Colivraison",
-          "livraison": 35,
           "retour": 0
         }
       ]
@@ -2303,18 +2267,6 @@
         {
           "prestataire": "Colivraison",
           "livraison": 30,
-          "retour": 0
-        }
-      ]
-    },
-    {
-      "hub": "Hub Béni Mellal",
-      "nom": "Wawla",
-      "numero": 484,
-      "tarifs": [
-        {
-          "prestataire": "Colivraison",
-          "livraison": 35,
           "retour": 0
         }
       ]
@@ -4786,7 +4738,7 @@
       "tarifs": [
         {
           "prestataire": "EST Livraison",
-          "livraison": 35,
+          "livraison": 23,
           "retour": 0
         }
       ]
@@ -4978,7 +4930,7 @@
       "tarifs": [
         {
           "prestataire": "EST Livraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -5302,7 +5254,7 @@
       "tarifs": [
         {
           "prestataire": "EST Livraison",
-          "livraison": 35,
+          "livraison": 15,
           "retour": 0
         }
       ]
@@ -5830,7 +5782,7 @@
       "tarifs": [
         {
           "prestataire": "Amir Livraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -5878,7 +5830,7 @@
       "tarifs": [
         {
           "prestataire": "Amir Livraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -5890,7 +5842,7 @@
       "tarifs": [
         {
           "prestataire": "Amir Livraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -5914,7 +5866,7 @@
       "tarifs": [
         {
           "prestataire": "Amir Livraison",
-          "livraison": 35,
+          "livraison": 25,
           "retour": 0
         }
       ]
@@ -5950,7 +5902,7 @@
       "tarifs": [
         {
           "prestataire": "Amir Livraison",
-          "livraison": 35,
+          "livraison": 30,
           "retour": 0
         }
       ]

@@ -6,6 +6,7 @@ import { ScanLine } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonRetour, Commande, HubRetour, RamasseurDisponible } from '@/lib/types';
 import { QrScanner } from '@/components/QrScanner';
+import { lireDouchette } from '@/lib/douchette';
 import BonDistributionCreerUI from '@/components/admin/BonDistributionCreerUI';
 
 // § Composition d'un Bon de Retour (§ /admin/bon-retour/**).
@@ -419,7 +420,7 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
           </div>
 
           {cameraActive && (
-            <QrScanner active={cameraActive} disabled={scanning} onScan={(raw) => scannerCodeRef.current(raw)} />
+            <QrScanner active={cameraActive} disabled={scanning} sansDouchette onScan={(raw) => scannerCodeRef.current(raw)} />
           )}
         </section>
       )}
@@ -524,8 +525,18 @@ export function BonRetourCreer({ axe = 'marchand' }: { axe?: AxeFiltre }) {
         onAjouterFiltre={handleAjouterFiltre}
         onDropColis={handleDropColis}
         onReorder={handleReorder}
-        onScanChange={setScanValue}
-        onScanSubmit={() => scannerCode(scanValue)}
+        onScanChange={(v: string) => {
+          // QR complet malgré l'Entrée prématuré de la douchette : envoyé tout de suite.
+          const lecture = lireDouchette(v);
+          if (lecture.etat === 'complet' && lecture.qr) {
+            setScanValue('');
+            scannerCode(lecture.code);
+          } else setScanValue(v);
+        }}
+        onScanSubmit={() => {
+          const lecture = lireDouchette(scanValue);
+          if (lecture.etat === 'complet') scannerCode(lecture.code);
+        }}
         onValider={handleValider}
         onReset={handleReset}
         onConfirmer={handleConfirmer}

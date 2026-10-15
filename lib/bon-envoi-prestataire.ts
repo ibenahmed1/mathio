@@ -101,6 +101,8 @@ export interface OptionsColisEligibles {
   // de livraison. Absent = aucun filtre de position.
   hubActuelId?: string | null;
   tousStatuts?: boolean;
+  // Restriction propre au compte (§ perimetreEnvoi, lib/circuit-shipeh.ts).
+  perimetre?: Prisma.CommandeWhereInput;
   // Renseigné = chaque colis porte le tarif d'achat de ce prestataire.
   prestataireId?: string | null;
 }
@@ -121,6 +123,7 @@ export async function getColisEligiblesPrestataire(
     // § Circuit Shipeh : pas avant le scan de l'agent stock, même en « tous statuts ».
     EXCLURE_SHIPEH_NON_SCANNES,
   ];
+  if (options.perimetre) conditions.push(options.perimetre);
 
   if (options.hubActuelId) {
     const central = await hubCentralId();
@@ -210,14 +213,17 @@ export interface HubSourceColis {
 // § Étape 2 du mode transporteur : « où sont les colis ». Tous les hubs sont
 // listés, y compris ceux à zéro — un compteur vide est une information, une
 // ligne absente est une énigme.
-export async function getHubsSourceColis(tousStatuts: boolean): Promise<HubSourceColis[]> {
+export async function getHubsSourceColis(
+  tousStatuts: boolean,
+  perimetre?: Prisma.CommandeWhereInput
+): Promise<HubSourceColis[]> {
   const [hubs, central, colis] = await Promise.all([
     prisma.hub.findMany({
       orderBy: { nom: 'asc' },
       select: { id: true, nom: true, isCentral: true, prestataire: { select: { nom: true } } },
     }),
     hubCentralId(),
-    getColisEligiblesPrestataire({ tousStatuts }),
+    getColisEligiblesPrestataire({ tousStatuts, perimetre }),
   ]);
 
   const compteurs = new Map<string, number>();
@@ -272,9 +278,10 @@ export async function getTransporteursDisponibles(): Promise<TransporteurDisponi
 export async function revaliderColisPrestataire(
   colisIds: string[],
   tousStatuts: boolean,
-  prestataire: { id: string; nom: string }
+  prestataire: { id: string; nom: string },
+  perimetre?: Prisma.CommandeWhereInput
 ): Promise<CommandeEligiblePrestataire[]> {
-  const eligibles = await getColisEligiblesPrestataire({ tousStatuts });
+  const eligibles = await getColisEligiblesPrestataire({ tousStatuts, perimetre });
   const parId = new Map(eligibles.map((e) => [e.commande.id, e.commande]));
 
   const retenus = colisIds
@@ -311,6 +318,7 @@ export async function creerBonEnvoiPrestataire(params: {
   colisIds: string[];
   auteurId: string;
   tousStatuts: boolean;
+  perimetre?: Prisma.CommandeWhereInput;
 }): Promise<BonEnvoiPrestataireCree> {
   const prestataire = await prisma.prestataire.findUnique({
     where: { id: params.prestataireId },
@@ -321,7 +329,7 @@ export async function creerBonEnvoiPrestataire(params: {
   });
   if (!prestataire) throw new ApiError(400, 'Transporteur introuvable');
 
-  const colis = await revaliderColisPrestataire(params.colisIds, params.tousStatuts, prestataire);
+  const colis = await revaliderColisPrestataire(params.colisIds, params.tousStatuts, prestataire, params.perimetre);
 
   return prisma.$transaction(async (tx) => {
     const numero = await nextBonEnvoiNumero(tx);

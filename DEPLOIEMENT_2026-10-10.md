@@ -12,7 +12,8 @@ Ce que le déploiement apporte :
 - **Transporteurs** : remise par API à Meta Livraison et EST Livraison ; Casablanca passe à
   Power Delivery.
 - **Villes** : réseau regroupé en 11 hubs régionaux, une ville = un transporteur, 46 villes
-  ajoutées (API Power). Au total **500 villes**, chacune avec son transporteur et son tarif.
+  ajoutées (API Power). Au total **496 villes**, chacune avec son transporteur et son tarif
+  (mise à jour du 14/10 : vrais tarifs Amir, Colivraison et EST, 4 villes hors zone retirées).
 - **Stock** : un colis peut contenir plusieurs produits ; stock suivi par variante ; alerte quand
   un produit tombe à 10.
 - **Shipeh** : identifiants des marchands, produits de stock, colis à plusieurs produits, liste
@@ -84,14 +85,14 @@ npx tsx scripts/deployer-referentiel-villes.ts          # à blanc : affiche ce 
 npx tsx scripts/deployer-referentiel-villes.ts --oui    # applique
 ```
 
-Le script amène la base **exactement** à l'état validé le 10 octobre, enregistré dans
-`scripts/referentiel-villes-photo.json` (12 hubs, 500 villes, un transporteur, un tarif et un
+Le script amène la base **exactement** à l'état validé le 14 octobre, enregistré dans
+`scripts/referentiel-villes-photo.json` (12 hubs, 496 villes, un transporteur, un tarif et un
 code `V001`… par ville). Il enchaîne cinq étapes et s'arrête à la première qui échoue :
 
 | Étape | Ce qu'elle fait |
 |---|---|
 | 1. Regroupement en hubs régionaux | Les agences des transporteurs deviennent **11 hubs régionaux** ; le hub central devient « Hub Central ». Villes, colis, comptes, bons et historique sont **déplacés**, jamais recréés. |
-| 2. Décisions de villes d'octobre | Casablanca chez Power ; villes retirées ou fusionnées, **leurs colis rattachés à la ville restante** ; une ville = un transporteur ; tarifs ; retour à 0 dh partout ; les 46 villes de l'API Power ajoutées avec leur tarif ; Tata retirée ; « azrou » devient « Azrou (Ifrane) ». |
+| 2. Décisions de villes d'octobre | Casablanca chez Power ; villes retirées ou fusionnées, **leurs colis rattachés à la ville restante** ; une ville = un transporteur ; tarifs ; retour à 0 dh partout ; les villes de l'API Power ajoutées avec leur tarif ; Tata retirée ; (14/10) tarifs réels de 12 villes Amir, Colivraison et EST à la place des 35 dh provisoires, et Lakhlalta, MFASSIS, OULED ABDOUN, Wawla (hors zone) retirées ; « azrou » devient « Azrou (Ifrane) ». |
 | 3. Alignement sur la photo | Corrige ce qui diffère encore de l'état validé : tarif modifié depuis, ville manquante, ville écrite autrement. **Donne à chaque ville son code `V…` validé** (la migration n'a posé qu'une numérotation provisoire) ; une ville absente de la photo reçoit un code après le dernier. Chaque correction est listée. **Ne supprime jamais rien.** |
 | 4. Une ville, un transporteur | Vérifie qu'aucune ville n'a deux transporteurs ; rattache les colis en attente à la bonne ville. Un colis déjà confié à un transporteur n'est jamais modifié. |
 | 5. Contrôle final | Compare la base à la photo. Doit être identique. |
@@ -101,13 +102,16 @@ cherchent les villes par hub régional, qui n'existent qu'une fois l'étape 1 ap
 le dit et s'arrête. D'où la répétition sur une copie (étape 2 de cette note).
 
 Le script peut être **relancé sans risque** : une étape déjà faite ne trouve rien à faire.
+**Si le déploiement du 10/10 a déjà été passé**, la même commande applique seulement la mise à
+jour du 14/10 (12 tarifs, 4 villes retirées). Si l'une des 4 villes porte des colis en
+production, le script s'arrête sur un « ✘ » sans rien écrire : prévenir l'équipe.
 
 Résultat attendu en fin de rapport :
 
 ```
 === 5. Contrôle final ===
 
-   ✔ Référentiel identique à la photo du 2026-10-10 : 12 hubs, 500 villes.
+   ✔ Référentiel identique à la photo du 2026-10-14 : 12 hubs, 496 villes.
 ```
 
 **S'il s'arrête sur un « ✘ » : ne pas contourner, prévenir l'équipe**, avec le rapport complet.
@@ -156,7 +160,7 @@ Les API partenaires sont servies sur le domaine `HOST_API`, sous `/api/v1` :
 | `GET /v1/stock` | lire leur stock, et la consommation du stock commun par marchand |
 | `POST /v1/colis`, `POST /v1/colis/lot` | déposer des colis contenant un ou plusieurs produits de stock |
 | `GET /v1/colis` | suivre les changements de statut de leurs colis (livré, refusé, retourné…) |
-| `GET /v1/villes` | nos 500 villes, au tarif Shipeh de 30 dh |
+| `GET /v1/villes` | nos 496 villes, au tarif Shipeh de 30 dh |
 
 Les droits d'une clé ne se modifient pas. Il faut donc, dans `/admin/integrations`, sur la
 plateforme Shipeh :
@@ -175,7 +179,7 @@ Vérification :
 
 ```
 curl -H "Authorization: Bearer <clé>" https://<HOST_API>/api/v1/villes
-# attendu : 200, { "devise": "MAD", "nombre": 500, "villes": [ { "nom", "code", "tarifLivraison": 30 }, … ] }
+# attendu : 200, { "devise": "MAD", "nombre": 496, "villes": [ { "nom", "code", "tarifLivraison": 30 }, … ] }
 ```
 
 ## Conséquences pour l'exploitation

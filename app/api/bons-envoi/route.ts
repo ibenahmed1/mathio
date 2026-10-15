@@ -6,7 +6,7 @@ import { creerBonEnvoiPrestataire } from '@/lib/bon-envoi-prestataire';
 import { nextBonEnvoiNumero } from '@/lib/codes';
 import { destinatairesBackoffice, notifier } from '@/lib/notifications';
 import type { Prisma } from '@/app/generated/prisma/client';
-import { statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
+import { perimetreEnvoi, statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 
 export async function GET(request: NextRequest) {
   try {
@@ -82,6 +82,7 @@ export async function POST(request: Request) {
         colisIds,
         auteurId: session.sub,
         tousStatuts: body.tousStatuts === true,
+        perimetre: perimetreEnvoi(session.role),
       });
       // Bon à remettre : le reste de l'équipe des bons d'envoi est prévenu.
       const prestataire = await prisma.prestataire.findUnique({ where: { id: prestataireId }, select: { nom: true } });
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
     }
 
     const eligiblesPourHub = new Map<string, CommandeEligibleEnvoi>(
-      (await getColisEligiblesEnvoi())
+      (await getColisEligiblesEnvoi(perimetreEnvoi(session.role)))
         .filter((e) => e.hub.hubId === hubDestinationId)
         .map((e) => [e.commande.id, e.commande])
     );

@@ -67,7 +67,7 @@ export async function POST(request: Request) {
           nouveauStatut: 'recu_au_hub',
           utilisateurId: session.sub,
           hubId: hub.id,
-          note: `Scanné par l'agent stock — reçu au ${hub.nom} (${hub.ville})`,
+          note: `Scanné au stock — reçu au ${hub.nom} (${hub.ville})`,
         },
       });
       return { ...commande, statut: 'recu_au_hub' as const, hubActuelId: hub.id };

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Camera, Check, ChevronLeft, PackageCheck, ScanLine, X } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { QrScanner } from '@/components/QrScanner';
+import { ChampDouchette } from '@/components/ChampDouchette';
 import { SignaturePad } from '@/components/SignaturePad';
 import type { BilanBonRetour, BonRetour } from '@/lib/types';
 
@@ -41,12 +42,14 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
   }, [load]);
 
   const onScan = useCallback(
-    async (raw: string, source: 'camera' | 'manual') => {
+    async (raw: string) => {
       setScanEnCours(true);
       try {
         const res = await apiPost<{ commande: { codeSuivi: string }; bilan: BilanBonRetour }>(
           `/api/bons-retour/${id}/scan-remise`,
-          source === 'camera' ? { qrPayload: raw } : { codeSuivi: raw }
+          // La douchette qui lit le QR tape le payload signé (avec un point) : on
+          // se fie au contenu, pas à la source.
+          raw.includes('.') ? { qrPayload: raw } : { codeSuivi: raw }
         );
         setBon((prev) => (prev ? { ...prev, bilan: res.bilan } : prev));
         setToast({ type: 'success', text: `${res.commande.codeSuivi} remis` });
@@ -63,7 +66,7 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
   // ramasseur coche le colis à la main. Passe par la même route que le scan,
   // donc par les mêmes contrôles.
   async function cocher(codeSuivi: string) {
-    await onScan(codeSuivi, 'manual');
+    await onScan(codeSuivi);
   }
 
   function chargerPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -151,10 +154,11 @@ export default function RemiseBonRetourPage({ params }: { params: Promise<{ id: 
         className="btn-primary flex items-center justify-center gap-1.5"
       >
         <ScanLine className="h-4 w-4" />
-        {scanOuvert ? 'Fermer le scan' : 'Scanner un colis'}
+        {scanOuvert ? 'Fermer la caméra' : 'Scanner avec la caméra'}
       </button>
 
-      {scanOuvert && <QrScanner active={scanOuvert} onScan={onScan} disabled={scanEnCours} />}
+      <ChampDouchette onScan={onScan} disabled={scanEnCours} />
+      {scanOuvert && <QrScanner active={scanOuvert} onScan={onScan} disabled={scanEnCours} sansDouchette />}
 
       {bilan.colisRestants.length > 0 && (
         <section className="flex flex-col gap-2">

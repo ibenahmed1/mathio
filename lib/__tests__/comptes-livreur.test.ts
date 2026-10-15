@@ -107,7 +107,7 @@ test('le hub n’est pas exigé d’une société de livraison', () => {
   assert.equal(hubRequis('livreur', 'societe'), false);
   assert.equal(hubRequis('livreur', 'individuel'), true);
   assert.equal(hubRequis('agent_hub', null), true);
-  assert.equal(hubRequis('planner', null), true);
+  assert.equal(hubRequis('planner', null), false);
   assert.equal(hubRequis('ramasseur', null), false);
   assert.equal(hubRequis('superviseur', null), false);
 });

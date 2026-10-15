@@ -7,6 +7,7 @@ import { apiPost } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { Modal } from '@/components/admin/Modal';
 import { ActionsMenuPanel, actionsMenuItemClass } from '@/components/ActionsMenuPanel';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § /admin/bon-envoi : mêmes actions qu'un Bon de Livraison/Préparation (cf.
 // BonLivraisonActionsMenu, BonPreparationActionsMenu) — Détails, Bon bien
@@ -43,10 +44,12 @@ export function BonEnvoiActionsMenu({
     setError(null);
     try {
       await apiPost(`/api/bons-envoi/${bon.id}/marquer-recu`);
+      annoncerSucces(`Bon ${bon.numero} reçu.`);
       onChanged();
       closeAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: 'Bon bien reçu' });
     } finally {
       setBusy(false);
     }

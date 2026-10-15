@@ -10,7 +10,9 @@ import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 import { suitCircuitShipeh } from '@/lib/circuit-shipeh';
 import { QrScanner } from '@/components/QrScanner';
+import { lireDouchette } from '@/lib/douchette';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § Gestion de stock (2/4) : colis stock au statut "pret_pour_preparation",
 // pas encore rattachés à un Bon de Préparation. Sélection multiple (toutes
@@ -76,9 +78,11 @@ export default function AdminStockPretsPage() {
     try {
       const res = await apiPost<{ data: BonDePreparation[] }>('/api/bons-preparation', { colisIds: Array.from(selected) });
       setBonsGeneres(res.data);
+      annoncerSucces(`${res.data.length} bon${res.data.length > 1 ? 's' : ''} de préparation généré${res.data.length > 1 ? 's' : ''}.`);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: 'Bons de préparation' });
     } finally {
       setBusy(false);
     }
@@ -241,7 +245,8 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
 
   async function scanner(e: React.FormEvent) {
     e.preventDefault();
-    await envoyer(code.trim());
+    const lecture = lireDouchette(code);
+    if (lecture.etat === 'complet') await envoyer(lecture.code);
   }
 
   async function envoyer(brut: string) {
@@ -252,15 +257,15 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
         '/api/stock/scan-reception',
         brut.includes('.') ? { qrPayload: brut } : { codeSuivi: brut }
       );
-      setMessage({
-        ok: true,
-        texte: res.dejaScanne
-          ? `${res.codeSuivi} était déjà reçu au ${res.hub.nom}`
-          : `${res.codeSuivi} — reçu au hub ${res.hub.ville}`,
-      });
+      const texte = res.dejaScanne
+        ? `${res.codeSuivi} était déjà reçu au ${res.hub.nom}`
+        : `${res.codeSuivi} — reçu au hub ${res.hub.ville}`;
+      setMessage({ ok: true, texte });
+      annoncerSucces(texte, { son: true });
       onScanne();
     } catch (err) {
       setMessage({ ok: false, texte: err instanceof Error ? err.message : 'Erreur' });
+      annoncerEchec(err, { son: true, prefixe: `Scan ${brut}` });
     } finally {
       setCode('');
       setBusy(false);
@@ -277,7 +282,12 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
           id="scan-shipeh"
           className="input-basic w-full max-w-xs font-mono"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => {
+            // QR complet malgré l'Entrée prématuré de la douchette : envoyé tout de suite.
+            const lecture = lireDouchette(e.target.value);
+            if (lecture.etat === 'complet' && lecture.qr) envoyer(lecture.code);
+            else setCode(e.target.value);
+          }}
           placeholder="PD-000000"
           autoComplete="off"
           autoFocus
@@ -290,7 +300,7 @@ function ScanColisShipeh({ onScanne }: { onScanne: () => void }) {
           {camera ? 'Fermer la caméra' : 'Scanner avec la caméra'}
         </Button>
       </div>
-      {camera && <QrScanner active={camera} onScan={(raw) => envoyer(raw.trim())} disabled={busy} />}
+      {camera && <QrScanner active={camera} onScan={(raw) => envoyer(raw.trim())} disabled={busy} sansDouchette />}
       {message && (
         <p className={`text-sm font-medium ${message.ok ? 'text-green-700 dark:text-green-400' : 'text-red-600'}`}>{message.texte}</p>
       )}

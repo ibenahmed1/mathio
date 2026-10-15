@@ -45,16 +45,14 @@ enum Role {
   // design/gestionnaire_hub ci-dessus. Doit obligatoirement être rattaché à
   // un Hub (Utilisateur.hubId, validé côté API).
   agent_hub
-  // Planificateur de tournées du hub (§ /admin/planification,
-  // /admin/bon-distribution, /admin/scan/tournee) : compose les Bons de
-  // Distribution de SON hub, puis au retour du livreur scanne les colis non
-  // livrés et clôture la tournée (reddition de caisse). Contrairement à
-  // agent_hub ci-dessus, il n'est PAS cantonné à un sous-chemin du
-  // back-office : c'est un rôle interne à part entière (ROLES_BACKOFFICE,
-  // lib/auth.ts). Doit obligatoirement être rattaché à un Hub
-  // (Utilisateur.hubId, validé côté API) : c'est ce hub — et lui seul — dont
-  // il planifie les tournées, et c'est là que se joue son cantonnement, dans
-  // les données plutôt que dans le routage.
+  // Planner (redéfini le 14/10/2026, a absorbé l'agent stock) : mène le colis
+  // stock (§ circuit Shipeh) de sa validation à la livraison — validation des
+  // nouveaux colis stock, scan au Hub Central, bons d'envoi, suivi, retours.
+  // Rôle interne (ROLES_BACKOFFICE) gouverné par ses permissions : son jeu par
+  // défaut est ce circuit, et tout autre accès se coche au besoin sur son
+  // compte (barre latérale : components/admin/nav.ts). S'il reçoit les
+  // tournées, il reste borné à son hub de rattachement (Utilisateur.hubId,
+  // facultatif pour lui) par les routes /api/bons-distribution/**.
   planner
   // Compte de SERVICE d'une plateforme partenaire (§ PlateformePartenaire).
   // N'est jamais porté par une personne : il n'existe que pour signer les
@@ -1425,9 +1423,9 @@ model BonEnvoi {
   // partiel de RemisePrestataire. Sans lui, un bon pourrait viser un quai ET un
   // transporteur, et plus rien ne dirait où part le colis.
   hubDestinationId String?      @map("hub_destination_id")
-  hubDestination   Hub?         @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id])
+  hubDestination   Hub?         @relation("BonEnvoiHubDestination", fields: [hubDestinationId], references: [id], onDelete: Restrict)
   prestataireId    String?      @map("prestataire_id")
-  prestataire      Prestataire? @relation(fields: [prestataireId], references: [id])
+  prestataire      Prestataire? @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
 
   // Sur un bon sous-traité, 'recu' ne dit pas « arrivé à un quai à nous » mais
   // « pris en charge par le transporteur » : les colis restent en_transit, et
@@ -3030,7 +3028,7 @@ model PlateformePartenaire {
   // sémantique du modèle plat Hub↔Ville. Aucune table de remise n'est donc
   // nécessaire pour répondre « ce colis est-il à toi ? ».
   prestataireId String?      @unique @map("prestataire_id")
-  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id])
+  prestataire   Prestataire? @relation(fields: [prestataireId], references: [id], onDelete: Restrict)
 
   dateCreation DateTime @default(now()) @map("date_creation")
 

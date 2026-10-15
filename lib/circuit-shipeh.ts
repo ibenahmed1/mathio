@@ -52,7 +52,7 @@ export function attendRemise(colis: ColisCircuit & { statut: StatutCommande }): 
 // central (« Reçu au hub ») : avant, il est encore dans l'entrepôt de stock.
 export function refusShipehNonScanne(colis: ColisCircuit & { statut: StatutCommande; codeSuivi: string }): string | null {
   if (!suitCircuitShipeh(colis) || colis.statut === 'recu_au_hub') return null;
-  return `${colis.codeSuivi} est un colis Shipeh « ${colis.statut} » : il doit d'abord être scanné par l'agent stock (Stock › Prêts pour préparation)`;
+  return `${colis.codeSuivi} est un colis Shipeh « ${colis.statut} » : il doit d'abord être scanné au Hub Central (Stock › Prêts pour préparation)`;
 }
 
 // Même règle, en filtre de requête (listes de colis ajoutables).
@@ -62,4 +62,38 @@ export const EXCLURE_SHIPEH_NON_SCANNES = {
 
 export function noteEnTransit(hubNom: string | null): string {
   return hubNom ? `en transit vers ${hubNom}` : 'en transit';
+}
+
+// Comptes qui composent, remettent et mettent en distribution un bon d'envoi
+// depuis l'écran : l'admin, et le planner qui mène le circuit de bout en
+// bout. L'agent de quai (agent_hub) consulte et réceptionne seulement. Les
+// routes, elles, restent gardées par leurs permissions (bon_envoi:*).
+export function gereLesBons(role: string | undefined): boolean {
+  return role === 'admin' || role === 'planner';
+}
+
+// Périmètre du planner dans les bons d'envoi (décision du 14/10/2026) :
+// il ne voit, ne scanne et n'envoie QUE des colis Shipeh scannés au Hub
+// Central. Les colis de nos marchands (y compris « Nouveau colis » qu'un
+// transporteur viendrait ramasser) restent à l'admin. `undefined` = aucun filtre.
+export const COLIS_PLANNER = {
+  source: 'api',
+  enStock: true,
+  statut: 'recu_au_hub',
+} satisfies Prisma.CommandeWhereInput;
+
+export function perimetreEnvoi(role: string): Prisma.CommandeWhereInput | undefined {
+  return role === 'planner' ? COLIS_PLANNER : undefined;
+}
+
+// Même règle, dite en clair au scan d'un colis hors de ce périmètre.
+export function refusPerimetreEnvoi(
+  role: string,
+  colis: ColisCircuit & { statut: StatutCommande; codeSuivi: string }
+): string | null {
+  if (role !== 'planner') return null;
+  if (suitCircuitShipeh(colis) && colis.statut === 'recu_au_hub') return null;
+  return suitCircuitShipeh(colis)
+    ? `${colis.codeSuivi} est « ${colis.statut} » : il doit d'abord être scanné au Hub Central (étape 2)`
+    : `${colis.codeSuivi} n'est pas un colis Shipeh : il est envoyé par l'administrateur, pas par le planner`;
 }

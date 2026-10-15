@@ -301,12 +301,12 @@ export async function estVilleLocaleAuHub(commande: {
 // par défaut pour un colis de stock jamais scanné). Sert à la fois au
 // comptage par hub de destination (étape 1 du BE) et à la liste détaillée
 // pour un hub donné (étape 3).
-export async function getColisEligiblesEnvoi(): Promise<ColisEligibleEnvoi[]> {
+export async function getColisEligiblesEnvoi(perimetre?: Prisma.CommandeWhereInput): Promise<ColisEligibleEnvoi[]> {
   const [resoudre, central, commandes] = await Promise.all([
     chargerResolveurTransporteur(),
     hubCentralId(),
     prisma.commande.findMany({
-      where: COMMANDE_ELIGIBLE_ENVOI,
+      where: perimetre ? { AND: [COMMANDE_ELIGIBLE_ENVOI, perimetre] } : COMMANDE_ELIGIBLE_ENVOI,
       include: colisEligibleInclude,
       orderBy: { dateCreation: 'asc' },
     }),

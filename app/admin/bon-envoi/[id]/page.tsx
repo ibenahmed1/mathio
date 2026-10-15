@@ -8,13 +8,9 @@ import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
-import { RemisePowerDelivery } from '@/components/admin/RemisePowerDelivery';
-import { RemiseColivraison } from '@/components/admin/RemiseColivraison';
-import { RemiseMetaLivraison } from '@/components/admin/RemiseMetaLivraison';
-import { RemiseEstLivraison } from '@/components/admin/RemiseEstLivraison';
-import { RemiseManuelle } from '@/components/admin/RemiseManuelle';
 import { MiseEnDistribution } from '@/components/admin/MiseEnDistribution';
-import { attendRemise } from '@/lib/circuit-shipeh';
+import { TransmissionBon } from '@/components/admin/TransmissionBon';
+import { attendRemise, gereLesBons } from '@/lib/circuit-shipeh';
 import { CodeColis } from '@/components/colis/CodeColis';
 
 interface CurrentUser {
@@ -68,12 +64,18 @@ export default function DetailBonEnvoiPage() {
         {user && (
           <BonEnvoiActionsMenu
             bon={bon}
-            role={user.role === 'admin' ? 'admin' : 'agent_hub'}
+            role={gereLesBons(user.role) ? 'admin' : 'agent_hub'}
             onChanged={load}
             hideDetails
           />
         )}
       </div>
+
+      {/* Bandeau de transmission, toujours en tête : Excel, remise (API ou
+          « marquer comme transmis »), bon reçu, mise en distribution — grisés
+          avec leur raison quand ils ne servent pas. L'agent de quai consulte
+          et réceptionne par le menu Actions. */}
+      {gereLesBons(user?.role) && <TransmissionBon bon={bon} onChange={load} />}
 
       <div className="card-tint-strong grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">
         <div>
@@ -108,45 +110,15 @@ export default function DetailBonEnvoiPage() {
         )}
       </div>
 
-      {/* § Power Delivery : remise par leur API, qu'on les vise par une de
-          leurs agences (transit) ou directement (remise sous-traitée).
-          Réservée à l'admin (bon_envoi:manage) — l'agent de quai consulte et
-          réceptionne, il ne remet pas. */}
-      {user?.role === 'admin' &&
-        (bon.hubDestination?.prestataire?.nom === 'Power Delivery' || bon.prestataire?.nom === 'Power Delivery') && (
-        <RemisePowerDelivery bonId={bon.id} onRemis={load} />
-      )}
-      {user?.role === 'admin' &&
-        (bon.hubDestination?.prestataire?.nom === 'Colivraison' || bon.prestataire?.nom === 'Colivraison') && (
-        <RemiseColivraison bonId={bon.id} onRemis={load} />
-      )}
-      {/* Meta Livraison : vers Hub Fès comme en direct — la ville du colis est
-          cherchée parmi leurs agences (cf. lib/remise-meta-livraison.ts). */}
-      {user?.role === 'admin' &&
-        (bon.hubDestination?.prestataire?.nom === 'Meta Livraison' || bon.prestataire?.nom === 'Meta Livraison') && (
-        <RemiseMetaLivraison bonId={bon.id} onRemis={load} />
-      )}
-      {/* EST Livraison : une seule agence, donc les deux voies comme Power. */}
-      {user?.role === 'admin' &&
-        (bon.hubDestination?.prestataire?.nom === 'EST Livraison' || bon.prestataire?.nom === 'EST Livraison') && (
-        <RemiseEstLivraison bonId={bon.id} onRemis={load} />
-      )}
-      {/* § Circuit Shipeh : transporteur sans API (ou colis refusé par l'API) —
-          Excel exporté et transmis, puis ce bouton fait partir les colis. */}
-      {user?.role === 'admin' && bon.statut === 'nouveau' && (
-        <RemiseManuelle
-          bon={bon}
-          nbAttente={(bon.commandes ?? []).filter((c) => attendRemise({ source: c.source ?? 'manuel', enStock: c.enStock, statut: c.statut })).length}
-          onRemis={load}
-        />
-      )}
       {/* Bon reçu : colis chez le transporteur, à mettre en distribution à la main. */}
-      {user?.role === 'admin' && bon.statut === 'recu' && (
-        <MiseEnDistribution
-          key={(bon.commandes ?? []).map((c) => `${c.id}:${c.statut}`).join(',')}
-          bon={bon}
-          onFait={load}
-        />
+      {gereLesBons(user?.role) && bon.statut === 'recu' && (
+        <div id="mise-en-distribution">
+          <MiseEnDistribution
+            key={(bon.commandes ?? []).map((c) => `${c.id}:${c.statut}`).join(',')}
+            bon={bon}
+            onFait={load}
+          />
+        </div>
       )}
 
       <div className="overflow-x-auto">

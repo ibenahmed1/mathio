@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
-import { Camera, CameraOff, Flashlight, FlashlightOff, Keyboard, RefreshCw } from 'lucide-react';
+import { Camera, CameraOff, Flashlight, FlashlightOff, RefreshCw } from 'lucide-react';
+import { ChampDouchette } from '@/components/ChampDouchette';
 
 // Ré-application d'un même code déjà traité dans cette fenêtre de temps :
 // ignorée. Laisse le temps au ramasseur de retirer le colis du cadre avant
@@ -21,12 +22,15 @@ export function QrScanner({
   active,
   onScan,
   disabled,
+  sansDouchette,
 }: {
   /** Piloté par le parent : coupe la caméra quand l'écran de scan n'est pas visible. */
   active: boolean;
   onScan: (raw: string, source: 'camera' | 'manual') => void;
   /** Désactive temporairement la détection (ex: pendant l'appel réseau du scan précédent). */
   disabled?: boolean;
+  /** L'écran affiche déjà son propre champ douchette en permanence : pas de doublon. */
+  sansDouchette?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -40,8 +44,6 @@ export function QrScanner({
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [flash, setFlash] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualValue, setManualValue] = useState('');
 
   // La boucle requestAnimationFrame vit indépendamment du cycle de rendu React
   // (elle est lancée une fois par startCamera) : elle doit lire ces valeurs via
@@ -168,14 +170,6 @@ export function QrScanner({
     setDeviceIndex((i) => (devices.length ? (i + 1) % devices.length : 0));
   }
 
-  function submitManual(e: React.FormEvent) {
-    e.preventDefault();
-    const value = manualValue.trim();
-    if (!value) return;
-    onScan(value, 'manual');
-    setManualValue('');
-  }
-
   return (
     <div className="flex flex-col gap-3">
       {/* Hauteur plafonnée au doigt : en paysage, le carré occuperait tout
@@ -207,7 +201,7 @@ export function QrScanner({
                 <CameraOff className="h-10 w-10 text-red-400" />
                 <p className="text-sm font-medium">Accès caméra refusé.</p>
                 <p className="text-xs text-white/60">
-                  Autorisez la caméra dans les réglages du navigateur, ou saisissez le code manuellement.
+                  Autorisez la caméra dans les réglages du navigateur, ou utilisez la douchette / la saisie ci-dessous.
                 </p>
                 <button type="button" onClick={startCamera} className="btn-primary mt-1">
                   Réessayer
@@ -218,7 +212,7 @@ export function QrScanner({
               <>
                 <CameraOff className="h-10 w-10 text-white/50" />
                 <p className="text-sm font-medium">Aucune caméra détectée.</p>
-                <p className="text-xs text-white/60">Utilisez la saisie manuelle ci-dessous.</p>
+                <p className="text-xs text-white/60">Utilisez la douchette ou la saisie ci-dessous.</p>
               </>
             )}
             {status === 'idle' && <Camera className="h-10 w-10 text-white/40" />}
@@ -287,32 +281,14 @@ export function QrScanner({
                   <RefreshCw className="h-5 w-5" />
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => setManualOpen((v) => !v)}
-                className="flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-2.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-black/70 pointer-coarse:min-h-11"
-              >
-                <Keyboard className="h-4 w-4" />
-                Saisie manuelle
-              </button>
             </div>
           </>
         )}
       </div>
 
-      {(manualOpen || status !== 'active') && (
-        <form onSubmit={submitManual} className="flex gap-2">
-          <input
-            className="input-basic flex-1 font-mono"
-            placeholder="PD-100000"
-            value={manualValue}
-            onChange={(e) => setManualValue(e.target.value)}
-          />
-          <button type="submit" className="btn-primary shrink-0" disabled={!manualValue.trim()}>
-            Valider
-          </button>
-        </form>
-      )}
+      {/* Toujours visible, caméra active ou non : la douchette doit marcher
+          sans rien ouvrir, et le champ sert de saisie manuelle au clavier. */}
+      {!sansDouchette && <ChampDouchette onScan={onScan} disabled={disabled} />}
     </div>
   );
 }

@@ -97,6 +97,8 @@ const RETRAITS = [
   { agence: 'Agence Casablanca', ville: 'SIDI HAJAJ' },
   // (09/10/2026) Ajoutée la veille au point 11, finalement retirée.
   { agence: 'Hub Agadir', ville: 'Tata' },
+  // (14/10/2026) Hors zone Colivraison, aucun autre transporteur : retirées.
+  ...['Lakhlalta', 'MFASSIS', 'OULED ABDOUN', 'Wawla'].map((ville) => ({ agence: 'Hub Béni Mellal', ville })),
 ];
 
 // `agenceVers` absente = même agence.
@@ -150,7 +152,8 @@ export const AJOUTS: { hub: string; villes: string[] }[] = [
   },
   {
     hub: 'Hub Béni Mellal', // Colivraison
-    villes: ['El Gara', 'Guisser', 'Had Boumoussa', 'Lakhlalta', 'LKHORBA', 'MFASSIS', 'OULED ABDOUN', 'Wawla'],
+    // Lakhlalta, MFASSIS, OULED ABDOUN, Wawla, ajoutées le 08/10, retirées le 14/10 : voir RETRAITS.
+    villes: ['El Gara', 'Guisser', 'Had Boumoussa', 'LKHORBA'],
   },
   { hub: 'Hub Oujda', villes: ['Beni Chiker', 'Debdo', 'SIDI YAHYA OUJDA'] }, // EST Livraison
   {
@@ -199,16 +202,19 @@ export const TARIFS_AJOUTS = [
   { prestataire: 'Leader Colis', hub: 'Hub Agadir', ville: 'Temsia', livraison: 20 },
   // (09/10/2026) Sahario Express, donné par l'exploitation.
   { prestataire: 'Sahario Express', hub: 'Hub Guelmim', ville: 'Marsa - laayoun', livraison: 25 },
-  // (09/10/2026) Les villes restées sans tarif : 35 dh, décision de l'exploitation.
-  ...(
-    [
-      ['Hub Béni Mellal', 'Colivraison'],
-      ['Hub Oujda', 'EST Livraison'],
-      ['Hub Tanger', 'Amir Livraison'],
-    ] as const
-  ).flatMap(([hub, prestataire]) =>
-    (AJOUTS.find((a) => a.hub === hub)?.villes ?? []).map((ville) => ({ prestataire, hub, ville, livraison: 35 }))
-  ),
+  // (14/10/2026) Tarifs donnés par l'exploitation, à la place des 35 dh provisoires du 09/10.
+  { prestataire: 'Amir Livraison', hub: 'Hub Tanger', ville: 'AOUAMA', livraison: 25 },
+  { prestataire: 'Amir Livraison', hub: 'Hub Tanger', ville: 'Cabo Negro', livraison: 25 },
+  { prestataire: 'Amir Livraison', hub: 'Hub Tanger', ville: 'Chaoune', livraison: 25 },
+  { prestataire: 'Amir Livraison', hub: 'Hub Tanger', ville: 'DALIA', livraison: 25 },
+  { prestataire: 'Amir Livraison', hub: 'Hub Tanger', ville: 'Jorf El Melha', livraison: 30 },
+  { prestataire: 'Colivraison', hub: 'Hub Béni Mellal', ville: 'El Gara', livraison: 33 },
+  { prestataire: 'Colivraison', hub: 'Hub Béni Mellal', ville: 'Guisser', livraison: 33 },
+  { prestataire: 'Colivraison', hub: 'Hub Béni Mellal', ville: 'Had Boumoussa', livraison: 25 },
+  { prestataire: 'Colivraison', hub: 'Hub Béni Mellal', ville: 'LKHORBA', livraison: 25 },
+  { prestataire: 'EST Livraison', hub: 'Hub Oujda', ville: 'Beni Chiker', livraison: 23 },
+  { prestataire: 'EST Livraison', hub: 'Hub Oujda', ville: 'Debdo', livraison: 25 },
+  { prestataire: 'EST Livraison', hub: 'Hub Oujda', ville: 'SIDI YAHYA OUJDA', livraison: 15 },
 ];
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];

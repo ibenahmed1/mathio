@@ -20,7 +20,7 @@ export const FONCTIONS_EQUIPE: FonctionEquipe[] = [
   { role: 'responsable', nom: 'Responsable', description: 'Finance : factures, paiements des livreurs, comptabilité.', terrain: false },
   { role: 'moderateur', nom: 'Modérateur', description: 'Confirme les colis et traite les réclamations.', terrain: false },
   { role: 'equipe_suivi', nom: 'Équipe de suivi', description: 'Suit et confirme les colis.', terrain: false },
-  { role: 'planner', nom: 'Planner', description: 'Planifie les tournées de son hub.', terrain: false },
+  { role: 'planner', nom: 'Planner', description: 'Mène le colis stock de sa validation à la livraison, au refus ou au retour.', terrain: false },
   { role: 'agent_hub', nom: 'Agent Hub', description: 'Réceptionne les colis au quai de son hub.', terrain: false },
   { role: 'design', nom: 'Design', description: 'Tableau des tâches (Kanban) uniquement.', terrain: false },
   { role: 'gestionnaire_hub', nom: 'Gestionnaire Hub', description: 'Tableau des tâches (Kanban) uniquement.', terrain: false },

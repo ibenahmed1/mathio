@@ -45,8 +45,9 @@ export function cinRequise(role: Role, typeLivreur: TypeCompteLivreur | null): b
 }
 
 // Le hub de rattachement dit à quel quai un compte se présente le matin :
-// l'agent y réceptionne, le planner y compose les tournées, le livreur y prend
-// sa feuille de route. Une SOCIÉTÉ de livraison n'a pas de quai chez nous —
+// l'agent y réceptionne, le livreur y prend sa feuille de route. Le planner
+// (circuit du colis stock depuis le 14/10/2026) n'en a besoin que si on lui
+// ouvre les tournées : le champ lui reste proposé, sans être exigé. Une SOCIÉTÉ de livraison n'a pas de quai chez nous —
 // on lui confie des colis par bon d'envoi, elle les emporte, elle ne revient
 // pas. L'exiger d'elle reviendrait à lui inventer un rattachement, et à faire
 // apparaître son nom dans les écrans filtrés par hub.
@@ -54,7 +55,7 @@ export function cinRequise(role: Role, typeLivreur: TypeCompteLivreur | null): b
 // Elle PEUT en avoir un (transporteur qui vient effectivement charger à un
 // quai précis) : le champ reste proposé, il n'est simplement plus obligatoire.
 export function hubRequis(role: Role, typeLivreur: TypeCompteLivreur | null): boolean {
-  if (role === 'agent_hub' || role === 'planner') return true;
+  if (role === 'agent_hub') return true;
   if (role === 'livreur') return typeLivreur !== 'societe';
   return false;
 }

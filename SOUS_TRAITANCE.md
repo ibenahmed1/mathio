@@ -388,12 +388,19 @@ quand le colis passe **livré** ; on marque nous-mêmes les colis **payés**, ph
 facultative ; un versement peut couvrir plusieurs colis ; **toutes les villes doivent avoir un
 tarif** (alerte à l'écran sinon) ; même règle pour tous.
 
+Décidé le 14/10/2026 : chaque versement s'imprime en **relevé de règlement** (pas une facture :
+c'est au transporteur de facturer ses frais), bouton « Imprimer » sur la ligne du versement,
+page `/releves-reglement/[id]`. Le versement est clos à l'enregistrement : ses colis ne peuvent
+plus entrer dans un autre, et son **montant et sa date ne se modifient plus** — seules la note
+et la photo. Une erreur se corrige en annulant puis en ressaisissant ; le relevé annulé
+s'imprime barré, sans ses colis (rendus « à recevoir »).
+
 **En attente de réponse — l'outil enregistre et affiche, sans rien décider :**
 
 26. **Versement différent de l'attendu** (il verse 2 000 DH, on attendait 2 150 DH) : l'écart
     reste-t-il dû par le transporteur, est-ce une perte, une retenue à justifier ? En attendant,
     l'écart est enregistré sur le versement et affiché, et les colis sont marqués payés.
-27. **Correction d'une erreur** : on sait corriger ou annuler un versement saisi par erreur, et un
+27. **Correction d'une erreur** : on sait annuler un versement saisi par erreur, et un
     colis remis « livré » à tort perd sa créance quand on corrige son statut. Reste à préciser si
     « changer la destination » d'un colis non livré veut dire changer sa **ville** (et donc,
     peut-être, son transporteur) depuis cet écran.

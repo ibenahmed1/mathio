@@ -4,7 +4,7 @@ import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-
 import { chargerResolveurTransporteur, getColisEligiblesEnvoi, resolveUserHub, type CommandeEligibleEnvoi } from '@/lib/hub-envoi';
 import { revaliderColisPrestataire } from '@/lib/bon-envoi-prestataire';
 import type { SourceCommande, StatutCommande } from '@/app/generated/prisma/enums';
-import { statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
+import { perimetreEnvoi, statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
 
 // Le dénominateur commun des deux sources de colis ajoutables : de quoi écrire
 // la ligne d'historique, sans dépendre de la forme complète d'une Commande.
@@ -93,11 +93,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (bon.prestataire) {
       aAjouter =
         ajouterColisIds.length > 0
-          ? await revaliderColisPrestataire(ajouterColisIds, body.tousStatuts === true, bon.prestataire)
+          ? await revaliderColisPrestataire(ajouterColisIds, body.tousStatuts === true, bon.prestataire, perimetreEnvoi(session.role))
           : [];
     } else {
       const eligiblesPourHub = new Map<string, CommandeEligibleEnvoi>(
-        (await getColisEligiblesEnvoi())
+        (await getColisEligiblesEnvoi(perimetreEnvoi(session.role)))
           .filter((e) => e.hub.hubId === bon.hubDestinationId)
           .map((e) => [e.commande.id, e.commande])
       );

@@ -7,7 +7,9 @@ import { apiGet, apiPost } from '@/lib/api-client';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 import { GROUPE_AUCUN, GROUPE_PLUSIEURS, regrouperParTransporteur } from '@/lib/bon-envoi-groupes';
 import { QrScanner } from '@/components/QrScanner';
+import { ChampDouchette } from '@/components/ChampDouchette';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // § /admin/bon-envoi/creer, mode « Remise à un transporteur ».
 //
@@ -222,8 +224,10 @@ export function BonEnvoiTransporteur() {
         );
         setSelection((prev) => new Set(prev).add(c.id));
         setToast({ type: 'success', text: `Colis ${c.codeSuivi} ajouté au bon.` });
+        annoncerSucces(`Colis ${c.codeSuivi} ajouté au bon.`, { son: true });
       } catch (err) {
         setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
+        annoncerEchec(err, { son: true });
       } finally {
         setScanEnCours(false);
       }
@@ -241,9 +245,11 @@ export function BonEnvoiTransporteur() {
         colisIds: Array.from(selection),
         tousStatuts,
       });
+      annoncerSucces(`Bon d'envoi créé : ${selection.size} colis. Étape suivante : le transmettre.`);
       router.push(`/admin/bon-envoi/${bon.id}`);
     } catch (err) {
       setErreur(err instanceof Error ? err.message : 'Erreur');
+      annoncerEchec(err, { prefixe: "Création du bon d'envoi" });
       setCreation(false);
     }
   }
@@ -335,7 +341,7 @@ export function BonEnvoiTransporteur() {
                 onClick={() => setScanOuvert((v) => !v)}
                 className="btn-outline flex items-center gap-1.5 px-3 py-1.5 text-xs"
               >
-                {scanOuvert ? 'Fermer le scan' : 'CLIC ICI AVANT LE SCAN'}
+                {scanOuvert ? 'Fermer la caméra' : 'Ouvrir la caméra'}
               </button>
             </div>
           </div>
@@ -354,11 +360,10 @@ export function BonEnvoiTransporteur() {
             </div>
           )}
 
-          {scanOuvert && (
-            <div className="w-full max-w-sm">
-              <QrScanner active={scanOuvert} onScan={handleScan} disabled={scanEnCours} />
-            </div>
-          )}
+          <div className="flex w-full max-w-sm flex-col gap-3">
+            <ChampDouchette onScan={handleScan} disabled={scanEnCours} />
+            {scanOuvert && <QrScanner active={scanOuvert} onScan={handleScan} disabled={scanEnCours} sansDouchette />}
+          </div>
 
           {nbSansTarif > 0 && (
             <div className="flex items-start gap-2 rounded-xl bg-amber-500/15 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-300">

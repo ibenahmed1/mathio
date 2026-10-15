@@ -38,7 +38,7 @@ export const ROLE_LABELS: Record<string, string> = {
   design: 'Design (Kanban uniquement)',
   gestionnaire_hub: 'Gestionnaire Hub (Kanban uniquement)',
   agent_hub: 'Agent Hub (Réception dépôt uniquement)',
-  planner: 'Planner (Tournées de son hub uniquement)',
+  planner: 'Planner (Circuit du colis stock)',
 };
 
 const ROLES_TERRAIN = ['ramasseur', 'livreur'];
@@ -174,7 +174,7 @@ export function UserFormModal({
   // Même règle que `hubRequis` côté serveur, redite ici parce que ce module
   // est chargé côté client et ne doit pas tirer lib/comptes-livreur.ts, qui
   // entraînerait lib/api-utils puis next/server dans le bundle.
-  const hubObligatoire = avecHub && !estSociete;
+  const hubObligatoire = avecHub && !estSociete && role !== 'planner';
   const pieces: Record<PieceKey, [string | null, (v: string | null) => void]> = {
     cinRectoUrl: [cinRecto, setCinRecto],
     cinVersoUrl: [cinVerso, setCinVerso],

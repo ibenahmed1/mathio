@@ -8,6 +8,7 @@ import { QrScanner } from '@/components/QrScanner';
 import { StatutBadge } from '@/components/StatutBadge';
 import { Field } from '@/components/form/Field';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 interface RetourAttendu {
   remiseId: string;
@@ -88,15 +89,15 @@ export default function RetoursTransporteursPage() {
       const body: Record<string, unknown> = raw.includes('.') ? { qrPayload: raw } : { codeSuivi: raw };
       body.hubId = hubId;
       const r = await apiPost<ResultatReception>('/api/bons-retour/transporteurs/reception', body);
-      setToast({
-        type: 'success',
-        text: r.dejaScanne
-          ? `${r.codeSuivi} était déjà reçu.`
-          : `${r.codeSuivi} — ${r.clientNom} : retour ${r.transporteur} reçu, colis « Retourné au hub ».`,
-      });
+      const texte = r.dejaScanne
+        ? `${r.codeSuivi} était déjà reçu.`
+        : `${r.codeSuivi} — ${r.clientNom} : retour ${r.transporteur} reçu, colis « Retourné au hub ».`;
+      setToast({ type: 'success', text: texte });
+      annoncerSucces(texte, { son: true });
       charger();
     } catch (err) {
       setToast({ type: 'error', text: err instanceof Error ? err.message : 'Erreur de scan' });
+      annoncerEchec(err, { son: true });
     } finally {
       setScanning(false);
     }
