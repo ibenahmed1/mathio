@@ -1,28 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Banknote,
-  Camera,
-  Clock,
-  Wallet,
-  CalendarClock,
-  CheckCircle2,
-  MapPin,
-  Package,
-  PackageCheck,
-  Phone,
-  Undo2,
-  X,
-  XCircle,
-} from 'lucide-react';
-import { apiGet, apiPatch } from '@/lib/api-client';
+import { Camera, CalendarClock, CheckCircle2, DoorOpen, Phone, TriangleAlert, X, XCircle } from 'lucide-react';
+import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import { readImageAsCompressedDataUrl } from '@/lib/read-file';
 import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } from '@/lib/types';
-import { colisResteALivrer } from '@/lib/statuts';
+import { CATALOGUE_STATUTS_PRESTATAIRE, colisResteALivrer } from '@/lib/statuts';
 import { SignaturePad } from '@/components/livreur/SignaturePad';
 import { StatutBadge } from '@/components/StatutBadge';
-import { KpiCard } from '@/components/KpiCard';
+import { P } from '@/components/dashboard/composition';
+import s from '@/components/admin/CompositionTableau.module.css';
 import { Field } from '@/components/form/Field';
 
 interface ColisFeuilleDeRoute {
@@ -36,6 +23,13 @@ interface ColisFeuilleDeRoute {
   statut: string;
   motifRetour: string | null;
   dateNouvelleLivraison: string | null;
+  dateCreation: string;
+  notes: string | null;
+  ouvrir: boolean;
+  fragile: boolean;
+  aRemplacer: boolean;
+  produitDescription: string | null;
+  marchandise?: { nom: string } | null;
   marchand?: { nomBoutique: string };
   bonDistribution?: { id: string; numero: string; hub?: { nom: string } } | null;
   // § Comptes transporteurs : renseigné à la place de la tournée pour un colis
@@ -53,6 +47,8 @@ interface FeuilleDeRoute {
   colis: ColisFeuilleDeRoute[];
   // Colis d'un bon composé pour ce transporteur mais pas encore remis.
   colisEnAttenteRemise: ColisFeuilleDeRoute[];
+  // § Saisie des statuts : coupée par le back-office pour ce transporteur.
+  saisieStatutsActive: boolean;
   recap: {
     nbColis: number;
     nbLivres: number;
@@ -64,6 +60,8 @@ interface FeuilleDeRoute {
     codEnAttenteRemise: string;
   };
 }
+
+type Vue = 'a_livrer' | 'attente' | 'traites';
 
 function isoAujourdhui() {
   return new Date().toISOString().slice(0, 10);
@@ -79,6 +77,8 @@ export default function FeuilleDeRouteLivreurPage() {
   const [feuille, setFeuille] = useState<FeuilleDeRoute | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [colisActif, setColisActif] = useState<ColisFeuilleDeRoute | null>(null);
+  // null = onglet choisi automatiquement selon ce qu'il y a à faire.
+  const [vueChoisie, setVueChoisie] = useState<Vue | null>(null);
 
   const rafraichir = useCallback(async () => {
     try {
@@ -101,199 +101,227 @@ export default function FeuilleDeRouteLivreurPage() {
 
   const aTenter = feuille?.colis.filter(resteAFaire) ?? [];
   const traites = feuille?.colis.filter((c) => !resteAFaire(c)) ?? [];
+  const enAttente = feuille?.colisEnAttenteRemise ?? [];
+  // L'onglet ouvert par défaut est celui où il y a du travail.
+  const vue: Vue = vueChoisie ?? (aTenter.length === 0 && enAttente.length > 0 ? 'attente' : 'a_livrer');
+  const visibles = vue === 'a_livrer' ? aTenter : vue === 'attente' ? enAttente : traites;
+  const peutTraiter = vue === 'a_livrer' && (feuille?.saisieStatutsActive ?? true);
 
   return (
     <>
-      <div className="flex flex-col gap-5">
-        <div className="page-header">
+      {/* Composition des écrans de travail du back-office (§ /admin/bon-envoi) :
+          mêmes cadrans, mêmes onglets ; le tableau est celui de la liste des
+          colis admin (§ /admin/commandes). */}
+      <main className={s.main}>
+        <header className={s.entete}>
           <div>
-            <h1 className="page-title">Mes colis</h1>
+            <h1 className={s.titre}>Mes colis</h1>
             {/* Deux provenances possibles, et le sous-titre doit nommer la
                 bonne : une tournée pour un livreur interne, un bon d'envoi
                 pour une société de livraison à qui on a confié des colis. */}
-            {feuille && (feuille.tournees.length > 0 || feuille.bonsConfies.length > 0) ? (
-              <p className="page-subtitle">
-                {[
-                  ...feuille.tournees.map((t) => `${t.numero} (${t.hubNom})`),
-                  ...feuille.bonsConfies.map((b) =>
-                    b.statut === 'recu'
-                      ? `${b.numero} (${b.nbColis} colis confiés)`
-                      : `${b.numero} (${b.nbColis} colis en attente de remise)`
-                  ),
-                ].join(' · ')}
-              </p>
-            ) : (
-              <p className="page-subtitle">Aucun colis à livrer pour le moment.</p>
-            )}
+            <p style={{ fontSize: 13, color: '#6B6B66', marginTop: 4 }}>
+              {feuille && (feuille.tournees.length > 0 || feuille.bonsConfies.length > 0)
+                ? [
+                    ...feuille.tournees.map((t) => `${t.numero} (${t.hubNom})`),
+                    ...feuille.bonsConfies.map((b) =>
+                      b.statut === 'recu'
+                        ? `${b.numero} (${b.nbColis} colis confiés)`
+                        : `${b.numero} (${b.nbColis} colis en attente de remise)`
+                    ),
+                  ].join(' · ')
+                : 'Aucun colis à livrer pour le moment.'}
+            </p>
           </div>
-        </div>
+        </header>
 
-        {erreur && <p className="text-sm font-medium text-red-600">{erreur}</p>}
+        {erreur && <p style={{ fontSize: 13, fontWeight: 600, color: '#E56A00' }}>{erreur}</p>}
 
-        {/* Mêmes cartes de KPI que le back-office (§ components/KpiCard.tsx),
-            dont la variante « héros » réservée au chiffre principal — ici le
-            cash, le seul dont le livreur répond au dépôt. */}
         {feuille && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <KpiCard icon={Package} label="À livrer" value={String(feuille.recap.nbEnCours)} />
-            <KpiCard icon={Wallet} label="COD à encaisser" value={`${feuille.recap.codAttendu} DH`} />
-            <KpiCard icon={PackageCheck} label="Livrés" value={String(feuille.recap.nbLivres)} />
-            <KpiCard
-              icon={Banknote}
-              label="Cash encaissé"
-              value={`${feuille.recap.cashEncaisse} DH`}
-              highlight
-            />
-            <KpiCard icon={Undo2} label="À retourner" value={String(feuille.recap.nbARetourner)} />
-          </div>
+          <section className={`${s.card} ${s.kpiRow}`}>
+            <div className={s.kpi} style={{ background: 'linear-gradient(135deg,#FFE14D 0%, #FFC400 55%, #FFB701 100%)', color: P.navy }}>
+              <span className={s.kpiLabel}>À livrer</span>
+              <span className={s.kpiValeur}>{feuille.recap.nbEnCours}</span>
+              <span className={s.kpiNote}>COD à encaisser : {feuille.recap.codAttendu} DH</span>
+            </div>
+            <div className={s.kpi} style={{ background: 'linear-gradient(135deg,#8ECAE6,#209EBB)', color: P.navy }}>
+              <span className={s.kpiLabel}>En attente de remise</span>
+              <span className={s.kpiValeur}>{feuille.recap.nbEnAttenteRemise}</span>
+              <span className={s.kpiNote}>COD attendu : {feuille.recap.codEnAttenteRemise} DH</span>
+            </div>
+            <div className={s.kpi} style={{ background: 'linear-gradient(135deg,#209EBB,#023047)', color: '#FFF' }}>
+              <span className={s.kpiLabel} style={{ color: P.jaune }}>Livrés</span>
+              <span className={s.kpiValeur}>{feuille.recap.nbLivres}</span>
+              <span className={s.kpiNote}>Cash encaissé : {feuille.recap.cashEncaisse} DH</span>
+            </div>
+            <div className={s.kpi} style={{ background: 'linear-gradient(135deg,#023047,#4A4A45)', color: '#FFF' }}>
+              <span className={s.kpiLabel}>À retourner</span>
+              <span className={s.kpiValeur}>{feuille.recap.nbARetourner}</span>
+              <span className={s.kpiNote}>Échecs définitifs</span>
+            </div>
+          </section>
         )}
 
         {/* La remise du cash au Planner ne concerne QUE les tournées internes :
             une société de livraison ne rentre pas au dépôt le soir, et lui
             écrire le contraire serait une consigne fausse. */}
         {feuille && feuille.recap.nbLivres > 0 && feuille.tournees.length > 0 && (
-          <p className="text-xs opacity-60">
+          <p style={{ fontSize: 12, color: '#6B6B66' }}>
             Vous remettez l&apos;intégralité du cash encaissé ({feuille.recap.cashEncaisse} DH) au Planner à votre
             retour au dépôt. Vos gains de tournée sont réglés séparément.
           </p>
         )}
 
-        {/* § Comptes transporteurs : colis d'un bon déjà composé pour cette
-            société, pas encore remis. Visibles pour qu'elle sache ce qui
-            arrive et le COD en jeu ; traitables seulement une fois le bon
-            marqué reçu par le back-office. */}
-        {feuille && feuille.colisEnAttenteRemise.length > 0 && (
-          <section className="flex flex-col gap-3">
-            <h2 className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide opacity-60">
-              <Clock className="h-4 w-4" />
-              En attente de remise ({feuille.recap.nbEnAttenteRemise}) — COD {feuille.recap.codEnAttenteRemise} DH
-            </h2>
-            <div className="table-card">
-              <div className="table-scroll">
-                <table className="table-basic min-w-[560px]">
-                  <thead>
-                    <tr>
-                      <th>Code</th>
-                      <th>Client</th>
-                      <th>Bon</th>
-                      <th className="cell-num">COD</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {feuille.colisEnAttenteRemise.map((c) => (
-                      <tr key={c.id}>
-                        <td className="font-mono">{c.codeSuivi}</td>
-                        <td>
-                          <span className="font-semibold">{c.clientNom}</span>
-                          <span className="block text-xs opacity-60">{c.ville}</span>
-                        </td>
-                        <td className="font-mono text-xs">{c.bonEnvoi?.numero ?? '—'}</td>
-                        <td className="cell-num font-semibold">{Number(c.montantCod).toFixed(2)} DH</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </section>
+        {/* § Saisie des statuts coupée : les colis restent visibles, leurs
+            statuts nous arrivent par l'API du transporteur. */}
+        {feuille && !feuille.saisieStatutsActive && (
+          <p
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: P.navy,
+              background: '#FFF4CC',
+              border: '1px solid #FFE14D',
+              borderRadius: 12,
+              padding: '10px 14px',
+            }}
+          >
+            La saisie des statuts depuis votre espace est désactivée : vos statuts nous parviennent par votre API. Vous
+            pouvez consulter vos colis ; contactez-nous en cas de panne.
+          </p>
         )}
 
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">À livrer ({aTenter.length})</h2>
-          {aTenter.length === 0 ? (
-            <div className="table-card">
-              <div className="empty-state">Rien à livrer pour le moment.</div>
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {aTenter.map((c) => (
-                // Carte blanche du back-office (.dashboard-card) et non plus le
-                // jaune plein : celui-ci est réservé au KPI « héros » de la
-                // rangée du dessus. Répété sur chaque colis, il faisait de la
-                // liste un bloc de couleur où plus rien ne ressortait.
-                <li key={c.id} className="dashboard-card flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="font-mono text-xs opacity-60">{c.codeSuivi}</span>
-                    <span className="font-semibold">{c.clientNom}</span>
-                    <span className="flex items-center gap-1 text-xs opacity-70">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      {c.ville} — {c.adresse}
-                    </span>
-                    <a
-                      href={`tel:${c.clientTelephone}`}
-                      className="flex items-center gap-1 text-xs font-semibold hover:underline pointer-coarse:-mx-2 pointer-coarse:min-h-11 pointer-coarse:gap-1.5 pointer-coarse:px-2 pointer-coarse:text-sm"
-                    >
-                      <Phone className="h-3 w-3" />
-                      {c.clientTelephone}
-                    </a>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="whitespace-nowrap font-bold">{Number(c.montantCod).toFixed(2)} DH</span>
-                    <button type="button" className="btn-primary" onClick={() => setColisActif(c)}>
-                      Traiter
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide opacity-60">
-            {/* « Sur cette tournée » ne veut rien dire pour une société de
-                livraison, qui n'en a pas. */}
-            {feuille && feuille.tournees.length === 0 ? 'Déjà traités' : 'Traités sur cette tournée'} (
-            {traites.length})
+        <div className={s.listeTete}>
+          <h2 className={s.sectionTitre}>
+            {vue === 'a_livrer' ? 'À livrer' : vue === 'attente' ? 'En attente de remise' : 'Déjà traités'}
           </h2>
-          {/* Cadre de table du back-office : .table-card porte le cadre et les
-              coins, .table-scroll le défilement horizontal — une table large
-              défile dans son cadre, jamais en poussant la page. */}
-          <div className="table-card">
-            <div className="table-scroll">
-              <table className="table-basic min-w-[560px]">
-                <thead>
-                  <tr>
-                    <th>Code</th>
-                    <th>Client</th>
-                    <th>Statut</th>
-                    <th className="cell-num">CRBT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {traites.map((c) => (
-                    <tr key={c.id}>
-                      <td className="font-mono">{c.codeSuivi}</td>
-                      <td>
-                        <span className="font-semibold">{c.clientNom}</span>
-                        <span className="block text-xs opacity-60">{c.ville}</span>
-                      </td>
-                      <td>
-                        {/* La ville du hub où le colis se trouve, pas le nom du
-                            hub de la tournée : le libellé attendu est
-                            « Retourné au Hub (Casablanca) ». */}
-                        <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
-                        {c.motifRetour && <span className="block text-xs opacity-60">{c.motifRetour}</span>}
-                      </td>
-                      <td className="cell-num font-semibold">{Number(c.montantCod).toFixed(2)} DH</td>
-                    </tr>
-                  ))}
-                  {traites.length === 0 && (
-                    <tr>
-                      <td colSpan={4}>
-                        <div className="empty-state">Aucun colis traité pour l&apos;instant.</div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className={s.onglets} role="tablist">
+            {(
+              [
+                ['a_livrer', `À livrer (${aTenter.length})`],
+                ['attente', `En attente de remise (${enAttente.length})`],
+                ['traites', `Traités (${traites.length})`],
+              ] as [Vue, string][]
+            ).map(([cle, libelle]) => (
+              <button
+                key={cle}
+                type="button"
+                role="tab"
+                aria-selected={vue === cle}
+                className={`${s.onglet} ${vue === cle ? s.ongletActif : ''}`}
+                onClick={() => setVueChoisie(cle)}
+              >
+                {libelle}
+              </button>
+            ))}
           </div>
-        </section>
-      </div>
+        </div>
 
-      {colisActif && (
-        <ModaleAction
+        {/* § Comptes transporteurs : un colis « en attente de remise » est
+            visible (la société sait ce qui arrive et le COD en jeu) mais pas
+            traitable tant que le bon n'est pas marqué reçu. */}
+        {vue === 'attente' && enAttente.length > 0 && (
+          <p style={{ fontSize: 12, color: '#6B6B66', marginTop: -8 }}>
+            Ces colis vous seront remis prochainement : vous pourrez les traiter dès que leur bon sera marqué reçu.
+          </p>
+        )}
+
+        <div className="table-card">
+          <div className="overflow-x-auto">
+            <table className="table-basic min-w-[1300px]">
+              <thead>
+                <tr>
+                  <th>Code d&apos;envoi</th>
+                  <th>Date d&apos;expédition</th>
+                  <th>Destinataire</th>
+                  <th>Téléphone</th>
+                  <th>Nom du magasin</th>
+                  <th>Marchandise</th>
+                  <th>Ville</th>
+                  <th>Adresse</th>
+                  <th className="text-right">Prix</th>
+                  <th>Bon</th>
+                  <th>Status</th>
+                  <th>Options</th>
+                  <th>Notes</th>
+                  {peutTraiter && <th>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {visibles.map((c) => (
+                  <tr key={c.id}>
+                    <td className="font-mono text-xs font-semibold">{c.codeSuivi}</td>
+                    <td className="whitespace-nowrap text-xs opacity-70">{new Date(c.dateCreation).toLocaleString('fr-FR')}</td>
+                    <td>{c.clientNom}</td>
+                    <td className="whitespace-nowrap">
+                      <a href={`tel:${c.clientTelephone}`} className="inline-flex items-center gap-1 hover:underline">
+                        <Phone className="h-3 w-3" />
+                        {c.clientTelephone}
+                      </a>
+                    </td>
+                    <td>{c.marchand?.nomBoutique ?? '—'}</td>
+                    <td>{c.marchandise?.nom ?? c.produitDescription ?? <span className="opacity-40">—</span>}</td>
+                    <td>{c.ville}</td>
+                    <td className="max-w-[200px] truncate text-xs" title={c.adresse}>
+                      {c.adresse}
+                    </td>
+                    <td className="text-right font-semibold tabular-nums">{Number(c.montantCod).toFixed(2)} DH</td>
+                    <td className="font-mono text-xs">{c.bonEnvoi?.numero ?? c.bonDistribution?.numero ?? '—'}</td>
+                    <td>
+                      {/* La ville du hub où le colis se trouve, pas le nom du
+                          hub de la tournée : le libellé attendu est
+                          « Retourné au Hub (Casablanca) ». */}
+                      <StatutBadge statut={c.statut} hubVille={c.hubActuel?.ville} />
+                      {c.motifRetour && <p className="mt-1 text-xs opacity-60">{c.motifRetour}</p>}
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap gap-1">
+                        {c.ouvrir && (
+                          <span className="badge badge-neutral">
+                            <DoorOpen className="h-3 w-3" /> Ouvrir
+                          </span>
+                        )}
+                        {c.fragile && (
+                          <span className="badge badge-warn">
+                            <TriangleAlert className="h-3 w-3" /> Fragile
+                          </span>
+                        )}
+                        {c.aRemplacer && <span className="badge badge-brand">Échange</span>}
+                      </div>
+                    </td>
+                    <td className="max-w-[160px] truncate text-xs opacity-70" title={c.notes ?? undefined}>
+                      {c.notes ?? '—'}
+                    </td>
+                    {peutTraiter && (
+                      <td>
+                        <button type="button" className="btn-primary btn-sm" onClick={() => setColisActif(c)}>
+                          Traiter
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                {visibles.length === 0 && (
+                  <tr>
+                    <td colSpan={peutTraiter ? 14 : 13} className="py-4 text-center opacity-60">
+                      {vue === 'a_livrer'
+                        ? 'Rien à livrer pour le moment.'
+                        : vue === 'attente'
+                          ? 'Aucun colis en attente de remise.'
+                          : "Aucun colis traité pour l'instant."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      {/* Colis confié par bon d'envoi : le transporteur déclare l'un des
+          statuts de sa documentation API. Colis de tournée : les 3 actions
+          du livreur interne. */}
+      {colisActif && colisActif.bonEnvoi && !colisActif.bonDistribution ? (
+        <ModaleStatutTransporteur
           colis={colisActif}
           onClose={() => setColisActif(null)}
           onDone={async () => {
@@ -301,8 +329,159 @@ export default function FeuilleDeRouteLivreurPage() {
             await rafraichir();
           }}
         />
+      ) : (
+        colisActif && (
+          <ModaleAction
+            colis={colisActif}
+            onClose={() => setColisActif(null)}
+            onDone={async () => {
+              setColisActif(null);
+              await rafraichir();
+            }}
+          />
+        )
       )}
     </>
+  );
+}
+
+// § Saisie des statuts par un transporteur (POST
+// /api/livreur/colis/[id]/statut-transporteur) : les statuts du catalogue de
+// sa documentation API (CATALOGUE_STATUTS_PRESTATAIRE), avec les mêmes
+// exigences — date de prochaine tentative pour « Reporté » et « Programmé »,
+// note libre de 150 caractères. La preuve de livraison est facultative,
+// comme par l'API.
+function ModaleStatutTransporteur({
+  colis,
+  onClose,
+  onDone,
+}: {
+  colis: ColisFeuilleDeRoute;
+  onClose: () => void;
+  onDone: () => void | Promise<void>;
+}) {
+  const [statut, setStatut] = useState<string>('');
+  const [date, setDate] = useState(isoAujourdhui());
+  const [note, setNote] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [signature, setSignature] = useState<string | null>(null);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  const choisi = CATALOGUE_STATUTS_PRESTATAIRE.find((x) => x.statut === statut) ?? null;
+  const pretAEnvoyer = Boolean(choisi) && (!choisi?.dateRequise || Boolean(date));
+
+  async function choisirPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setPhoto(await readImageAsCompressedDataUrl(file));
+    } catch {
+      setErreur('Impossible de lire cette photo.');
+    }
+  }
+
+  async function envoyer() {
+    if (!choisi) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      await apiPost(`/api/livreur/colis/${colis.id}/statut-transporteur`, {
+        statut: choisi.statut,
+        ...(choisi.dateRequise && { date }),
+        ...(note.trim() && { note: note.trim() }),
+        ...(choisi.statut === 'livre' && { photoPreuveUrl: photo ?? undefined, signatureUrl: signature ?? undefined }),
+      });
+      await onDone();
+    } catch (err) {
+      setErreur(err instanceof Error ? err.message : 'Erreur');
+      setEnvoi(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
+      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col gap-4 overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pt-5 dark:bg-neutral-900 sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold">{colis.clientNom}</h2>
+            <p className="font-mono text-xs opacity-60">{colis.codeSuivi}</p>
+            <p className="text-sm font-semibold">{Number(colis.montantCod).toFixed(2)} DH à encaisser</p>
+          </div>
+          <button type="button" onClick={onClose} className="-m-2 rounded-md p-3 hover:bg-black/5 dark:hover:bg-white/10" aria-label="Fermer">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <Field label="Nouveau statut">
+          <select className="input-basic" value={statut} onChange={(e) => setStatut(e.target.value)} autoFocus>
+            <option value="">Choisir un statut…</option>
+            {CATALOGUE_STATUTS_PRESTATAIRE.map((x) => (
+              <option key={x.statut} value={x.statut}>
+                {x.libelle}
+                {x.terminal ? ' (clôture le colis)' : ''}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {choisi && <p className="-mt-2 text-xs opacity-70">{choisi.description}</p>}
+
+        {choisi?.dateRequise && (
+          <Field label="Date de la prochaine tentative">
+            <input type="date" className="input-basic" value={date} min={isoAujourdhui()} onChange={(e) => setDate(e.target.value)} />
+          </Field>
+        )}
+
+        {choisi?.statut === 'livre' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs opacity-70">Preuve facultative : une photo du colis remis ou la signature du client.</p>
+            <label className="btn-outline flex cursor-pointer items-center justify-center gap-1.5">
+              <Camera className="h-4 w-4" />
+              {photo ? 'Reprendre la photo' : 'Prendre une photo'}
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={choisirPhoto} />
+            </label>
+            {photo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo} alt="Preuve de livraison" className="max-h-48 w-full rounded-md object-contain" />
+            )}
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold opacity-70">Signature du client</span>
+              <SignaturePad onChange={setSignature} />
+            </div>
+          </div>
+        )}
+
+        <Field label="Note" optional>
+          <textarea
+            className="input-basic"
+            rows={2}
+            maxLength={150}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Ex. client absent, rappelle demain"
+          />
+        </Field>
+
+        {choisi?.terminal && (
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+            Ce statut clôture le colis : il ne pourra plus être modifié ensuite.
+          </p>
+        )}
+
+        {erreur && <p className="text-sm font-semibold text-red-600">{erreur}</p>}
+
+        <div className="sticky bottom-0 -mx-5 border-t border-black/10 bg-white px-5 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-neutral-900">
+          <button
+            type="button"
+            onClick={envoyer}
+            disabled={!pretAEnvoyer || envoi}
+            className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {envoi ? 'Enregistrement…' : 'Confirmer'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

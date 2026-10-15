@@ -45,8 +45,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         bonEnvoi: {
           select: {
             statut: true,
-            prestataire: { select: { compteLivreurId: true } },
-            hubDestination: { select: { prestataire: { select: { compteLivreurId: true } } } },
+            prestataire: { select: { compteLivreurId: true, saisieStatutsActive: true } },
+            hubDestination: { select: { prestataire: { select: { compteLivreurId: true, saisieStatutsActive: true } } } },
           },
         },
       },
@@ -64,6 +64,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       commande.bonEnvoi?.hubDestination?.prestataire?.compteLivreurId ??
       null;
     const bonDuCompte = !commande.bonDistributionId && compteDuBon === session.sub;
+
+    // § Saisie des statuts : coupée par le back-office pour ce transporteur
+    // (son API nous renvoie les statuts). Il garde la vue sur ses colis.
+    const prestataireDuBon = commande.bonEnvoi?.prestataire ?? commande.bonEnvoi?.hubDestination?.prestataire ?? null;
+    if (bonDuCompte && prestataireDuBon && !prestataireDuBon.saisieStatutsActive) {
+      throw new ApiError(403, 'La saisie des statuts depuis votre espace est désactivée : vos statuts nous parviennent par votre API');
+    }
     const confie = bonDuCompte && commande.bonEnvoi?.statut === 'recu';
     const origine: OrigineColisLivreur = confie
       ? 'confie'

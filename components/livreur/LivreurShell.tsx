@@ -27,12 +27,16 @@ import type { Role } from '@/app/generated/prisma/enums';
 //   — l'Accueil (§ DashboardLivreur), qui reprend la surface #F0F0ED du
 //     tableau de bord du back-office ;
 //   — la documentation API, qui reprend la page blanche du document déployé
-//     chez nos partenaires.
+//     chez nos partenaires ;
+//   — la liste des bons d'envoi et « Mes colis », qui reprennent la
+//     composition des écrans du back-office (fond #F0F0ED,
+//     § CompositionTableau.module.css).
 // Comparaison EXACTE : un startsWith('/livreur') emporterait tout l'espace.
-const PLEINE_LARGEUR = ['/livreur', '/livreur/documentation-api'];
+const PLEINE_LARGEUR = ['/livreur', '/livreur/documentation-api', '/livreur/bons-envoi', '/livreur/colis'];
 
 function estPleineLargeur(pathname: string | null) {
-  return !!pathname && PLEINE_LARGEUR.includes(pathname);
+  // Le détail d'un bon d'envoi suit la liste : même composition.
+  return !!pathname && (PLEINE_LARGEUR.includes(pathname) || pathname.startsWith('/livreur/bons-envoi/'));
 }
 
 export function LivreurShell({

@@ -22,6 +22,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (typeof body.actif === 'boolean') {
       data.actif = body.actif;
     }
+    // § Saisie des statuts depuis l'espace du transporteur (Équipe › Rôles & permissions).
+    if (typeof body.saisieStatutsActive === 'boolean') {
+      data.saisieStatutsActive = body.saisieStatutsActive;
+    }
 
     // § Comptes transporteurs : rattachement du compte humain. Chaîne vide =
     // détachement explicite, et non « champ absent » — c'est ce qui permet de

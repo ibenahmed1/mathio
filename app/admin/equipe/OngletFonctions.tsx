@@ -13,6 +13,7 @@ import {
 } from '@/lib/roles-backoffice';
 import { Modal } from '@/components/admin/Modal';
 import { Field } from '@/components/form/Field';
+import { SaisieStatutsTransporteurs } from './SaisieStatutsTransporteurs';
 
 // Onglet Rôles & permissions de l'écran Équipe & rôles : même construction que
 // l'onglet Rôles de l'équipe marchande (app/marchand/equipe/OngletRoles.tsx) —
@@ -194,6 +195,8 @@ export function OngletFonctions({ roles, recharger }: { roles: RoleBackofficeExp
           </div>
         </div>
       )}
+
+      <SaisieStatutsTransporteurs />
 
       {editeur && <EditeurRole mode={editeur} onClose={() => setEditeur(null)} onFait={recharger} />}
       {aSupprimer && <SupprimerRole role={aSupprimer} onClose={() => setASupprimer(null)} onFait={recharger} />}
