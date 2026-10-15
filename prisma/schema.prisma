@@ -1804,6 +1804,13 @@ model Prestataire {
   compteLivreurId String?      @unique @map("compte_livreur_id")
   compteLivreur   Utilisateur? @relation("PrestataireCompteLivreur", fields: [compteLivreurId], references: [id])
 
+  // § Saisie des statuts (15/10/2026) : le compte ci-dessus peut-il déclarer
+  // lui-même l'issue de ses colis (Livré / Reporté / Non livré) ? Coupée pour
+  // un transporteur dont l'API nous renvoie les statuts — deux sources de
+  // vérité se contrediraient — et rouverte depuis Équipe › Rôles & permissions
+  // le temps d'une panne de son API. Il voit toujours ses bons et ses colis.
+  saisieStatutsActive Boolean @default(true) @map("saisie_statuts_active")
+
   agences       Hub[]
   tarifs        TarifPrestataireVille[]
   // Compte machine du prestataire (§ PlateformePartenaire.prestataireId) —

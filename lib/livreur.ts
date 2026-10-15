@@ -185,6 +185,8 @@ export async function getCaisseJour(livreurId: string, jour: Date = new Date()) 
 // tout, cf. HistoriqueStatutCommande).
 const commandeTourneeInclude = {
   marchand: { select: { nomBoutique: true } },
+  // Colonne « Marchandise » du tableau, reprise de la liste des colis admin.
+  marchandise: { select: { nom: true } },
   bonDistribution: { select: { id: true, numero: true, dateGeneration: true, hub: { select: { nom: true } } } },
   // § Comptes transporteurs : un colis confié à une société de livraison n'a
   // PAS de tournée — il vient d'un bon d'envoi. C'est ce bon qui situe le
@@ -229,6 +231,9 @@ export interface FeuilleDeRouteLivreur {
   // mais pas encore marqué reçu — visibles (il sait ce qui arrive et le COD
   // attendu), non traitables.
   colisEnAttenteRemise: CommandeTourneeLivreur[];
+  // § Saisie des statuts : false quand le back-office l'a coupée pour le
+  // transporteur dont c'est le compte. Toujours true pour un livreur interne.
+  saisieStatutsActive: boolean;
   // Récapitulatif de session recalculé à chaque appel — c'est le même
   // décompte que celui présenté au Planner à la clôture (§ getBilanTournee),
   // vu du côté livreur.
@@ -302,13 +307,14 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
   // Les deux sources sont indépendantes : un compte a des tournées (livreur
   // interne) ou des bons confiés (société de livraison), et rien n'interdit
   // qu'il ait les deux — le jour où une société prendrait aussi une tournée.
-  const [tournees, colisConfies] = await Promise.all([
+  const [tournees, colisConfies, prestataire] = await Promise.all([
     prisma.bonDistribution.findMany({
       where: { livreurId, statut: { not: 'cloture' } },
       select: { id: true, numero: true, dateGeneration: true, nbColis: true, hub: { select: { nom: true } } },
       orderBy: { dateGeneration: 'desc' },
     }),
     getColisConfiesAuTransporteur(livreurId),
+    prisma.prestataire.findUnique({ where: { compteLivreurId: livreurId }, select: { saisieStatutsActive: true } }),
   ]);
 
   const colisTournee =
@@ -374,6 +380,7 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
     bonsConfies,
     colis,
     colisEnAttenteRemise: enAttenteRemise,
+    saisieStatutsActive: prestataire?.saisieStatutsActive ?? true,
     recap: {
       nbColis: colis.length,
       nbLivres: livres.length,
