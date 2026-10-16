@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError } from '@/lib/api-utils';
-import { hashSecret, getPasswordPolicyError, normalizePhoneMaroc, isValidEmail } from '@/lib/auth';
+import { hashSecret, getPasswordPolicyError, MESSAGE_TELEPHONE_INVALIDE, normaliserTelephone, isValidEmail } from '@/lib/auth';
 import { TYPES_COMPTE } from '@/lib/marchand-form-options';
 import type { TypeCompteMarchand } from '@/app/generated/prisma/enums';
 import { checkRateLimit, getClientIp, rateLimitedResponse } from '@/lib/rate-limit';
@@ -79,9 +79,9 @@ export async function POST(request: Request) {
 
     let telephone: string | null = null;
     if (telephoneSaisi) {
-      telephone = normalizePhoneMaroc(telephoneSaisi);
+      telephone = normaliserTelephone(telephoneSaisi);
       if (!telephone) {
-        throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+        throw new ApiError(400, MESSAGE_TELEPHONE_INVALIDE);
       }
     }
 

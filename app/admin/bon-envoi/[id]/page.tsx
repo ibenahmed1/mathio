@@ -75,6 +75,17 @@ export default function DetailBonEnvoiPage() {
           « marquer comme transmis »), bon reçu, mise en distribution — grisés
           avec leur raison quand ils ne servent pas. L'agent de quai consulte
           et réceptionne par le menu Actions. */}
+      {bon.exceptionnel && (
+        <div role="note" className="rounded-xl bg-amber-300/30 px-4 py-3 text-sm">
+          <p className="font-semibold">BE exceptionnel — hors règles de routage</p>
+          <p className="opacity-80">
+            Motif : {bon.motifExceptionnel ?? '—'}
+            {bon.creePar ? ` · créé par ${bon.creePar.nomComplet}` : ''}. Les villes hors grille du transporteur n&apos;ont pas
+            de tarif ; le détail de chaque colis est dans son historique.
+          </p>
+        </div>
+      )}
+
       {gereLesBons(user?.role) && <TransmissionBon bon={bon} onChange={load} />}
 
       <div className="card-tint-strong grid grid-cols-2 gap-4 p-4 text-sm sm:grid-cols-4">

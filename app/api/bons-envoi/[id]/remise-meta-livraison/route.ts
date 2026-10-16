@@ -3,6 +3,7 @@ import { jsonError } from '@/lib/api-utils';
 import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { remettreBonEnvoiMeta } from '@/lib/remise-meta-livraison';
 import { destinatairesBackoffice, notifier } from '@/lib/notifications';
+import { refuserRemiseApiSiExceptionnel } from '@/lib/bon-envoi-exceptionnel';
 
 // § Meta Livraison — remet par leur API les colis d'un bon d'envoi qui leur est
 // destiné (lib/remise-meta-livraison.ts). Toujours 200 quand le bon a pu être
@@ -11,6 +12,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   try {
     const session = await requirePilotageTransporteur();
     const { id } = await params;
+    await refuserRemiseApiSiExceptionnel(id, 'Meta Livraison');
     const resultat = await remettreBonEnvoiMeta(id, session.sub);
 
     // § Notifications : des colis restés chez nous, à reprendre par un autre

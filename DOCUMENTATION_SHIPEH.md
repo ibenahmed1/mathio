@@ -169,7 +169,7 @@ Crée chez nous le compte d'un de vos marchands, ou le rattache s'il existe déj
 |---|---|
 | `idExterne` | Votre identifiant du marchand. **C'est la clé de la synchronisation** : c'est par lui que vous nous parlerez de ce marchand ensuite |
 | `nomComplet` | Nom de la personne |
-| `telephone` | Numéro marocain : `0` puis `5`, `6` ou `7`, puis 8 chiffres. Les écritures `+212…`, `212…` et les espaces sont acceptées et normalisées |
+| `telephone` | Numéro marocain (`0` puis `5`, `6` ou `7`, puis 8 chiffres ; `+212…`, `00212…`, `212…` et les espaces acceptés, stocké `06…`) **ou international** avec son indicatif (`+33612345678` ou `0033612345678`, stocké `+33612345678`). Sans indicatif, un numéro qui commence par `0` est lu comme marocain |
 
 **Identifiants de connexion** — l'email, et le mot de passe sous **l'une** des deux formes. Ce sont
 ceux du marchand chez vous ; ils deviennent les siens chez nous :
@@ -921,7 +921,7 @@ Toutes les erreurs ont la même forme :
 | `400` | `json_invalide` | Le corps n'est pas du JSON |
 | `400` | `corps_invalide` | Objet attendu (ou tableau, sur `/lot`) |
 | `400` | `champ_requis` | Un champ obligatoire manque — le message le nomme |
-| `400` | `telephone_invalide` | Format marocain attendu |
+| `400` | `telephone_invalide` | Ni marocain, ni international avec indicatif (`+…`) |
 | `400` | `email_invalide` | |
 | `400` | `mot_de_passe_invalide` | Chaîne de caractères, 72 octets au maximum |
 | `400` | `mot_de_passe_hash_invalide` | Empreinte bcrypt de 60 caractères, `$2a$`/`$2b$`/`$2y$`, coût 10 à 14 |

@@ -76,7 +76,10 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
 
   const transporteur = bon.prestataire?.nom ?? bon.hubDestination?.prestataire?.nom ?? null;
   const destinataire = transporteur ?? bon.hubDestination?.nom ?? 'le destinataire';
-  const api = transporteur ? API_TRANSPORTEURS[transporteur] : undefined;
+  // Bon exceptionnel : rien ne part par API, sauf chez Power Delivery
+  // (décision du 16/10/2026, § lib/bon-envoi-exceptionnel.ts).
+  const apiCoupee = Boolean(bon.exceptionnel) && transporteur !== 'Power Delivery';
+  const api = transporteur && !apiCoupee ? API_TRANSPORTEURS[transporteur] : undefined;
   const commandes = bon.commandes ?? [];
   const nbAttente = commandes.filter((c) =>
     attendRemise({ source: c.source ?? 'manuel', enStock: c.enStock, statut: c.statut })
@@ -200,6 +203,9 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
                 <Truck className="h-4 w-4" /> Marquer comme transmis{nbAttente > 0 ? ` (${nbAttente})` : ''}
               </button>
               {api && !raisonApi && raisonManuelle && <p className="text-xs opacity-60">Par Excel : {raisonManuelle}</p>}
+              {apiCoupee && transporteur && API_TRANSPORTEURS[transporteur] && (
+                <p className="text-xs opacity-60">BE exceptionnel : rien n&apos;est transmis à {transporteur} par API.</p>
+              )}
             </div>
           </Etape>
 

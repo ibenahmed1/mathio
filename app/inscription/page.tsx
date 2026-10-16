@@ -129,7 +129,7 @@ function InscriptionFormulaire() {
               <input
                 className="input-underline"
                 type="tel"
-                placeholder="06XXXXXXXX"
+                placeholder="06XXXXXXXX ou +33…"
                 value={form.telephone}
                 onChange={(e) => update('telephone', e.target.value)}
                 autoComplete="tel"

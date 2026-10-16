@@ -139,11 +139,17 @@ test('le téléphone est accepté dans ses écritures usuelles et stocké normal
   }
 });
 
-test('un téléphone non marocain est refusé, pas rangé tel quel', () => {
+test('un numéro international est accepté et stocké sous une seule écriture', () => {
+  for (const saisie of ['+33612345678', '0033 6 12 34 56 78', '+33 6-12-34-56-78']) {
+    assert.equal(analyserEntreeMarchand({ ...VALIDE, telephone: saisie }).telephone, '+33612345678', saisie);
+  }
+});
+
+test('un téléphone non reconnu est refusé, pas rangé tel quel', () => {
   // Le stocker brut le rendrait introuvable au rattachement suivant : la même
   // personne reviendrait sous une autre écriture et on lui créerait un second
   // compte.
-  for (const saisie of ['12345', '+33612345678', 'zéro six']) {
+  for (const saisie of ['12345', '612345678', '+212912345678', 'zéro six']) {
     assert.equal(codeRefus({ ...VALIDE, telephone: saisie }), 'telephone_invalide', saisie);
   }
 });

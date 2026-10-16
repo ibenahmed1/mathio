@@ -6,7 +6,8 @@ import { exigerPermissionsDetenues } from '@/lib/garde-gestion-comptes';
 import {
   hashSecret,
   getPasswordPolicyError,
-  normalizePhoneMaroc,
+  MESSAGE_TELEPHONE_INVALIDE,
+  normaliserTelephone,
   ROLE_PERMISSIONS,
   sanitizePermissions,
 } from '@/lib/auth';
@@ -136,9 +137,9 @@ export async function POST(request: Request) {
       throw new ApiError(400, `Rôle invalide. Valeurs possibles : ${ROLES_EQUIPE.join(', ')}`);
     }
 
-    const telephone = normalizePhoneMaroc(telephoneRaw);
+    const telephone = normaliserTelephone(telephoneRaw);
     if (!telephone) {
-      throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+      throw new ApiError(400, MESSAGE_TELEPHONE_INVALIDE);
     }
 
     const existingTelephone = await prisma.utilisateur.findUnique({ where: { telephone } });

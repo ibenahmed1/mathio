@@ -467,7 +467,7 @@ export function UserFormModal({
               className="input-basic"
               name="telephone"
               type="tel"
-              placeholder="06XXXXXXXX"
+              placeholder="06XXXXXXXX ou +33…"
               defaultValue={draft?.telephone ?? existant?.telephone ?? ''}
               required
             />

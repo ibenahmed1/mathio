@@ -66,8 +66,10 @@ function mouvementsDuContenu(
 }
 
 // Valide le couple produit/variante d'un colis dans le périmètre du marchand
-// propriétaire. Un produit à variantes exige sa variante : sans elle, le colis
-// ne pourrait jamais consommer de stock.
+// propriétaire : son stock personnel, ou le stock commun d'une plateforme qui
+// l'a synchronisé, dans l'environnement du lien (§ stock commun — un colis
+// Shipeh pointe sur un produit de la plateforme). Un produit à variantes exige
+// sa variante : sans elle, le colis ne pourrait jamais consommer de stock.
 export async function verifierUniteStock(
   marchandId: string,
   produitId: string,
@@ -76,9 +78,24 @@ export async function verifierUniteStock(
 ): Promise<{ produitId: string; varianteId: string | null; libelle: string }> {
   const produit = await db.produit.findUnique({
     where: { id: produitId },
-    select: { id: true, nom: true, marchandId: true, variantesActivees: true },
+    select: {
+      id: true,
+      nom: true,
+      marchandId: true,
+      plateformeId: true,
+      environnementPlateforme: true,
+      variantesActivees: true,
+    },
   });
-  if (!produit || produit.marchandId !== marchandId) {
+  const accessible =
+    !!produit &&
+    (produit.marchandId === marchandId ||
+      (produit.plateformeId !== null &&
+        produit.environnementPlateforme !== null &&
+        (await db.compteMarchandExterne.count({
+          where: { marchandId, plateformeId: produit.plateformeId, environnement: produit.environnementPlateforme },
+        })) > 0));
+  if (!produit || !accessible) {
     throw new ApiError(400, 'produitId invalide pour ce marchand');
   }
   if (!produit.variantesActivees) {

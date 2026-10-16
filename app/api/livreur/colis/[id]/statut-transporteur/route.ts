@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
+import { sortiDeTournee } from '@/lib/livreur';
 import { analyserEntreeStatut, deciderTransition, ecrireTransition } from '@/lib/livraison-statut';
 
 // POST /api/livreur/colis/[id]/statut-transporteur — un transporteur déclare,
@@ -29,9 +30,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         statut: true,
         livreurId: true,
         bonDistributionId: true,
+        bonDistribution: { select: { statut: true, dateGeneration: true } },
         bonEnvoi: {
           select: {
             statut: true,
+            dateGeneration: true,
             prestataire: { select: { nom: true, compteLivreurId: true, saisieStatutsActive: true } },
             hubDestination: {
               select: { prestataire: { select: { nom: true, compteLivreurId: true, saisieStatutsActive: true } } },
@@ -44,7 +47,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Le bon dit à quel transporteur le colis est confié (§ filtreBonsDuTransporteur).
     const prestataire = commande.bonEnvoi?.prestataire ?? commande.bonEnvoi?.hubDestination?.prestataire ?? null;
-    if (commande.bonDistributionId || !prestataire || prestataire.compteLivreurId !== session.sub) {
+    if (!sortiDeTournee(commande) || !prestataire || prestataire.compteLivreurId !== session.sub) {
       throw new ApiError(403, 'Ce colis ne vous est pas confié');
     }
     if (commande.bonEnvoi?.statut !== 'recu') {

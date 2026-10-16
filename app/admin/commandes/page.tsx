@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TriangleAlert, DoorOpen, Trash2 } from 'lucide-react';
+import { TriangleAlert, DoorOpen, FileDown, Trash2 } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '@/lib/api-client';
 import type { Commande, Utilisateur } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
@@ -11,6 +11,8 @@ import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { ColisTrackingModal } from '@/components/admin/ColisTrackingModal';
 import { ChampVille } from '@/components/form/ChampVille';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
+import { telechargerExcelColis } from '@/lib/telecharger-excel';
+import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 
 // Plafond serveur (voir GET /api/commandes) — au-delà, il faut paginer plutôt
 // que d'augmenter pageSize.
@@ -33,6 +35,7 @@ export default function AdminCommandesPage() {
   const [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [suppressionEnCours, setSuppressionEnCours] = useState(false);
+  const [exportEnCours, setExportEnCours] = useState(false);
 
   // L'admin n'a aucun périmètre restreint côté serveur (contrairement à
   // marchand/ramasseur/livreur, cf. buildCommandesWhere) : sans pagination
@@ -65,11 +68,13 @@ export default function AdminCommandesPage() {
     }
   }
 
-  // Seuls les colis "Nouveau Colis" sont supprimables (cf. DELETE
-  // /api/commandes/[id]) — une fois engagés (ramassage, BL, tournée…), on
-  // passe par un changement de statut plutôt qu'une suppression définitive.
-  const idsEligibles = commandes.filter((c) => c.statut === 'nouveau_colis').map((c) => c.id);
-  const touteLaSelection = idsEligibles.length > 0 && idsEligibles.every((id) => selected.has(id));
+  // Tout colis se coche (export Excel de la sélection). Seuls les colis
+  // « Nouveau Colis » sont supprimables (cf. DELETE /api/commandes/[id]) — une
+  // fois engagés (ramassage, BL, tournée…), on passe par un changement de
+  // statut : la suppression ne vise que ceux-là parmi les cochés.
+  const idsSupprimables = new Set(commandes.filter((c) => c.statut === 'nouveau_colis').map((c) => c.id));
+  const selectionSupprimable = [...selected].filter((id) => idsSupprimables.has(id));
+  const touteLaSelection = commandes.length > 0 && commandes.every((c) => selected.has(c.id));
 
   function toggleUn(id: string) {
     setSelected((prev) => {
@@ -81,21 +86,33 @@ export default function AdminCommandesPage() {
   }
 
   function toggleTout() {
-    setSelected(touteLaSelection ? new Set() : new Set(idsEligibles));
+    setSelected(touteLaSelection ? new Set() : new Set(commandes.map((c) => c.id)));
   }
 
   async function supprimerSelection() {
-    if (selected.size === 0) return;
-    if (!confirm(`Supprimer définitivement ${selected.size} colis sélectionné(s) ?`)) return;
+    if (selectionSupprimable.length === 0) return;
+    if (!confirm(`Supprimer définitivement ${selectionSupprimable.length} colis « Nouveau Colis » ?`)) return;
     setSuppressionEnCours(true);
     setError(null);
     try {
-      await apiPost('/api/commandes/bulk-delete', { colisIds: Array.from(selected) });
+      await apiPost('/api/commandes/bulk-delete', { colisIds: selectionSupprimable });
       await load(page);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
       setSuppressionEnCours(false);
+    }
+  }
+
+  async function exporterSelection() {
+    setExportEnCours(true);
+    try {
+      await telechargerExcelColis([...selected]);
+      annoncerSucces(`Excel de ${selected.size} colis téléchargé.`);
+    } catch (err) {
+      annoncerEchec(err, { prefixe: 'Export Excel' });
+    } finally {
+      setExportEnCours(false);
     }
   }
 
@@ -184,16 +201,29 @@ export default function AdminCommandesPage() {
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
       {selected.size > 0 && (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-900/40 dark:bg-red-950/20">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-black/10 bg-black/[0.03] px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5">
           <span>{selected.size} colis sélectionné(s)</span>
-          <button
-            onClick={supprimerSelection}
-            disabled={suppressionEnCours}
-            className="btn-danger-solid btn-sm flex items-center gap-1.5"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            {suppressionEnCours ? 'Suppression…' : 'Supprimer la sélection'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={exporterSelection}
+              disabled={exportEnCours}
+              className="btn-primary btn-sm flex items-center gap-1.5"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              {exportEnCours ? 'Export…' : `Exporter en Excel (${selected.size})`}
+            </button>
+            {selectionSupprimable.length > 0 && (
+              <button
+                onClick={supprimerSelection}
+                disabled={suppressionEnCours}
+                className="btn-danger-solid btn-sm flex items-center gap-1.5"
+                title="Seuls les colis « Nouveau Colis » sont supprimables"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {suppressionEnCours ? 'Suppression…' : `Supprimer (${selectionSupprimable.length})`}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -207,7 +237,7 @@ export default function AdminCommandesPage() {
                     type="checkbox"
                     checked={touteLaSelection}
                     onChange={toggleTout}
-                    disabled={idsEligibles.length === 0}
+                    disabled={commandes.length === 0}
                     aria-label="Tout sélectionner"
                   />
                 </th>
@@ -235,7 +265,6 @@ export default function AdminCommandesPage() {
                       type="checkbox"
                       checked={selected.has(c.id)}
                       onChange={() => toggleUn(c.id)}
-                      disabled={c.statut !== 'nouveau_colis'}
                       aria-label={`Sélectionner ${c.codeSuivi}`}
                     />
                   </td>

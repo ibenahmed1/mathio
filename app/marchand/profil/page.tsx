@@ -163,7 +163,7 @@ export default function MarchandProfilPage() {
                   <input
                     className="input-basic"
                     type="tel"
-                    placeholder="06XXXXXXXX"
+                    placeholder="06XXXXXXXX ou +33…"
                     value={marchand.utilisateur?.telephone ?? ''}
                     onChange={(e) =>
                       setMarchand({ ...marchand, utilisateur: { ...marchand.utilisateur!, telephone: e.target.value } })

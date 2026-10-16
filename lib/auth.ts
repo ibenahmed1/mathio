@@ -202,13 +202,21 @@ const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_POLICY_MESSAGE =
   'Le mot de passe doit contenir au moins 8 caractères, avec une majuscule, un chiffre et un caractère spécial';
 
-// Format canonique des numéros de téléphone marocains stockés en base :
-// "0" + 9 chiffres (05/06/07), identique au format déjà utilisé par les
-// comptes existants (cf. prisma/seed.ts) — on normalise vers ce format
-// plutôt que vers l'E.164 ("+212...") pour ne pas avoir à migrer les
-// numéros déjà en base. Accepte en entrée les variantes avec espaces,
-// tirets, "+212" ou "212" en préfixe.
+// Format canonique des numéros de téléphone stockés en base (décision du
+// 16/10/2026 : marocains ET internationaux acceptés, pour tous les comptes —
+// marchands, équipe, back-office, marchands créés par l'API Shipeh) :
+//
+//   · marocain      → "0" + 9 chiffres (05/06/07), le format historique des
+//                     comptes existants : aucun numéro en base n'est à migrer.
+//                     Entrées acceptées : espaces, tirets, "+212", "00212", "212".
+//   · international → E.164 : "+" puis 8 à 15 chiffres, sans le 0 de tête.
+//                     Entrées acceptées : "+33 6 12…" ou "0033 6 12…".
+//
+// Une écriture unique par numéro : sinon la même personne, revenue sous une
+// autre écriture, serait introuvable et recevrait un second compte. Un numéro
+// sans indicatif qui commence par 0 est lu comme marocain.
 const PHONE_REGEX = /^0[5-7]\d{8}$/;
+const E164_REGEX = /^\+[1-9]\d{7,14}$/;
 
 // Un seul endroit à faire évoluer (inscription marchand, modification du
 // profil marchand par son titulaire...) plutôt que de dupliquer le motif.
@@ -218,19 +226,22 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email);
 }
 
-export function normalizePhoneMaroc(input: string): string | null {
-  const digits = input.replace(/[^\d+]/g, '');
-  let local: string;
+export const MESSAGE_TELEPHONE_INVALIDE =
+  'Numéro de téléphone invalide : marocain (ex. 0612345678) ou international avec indicatif (ex. +33612345678)';
+
+export function normaliserTelephone(input: string): string | null {
+  let digits = input.replace(/[^\d+]/g, '');
+  if (digits.startsWith('00')) digits = `+${digits.slice(2)}`;
+  if (digits.startsWith('212') && digits.length === 12) digits = `+${digits}`;
+
   if (digits.startsWith('+212')) {
-    local = `0${digits.slice(4)}`;
-  } else if (digits.startsWith('212') && digits.length === 12) {
-    local = `0${digits.slice(3)}`;
-  } else if (digits.startsWith('0')) {
-    local = digits;
-  } else {
-    return null;
+    // Le 0 parfois laissé après l'indicatif (+212 0612…) est retiré.
+    const local = `0${digits.slice(4).replace(/^0/, '')}`;
+    return PHONE_REGEX.test(local) ? local : null;
   }
-  return PHONE_REGEX.test(local) ? local : null;
+  if (digits.startsWith('+')) return E164_REGEX.test(digits) ? digits : null;
+  if (digits.startsWith('0')) return PHONE_REGEX.test(digits) ? digits : null;
+  return null;
 }
 
 export function getPasswordPolicyError(secret: string): string | null {

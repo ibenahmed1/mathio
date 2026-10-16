@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { PackageSearch, CheckCircle2, Printer } from 'lucide-react';
+import { PackageSearch, CheckCircle2, FileDown, Printer } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { Commande } from '@/lib/types';
 import { Button } from '@/components/admin/Button';
@@ -9,6 +9,7 @@ import { ColisActionsMenu } from '@/components/admin/ColisActionsMenu';
 import { BadgePlateforme, OPTIONS_ORIGINE } from '@/components/admin/BadgePlateforme';
 import { CodeColis } from '@/components/colis/CodeColis';
 import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
+import { telechargerExcelColis } from '@/lib/telecharger-excel';
 
 // § Gestion de stock (1/4) : colis stock (enStock=true) créés par le marchand
 // et pas encore pris en charge par le Hub — ces colis ne passent pas par le
@@ -19,6 +20,7 @@ import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 export default function AdminStockNouveauxPage() {
   const [colis, setColis] = useState<Commande[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exportEnCours, setExportEnCours] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,19 @@ export default function AdminStockNouveauxPage() {
 
   function toggleTout() {
     setSelected(tousSelectionnes ? new Set() : new Set(colis.map((c) => c.id)));
+  }
+
+  // Excel des colis cochés, au format validé du 14/10 (celui des bons d'envoi).
+  async function exporterSelection() {
+    setExportEnCours(true);
+    try {
+      await telechargerExcelColis([...selected]);
+      annoncerSucces(`Excel de ${selected.size} colis téléchargé.`);
+    } catch (err) {
+      annoncerEchec(err, { prefixe: 'Export Excel' });
+    } finally {
+      setExportEnCours(false);
+    }
   }
 
   function toggleUn(id: string) {
@@ -167,6 +182,14 @@ export default function AdminStockNouveauxPage() {
               icon={<Printer className="h-4 w-4" />}
             >
               Imprimer les étiquettes
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={exporterSelection}
+              disabled={exportEnCours || selected.size === 0}
+              icon={<FileDown className="h-4 w-4" />}
+            >
+              {exportEnCours ? 'Export…' : 'Exporter en Excel'}
             </Button>
             <Button onClick={marquerPretPourPreparation} disabled={busy || selected.size === 0} icon={<CheckCircle2 className="h-4 w-4" />}>
               {busy ? 'Mise à jour…' : 'Marquer prêt pour préparation'}

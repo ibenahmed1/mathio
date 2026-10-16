@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import {
   hashSecret,
   isValidEmail,
-  normalizePhoneMaroc,
+  MESSAGE_TELEPHONE_INVALIDE,
+  normaliserTelephone,
 } from '@/lib/auth';
 import { TYPES_COMPTE } from '@/lib/marchand-form-options';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
@@ -111,12 +112,12 @@ export function analyserEntreeMarchand(corpsBrut: unknown): EntreeMarchandExtern
   // nom du marchand, corrigeable ensuite depuis le back-office.
   const nomBoutique = optionnel(corps, 'nomBoutique') ?? nomComplet;
 
-  const telephone = normalizePhoneMaroc(requis(corps, 'telephone'));
+  const telephone = normaliserTelephone(requis(corps, 'telephone'));
   if (!telephone) {
     throw new ErreurPlateforme(
       400,
       'telephone_invalide',
-      'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)'
+      MESSAGE_TELEPHONE_INVALIDE
     );
   }
 

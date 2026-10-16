@@ -336,6 +336,7 @@ model Utilisateur {
   // § /admin/bon-envoi : Bons d'Envoi marqués "Reçu" par cet utilisateur
   // (admin ou agent_hub du hub d'arrivée).
   bonsEnvoiReceptionnes BonEnvoi[] @relation("BonEnvoiReceptionnaire")
+  bonsEnvoiCrees        BonEnvoi[] @relation("BonEnvoiCreateur")
 
   // Rôles supplémentaires accordés ponctuellement par un admin, EN PLUS du
   // rôle réel ci-dessus — ex. un moderateur qui a aussi besoin d'un accès
@@ -1436,6 +1437,17 @@ model BonEnvoi {
   dateReception    DateTime?      @map("date_reception")
   receptionnaireId String?        @map("receptionnaire_id")
   receptionnaire   Utilisateur?   @relation("BonEnvoiReceptionnaire", fields: [receptionnaireId], references: [id])
+
+  // BON EXCEPTIONNEL (décision du 16/10/2026) — débloquer une situation : les
+  // colis scannés entrent chez le transporteur choisi même si le routage les
+  // envoie ailleurs ou si sa grille ne connaît pas leur ville (coût d'achat
+  // alors NULL, jamais inventé). Rien n'est transmis par API, sauf à Power
+  // Delivery dont l'API accepte toutes ses villes. Chaque contournement est
+  // écrit dans l'historique du colis ; le motif et l'auteur restent ici.
+  exceptionnel      Boolean      @default(false)
+  motifExceptionnel String?      @map("motif_exceptionnel")
+  creeParId         String?      @map("cree_par_id")
+  creePar           Utilisateur? @relation("BonEnvoiCreateur", fields: [creeParId], references: [id], onDelete: SetNull)
 
   commandes          Commande[]
   // Colis de ce bon remis au prestataire de l'agence par son API — à la place

@@ -6,6 +6,7 @@ import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } 
 import { deciderActionColisLivreur, type OrigineColisLivreur } from '@/lib/comptes-livreur';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { notifierStatutsColis } from '@/lib/notifications';
+import { sortiDeTournee } from '@/lib/livreur';
 
 const ACTIONS_VALIDES: ActionLivreur[] = ['livre', 'reporte', 'annule'];
 
@@ -38,13 +39,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const commande = await prisma.commande.findUnique({
       where: { id },
       include: {
-        bonDistribution: { select: { numero: true, statut: true } },
+        bonDistribution: { select: { numero: true, statut: true, dateGeneration: true } },
         // § Comptes transporteurs : le colis peut venir d'un bon d'envoi
         // confié à la société dont ce compte est le compte humain, et non
         // d'une tournée. Les deux origines mènent au même écran.
         bonEnvoi: {
           select: {
             statut: true,
+            dateGeneration: true,
             prestataire: { select: { compteLivreurId: true, saisieStatutsActive: true } },
             hubDestination: { select: { prestataire: { select: { compteLivreurId: true, saisieStatutsActive: true } } } },
           },
@@ -63,7 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       commande.bonEnvoi?.prestataire?.compteLivreurId ??
       commande.bonEnvoi?.hubDestination?.prestataire?.compteLivreurId ??
       null;
-    const bonDuCompte = !commande.bonDistributionId && compteDuBon === session.sub;
+    const bonDuCompte = sortiDeTournee(commande) && compteDuBon === session.sub;
 
     // § Saisie des statuts : coupée par le back-office pour ce transporteur
     // (son API nous renvoie les statuts). Il garde la vue sur ses colis.
