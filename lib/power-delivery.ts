@@ -288,6 +288,23 @@ export async function modifierColisPower(code: string, modification: Modificatio
   return appeler('PUT', '/updateparcel', { parcel_code: code, ...modification });
 }
 
+// Les villes de leur réseau (382 au 21/09/2026). Réponse réelle :
+// `{ success, data: [{ id, city }], total }` — leur doc annonce un tableau nu,
+// les deux formes sont lues.
+export interface VillePowerApi {
+  id: number;
+  city: string;
+}
+
+export async function listerVillesPower(): Promise<VillePowerApi[]> {
+  const brut = await appeler('GET', '/listcities');
+  const liste = Array.isArray(brut) ? brut : (brut as { data?: unknown } | null)?.data;
+  if (!Array.isArray(liste)) throw new ErreurPowerDelivery(null, 'GET /listcities : réponse illisible', brut);
+  return liste
+    .map((v) => v as { id?: unknown; city?: unknown })
+    .filter((v): v is VillePowerApi => typeof v.id === 'number' && typeof v.city === 'string');
+}
+
 export async function suivreColisPower(code: string): Promise<SuiviPower> {
   const brut = await appeler('GET', `/trackparcel?parcel_code=${encodeURIComponent(code)}`);
   return lireSuivi(brut);

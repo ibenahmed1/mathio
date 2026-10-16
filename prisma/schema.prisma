@@ -1438,6 +1438,13 @@ model BonEnvoi {
   receptionnaireId String?        @map("receptionnaire_id")
   receptionnaire   Utilisateur?   @relation("BonEnvoiReceptionnaire", fields: [receptionnaireId], references: [id])
 
+  // « Marquer comme transmis » (16/10/2026) : le bon a été remis au
+  // transporteur (Excel envoyé, colis donnés). Suffit à faire apparaître ses
+  // colis comme remis dans l'espace du transporteur, sans attendre « Bon bien
+  // reçu ». Un colis accepté par l'API du transporteur l'est déjà par sa remise.
+  dateTransmission DateTime?      @map("date_transmission")
+  transmisParId    String?        @map("transmis_par_id")
+
   // BON EXCEPTIONNEL (décision du 16/10/2026) — débloquer une situation : les
   // colis scannés entrent chez le transporteur choisi même si le routage les
   // envoie ailleurs ou si sa grille ne connaît pas leur ville (coût d'achat

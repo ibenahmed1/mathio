@@ -22,6 +22,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         nbColis: true,
         dateGeneration: true,
         dateReception: true,
+        dateTransmission: true,
         hubDestination: { select: { nom: true, prestataire: { select: { nom: true } } } },
         prestataire: { select: { id: true, nom: true } },
         commandes: {
@@ -42,6 +43,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             produitDescription: true,
             marchand: { select: { nomBoutique: true } },
             marchandise: { select: { nom: true } },
+            remisesPrestataire: { where: { active: true, etat: 'acceptee' }, select: { creeLe: true } },
           },
           orderBy: { codeSuivi: 'asc' },
         },
@@ -49,7 +51,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     });
     if (!bon) throw new ApiError(404, "Bon d'envoi introuvable");
 
-    return NextResponse.json(bon);
+    // Remis (§ estColisConfieRemis) : reçu, transmis, ou au moins un colis
+    // accepté par l'API — avec la date du premier de ces faits.
+    const datesApi = bon.commandes.flatMap((c) => c.remisesPrestataire.map((r) => r.creeLe.getTime()));
+    const remisLe =
+      bon.dateReception ?? bon.dateTransmission ?? (datesApi.length ? new Date(Math.min(...datesApi)) : null);
+    const commandes = bon.commandes.map(({ remisesPrestataire, ...c }) => ({ ...c, remis: bon.statut === 'recu' || !!bon.dateTransmission || remisesPrestataire.length > 0 }));
+    return NextResponse.json({ ...bon, commandes, remis: remisLe !== null, remisLe });
   } catch (error) {
     return jsonError(error);
   }

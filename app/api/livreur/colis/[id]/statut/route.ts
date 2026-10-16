@@ -6,7 +6,7 @@ import { MOTIFS_ANNULATION_LIVREUR, MOTIFS_REPORT_LIVREUR, type ActionLivreur } 
 import { deciderActionColisLivreur, type OrigineColisLivreur } from '@/lib/comptes-livreur';
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { notifierStatutsColis } from '@/lib/notifications';
-import { sortiDeTournee } from '@/lib/livreur';
+import { estColisConfieRemis, sortiDeTournee } from '@/lib/livreur';
 
 const ACTIONS_VALIDES: ActionLivreur[] = ['livre', 'reporte', 'annule'];
 
@@ -40,6 +40,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       where: { id },
       include: {
         bonDistribution: { select: { numero: true, statut: true, dateGeneration: true } },
+        remisesPrestataire: { where: { active: true, etat: 'acceptee' }, select: { id: true } },
         // § Comptes transporteurs : le colis peut venir d'un bon d'envoi
         // confié à la société dont ce compte est le compte humain, et non
         // d'une tournée. Les deux origines mènent au même écran.
@@ -47,6 +48,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           select: {
             statut: true,
             dateGeneration: true,
+            dateTransmission: true,
             prestataire: { select: { compteLivreurId: true, saisieStatutsActive: true } },
             hubDestination: { select: { prestataire: { select: { compteLivreurId: true, saisieStatutsActive: true } } } },
           },
@@ -73,7 +75,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (bonDuCompte && prestataireDuBon && !prestataireDuBon.saisieStatutsActive) {
       throw new ApiError(403, 'La saisie des statuts depuis votre espace est désactivée : vos statuts nous parviennent par votre API');
     }
-    const confie = bonDuCompte && commande.bonEnvoi?.statut === 'recu';
+    const confie = bonDuCompte && estColisConfieRemis({ ...commande, bonDistributionId: null });
     const origine: OrigineColisLivreur = confie
       ? 'confie'
       : commande.bonDistribution && commande.bonDistribution.statut !== 'cloture'

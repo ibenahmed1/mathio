@@ -11,14 +11,20 @@ import { filtreBonsDuTransporteur } from '@/lib/livreur';
 export async function GET() {
   try {
     const session = await requireUser(['livreur']);
-    const data = await prisma.bonEnvoi.findMany({
+    const bons = await prisma.bonEnvoi.findMany({
       where: filtreBonsDuTransporteur(session.sub),
       include: {
         hubDestination: { select: { nom: true, prestataire: { select: { nom: true } } } },
         prestataire: { select: { id: true, nom: true } },
+        _count: { select: { remisesPrestataire: { where: { active: true, etat: 'acceptee' } } } },
       },
       orderBy: { dateGeneration: 'desc' },
     });
+    // Remis (§ estColisConfieRemis) : reçu, transmis, ou colis accepté par l'API.
+    const data = bons.map(({ _count, ...b }) => ({
+      ...b,
+      remis: b.statut === 'recu' || !!b.dateTransmission || _count.remisesPrestataire > 0,
+    }));
     return NextResponse.json({ data });
   } catch (error) {
     return jsonError(error);

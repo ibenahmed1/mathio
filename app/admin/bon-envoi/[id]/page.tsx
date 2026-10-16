@@ -5,13 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
-import type { BonEnvoi } from '@/lib/types';
+import type { BonEnvoi, Commande } from '@/lib/types';
 import { StatutBadge } from '@/components/StatutBadge';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
 import { MiseEnDistribution } from '@/components/admin/MiseEnDistribution';
 import { TransmissionBon } from '@/components/admin/TransmissionBon';
 import { attendRemise, gereLesBons } from '@/lib/circuit-shipeh';
 import { CodeColis } from '@/components/colis/CodeColis';
+import { etatTransmissionApi } from '@/lib/remise-affichage';
 
 interface CurrentUser {
   role: 'admin' | 'agent_hub' | string;
@@ -51,6 +52,14 @@ export default function DetailBonEnvoiPage() {
       </div>
     );
   }
+
+  // Colonne « Transmission » : dès qu'un colis du bon est passé par une API
+  // de transporteur, ou que le bon vise Power (envoi automatique en BE
+  // exceptionnel). Elle dit ce qui reste à transmettre par l'Excel.
+  const transporteurNom = bon.prestataire?.nom ?? bon.hubDestination?.prestataire?.nom ?? null;
+  const avecApi =
+    (bon.commandes ?? []).some((c) => (c.remisesPrestataire ?? []).length > 0) ||
+    ['Power Delivery', 'Colivraison', 'Meta Livraison', 'EST Livraison'].includes(transporteurNom ?? '');
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,6 +150,7 @@ export default function DetailBonEnvoiPage() {
               <th>Ville</th>
               <th>COD</th>
               <th>Statut</th>
+              {avecApi && <th>Transmission</th>}
             </tr>
           </thead>
           <tbody>
@@ -161,11 +171,12 @@ export default function DetailBonEnvoiPage() {
                     <p className="mt-1 text-xs opacity-60">en attente de remise</p>
                   )}
                 </td>
+                {avecApi && <CelluleTransmission commande={c} />}
               </tr>
             ))}
             {(bon.commandes ?? []).length === 0 && (
               <tr>
-                <td colSpan={5} className="py-4 text-center opacity-60">
+                <td colSpan={avecApi ? 6 : 5} className="py-4 text-center opacity-60">
                   Aucun colis dans ce bon.
                 </td>
               </tr>
@@ -174,5 +185,22 @@ export default function DetailBonEnvoiPage() {
         </table>
       </div>
     </div>
+  );
+}
+
+const STYLES_TRANSMISSION: Record<string, string> = {
+  api: 'bg-green-600 text-white',
+  a_confirmer: 'bg-amber-300 text-amber-950',
+  refuse: 'bg-red-600 text-white',
+  excel: 'bg-cyan-400 text-cyan-950',
+};
+
+function CelluleTransmission({ commande }: { commande: Commande }) {
+  const etat = etatTransmissionApi(commande.remisesPrestataire);
+  return (
+    <td>
+      <span className={`badge ${STYLES_TRANSMISSION[etat.cle]}`}>{etat.libelle}</span>
+      <p className="mt-1 max-w-[260px] text-xs opacity-60">{etat.detail}</p>
+    </td>
   );
 }

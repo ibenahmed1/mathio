@@ -58,10 +58,12 @@ export default function BonsEnvoiLivreurPage() {
       .catch((err) => setError(err instanceof Error ? err.message : 'Erreur'));
   }, []);
 
-  const enAttente = bons.filter((b) => b.statut === 'nouveau');
-  const recus = bons.filter((b) => b.statut === 'recu');
+  // « Remis » = transmis, accepté par l'API ou reçu (§ estColisConfieRemis).
+  const estRemis = (b: BonEnvoi) => b.statut === 'recu' || !!b.remis;
+  const enAttente = bons.filter((b) => !estRemis(b));
+  const recus = bons.filter(estRemis);
   const colisEnAttente = enAttente.reduce((n, b) => n + b.nbColis, 0);
-  const visibles = filtre === 'tous' ? bons : bons.filter((b) => b.statut === filtre);
+  const visibles = filtre === 'tous' ? bons : filtre === 'recu' ? recus : enAttente;
 
   return (
     <main className={s.main}>
@@ -102,7 +104,7 @@ export default function BonsEnvoiLivreurPage() {
               [
                 ['tous', `Tous (${bons.length})`],
                 ['nouveau', `En attente (${enAttente.length})`],
-                ['recu', `Reçus (${recus.length})`],
+                ['recu', `Remis (${recus.length})`],
               ] as [Filtre, string][]
             ).map(([cle, libelle]) => (
               <button
@@ -160,6 +162,8 @@ export default function BonsEnvoiLivreurPage() {
                     <td>
                       {b.statut === 'recu' ? (
                         <StatusPill label="Reçu" grad={['#209EBB', '#023047']} />
+                      ) : estRemis(b) ? (
+                        <StatusPill label="Remis" grad={['#209EBB', '#023047']} />
                       ) : (
                         <StatusPill label="En attente de remise" grad={['#FFB701', '#FC8500']} />
                       )}

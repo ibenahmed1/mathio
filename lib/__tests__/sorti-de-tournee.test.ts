@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { sortiDeTournee } from '../livreur';
+import { estColisConfieRemis, sortiDeTournee } from '../livreur';
 
 // § Espace transporteur (16/10/2026) : un colis revenu d'une tournée clôturée,
 // puis confié à un transporteur par un bon d'envoi plus récent, est à lui.
@@ -43,4 +43,24 @@ test('dates sérialisées (chaînes) acceptées', () => {
     }),
     true
   );
+});
+
+// § Colis remis au transporteur (16/10/2026) : transmis, accepté par l'API, ou reçu.
+
+test('bon composé, rien de transmis : pas encore remis', () => {
+  assert.equal(estColisConfieRemis({ bonDistributionId: null, bonEnvoi: { statut: 'nouveau', dateTransmission: null }, remisesPrestataire: [] }), false);
+});
+
+test('bon marqué transmis (Excel) : remis', () => {
+  assert.equal(estColisConfieRemis({ bonDistributionId: null, bonEnvoi: { statut: 'nouveau', dateTransmission: new Date() }, remisesPrestataire: [] }), true);
+});
+
+test('colis accepté par l’API du transporteur : remis', () => {
+  assert.equal(estColisConfieRemis({ bonDistributionId: null, bonEnvoi: { statut: 'nouveau', dateTransmission: null }, remisesPrestataire: [{}] }), true);
+});
+
+test('bon reçu : remis ; colis en tournée ou sans bon : non', () => {
+  assert.equal(estColisConfieRemis({ bonDistributionId: null, bonEnvoi: { statut: 'recu' } }), true);
+  assert.equal(estColisConfieRemis({ bonDistributionId: 'bd', bonEnvoi: { statut: 'recu' } }), false);
+  assert.equal(estColisConfieRemis({ bonDistributionId: null, bonEnvoi: null }), false);
 });

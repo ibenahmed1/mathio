@@ -43,7 +43,7 @@ interface FeuilleDeRoute {
   tournees: { id: string; numero: string; dateGeneration: string; hubNom: string; nbColis: number }[];
   // § Comptes transporteurs : les bons d'envoi confiés à cette société, quand
   // le compte est celui d'un transporteur. Vide pour un livreur interne.
-  bonsConfies: { id: string; numero: string; statut: string; dateReception: string | null; nbColis: number }[];
+  bonsConfies: { id: string; numero: string; statut: string; remis: boolean; dateReception: string | null; nbColis: number }[];
   colis: ColisFeuilleDeRoute[];
   // Colis d'un bon composé pour ce transporteur mais pas encore remis.
   colisEnAttenteRemise: ColisFeuilleDeRoute[];
@@ -124,7 +124,7 @@ export default function FeuilleDeRouteLivreurPage() {
                 ? [
                     ...feuille.tournees.map((t) => `${t.numero} (${t.hubNom})`),
                     ...feuille.bonsConfies.map((b) =>
-                      b.statut === 'recu'
+                      b.remis
                         ? `${b.numero} (${b.nbColis} colis confiés)`
                         : `${b.numero} (${b.nbColis} colis en attente de remise)`
                     ),
