@@ -3,7 +3,7 @@ import type { BoutiqueShopify } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { chargerReferentielRoutage } from '@/lib/hub-envoi';
 import { ApiError } from '@/lib/api-utils';
-import { normalizePhoneMaroc } from '@/lib/auth';
+import { normaliserTelephone } from '@/lib/auth';
 import { checkBlacklist } from '@/lib/blacklist';
 import { chiffrer, dechiffrer, ErreurChiffrement } from '@/lib/chiffrement';
 import { nextCodeSuivi } from '@/lib/codes';
@@ -629,7 +629,7 @@ function construireNotes(
     notes.push(`Ville saisie par le client : « ${commande.ville} »`);
   }
   if (commande.manquants.length > 0) notes.push(`À compléter : ${commande.manquants.join(', ')}`);
-  if (commande.telephoneBrut && !telephoneNormalise) notes.push('Téléphone hors format marocain : à vérifier');
+  if (commande.telephoneBrut && !telephoneNormalise) notes.push('Téléphone non reconnu (ni marocain ni international) : à vérifier');
   if (commande.noteClient) notes.push(`Note du client : ${commande.noteClient}`);
   return notes.join('\n');
 }
@@ -646,7 +646,7 @@ async function creerColis(
   const rapprochee = commande.ville ? rapprocherVille(commande.ville, referentiel.villes) : null;
   const ville = rapprochee ? { ...rapprochee, ...referentiel.preferee(rapprochee.id) } : null;
 
-  const telephoneNormalise = commande.telephoneBrut ? normalizePhoneMaroc(commande.telephoneBrut) : null;
+  const telephoneNormalise = commande.telephoneBrut ? normaliserTelephone(commande.telephoneBrut) : null;
   const clientTelephone = telephoneNormalise ?? commande.telephoneBrut ?? '';
 
   // RG-08 : la liste noire s'applique à une commande Shopify comme à toute autre.

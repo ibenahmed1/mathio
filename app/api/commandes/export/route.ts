@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { prisma } from '@/lib/prisma';
-import { jsonError, requireUser } from '@/lib/api-utils';
+import { ApiError, jsonError, parseStringIdArray, requireUser } from '@/lib/api-utils';
+import { chargerColisExcel, classeurColis, reponseExcel } from '@/lib/export-colis-excel';
 import { buildCommandesWhere } from '@/lib/commandes-filters';
 import { LABELS_STATUT_COMMANDE, LABELS_ETAT_PAIEMENT } from '@/lib/statuts';
 
@@ -58,6 +59,25 @@ export async function GET(request: NextRequest) {
         'Content-Disposition': `attachment; filename="${nomFichier}"`,
       },
     });
+  } catch (error) {
+    return jsonError(error);
+  }
+}
+
+// Export des colis COCHÉS dans une liste du back-office (colis, stock, BE
+// exceptionnel), au format validé du 14/10/2026 — celui des bons d'envoi
+// (lib/export-colis-excel.ts). Fermé au marchand : une liste d'identifiants
+// arbitraires lui ouvrirait les colis des autres.
+export async function POST(request: Request) {
+  try {
+    await requireUser(['admin']);
+    const body = await request.json();
+    const colisIds = parseStringIdArray(body.colisIds);
+    if (colisIds.length === 0) throw new ApiError(400, 'Sélectionnez au moins un colis');
+    if (colisIds.length > LIMITE_EXPORT) throw new ApiError(400, `${LIMITE_EXPORT} colis au plus par export`);
+    const colis = await chargerColisExcel(colisIds);
+    if (colis.length !== colisIds.length) throw new ApiError(409, 'Un ou plusieurs colis sont introuvables');
+    return reponseExcel(classeurColis(colis), `colis-${new Date().toISOString().slice(0, 10)}.xlsx`);
   } catch (error) {
     return jsonError(error);
   }

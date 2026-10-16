@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Send, X } from 'lucide-react';
+import { ChevronLeft, FileDown, Send, X } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import { QrScanner } from '@/components/QrScanner';
 import { ChampDouchette } from '@/components/ChampDouchette';
 import { CodeColis } from '@/components/colis/CodeColis';
 import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
+import { telechargerExcelColis } from '@/lib/telecharger-excel';
 
 // § BE exceptionnel (lib/bon-envoi-exceptionnel.ts) — débloquer une situation :
-// transporteur choisi, motif, puis scan des colis. Le routage ne refuse rien ;
+// transporteur choisi, motif, puis colis scannés ou cochés dans la liste
+// (colis en stock, colis normaux, ou tous). Le routage ne refuse rien ;
 // chaque règle contournée est affichée ici et écrite dans l'historique du colis.
 
 interface Transporteur {
@@ -48,12 +50,64 @@ export default function BonEnvoiExceptionnelPage() {
   const [scanning, setScanning] = useState(false);
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [type, setType] = useState<'stock' | 'normal' | 'tous'>('tous');
+  const [recherche, setRecherche] = useState('');
+  const [liste, setListe] = useState<ColisScanne[]>([]);
+  const [totalListe, setTotalListe] = useState(0);
+  const [chargementListe, setChargementListe] = useState(false);
+  const [exportEnCours, setExportEnCours] = useState(false);
 
   useEffect(() => {
     apiGet<{ transporteurs: Transporteur[] }>('/api/bons-envoi/transporteurs')
       .then((res) => setTransporteurs(res.transporteurs))
       .catch((err) => setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Erreur' }));
   }, []);
+
+  // Liste à cocher, rechargée au changement de transporteur, de filtre ou de
+  // recherche (avec un court délai pour la frappe).
+  useEffect(() => {
+    if (!prestataireId) return;
+    const minuteur = setTimeout(() => {
+      setChargementListe(true);
+      const params = new URLSearchParams({ prestataireId, type, q: recherche.trim() });
+      apiGet<{ data: ColisScanne[]; total: number }>(`/api/bons-envoi/exceptionnel/colis?${params}`)
+        .then((res) => {
+          setListe(res.data);
+          setTotalListe(res.total);
+        })
+        .catch((err) => setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Erreur' }))
+        .finally(() => setChargementListe(false));
+    }, 250);
+    return () => clearTimeout(minuteur);
+  }, [prestataireId, type, recherche]);
+
+  const choisis = new Set(colis.map((c) => c.id));
+  const toutCoche = liste.length > 0 && liste.every((c) => choisis.has(c.id));
+
+  function basculer(c: ColisScanne) {
+    setColis((prev) => (prev.some((p) => p.id === c.id) ? prev.filter((p) => p.id !== c.id) : [...prev, c]));
+  }
+
+  function basculerTout() {
+    setColis((prev) => {
+      if (toutCoche) return prev.filter((p) => !liste.some((l) => l.id === p.id));
+      const deja = new Set(prev.map((p) => p.id));
+      return [...prev, ...liste.filter((l) => !deja.has(l.id))];
+    });
+  }
+
+  // Excel de la sélection, au format validé du 14/10 (celui du bon d'envoi).
+  async function exporterExcel() {
+    setExportEnCours(true);
+    try {
+      await telechargerExcelColis(colis.map((c) => c.id));
+      annoncerSucces(`Excel de ${colis.length} colis téléchargé.`);
+    } catch (err) {
+      annoncerEchec(err, { prefixe: 'Export Excel' });
+    } finally {
+      setExportEnCours(false);
+    }
+  }
 
   const transporteur = transporteurs.find((t) => t.id === prestataireId) ?? null;
   const estPower = transporteur?.nom === 'Power Delivery';
@@ -62,6 +116,8 @@ export default function BonEnvoiExceptionnelPage() {
   function choisirTransporteur(id: string) {
     setPrestataireId(id);
     setColis([]);
+    setListe([]);
+    setTotalListe(0);
     setMessage(null);
   }
 
@@ -157,7 +213,7 @@ export default function BonEnvoiExceptionnelPage() {
       {prestataireId && (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-bold uppercase tracking-wide opacity-70">3. Colis scannés ({colis.length})</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wide opacity-70">3. Colis du bon ({colis.length})</h2>
             <button onClick={() => setScanOuvert((v) => !v)} className="btn-outline px-3 py-1.5 text-xs">
               {scanOuvert ? 'Fermer la caméra' : 'Ouvrir la caméra'}
             </button>
@@ -175,6 +231,92 @@ export default function BonEnvoiExceptionnelPage() {
               {message.text}
             </div>
           )}
+
+          <div className="card-tint-strong flex flex-col gap-3 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {(
+                [
+                  ['tous', 'Tous'],
+                  ['stock', 'Colis en stock'],
+                  ['normal', 'Colis normaux'],
+                ] as const
+              ).map(([cle, libelle]) => (
+                <button
+                  key={cle}
+                  onClick={() => setType(cle)}
+                  className={type === cle ? 'btn-primary px-3 py-1.5 text-xs' : 'btn-outline px-3 py-1.5 text-xs'}
+                >
+                  {libelle}
+                </button>
+              ))}
+              <input
+                className="input-basic min-w-0 flex-1 sm:max-w-xs"
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Code, ville, client, marchand…"
+                aria-label="Rechercher un colis"
+              />
+              <span className="text-xs opacity-70">
+                {chargementListe
+                  ? 'Chargement…'
+                  : liste.length < totalListe
+                    ? `${liste.length} affichés sur ${totalListe} — affinez la recherche`
+                    : `${totalListe} colis`}
+              </span>
+            </div>
+            <div className="max-h-[420px] min-w-0 overflow-auto">
+              <table className="table-basic min-w-[640px]">
+                <thead>
+                  <tr>
+                    <th className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={toutCoche}
+                        onChange={basculerTout}
+                        disabled={liste.length === 0}
+                        className="h-4 w-4"
+                        aria-label="Tout cocher"
+                      />
+                    </th>
+                    <th>Code</th>
+                    <th>Marchand</th>
+                    <th>Ville</th>
+                    <th>Statut</th>
+                    <th>Tarif achat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {liste.map((c) => (
+                    <tr key={c.id} className={choisis.has(c.id) ? 'bg-brand/10' : undefined}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={choisis.has(c.id)}
+                          onChange={() => basculer(c)}
+                          className="h-4 w-4"
+                          aria-label={`Choisir ${c.codeSuivi}`}
+                        />
+                      </td>
+                      <td>
+                        <CodeColis id={c.id} code={c.codeSuivi} />
+                      </td>
+                      <td>{c.marchandNom ?? '—'}</td>
+                      <td>{c.ville}</td>
+                      <td className="whitespace-nowrap text-xs opacity-70">{c.statut}</td>
+                      <td className="whitespace-nowrap">{c.tarifAchat === null ? 'Sans tarif' : `${c.tarifAchat} DH`}</td>
+                    </tr>
+                  ))}
+                  {!chargementListe && liste.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-4 text-center opacity-60">
+                        Aucun colis disponible pour ce filtre.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <div className="grid min-w-0 gap-6 lg:grid-cols-[380px_1fr] lg:items-start">
             <div className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-20">
@@ -227,7 +369,7 @@ export default function BonEnvoiExceptionnelPage() {
                   {colis.length === 0 && (
                     <tr>
                       <td colSpan={6} className="py-4 text-center opacity-60">
-                        Scannez les colis à la douchette ou à la caméra.
+                        Scannez les colis ou cochez-les dans la liste.
                       </td>
                     </tr>
                   )}
@@ -238,6 +380,14 @@ export default function BonEnvoiExceptionnelPage() {
 
           <div className="flex flex-wrap items-center justify-end gap-3">
             {!motifValide && colis.length > 0 && <p className="text-xs opacity-70">Saisissez le motif pour créer le bon.</p>}
+            <button
+              onClick={exporterExcel}
+              disabled={colis.length === 0 || exportEnCours}
+              className="btn-outline flex items-center gap-2 px-4 py-2.5"
+            >
+              <FileDown className="h-4 w-4 shrink-0" />
+              {exportEnCours ? 'Export…' : `Exporter en Excel (${colis.length})`}
+            </button>
             <button
               onClick={creer}
               disabled={colis.length === 0 || !motifValide || creating}

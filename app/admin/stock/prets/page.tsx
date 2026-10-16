@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, ClipboardList, Printer, ScanLine, X } from 'lucide-react';
+import { CheckCircle2, ClipboardList, FileDown, Printer, ScanLine, X } from 'lucide-react';
 import { apiGet, apiPost } from '@/lib/api-client';
 import type { BonDePreparation, Commande } from '@/lib/types';
 import { Button } from '@/components/admin/Button';
@@ -13,6 +13,7 @@ import { QrScanner } from '@/components/QrScanner';
 import { lireDouchette } from '@/lib/douchette';
 import { CodeColis } from '@/components/colis/CodeColis';
 import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
+import { telechargerExcelColis } from '@/lib/telecharger-excel';
 
 // § Gestion de stock (2/4) : colis stock au statut "pret_pour_preparation",
 // pas encore rattachés à un Bon de Préparation. Sélection multiple (toutes
@@ -24,6 +25,7 @@ import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 export default function AdminStockPretsPage() {
   const [colis, setColis] = useState<Commande[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exportEnCours, setExportEnCours] = useState(false);
   const [chargement, setChargement] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +55,19 @@ export default function AdminStockPretsPage() {
   }, [origine]);
 
   const estShipeh = (c: Commande) => suitCircuitShipeh({ source: c.source ?? 'manuel', enStock: c.enStock });
+  // Excel des colis cochés, au format validé du 14/10 (celui des bons d'envoi).
+  async function exporterSelection() {
+    setExportEnCours(true);
+    try {
+      await telechargerExcelColis([...selected]);
+      annoncerSucces(`Excel de ${selected.size} colis téléchargé.`);
+    } catch (err) {
+      annoncerEchec(err, { prefixe: 'Export Excel' });
+    } finally {
+      setExportEnCours(false);
+    }
+  }
+
   const tousSelectionnes = colis.length > 0 && colis.every((c) => selected.has(c.id));
   // Les colis Shipeh se scannent : ils n'entrent pas dans un bon de préparation.
   const shipehSelectionnes = colis.filter((c) => selected.has(c.id) && estShipeh(c)).length;
@@ -183,6 +198,14 @@ export default function AdminStockPretsPage() {
               icon={<Printer className="h-4 w-4" />}
             >
               Imprimer les étiquettes
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={exporterSelection}
+              disabled={exportEnCours || selected.size === 0}
+              icon={<FileDown className="h-4 w-4" />}
+            >
+              {exportEnCours ? 'Export…' : 'Exporter en Excel'}
             </Button>
             <Button
               onClick={genererBonsPreparation}

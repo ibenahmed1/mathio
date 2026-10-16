@@ -3,7 +3,7 @@ import { Prisma } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import type { Role } from '@/app/generated/prisma/enums';
-import { getHomeSpace, normalizePhoneMaroc, sanitizePermissions } from '@/lib/auth';
+import { getHomeSpace, MESSAGE_TELEPHONE_INVALIDE, normaliserTelephone, sanitizePermissions } from '@/lib/auth';
 import { analyserIdentiteLivreur, hubRequis } from '@/lib/comptes-livreur';
 import { journaliserCompte } from '@/lib/journal-equipe-admin';
 import { nomFonction } from '@/lib/fonctions-equipe';
@@ -176,9 +176,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if (typeof body.telephone === 'string' && body.telephone.trim()) {
-      const telephone = normalizePhoneMaroc(body.telephone.trim());
+      const telephone = normaliserTelephone(body.telephone.trim());
       if (!telephone) {
-        throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+        throw new ApiError(400, MESSAGE_TELEPHONE_INVALIDE);
       }
       if (telephone !== utilisateur.telephone) {
         const existing = await prisma.utilisateur.findUnique({ where: { telephone } });

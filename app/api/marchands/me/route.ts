@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { resolveMarchandForUser } from '@/lib/marchand-scope';
 import { etatActivationMarchand, messageBlocage } from '@/lib/marchand-activation';
-import { isValidEmail, normalizePhoneMaroc } from '@/lib/auth';
+import { isValidEmail, MESSAGE_TELEPHONE_INVALIDE, normaliserTelephone } from '@/lib/auth';
 
 async function getOwnMarchand(utilisateurId: string) {
   const marchand = await resolveMarchandForUser(utilisateurId);
@@ -62,7 +62,7 @@ async function telephoneApresMiseAJour(
   if (estTitulaire && typeof body.telephone === 'string' && body.telephone.trim()) {
     // Un numéro mal formé sera de toute façon rejeté plus bas : ici, il ne
     // compte simplement pas comme renseigné.
-    return normalizePhoneMaroc(body.telephone);
+    return normaliserTelephone(body.telephone);
   }
   const titulaire = await chargerUtilisateurTitulaire(marchand.utilisateurId);
   return titulaire?.telephone ?? null;
@@ -153,9 +153,9 @@ export async function PATCH(request: Request) {
       const dataUtilisateur: { telephone?: string; email?: string } = {};
 
       if (typeof body.telephone === 'string' && body.telephone.trim()) {
-        const telephone = normalizePhoneMaroc(body.telephone);
+        const telephone = normaliserTelephone(body.telephone);
         if (!telephone) {
-          throw new ApiError(400, 'Numéro de téléphone invalide (format marocain attendu, ex. 06XXXXXXXX)');
+          throw new ApiError(400, MESSAGE_TELEPHONE_INVALIDE);
         }
         const existant = await prisma.utilisateur.findUnique({ where: { telephone } });
         if (existant && existant.id !== session.sub) {

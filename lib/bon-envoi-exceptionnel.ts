@@ -4,7 +4,8 @@ import { chargerResolveurTransporteur, cleRoutage, refusTransporteur, type Trans
 import { nextBonEnvoiNumero } from '@/lib/codes';
 import { STATUTS_TERMINAUX } from '@/lib/statuts';
 import { tarifsAchatParVille } from '@/lib/bon-envoi-prestataire';
-import { refusShipehNonScanne, statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
+import { EXCLURE_SHIPEH_NON_SCANNES, refusShipehNonScanne, statutEntreeBonEnvoi, suitCircuitShipeh } from '@/lib/circuit-shipeh';
+import type { Prisma } from '@/app/generated/prisma/client';
 import { NOM_PRESTATAIRE_POWER } from '@/lib/remise-power-delivery';
 
 // § Bon d'envoi EXCEPTIONNEL (décision du 16/10/2026) — débloquer une
@@ -109,6 +110,66 @@ export async function verifierColisExceptionnel(codeSuivi: string, prestataireId
     marchandNom: colis.marchand?.nomBoutique ?? null,
     tarifAchat,
     contournements: contournementsDe(colis, resoudre(colis), prestataire, tarifAchat),
+  };
+}
+
+export type TypeColisExceptionnel = 'stock' | 'normal' | 'tous';
+
+// Liste à cocher : les colis qui POURRAIENT entrer dans un bon exceptionnel
+// (mêmes refus que `refusBloquant`, en filtre de requête). « Stock » = colis
+// Shipeh déjà scannés au Hub Central ; « normal » = colis de nos marchands.
+export async function listerColisExceptionnels(params: {
+  prestataireId: string;
+  type: TypeColisExceptionnel;
+  recherche?: string;
+  limite?: number;
+}): Promise<{ data: ColisExceptionnelDto[]; total: number }> {
+  const prestataire = await prestataireActif(params.prestataireId);
+  const q = params.recherche?.trim();
+  const where: Prisma.CommandeWhereInput = {
+    bonEnvoiId: null,
+    statut: { notIn: STATUTS_TERMINAUX },
+    AND: [
+      { OR: [{ bonDistributionId: null }, { bonDistribution: { statut: 'cloture' } }] },
+      EXCLURE_SHIPEH_NON_SCANNES,
+      params.type === 'stock'
+        ? { source: 'api', enStock: true }
+        : params.type === 'normal'
+          ? { NOT: { source: 'api', enStock: true } }
+          : {},
+      q
+        ? {
+            OR: [
+              { codeSuivi: { contains: q, mode: 'insensitive' } },
+              { ville: { contains: q, mode: 'insensitive' } },
+              { clientNom: { contains: q, mode: 'insensitive' } },
+              { marchand: { nomBoutique: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {},
+    ],
+  };
+  const limite = Math.min(500, Math.max(1, params.limite ?? 300));
+  const [commandes, total, resoudre, tarifs] = await Promise.all([
+    prisma.commande.findMany({ where, select: selectColis, orderBy: { dateCreation: 'asc' }, take: limite }),
+    prisma.commande.count({ where }),
+    chargerResolveurTransporteur(),
+    tarifsAchatParVille(prestataire.id),
+  ]);
+  return {
+    total,
+    data: commandes.map((c) => {
+      const tarifAchat = tarifs.get(cleRoutage(c.ville)) ?? null;
+      return {
+        id: c.id,
+        codeSuivi: c.codeSuivi,
+        ville: c.ville,
+        statut: c.statut,
+        marchandNom: c.marchand?.nomBoutique ?? null,
+        tarifAchat,
+        contournements: contournementsDe(c, resoudre(c), prestataire, tarifAchat),
+      };
+    }),
   };
 }
 

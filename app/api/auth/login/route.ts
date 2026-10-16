@@ -5,7 +5,7 @@ import {
   signSession,
   verifySecret,
   getHomeSpace,
-  normalizePhoneMaroc,
+  normaliserTelephone,
   spaceForHost,
   spaceOrigin,
   LEGACY_SESSION_COOKIE_NAMES,
@@ -62,9 +62,9 @@ export async function POST(request: Request) {
     // L'identifiant peut être saisi avec des espaces ou un préfixe +212/212
     // (ex. copié depuis un contact) : on le normalise vers le même format
     // que celui stocké en base avant de chercher par téléphone. Si ce n'est
-    // pas un numéro reconnu, `normalizePhoneMaroc` renvoie null et seule la
+    // pas un numéro reconnu, `normaliserTelephone` renvoie null et seule la
     // recherche par email s'applique (comportement identique à avant).
-    const telephoneNormalise = normalizePhoneMaroc(identifiant);
+    const telephoneNormalise = normaliserTelephone(identifiant);
 
     const user = await prisma.utilisateur.findFirst({
       where: { OR: [{ telephone: telephoneNormalise ?? identifiant }, { email: identifiant }] },

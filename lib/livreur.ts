@@ -187,11 +187,11 @@ const commandeTourneeInclude = {
   marchand: { select: { nomBoutique: true } },
   // Colonne « Marchandise » du tableau, reprise de la liste des colis admin.
   marchandise: { select: { nom: true } },
-  bonDistribution: { select: { id: true, numero: true, dateGeneration: true, hub: { select: { nom: true } } } },
+  bonDistribution: { select: { id: true, numero: true, statut: true, dateGeneration: true, hub: { select: { nom: true } } } },
   // § Comptes transporteurs : un colis confié à une société de livraison n'a
   // PAS de tournée — il vient d'un bon d'envoi. C'est ce bon qui situe le
   // colis dans son écran, à la place du numéro de tournée.
-  bonEnvoi: { select: { id: true, numero: true, statut: true, dateReception: true } },
+  bonEnvoi: { select: { id: true, numero: true, statut: true, dateGeneration: true, dateReception: true } },
   // Ville du hub où le colis se trouve physiquement : c'est elle qui complète
   // le libellé « Retourné au Hub (Casablanca) » (cf. StatutBadge) — le nom du
   // hub de la tournée ne convient pas, ce n'est pas la même donnée.
@@ -279,17 +279,42 @@ export function filtreBonsDuTransporteur(compteId: string): Prisma.BonEnvoiWhere
   };
 }
 
+// Un colis garde la trace de sa dernière tournée (bonDistributionId) même
+// clôturée. Revenu au dépôt puis remis à un transporteur par un bon d'envoi
+// plus RÉCENT, il n'est plus en tournée : c'est le bon qui le situe. Une
+// tournée créée APRÈS le bon dit l'inverse — le colis a quitté le
+// transporteur pour un de nos livreurs.
+export function sortiDeTournee(c: {
+  bonDistributionId: string | null;
+  bonDistribution?: { statut: string; dateGeneration: Date } | null;
+  bonEnvoi?: { dateGeneration: Date } | null;
+}): boolean {
+  if (!c.bonDistributionId) return true;
+  return (
+    c.bonDistribution?.statut === 'cloture' &&
+    !!c.bonEnvoi &&
+    new Date(c.bonDistribution.dateGeneration).getTime() < new Date(c.bonEnvoi.dateGeneration).getTime()
+  );
+}
+
 async function getColisConfiesAuTransporteur(livreurId: string): Promise<CommandeTourneeLivreur[]> {
   // Bons COMPOSÉS comme bons PRIS EN CHARGE : un bon encore « nouveau » est
   // déjà affecté au transporteur, il doit le voir arriver (colis « en attente
   // de remise », non traitables tant que le bon n'est pas marqué reçu).
-  const colis = await prisma.commande.findMany({
+  const lus = await prisma.commande.findMany({
     // Hors tournée : un colis repris dans un bon de distribution est passé
-    // aux mains d'un livreur, il ne relève plus du transporteur.
-    where: { bonDistributionId: null, bonEnvoi: filtreBonsDuTransporteur(livreurId) },
+    // aux mains d'un livreur, il ne relève plus du transporteur — sauf
+    // tournée clôturée avant le bon (§ sortiDeTournee).
+    where: {
+      OR: [{ bonDistributionId: null }, { bonDistribution: { statut: 'cloture' } }],
+      bonEnvoi: filtreBonsDuTransporteur(livreurId),
+    },
     include: commandeTourneeInclude,
     orderBy: [{ statut: 'asc' }, { codeSuivi: 'asc' }],
   });
+  // L'ancienne tournée n'est pas renvoyée à l'écran : le colis y serait lu
+  // comme « en tournée » (§ colisResteALivrer) au lieu de « confié ».
+  const colis = lus.filter(sortiDeTournee).map((c) => ({ ...c, bonDistributionId: null, bonDistribution: null }));
 
   const bonsEncoreOuverts = new Set(
     colis.filter((c) => !STATUTS_TERMINAUX.includes(c.statut)).map((c) => c.bonEnvoiId)
