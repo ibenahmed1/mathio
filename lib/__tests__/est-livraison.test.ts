@@ -13,6 +13,7 @@ import {
 } from '../est-livraison';
 
 const CODE = 'JAD-RBIEC9-310726';
+const CODE_ENVOYE = `MTH-${CODE}`;
 
 const COLIS: ColisAConfier = {
   codeSuivi: CODE,
@@ -49,10 +50,10 @@ test('les champs client_* de leur API ne sont jamais renseignés', () => {
   assert.equal('client_phone' in commande, false);
 });
 
-// Le code part brut : c'est lui qu'ils nous citeront sur
-// /api/v1/livraisons/statut, qui cherche le colis sur ce champ exact.
-test('notre code de suivi part sans préfixe', () => {
-  assert.equal(construireCommandeEst(COLIS, 'OUJDA').code, CODE);
+// Le code part sous MTH-PD-…, celui du QR de l'étiquette, comme chez tous nos
+// transporteurs ; /api/v1/livraisons/statut retire le préfixe.
+test('notre code de suivi part avec le préfixe du QR', () => {
+  assert.equal(construireCommandeEst(COLIS, 'OUJDA').code, CODE_ENVOYE);
 });
 
 test('les champs sont détourés, le COD arrondi, les drapeaux en booléens', () => {
@@ -246,7 +247,7 @@ afterEach(() => {
 // Leur chemin porte une faute de frappe (« rammasage ») et un préfixe inversé
 // (`/v1/api`). Le corriger donne un 404 : il est recopié à l'identique.
 test('la clé part dans Client-Key, sur leur chemin recopié tel quel', async () => {
-  repondre(200, reponseOk());
+  repondre(200, reponseOk(CODE_ENVOYE));
   await creerCommandeEst(construireCommandeEst(COLIS, 'OUJDA'));
   const entetes = dernierAppel!.init.headers as Record<string, string>;
   assert.equal(entetes['Client-Key'], CLE);
@@ -255,11 +256,11 @@ test('la clé part dans Client-Key, sur leur chemin recopié tel quel', async ()
 
 // Leur serveur ne lit AUCUNE enveloppe : le corps est plat, un colis par appel.
 test('la commande part à plat, sans enveloppe commands', async () => {
-  repondre(200, reponseOk());
+  repondre(200, reponseOk(CODE_ENVOYE));
   await creerCommandeEst(construireCommandeEst(COLIS, 'OUJDA'));
   const corps = JSON.parse(String(dernierAppel!.init.body)) as Record<string, unknown>;
   assert.equal('commands' in corps, false);
-  assert.equal(corps.code, CODE);
+  assert.equal(corps.code, CODE_ENVOYE);
   assert.equal(corps.city, 'OUJDA');
   assert.equal(corps.receiver_phone_number, '0654987178');
 });
@@ -301,14 +302,14 @@ test('leur enveloppe d’erreur PocketBase est lue', async () => {
 
 test('sans clé, aucun appel n’est tenté', async () => {
   delete process.env.EST_LIVRAISON_CLE;
-  repondre(200, reponseOk());
+  repondre(200, reponseOk(CODE_ENVOYE));
   await assert.rejects(creerCommandeEst(construireCommandeEst(COLIS, 'OUJDA')), /EST_LIVRAISON_CLE/);
   assert.equal(dernierAppel, null);
 });
 
 test('la base est surchargeable pour les tests', async () => {
   process.env.EST_LIVRAISON_BASE_URL = 'http://127.0.0.1:4011/';
-  repondre(200, reponseOk());
+  repondre(200, reponseOk(CODE_ENVOYE));
   await creerCommandeEst(construireCommandeEst(COLIS, 'OUJDA'));
   assert.equal(dernierAppel!.url, 'http://127.0.0.1:4011/v1/api/clients/commands/add-rammasage');
 });

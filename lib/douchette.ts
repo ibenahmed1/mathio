@@ -6,6 +6,8 @@
 // Le point déclenche un Entrée prématuré, et la signature arrive sans Maj :
 // lettre en minuscule, chiffre remplacé par le caractère AZERTY de sa touche
 // (7 → è). On attend donc la signature malgré l'Entrée, puis on la retraduit.
+// Depuis le 16/10, les nouvelles étiquettes portent `MTH-PD-000123`, sans point
+// ni signature : lu comme un code saisi, envoyé à l'Entrée (lib/scan-colis.ts).
 
 const SERIE_PUIS_RESTE = /^([A-Za-z]{3}-[0-9A-Za-z]{6}-\d{6})[^0-9A-Za-zàéèçÀÉÈÇ&"'(_-]?(.*)$/;
 

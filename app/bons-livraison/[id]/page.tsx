@@ -134,7 +134,6 @@ async function VueRecapA4({ bon, societe }: { bon: BonAvecDetails; societe: Para
               <td className="py-2 align-top">{i + 1}</td>
               <td className="py-2 align-top">
                 <p className="font-mono">{c.codeSuivi}</p>
-                <p className="font-mono text-xs opacity-60">{labels.get(c.codeSuivi)?.serial}</p>
               </td>
               <td className="py-2 align-top">{c.clientNom}</td>
               <td className="py-2 align-top">{c.ville}</td>
@@ -297,7 +296,7 @@ function Etiquette({
           <p className="text-[12px] uppercase">{flags.join(' · ')}</p>
         )}
 
-        {/* QR sécurisé (numéro de série signé) + montant à encaisser */}
+        {/* QR (code colis connu des transporteurs) + montant à encaisser */}
         <div className="mt-auto flex items-center justify-between gap-2 border-t-2 border-black pt-1.5">
           <div className="flex items-center gap-2">
             {label && (
@@ -307,8 +306,8 @@ function Etiquette({
               />
             )}
             <div className="text-[11px] leading-tight">
-              <p>N° DE SÉRIE</p>
-              <p className="font-mono text-[12px]">{label?.serial}</p>
+              <p>CODE COLIS</p>
+              <p className="font-mono text-[12px]">{label?.qrPayload}</p>
             </div>
           </div>
           <div className="border-2 border-black px-2 py-1 text-right">

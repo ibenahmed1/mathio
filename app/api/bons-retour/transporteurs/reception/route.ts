@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jsonError, requireUser } from '@/lib/api-utils';
 import { resolveHubPlanification } from '@/lib/bon-distribution';
-import { codeSuiviDepuisScan } from '@/lib/bon-retour';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { receptionnerRetourTransporteur } from '@/lib/retour-transporteur';
 
 // § Réception d'un retour transporteur : le colis est physiquement au quai.

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { validateQrPayload } from '@/lib/parcel-serial';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { resolveColisParCode, resolveHubPlanification } from '@/lib/bon-distribution';
 
 // § Étape 3 de la création d'un Bon de Distribution, champ "CLIC ICI AVANT LE
@@ -19,20 +19,10 @@ export async function POST(request: Request) {
       throw new ApiError(400, 'livreurId est requis');
     }
 
-    const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
-    let codeSuivi = typeof body.codeSuivi === 'string' ? body.codeSuivi.trim().toUpperCase() : '';
-
-    if (qrPayload) {
-      const result = validateQrPayload(qrPayload);
-      if (!result.valid || result.parcelId === undefined) {
-        throw new ApiError(400, result.reason ?? 'QR code invalide');
-      }
-      codeSuivi = `PD-${String(result.parcelId).padStart(6, '0')}`;
-    }
-
-    if (!codeSuivi) {
-      throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
-    }
+    const codeSuivi = codeSuiviDepuisScan(
+      typeof body.qrPayload === 'string' ? body.qrPayload : '',
+      typeof body.codeSuivi === 'string' ? body.codeSuivi : ''
+    );
 
     const commande = await resolveColisParCode(hub.id, livreurId, codeSuivi);
     return NextResponse.json(commande);

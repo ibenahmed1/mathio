@@ -21,6 +21,8 @@
 //     notes libres. Le leur donner, c'est leur donner notre client
 //     (construireColisPower, plus bas, n'a même pas accès au marchand).
 
+import { PREFIXE_CODE_TRANSPORTEUR } from '@/lib/code-colis';
+
 // Surchargeable par POWERDELIVERY_BASE_URL, et uniquement pour les TESTS : c'est
 // ce qui permet d'exercer toute la chaîne contre un faux serveur local, sans
 // créer un seul vrai colis chez eux — chaque appel réel à `addparcelsnew`
@@ -38,7 +40,8 @@ const DELAI_MS = 20_000;
 // leur système, tous clients confondus : « PD-000123 » seul, où « PD » évoque
 // aussi « Power Delivery », risquerait de heurter le code d'un autre client.
 // Décision du 21/09/2026.
-export const PREFIXE_CODE_POWER = 'MTH-';
+// Même préfixe chez tous les transporteurs : c'est le code du QR de l'étiquette.
+export const PREFIXE_CODE_POWER = PREFIXE_CODE_TRANSPORTEUR;
 
 export class ErreurPowerDelivery extends Error {
   constructor(
