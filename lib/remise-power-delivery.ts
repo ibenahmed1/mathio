@@ -11,9 +11,12 @@ import {
   codePower,
   construireColisPower,
   creerColisPower,
+  listerVillesPower,
+  type VillePowerApi,
 } from '@/lib/power-delivery';
 import {
   adresseLivraisonPower,
+  resoudreDansListePower,
   resoudreVillePower,
 } from '@/lib/power-delivery-villes';
 import { agencesARechercher, resoudreParAgences } from '@/lib/hubs-regionaux';
@@ -99,6 +102,7 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
       numero: true,
       hubDestination: { select: { nom: true, prestataireId: true } },
       prestataireId: true,
+      exceptionnel: true,
       commandes: {
         select: {
           id: true,
@@ -143,6 +147,23 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
 
   const resultats: ResultatRemiseColis[] = [];
 
+  // § BE exceptionnel : toutes leurs villes partent par API, pas seulement
+  // celles de notre table. Leur liste n'est lue qu'au premier colis qui en a
+  // besoin, et une seule fois pour tout le bon.
+  let listeComplete: VillePowerApi[] | null | undefined;
+  let erreurListe: string | null = null;
+  async function villeDeLeurListe(nom: string) {
+    if (listeComplete === undefined) {
+      try {
+        listeComplete = await listerVillesPower();
+      } catch (erreur) {
+        listeComplete = null;
+        erreurListe = erreur instanceof Error ? erreur.message : 'liste des villes illisible';
+      }
+    }
+    return listeComplete ? resoudreDansListePower(listeComplete, nom) : null;
+  }
+
   // Un colis après l'autre, et non en parallèle : leur API n'annonce aucun
   // quota, et un bon compte quelques dizaines de colis au plus.
   for (const commande of bon.commandes) {
@@ -161,12 +182,17 @@ export async function remettreBonEnvoiPower(bonEnvoiId: string, auteurId: string
     // revendiquée par plusieurs de leurs dépôts : jamais d'envoi par le nom,
     // et jamais de dépôt choisi au hasard.
     const ville =
-      resoudreParAgences(agences, commande.ville, resoudreVillePower, (c) => String(c.cityId))?.resultat ?? null;
+      resoudreParAgences(agences, commande.ville, resoudreVillePower, (c) => String(c.cityId))?.resultat ??
+      (bon.exceptionnel ? await villeDeLeurListe(commande.ville) : null);
     if (!ville) {
       resultats.push({
         ...base,
         issue: 'ville_sans_correspondance',
-        message: `« ${commande.ville} » n'a pas d'identifiant ${NOM_PRESTATAIRE_POWER} : remise par l'Excel du bon`,
+        message: bon.exceptionnel
+          ? erreurListe
+            ? `Liste des villes ${NOM_PRESTATAIRE_POWER} injoignable (${erreurListe}) : relancez la remise, ou l'Excel du bon`
+            : `« ${commande.ville} » est absente de la liste des villes ${NOM_PRESTATAIRE_POWER}, ou y figure sous plusieurs identifiants : remise par l'Excel du bon`
+          : `« ${commande.ville} » n'a pas d'identifiant ${NOM_PRESTATAIRE_POWER} : remise par l'Excel du bon`,
       });
       continue;
     }

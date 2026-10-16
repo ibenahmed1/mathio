@@ -39,6 +39,18 @@ export async function POST(request: Request) {
       lien: `/admin/bon-envoi/${bon.id}`,
     }, { sauf: session.sub });
 
+    // Même alerte qu'une remise Power lancée depuis la fiche : des colis restés
+    // chez nous, à transmettre par l'Excel des colis restants.
+    const nonRemis = erreurPower ? bon.nbColis : (remisePower?.totalNonRemis ?? 0);
+    if (bon.power && nonRemis > 0) {
+      await notifier(await destinatairesBackoffice('bon_envoi:manage'), {
+        type: 'transporteur.erreur',
+        titre: `Power Delivery : ${nonRemis} colis non remis par API`,
+        corps: `BE exceptionnel ${bon.numero} — à transmettre par l'Excel des colis restants`,
+        lien: `/admin/bon-envoi/${bon.id}`,
+      });
+    }
+
     return NextResponse.json({ ...bon, remisePower, erreurPower }, { status: 201 });
   } catch (error) {
     return jsonError(error);

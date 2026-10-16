@@ -205,6 +205,27 @@ export function resoudreVilleToutesAgencesPower(ville: string): CorrespondanceVi
 // chercherait le destinataire en ville. Le nom n'est pas ajouté s'il y figure
 // déjà — beaucoup de marchands l'écrivent eux-mêmes. Même règle que
 // `adresseLivraisonMeta`.
+// § BE exceptionnel (décision du 16/10/2026) : une ville absente de notre table
+// est cherchée dans LEUR liste complète (GET listcities). Comparaison sans
+// accents, casse, tirets ni apostrophes. Un seul identifiant pour ce nom → on
+// envoie ; aucun, ou plusieurs (« ouargui » #6458/#6542) → null, remise par
+// l'Excel : choisir entre deux de leurs identifiants serait choisir un dépôt.
+function cleListePower(ville: string): string {
+  return normaliserVille(ville).replace(/[-'’]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function resoudreDansListePower(
+  liste: readonly { id: number; city: string }[],
+  ville: string
+): CorrespondanceVillePower | null {
+  const cible = cleListePower(ville);
+  if (!cible) return null;
+  const candidats = liste.filter((v) => cleListePower(v.city) === cible);
+  const ids = new Set(candidats.map((v) => v.id));
+  if (ids.size !== 1) return null;
+  return { agence: '', ville, cityId: candidats[0].id, nomPower: candidats[0].city.trim(), groupe: 'exact' };
+}
+
 export function adresseLivraisonPower(adresse: string, correspondance: CorrespondanceVillePower | null): string {
   const propre = adresse.trim();
   if (correspondance?.groupe !== 'rattachee') return propre;

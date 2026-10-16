@@ -191,7 +191,9 @@ const commandeTourneeInclude = {
   // § Comptes transporteurs : un colis confié à une société de livraison n'a
   // PAS de tournée — il vient d'un bon d'envoi. C'est ce bon qui situe le
   // colis dans son écran, à la place du numéro de tournée.
-  bonEnvoi: { select: { id: true, numero: true, statut: true, dateGeneration: true, dateReception: true } },
+  bonEnvoi: { select: { id: true, numero: true, statut: true, dateGeneration: true, dateReception: true, dateTransmission: true } },
+  // Remise acceptée par l'API du transporteur : le colis est chez lui.
+  remisesPrestataire: { where: { active: true, etat: 'acceptee' }, select: { id: true } },
   // Ville du hub où le colis se trouve physiquement : c'est elle qui complète
   // le libellé « Retourné au Hub (Casablanca) » (cf. StatutBadge) — le nom du
   // hub de la tournée ne convient pas, ce n'est pas la même donnée.
@@ -216,6 +218,9 @@ export interface BonConfieTransporteur {
   numero: string;
   // 'nouveau' = bon composé, colis pas encore remis ; 'recu' = pris en charge.
   statut: string;
+  // Au moins un colis remis (§ estColisConfieRemis) : transmis, accepté par
+  // l'API, ou bon reçu.
+  remis: boolean;
   dateReception: Date | null;
   nbColis: number;
 }
@@ -322,9 +327,18 @@ async function getColisConfiesAuTransporteur(livreurId: string): Promise<Command
   return colis.filter((c) => bonsEncoreOuverts.has(c.bonEnvoiId));
 }
 
-// Un colis confié par bon d'envoi : traitable dès que le bon est pris en charge.
-export function estColisConfieRemis(c: { bonEnvoi: { statut: string } | null; bonDistributionId: string | null }): boolean {
-  return !c.bonDistributionId && c.bonEnvoi?.statut === 'recu';
+// Un colis confié par bon d'envoi est REMIS au transporteur — affiché et
+// traitable dans son espace — dès que l'un de ces faits est acquis (16/10/2026) :
+//   · son API l'a accepté (remise active acceptée) ;
+//   · le bon a été marqué transmis (Excel envoyé) ;
+//   · le bon a été marqué reçu.
+export function estColisConfieRemis(c: {
+  bonEnvoi: { statut: string; dateTransmission?: Date | string | null } | null;
+  bonDistributionId: string | null;
+  remisesPrestataire?: unknown[];
+}): boolean {
+  if (c.bonDistributionId || !c.bonEnvoi) return false;
+  return c.bonEnvoi.statut === 'recu' || !!c.bonEnvoi.dateTransmission || (c.remisesPrestataire?.length ?? 0) > 0;
 }
 
 
@@ -365,6 +379,7 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
     const existant = bonsParId.get(c.bonEnvoi.id);
     if (existant) {
       existant.nbColis += 1;
+      existant.remis ||= estColisConfieRemis(c);
     } else {
       bonsParId.set(c.bonEnvoi.id, {
         id: c.bonEnvoi.id,
@@ -372,6 +387,7 @@ export async function getFeuilleDeRouteLivreur(livreurId: string): Promise<Feuil
         statut: c.bonEnvoi.statut,
         dateReception: c.bonEnvoi.dateReception,
         nbColis: 1,
+        remis: estColisConfieRemis(c),
       });
     }
   }

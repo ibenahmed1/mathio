@@ -30,7 +30,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const session = await requireUser(['admin', 'agent_hub']);
     const { id } = await params;
 
-    const bon = await prisma.bonEnvoi.findUnique({ where: { id }, include: bonEnvoiInclude });
+    // Les remises par API de CE bon, colis par colis : la fiche dit ce qui est
+    // parti par API et ce qui reste à transmettre par l'Excel.
+    const bon = await prisma.bonEnvoi.findUnique({
+      where: { id },
+      include: {
+        ...bonEnvoiInclude,
+        commandes: {
+          ...bonEnvoiInclude.commandes,
+          include: { ...bonEnvoiInclude.commandes.include, remisesPrestataire: { where: { bonEnvoiId: id }, orderBy: { creeLe: 'desc' }, select: { etat: true, active: true, codeEnvoye: true, codeExterne: true, erreur: true } } },
+        },
+      },
+    });
 
     if (!bon) throw new ApiError(404, "Bon d'envoi introuvable");
 

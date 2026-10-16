@@ -1,6 +1,10 @@
+import type { RemiseColis } from '@/lib/remise-affichage';
+
 // Formes légères correspondant aux réponses JSON de l'API (Decimal/Date sérialisés en string).
 
 export interface Commande {
+  // Fiche d'un bon d'envoi : remises par API de ce bon (§ lib/remise-affichage.ts).
+  remisesPrestataire?: RemiseColis[];
   id: string;
   codeSuivi: string;
   marchandId: string;
@@ -316,6 +320,10 @@ export interface BonEnvoi {
   // le colis ne transite par aucun quai à nous.
   prestataire?: { id: string; nom: string } | null;
   receptionnaire?: { nomComplet: string } | null;
+  // « Marquer comme transmis » (POST /api/bons-envoi/[id]/remis).
+  dateTransmission?: string | null;
+  // Espace transporteur : au moins un colis remis (§ estColisConfieRemis).
+  remis?: boolean;
   // § BE exceptionnel (lib/bon-envoi-exceptionnel.ts) : hors règles de routage.
   exceptionnel?: boolean;
   motifExceptionnel?: string | null;

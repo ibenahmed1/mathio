@@ -5,6 +5,7 @@ import { FileDown, PackageCheck, Send, Truck, ListChecks } from 'lucide-react';
 import { apiPost } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { attendRemise, suitCircuitShipeh } from '@/lib/circuit-shipeh';
+import { partiParApi } from '@/lib/remise-affichage';
 import { annoncerEchec, annoncerSucces } from '@/lib/annonces';
 import { ModaleConfirmation } from '@/components/admin/ModaleConfirmation';
 
@@ -85,6 +86,10 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
     attendRemise({ source: c.source ?? 'manuel', enStock: c.enStock, statut: c.statut })
   ).length;
   const nbRecus = commandes.filter((c) => c.statut === 'recu_au_hub').length;
+  // Colis déjà partis par l'API du transporteur : ils ne doivent pas repartir
+  // par l'Excel (§ partiParApi). L'Excel « restants » ne contient que les autres.
+  const nbParApi = commandes.filter((c) => partiParApi(c.remisesPrestataire)).length;
+  const nbRestants = commandes.length - nbParApi;
   const recu = bon.statut === 'recu';
 
   // Raison du grisé de chaque geste (null = possible).
@@ -94,13 +99,16 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
   // bouton pour partir en transit ; les colis de nos marchands y sont passés
   // dès leur ajout au bon. On le dit en clair, sinon le grisé paraît absurde.
   const nbMarchands = commandes.filter((c) => !suitCircuitShipeh({ source: c.source ?? 'manuel', enStock: c.enStock })).length;
+  // « Marquer comme transmis » (16/10/2026) : ouvert à tout bon non reçu, une
+  // fois — c'est lui qui fait apparaître les colis dans l'espace du transporteur.
+  void nbMarchands;
   const raisonManuelle = recu
     ? 'Bon déjà reçu : plus rien à remettre.'
-    : nbAttente === 0
-      ? nbMarchands > 0
-        ? 'Inutile ici : les colis de marchands passent « En transit » dès leur ajout au bon. Envoyez l’Excel au transporteur, puis « Bon bien reçu ».'
-        : 'Aucun colis en attente : ils sont déjà en transit.'
-      : null;
+    : bon.dateTransmission
+      ? `Transmis le ${new Date(bon.dateTransmission).toLocaleString('fr-FR')}.`
+      : bon.nbColis === 0
+        ? 'Bon vide.'
+        : null;
   const raisonRecu = recu
     ? `Reçu le ${new Date(bon.dateReception ?? bon.dateGeneration).toLocaleDateString('fr-FR')}.`
     : nbAttente > 0
@@ -115,6 +123,11 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
   function exporter() {
     window.open(`/api/bons-envoi/${bon.id}/export`, '_blank');
     annoncerSucces(`Excel du bon ${bon.numero} téléchargé — transmettez-le à ${destinataire}.`);
+  }
+
+  function exporterRestants() {
+    window.open(`/api/bons-envoi/${bon.id}/export?restants=1`, '_blank');
+    annoncerSucces(`Excel des ${nbRestants} colis non partis par API téléchargé — transmettez-le à ${destinataire}.`);
   }
 
   async function remettreParApi() {
@@ -136,8 +149,8 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
 
   async function marquerTransmis() {
     try {
-      const res = await apiPost<{ remis: number }>(`/api/bons-envoi/${bon.id}/remis`);
-      annoncerSucces(`${res.remis} colis transmis à ${destinataire} : en transit.`);
+      const res = await apiPost<{ remis: number; transmis: number }>(`/api/bons-envoi/${bon.id}/remis`);
+      annoncerSucces(`${res.transmis} colis transmis à ${destinataire} : visibles dans son espace.`);
       setConfirmation(null);
       onChange();
     } catch (err) {
@@ -175,9 +188,25 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
 
         <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Etape numero={1} titre="Exporter l’Excel" raison={raisonExport}>
+            {nbParApi > 0 && (
+              <button
+                type="button"
+                className="btn-primary flex w-full items-center justify-center gap-1.5"
+                disabled={nbRestants === 0}
+                title={nbRestants === 0 ? 'Tous les colis sont partis par API' : undefined}
+                onClick={exporterRestants}
+              >
+                <FileDown className="h-4 w-4" /> Excel des colis restants ({nbRestants})
+              </button>
+            )}
             <button type="button" className="btn-outline flex w-full items-center justify-center gap-1.5" disabled={!!raisonExport} onClick={exporter}>
-              <FileDown className="h-4 w-4" /> Export Excel
+              <FileDown className="h-4 w-4" /> {nbParApi > 0 ? `Export Excel (tous, ${commandes.length})` : 'Export Excel'}
             </button>
+            {nbParApi > 0 && (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                {nbParApi} colis déjà partis par API : ne les renvoyez pas par l’Excel.
+              </p>
+            )}
           </Etape>
 
           <Etape numero={2} titre="Transmettre" raison={api ? raisonApi : raisonManuelle}>
@@ -200,7 +229,7 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
                 title={raisonManuelle ?? undefined}
                 onClick={() => setConfirmation('manuelle')}
               >
-                <Truck className="h-4 w-4" /> Marquer comme transmis{nbAttente > 0 ? ` (${nbAttente})` : ''}
+                <Truck className="h-4 w-4" /> Marquer comme transmis ({bon.nbColis})
               </button>
               {api && !raisonApi && raisonManuelle && <p className="text-xs opacity-60">Par Excel : {raisonManuelle}</p>}
               {apiCoupee && transporteur && API_TRANSPORTEURS[transporteur] && (
@@ -284,8 +313,9 @@ export function TransmissionBon({ bon, onChange }: { bon: BonEnvoi; onChange: ()
           onConfirmer={marquerTransmis}
           onClose={() => setConfirmation(null)}
         >
-          Confirmer que les {nbAttente} colis en attente ont été transmis à {destinataire} (Excel envoyé, colis remis) ?
-          Ils passeront « En transit ».
+          Confirmer que les {bon.nbColis} colis du bon ont été transmis à {destinataire} (Excel envoyé, colis remis) ?
+          Ils apparaîtront dans son espace
+          {nbAttente > 0 ? `, et les ${nbAttente} colis Shipeh encore au hub passeront « En transit »` : ''}.
         </ModaleConfirmation>
       )}
       {confirmation === 'recu' && (

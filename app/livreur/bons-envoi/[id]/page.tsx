@@ -41,6 +41,9 @@ interface BonTransporteur {
   nbColis: number;
   dateGeneration: string;
   dateReception: string | null;
+  // Remis (reçu, transmis, ou colis accepté par l'API) et depuis quand.
+  remis: boolean;
+  remisLe: string | null;
   hubDestination: { nom: string; prestataire: { nom: string } | null } | null;
   prestataire: { id: string; nom: string } | null;
   commandes: ColisBon[];
@@ -87,6 +90,7 @@ export default function DetailBonEnvoiLivreurPage() {
   const livres = bon.commandes.filter((c) => c.statut === 'livre');
   const codEncaisse = livres.reduce((t, c) => t + Number(c.montantCod), 0);
   const recu = bon.statut === 'recu';
+  const remis = bon.remis;
 
   return (
     <main className={s.main}>
@@ -103,11 +107,13 @@ export default function DetailBonEnvoiLivreurPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {recu ? (
             <StatusPill label="Reçu" grad={['#209EBB', '#023047']} />
+          ) : remis ? (
+            <StatusPill label="Remis" grad={['#209EBB', '#023047']} />
           ) : (
             <StatusPill label="En attente de remise" grad={['#FFB701', '#FC8500']} />
           )}
           {/* Bon pris en charge : les colis se traitent depuis « Mes colis ». */}
-          {recu && (
+          {remis && (
             <Link href="/livreur/colis" className={s.btnJaune}>
               Traiter mes colis
             </Link>
@@ -132,22 +138,22 @@ export default function DetailBonEnvoiLivreurPage() {
           <span className={s.kpiNote}>Cash encaissé : {codEncaisse.toFixed(2)} DH</span>
         </div>
         <div className={s.kpi} style={{ background: 'linear-gradient(135deg,#023047,#4A4A45)', color: '#FFF' }}>
-          <span className={s.kpiLabel}>{recu ? 'Reçu le' : 'Remise'}</span>
-          <span className={s.kpiValeur} style={{ fontSize: recu ? 22 : undefined }}>
-            {recu && bon.dateReception ? new Date(bon.dateReception).toLocaleDateString('fr-FR') : 'À venir'}
+          <span className={s.kpiLabel}>{recu ? 'Reçu le' : remis ? 'Remis le' : 'Remise'}</span>
+          <span className={s.kpiValeur} style={{ fontSize: remis ? 22 : undefined }}>
+            {remis && bon.remisLe ? new Date(bon.remisLe).toLocaleDateString('fr-FR') : 'À venir'}
           </span>
           <span className={s.kpiNote}>
-            {recu && bon.dateReception
-              ? new Date(bon.dateReception).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+            {remis && bon.remisLe
+              ? new Date(bon.remisLe).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
               : 'Colis pas encore remis'}
           </span>
         </div>
       </section>
 
-      {!recu && (
+      {!remis && (
         <p style={{ fontSize: 12, color: '#6B6B66' }}>
-          Ce bon n&apos;est pas encore remis : vous pourrez traiter ses colis depuis « Mes colis » dès qu&apos;il sera marqué
-          reçu.
+          Ce bon n&apos;est pas encore remis : vous pourrez traiter ses colis depuis « Mes colis » dès qu&apos;il vous aura
+          été transmis.
         </p>
       )}
 
