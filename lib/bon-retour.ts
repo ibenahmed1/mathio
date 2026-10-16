@@ -134,25 +134,6 @@ export function grouperParMarchand(colis: ColisEligibleRetour[]): MarchandAResti
   return [...parMarchand.values()].sort((a, b) => b.nbColis - a.nbColis);
 }
 
-// Normalise un scan caméra (payload QR signé) ou une saisie manuelle
-// (codeSuivi) vers un codeSuivi canonique — même logique que
-// POST /api/commandes/scan et POST /api/bons-distribution/scan, dont c'est la
-// troisième occurrence.
-export function codeSuiviDepuisScan(qrPayload: string, codeSuiviSaisi: string): string {
-  if (qrPayload) {
-    const result = validateQrPayload(qrPayload);
-    if (!result.valid || result.parcelId === undefined) {
-      throw new ApiError(400, result.reason ?? 'QR code invalide');
-    }
-    return `PD-${String(result.parcelId).padStart(6, '0')}`;
-  }
-  const codeSuivi = codeSuiviSaisi.trim().toUpperCase();
-  if (!codeSuivi) {
-    throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
-  }
-  return codeSuivi;
-}
-
 // Résout un colis scanné pendant la COMPOSITION du bon. Ne mute rien : le
 // panier reste côté client jusqu'à POST /api/bons-retour, comme pour le bon
 // de distribution.

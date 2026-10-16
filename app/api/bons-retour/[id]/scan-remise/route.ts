@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { bilanBonRetour, codeSuiviDepuisScan, getBonRetour } from '@/lib/bon-retour';
+import { bilanBonRetour, getBonRetour } from '@/lib/bon-retour';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { notifierStatutsColis } from '@/lib/notifications';
 
 // Temps 2, chez le marchand : le ramasseur scanne (ou coche) chaque colis au

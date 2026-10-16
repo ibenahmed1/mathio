@@ -22,6 +22,7 @@
 //
 // LE MARCHAND N'EST JAMAIS TRANSMIS (cf. `ColisAConfier`).
 
+import { PREFIXE_CODE_TRANSPORTEUR } from '@/lib/code-colis';
 import type { ColisAConfier } from '@/lib/power-delivery';
 
 export type { ColisAConfier };
@@ -37,7 +38,8 @@ function baseUrl(): string {
 const DELAI_MS = 20_000;
 
 // Notre code chez eux, préfixé comme chez Power Delivery et Colivraison.
-export const PREFIXE_CODE_META = 'MTH-';
+// Même préfixe chez tous les transporteurs : c'est le code du QR de l'étiquette.
+export const PREFIXE_CODE_META = PREFIXE_CODE_TRANSPORTEUR;
 
 export function codeMeta(codeSuivi: string): string {
   return `${PREFIXE_CODE_META}${codeSuivi}`;

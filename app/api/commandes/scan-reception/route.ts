@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { validateQrPayload } from '@/lib/parcel-serial';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { chargerResolveurTransporteur, resolveUserHub } from '@/lib/hub-envoi';
 
 // § Proposition dès l'arrivée : chez qui ce colis va partir, d'après la ville
@@ -35,20 +35,10 @@ export async function POST(request: Request) {
     const session = await requireUser(['agent_hub', 'planner', 'admin']);
     const body = await request.json();
 
-    const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
-    let codeSuivi = typeof body.codeSuivi === 'string' ? body.codeSuivi.trim().toUpperCase() : '';
-
-    if (qrPayload) {
-      const result = validateQrPayload(qrPayload);
-      if (!result.valid || result.parcelId === undefined) {
-        throw new ApiError(400, result.reason ?? 'QR code invalide');
-      }
-      codeSuivi = `PD-${String(result.parcelId).padStart(6, '0')}`;
-    }
-
-    if (!codeSuivi) {
-      throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
-    }
+    const codeSuivi = codeSuiviDepuisScan(
+      typeof body.qrPayload === 'string' ? body.qrPayload : '',
+      typeof body.codeSuivi === 'string' ? body.codeSuivi : ''
+    );
 
     // Résolution du hub de réception : pour un agent_hub comme pour un
     // planner, c'est toujours son propre hub de rattachement (obligatoire,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { validateQrPayload } from '@/lib/parcel-serial';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import {
   chargerResolveurTransporteur,
   estVilleLocaleAuHub,
@@ -30,20 +30,10 @@ export async function POST(request: Request) {
       throw new ApiError(400, 'hubDestinationId ou prestataireId est requis');
     }
 
-    const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
-    let codeSuivi = typeof body.codeSuivi === 'string' ? body.codeSuivi.trim().toUpperCase() : '';
-
-    if (qrPayload) {
-      const result = validateQrPayload(qrPayload);
-      if (!result.valid || result.parcelId === undefined) {
-        throw new ApiError(400, result.reason ?? 'QR code invalide');
-      }
-      codeSuivi = `PD-${String(result.parcelId).padStart(6, '0')}`;
-    }
-
-    if (!codeSuivi) {
-      throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
-    }
+    const codeSuivi = codeSuiviDepuisScan(
+      typeof body.qrPayload === 'string' ? body.qrPayload : '',
+      typeof body.codeSuivi === 'string' ? body.codeSuivi : ''
+    );
 
     // § Circuit Shipeh : un colis Shipeh non scanné par l'agent stock est refusé
     // dans les deux modes, avec la raison.

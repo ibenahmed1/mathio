@@ -26,6 +26,7 @@
 //  4. LE MARCHAND N'EST JAMAIS TRANSMIS. Ni son nom, ni son téléphone, ni ses
 //     notes libres (cf. `ColisAConfier`, qui n'a pas accès au marchand).
 
+import { PREFIXE_CODE_TRANSPORTEUR } from '@/lib/code-colis';
 import type { ColisAConfier } from '@/lib/power-delivery';
 
 export type { ColisAConfier };
@@ -47,7 +48,8 @@ const DELAI_MS = 20_000;
 // missing » (relevé du 01/10/2026, première remise réelle). Il est aussi
 // recopié en tête de la note, filet pour le retrouver dans colislist.php si
 // leur suivi ne le connaissait pas.
-export const PREFIXE_CODE_COLIVRAISON = 'MTH-';
+// Même préfixe chez tous les transporteurs : c'est le code du QR de l'étiquette.
+export const PREFIXE_CODE_COLIVRAISON = PREFIXE_CODE_TRANSPORTEUR;
 
 export function codeColivraison(codeSuivi: string): string {
   return `${PREFIXE_CODE_COLIVRAISON}${codeSuivi}`;

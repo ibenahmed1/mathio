@@ -1,5 +1,6 @@
 import type { StatutCommande } from '@/app/generated/prisma/enums';
 import { prisma } from '@/lib/prisma';
+import { normaliserCodeColis } from '@/lib/code-colis';
 import { ErreurPlateforme, type ContextePlateforme } from '@/lib/plateforme-auth';
 import { normaliserVille } from '@/lib/hub-stock';
 import { cleRoutage } from '@/lib/hub-envoi';
@@ -101,8 +102,10 @@ export function analyserEntreeStatut(corpsBrut: unknown): EntreeStatut {
   // Normalisé en majuscules : nos codes s'écrivent `PD-000123` (lib/codes.ts),
   // et un partenaire qui recopie depuis un tableur ou un scan renvoie parfois
   // une autre casse. Répondre 404 sur une différence de casse enverrait
-  // chercher un colis qui existe.
-  const codeSuivi = typeof corps.codeSuivi === 'string' ? corps.codeSuivi.trim().toUpperCase() : '';
+  // chercher un colis qui existe. Le préfixe `MTH-` est retiré : c'est sous
+  // `MTH-PD-000123` que nos transporteurs connaissent le colis (QR de
+  // l'étiquette, lib/code-colis.ts).
+  const codeSuivi = typeof corps.codeSuivi === 'string' ? normaliserCodeColis(corps.codeSuivi) : '';
   if (!codeSuivi) {
     throw new ErreurPlateforme(400, 'champ_requis', 'Le champ « codeSuivi » est requis');
   }

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { jsonError, requireUser } from '@/lib/api-utils';
 import { resolveHubPlanification } from '@/lib/bon-distribution';
-import { codeSuiviDepuisScan, resolveColisPourRetour } from '@/lib/bon-retour';
+import { resolveColisPourRetour } from '@/lib/bon-retour';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 
 const ROLES_COMPOSITION = ['admin', 'planner'] as const;
 

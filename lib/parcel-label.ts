@@ -1,27 +1,21 @@
 import QRCode from "qrcode";
 import bwipjs from "bwip-js/node";
-import { buildQrPayload, generateParcelSerial, resolveVilleCode } from "@/lib/parcel-serial";
+import { codeEtiquette } from "@/lib/code-colis";
 
 /**
- * Relie le moteur générique de `parcel-serial.ts` aux données réelles d'une
- * `Commande` : en extrait l'ID séquentiel depuis `codeSuivi` (pas de colonne
- * dédiée nécessaire), génère le numéro de série + son QR code. Rien n'est
- * persisté : le numéro de série est recalculé à chaque impression à partir
- * de champs déjà en base (`codeSuivi`, `ville`, date de création).
+ * Étiquette d'un colis : QR + code-barres, recalculés à chaque impression à
+ * partir du `codeSuivi` (rien n'est persisté).
+ *
+ * Depuis le 16/10, le QR porte le code `MTH-PD-000123` (lib/code-colis.ts) :
+ * celui qu'on transmet aux transporteurs, pour que leur scanner retrouve le
+ * colis comme le nôtre. Il remplace le numéro de série signé
+ * `AGA-JACHE8-070926.J7`, inconnu des transporteurs ; nos écrans de scan
+ * acceptent toujours ce dernier sur les étiquettes déjà imprimées
+ * (lib/scan-colis.ts).
  */
 
-const CODE_SUIVI_PATTERN = /^PD-(\d+)$/;
-
-function parcelIdFromCodeSuivi(codeSuivi: string): number {
-  const match = CODE_SUIVI_PATTERN.exec(codeSuivi);
-  if (!match) {
-    throw new Error(`codeSuivi inattendu, format "PD-000000" requis : "${codeSuivi}".`);
-  }
-  return parseInt(match[1], 10);
-}
-
 export interface ParcelLabel {
-  serial: string;
+  /** Contenu du QR, imprimé aussi en clair sous le QR. */
   qrPayload: string;
   /** Markup `<svg>...</svg>` autonome, prêt à être injecté (dangerouslySetInnerHTML). */
   qrSvg: string;
@@ -33,8 +27,7 @@ export interface ParcelLabel {
 
 /** Code128 du `codeSuivi` : c'est l'identifiant déjà utilisé partout dans
  * l'app (recherche, rapprochement de colis) — le code-barres sert au scan
- * rapide en entrepôt. Le QR, lui, porte le numéro de série signé (HMAC),
- * pour la vérification anti-falsification. */
+ * rapide en entrepôt. */
 function buildBarcodeSvg(codeSuivi: string): string {
   return bwipjs.toSVG({
     bcid: "code128",
@@ -46,15 +39,8 @@ function buildBarcodeSvg(codeSuivi: string): string {
   });
 }
 
-export async function buildParcelLabel(params: {
-  codeSuivi: string;
-  ville: string;
-  date: Date;
-}): Promise<ParcelLabel> {
-  const cityCode = resolveVilleCode(params.ville);
-  const parcelId = parcelIdFromCodeSuivi(params.codeSuivi);
-  const serial = generateParcelSerial(cityCode, parcelId, params.date);
-  const qrPayload = buildQrPayload(serial);
+export async function buildParcelLabel(params: { codeSuivi: string }): Promise<ParcelLabel> {
+  const qrPayload = codeEtiquette(params.codeSuivi);
   const qrSvg = await QRCode.toString(qrPayload, {
     type: "svg",
     margin: 0,
@@ -62,28 +48,22 @@ export async function buildParcelLabel(params: {
   });
   const barcodeSvg = buildBarcodeSvg(params.codeSuivi);
 
-  return { serial, qrPayload, qrSvg, barcodeSvg };
+  return { qrPayload, qrSvg, barcodeSvg };
 }
 
-/** Génère les étiquettes de plusieurs colis en parallèle (toujours O(1) par
- * colis : pas de requête DB additionnelle).
+/** Génère les étiquettes de plusieurs colis en parallèle (pas de requête DB).
  *
  * Tolérant à la ligne près : un colis dont l'étiquette ne peut pas être
- * construite (codeSuivi hors format "PD-000000", par ex. un import
- * partenaire) est simplement absent de la Map — les vues d'impression
+ * construite est simplement absent de la Map — les vues d'impression
  * traitent déjà `labels.get(codeSuivi)` comme optionnel. Un seul colis
  * douteux ne doit pas faire échouer l'impression de tout un bon. */
 export async function buildParcelLabels(
-  commandes: Array<{ codeSuivi: string; ville: string; dateCreation: Date }>
+  commandes: Array<{ codeSuivi: string }>
 ): Promise<Map<string, ParcelLabel>> {
   const entries = await Promise.all(
     commandes.map(async (c) => {
       try {
-        const label = await buildParcelLabel({
-          codeSuivi: c.codeSuivi,
-          ville: c.ville,
-          date: c.dateCreation,
-        });
+        const label = await buildParcelLabel({ codeSuivi: c.codeSuivi });
         return [c.codeSuivi, label] as const;
       } catch (error) {
         console.error(`[parcel-label] Étiquette non générée pour "${c.codeSuivi}" :`, error);

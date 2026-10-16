@@ -35,6 +35,8 @@
 //     donner, c'est leur donner notre client. `construireCommandeEst` n'a même
 //     pas accès au marchand.
 
+import { codeEtiquette } from '@/lib/code-colis';
+
 // Surchargeable par EST_LIVRAISON_BASE_URL, et uniquement pour les TESTS :
 // c'est ce qui permet d'exercer toute la chaîne contre un faux serveur local,
 // sans créer un seul vrai colis chez eux — chaque appel réel à `add-rammasage`
@@ -231,11 +233,11 @@ export function construireCommandeEst(colis: ColisAConfier, ville: string): Comm
   }
 
   return {
-    // NOTRE code de suivi, brut et sans préfixe. C'est lui qu'ils citeront en
-    // retour sur /api/v1/livraisons/statut, qui cherche le colis sur ce champ
-    // exact : un préfixe obligerait le module de statuts — partagé par tous les
-    // transporteurs — à apprendre à le retirer. Décision du 23/09/2026.
-    code: colis.codeSuivi,
+    // `MTH-PD-000123`, comme pour tous nos transporteurs depuis le 16/10 :
+    // c'est le code que porte le QR de l'étiquette, que leur scanner doit
+    // retrouver. /api/v1/livraisons/statut retire le préfixe (lib/code-colis.ts),
+    // et accepte toujours `PD-000123` pour les colis remis avant.
+    code: codeEtiquette(colis.codeSuivi),
     city: exigerCourt(colis.codeSuivi, 'La ville', ville.trim()),
     receiver_full_name: exigerCourt(colis.codeSuivi, 'Le nom du destinataire', colis.clientNom.trim()),
     receiver_phone_number: exigerCourt(colis.codeSuivi, 'Le téléphone du destinataire', colis.clientTelephone.trim()),

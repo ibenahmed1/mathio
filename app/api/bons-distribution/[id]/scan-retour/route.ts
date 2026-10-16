@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
 import { roleMatches } from '@/lib/auth';
-import { validateQrPayload } from '@/lib/parcel-serial';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { ROLES_DEROGATION_REINTEGRATION, resolveBonDistributionAutorise } from '@/lib/bon-distribution';
 
 // § Clôture de tournée : le Planner scanne un par un les colis non livrés que
@@ -33,20 +33,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       throw new ApiError(409, 'Cette tournée est déjà clôturée : plus aucun retour ne peut y être enregistré');
     }
 
-    const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
-    let codeSuivi = typeof body.codeSuivi === 'string' ? body.codeSuivi.trim().toUpperCase() : '';
-
-    if (qrPayload) {
-      const result = validateQrPayload(qrPayload);
-      if (!result.valid || result.parcelId === undefined) {
-        throw new ApiError(400, result.reason ?? 'QR code invalide');
-      }
-      codeSuivi = `PD-${String(result.parcelId).padStart(6, '0')}`;
-    }
-
-    if (!codeSuivi) {
-      throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
-    }
+    const codeSuivi = codeSuiviDepuisScan(
+      typeof body.qrPayload === 'string' ? body.qrPayload : '',
+      typeof body.codeSuivi === 'string' ? body.codeSuivi : ''
+    );
 
     const commande = await prisma.commande.findUnique({ where: { codeSuivi } });
     if (!commande) {

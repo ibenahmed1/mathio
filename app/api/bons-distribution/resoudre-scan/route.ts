@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { ApiError, jsonError, requireUser } from '@/lib/api-utils';
-import { validateQrPayload } from '@/lib/parcel-serial';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { resolveUserHub } from '@/lib/hub-envoi';
 import { LABELS_STATUT_COMMANDE } from '@/lib/statuts';
 
@@ -30,20 +30,10 @@ export async function POST(request: Request) {
     const session = await requireUser(['admin', 'planner']);
     const body = await request.json();
 
-    const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
-    let codeSuivi = typeof body.codeSuivi === 'string' ? body.codeSuivi.trim().toUpperCase() : '';
-
-    if (qrPayload) {
-      const result = validateQrPayload(qrPayload);
-      if (!result.valid || result.parcelId === undefined) {
-        throw new ApiError(400, result.reason ?? 'QR code invalide');
-      }
-      codeSuivi = `PD-${String(result.parcelId).padStart(6, '0')}`;
-    }
-
-    if (!codeSuivi) {
-      throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
-    }
+    const codeSuivi = codeSuiviDepuisScan(
+      typeof body.qrPayload === 'string' ? body.qrPayload : '',
+      typeof body.codeSuivi === 'string' ? body.codeSuivi : ''
+    );
 
     const commande = await prisma.commande.findUnique({
       where: { codeSuivi },

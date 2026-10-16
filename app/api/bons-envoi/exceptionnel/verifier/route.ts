@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ApiError, jsonError, requirePermission } from '@/lib/api-utils';
-import { validateQrPayload } from '@/lib/parcel-serial';
+import { codeSuiviDepuisScan } from '@/lib/scan-colis';
 import { verifierColisExceptionnel } from '@/lib/bon-envoi-exceptionnel';
 
 // § Bon d'envoi exceptionnel — scan d'un colis (douchette ou caméra). Ne mute
@@ -13,14 +13,10 @@ export async function POST(request: Request) {
     const prestataireId = typeof body.prestataireId === 'string' ? body.prestataireId.trim() : '';
     if (!prestataireId) throw new ApiError(400, 'Choisissez le transporteur');
 
-    const qrPayload = typeof body.qrPayload === 'string' ? body.qrPayload.trim() : '';
-    let codeSuivi = typeof body.codeSuivi === 'string' ? body.codeSuivi.trim().toUpperCase() : '';
-    if (qrPayload) {
-      const result = validateQrPayload(qrPayload);
-      if (!result.valid || result.parcelId === undefined) throw new ApiError(400, result.reason ?? 'QR code invalide');
-      codeSuivi = `PD-${String(result.parcelId).padStart(6, '0')}`;
-    }
-    if (!codeSuivi) throw new ApiError(400, 'codeSuivi ou qrPayload est requis');
+    const codeSuivi = codeSuiviDepuisScan(
+      typeof body.qrPayload === 'string' ? body.qrPayload : '',
+      typeof body.codeSuivi === 'string' ? body.codeSuivi : ''
+    );
 
     return NextResponse.json(await verifierColisExceptionnel(codeSuivi, prestataireId));
   } catch (error) {
