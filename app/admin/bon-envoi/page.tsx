@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, TriangleAlert } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import type { BonEnvoi } from '@/lib/types';
 import { BonEnvoiActionsMenu } from '@/components/BonEnvoiActionsMenu';
@@ -84,6 +84,14 @@ export default function AdminBonEnvoiPage() {
     <main className={s.main}>
       <header className={s.entete}>
         <h1 className={s.titre}>Bons d&apos;envoi</h1>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {/* Cas spécial : colis confiés hors des règles de routage, au scan
+            (§ lib/bon-envoi-exceptionnel.ts). Le serveur exige bon_envoi:create. */}
+        {user && user.role !== 'agent_hub' && (
+          <Link href="/admin/bon-envoi/creer/exceptionnel" className={s.btnNavy}>
+            <TriangleAlert className="h-4 w-4" /> BE exceptionnel
+          </Link>
+        )}
         {gereLesBons(user?.role) && (
           // Un bon d'envoi se compose depuis les colis prêts, transporteur par
           // transporteur (/admin/bon-envoi/prets) ; la pastille dit combien attendent.
@@ -96,6 +104,7 @@ export default function AdminBonEnvoiPage() {
             )}
           </Link>
         )}
+        </div>
       </header>
 
       {/* ===== Cadrans (ceux de l'Accueil) ===== */}
@@ -185,7 +194,10 @@ export default function AdminBonEnvoiPage() {
                         </span>
                         <span style={{ minWidth: 0 }}>
                           <span className={s.destNom}>{nom}</span>
-                          <span className={s.destSous}>{sous}</span>
+                          <span className={s.destSous}>
+                            {b.exceptionnel ? <strong style={{ color: '#E56A00' }}>Exceptionnel · </strong> : null}
+                            {sous}
+                          </span>
                         </span>
                       </span>
                     </td>

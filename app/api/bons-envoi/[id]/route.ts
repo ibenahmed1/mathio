@@ -18,6 +18,7 @@ const bonEnvoiInclude = {
   // place de hubDestination sur un bon sous-traité, jamais en plus.
   prestataire: { select: { id: true, nom: true } },
   receptionnaire: { select: { nomComplet: true } },
+  creePar: { select: { nomComplet: true } },
   commandes: {
     include: { marchand: { select: { nomBoutique: true } }, hubActuel: { select: { id: true, nom: true, ville: true } } },
     orderBy: { codeSuivi: 'asc' as const },

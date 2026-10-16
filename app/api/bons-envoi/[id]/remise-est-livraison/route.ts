@@ -3,6 +3,7 @@ import { jsonError } from '@/lib/api-utils';
 import { requirePilotageTransporteur } from '@/lib/garde-transporteur';
 import { remettreBonEnvoiEst } from '@/lib/remise-est-livraison';
 import { destinatairesBackoffice, notifier } from '@/lib/notifications';
+import { refuserRemiseApiSiExceptionnel } from '@/lib/bon-envoi-exceptionnel';
 
 // § EST Livraison — remet par leur API les colis d'un bon d'envoi qui leur est
 // destiné (lib/remise-est-livraison.ts). Toujours 200 quand le bon a pu être
@@ -11,6 +12,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   try {
     const session = await requirePilotageTransporteur();
     const { id } = await params;
+    await refuserRemiseApiSiExceptionnel(id, 'EST Livraison');
     const resultat = await remettreBonEnvoiEst(id, session.sub);
 
     // § Notifications : des colis restés chez nous, à reprendre par un autre

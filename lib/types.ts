@@ -316,6 +316,10 @@ export interface BonEnvoi {
   // le colis ne transite par aucun quai à nous.
   prestataire?: { id: string; nom: string } | null;
   receptionnaire?: { nomComplet: string } | null;
+  // § BE exceptionnel (lib/bon-envoi-exceptionnel.ts) : hors règles de routage.
+  exceptionnel?: boolean;
+  motifExceptionnel?: string | null;
+  creePar?: { nomComplet: string } | null;
 }
 
 // § Étape 1 du wizard de création (GET /api/bons-distribution/zones) : un
