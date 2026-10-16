@@ -1,5 +1,6 @@
 import { ApiError } from '@/lib/api-utils';
 import { normaliserCodeColis } from '@/lib/code-colis';
+import { remettreTirets } from '@/lib/douchette';
 import { validateQrPayload } from '@/lib/parcel-serial';
 
 // Normalise ce qu'un écran de scan envoie vers un codeSuivi canonique
@@ -10,7 +11,8 @@ import { validateQrPayload } from '@/lib/parcel-serial';
 // Les écrans envoient `qrPayload` quand la lecture contient un point, sinon
 // `codeSuivi` : le nouveau QR arrive donc par `codeSuivi`.
 export function codeSuiviDepuisScan(qrPayload: string, codeSuiviSaisi: string): string {
-  const qr = qrPayload.trim();
+  // Mac en AZERTY : la douchette tape « § » pour « - » (lib/douchette.ts).
+  const qr = remettreTirets(qrPayload.trim());
   if (qr.includes('.')) {
     const result = validateQrPayload(qr);
     if (!result.valid || result.parcelId === undefined) {

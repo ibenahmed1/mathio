@@ -16,6 +16,13 @@ const CHIFFRE_AZERTY: Record<string, string> = {
   '&': '1', 'é': '2', '"': '3', "'": '4', '(': '5', '-': '6', 'è': '7', '_': '8', 'ç': '9', 'à': '0',
 };
 
+// Sur Mac en AZERTY, la douchette tape « § » à la place de chaque tiret :
+// `AIT§ZJRARH§151026.4E` constaté le 16/10 pour `AIT-ZJRARH-151026.4E`.
+// Aucun de nos codes ne contient de « § ».
+export function remettreTirets(code: string): string {
+  return code.replace(/§/g, '-');
+}
+
 export type LectureDouchette =
   | { etat: 'vide' }
   /** Numéro de série reçu, signature pas encore arrivée : ne pas valider. */
@@ -24,7 +31,7 @@ export type LectureDouchette =
   | { etat: 'complet'; code: string; qr: boolean };
 
 export function lireDouchette(valeur: string): LectureDouchette {
-  const brut = valeur.trim();
+  const brut = remettreTirets(valeur.trim());
   if (!brut) return { etat: 'vide' };
 
   const m = SERIE_PUIS_RESTE.exec(brut);

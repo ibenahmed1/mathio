@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { codeEtiquette, normaliserCodeColis } from '@/lib/code-colis';
+import { lireDouchette } from '@/lib/douchette';
 import { buildParcelLabel } from '@/lib/parcel-label';
 import { buildQrPayload, generateParcelSerial } from '@/lib/parcel-serial';
 import { codeSuiviDepuisScan } from '@/lib/scan-colis';
@@ -36,4 +37,15 @@ test('un ancien QR à la signature fausse reste refusé', () => {
 
 test('un scan vide est refusé', () => {
   assert.throws(() => codeSuiviDepuisScan('', '  '), /requis/);
+});
+
+// Douchette sur Mac en AZERTY : « § » à la place de chaque tiret (16/10).
+test('les « § » d\'une douchette sur Mac redeviennent des tirets', () => {
+  assert.equal(codeSuiviDepuisScan('', 'MTH§PD§000123'), 'PD-000123');
+
+  const ancien = buildQrPayload(generateParcelSerial('AGA', 123, new Date(2026, 8, 7)));
+  assert.equal(codeSuiviDepuisScan(ancien.replace(/-/g, '§'), ''), 'PD-000123');
+
+  const lecture = lireDouchette(ancien.replace(/-/g, '§'));
+  assert.deepEqual(lecture, { etat: 'complet', code: ancien, qr: true });
 });
